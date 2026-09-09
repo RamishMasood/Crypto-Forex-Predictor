@@ -65,6 +65,15 @@ class ConfluenceEngine:
             trend_score -= 10.0
             reasons.append("Momentum: MACD Histogram negative and declining (-10)")
 
+        # Kaufman Efficiency Ratio (KER) filter
+        ker = last_row.get('kaufman_er', 0.30)
+        if ker > 0.38:
+            trend_score *= 1.20
+            reasons.append(f"Efficiency: High signal-to-noise trending efficiency (KER={ker:.2f} > 0.38)")
+        elif ker < 0.20:
+            trend_score *= 0.80
+            reasons.append(f"Efficiency: Market noise dominant — trend signals dampened (KER={ker:.2f} < 0.20)")
+
         # ADX Trend Filter
         adx = last_row.get('adx_14', 20.0)
         if adx > 25:
@@ -76,16 +85,35 @@ class ConfluenceEngine:
         score += trend_score
 
         # ==========================================
-        # LAYER 2: SMART MONEY CONCEPTS (Weight: 25%)
+        # LAYER 2: SMART MONEY CONCEPTS & OTE (Weight: 25%)
         # ==========================================
         smc_score = 0.0
-        structure = smc_data.get('structure', {}).get('structure', 'NEUTRAL')
+        struct_info = smc_data.get('structure', {})
+        structure = struct_info.get('structure', 'NEUTRAL')
+        market_zone = struct_info.get('market_zone', 'EQUILIBRIUM')
+        in_bull_ote = struct_info.get('in_bull_ote', False)
+        in_bear_ote = struct_info.get('in_bear_ote', False)
+
         if structure == 'BULLISH':
             smc_score += 12.0
             reasons.append("SMC: Bullish Break of Structure (BOS) detected (+12)")
         elif structure == 'BEARISH':
             smc_score -= 12.0
             reasons.append("SMC: Bearish Break of Structure (BOS) detected (-12)")
+
+        # Institutional Fibonacci Golden Pocket (OTE: 61.8% - 78.6% retracement)
+        if in_bull_ote and structure != 'BEARISH':
+            smc_score += 10.0
+            reasons.append("SMC: Price in Institutional Bullish OTE Golden Pocket (61.8% - 78.6% Fib) (+10)")
+        elif in_bear_ote and structure != 'BULLISH':
+            smc_score -= 10.0
+            reasons.append("SMC: Price in Institutional Bearish OTE Golden Pocket (61.8% - 78.6% Fib) (-10)")
+        elif market_zone == 'DISCOUNT' and structure == 'BULLISH':
+            smc_score += 5.0
+            reasons.append("SMC: Price in Discount Buying Zone (<50% range) (+5)")
+        elif market_zone == 'PREMIUM' and structure == 'BEARISH':
+            smc_score -= 5.0
+            reasons.append("SMC: Price in Premium Selling Zone (>50% range) (-5)")
 
         fvgs = smc_data.get('fvgs', [])
         active_bull_fvgs = [f for f in fvgs if f['type'] == 'BULLISH_FVG' and not f['mitigated']]
@@ -101,7 +129,7 @@ class ConfluenceEngine:
             smc_score -= 8.0
             reasons.append("SMC: Price retesting Bearish FVG Resistance zone (-8)")
 
-        sweep = smc_data.get('structure', {}).get('liquidity_sweep', 'NONE')
+        sweep = struct_info.get('liquidity_sweep', 'NONE')
         if sweep == 'BULLISH_SELL_SIDE_LIQUIDITY_SWEPT':
             smc_score += 8.0
             reasons.append("SMC: Sell-side liquidity swept — Bullish Fakeout (+8)")
@@ -112,12 +140,13 @@ class ConfluenceEngine:
         score += smc_score
 
         # ==========================================
-        # LAYER 3: STATISTICAL MEAN REVERSION (Weight: 15%)
+        # LAYER 3: STATISTICAL MEAN REVERSION & CMO (Weight: 15%)
         # ==========================================
         stat_score = 0.0
         rsi = last_row.get('rsi_14', 50.0)
         stoch_k = last_row.get('stoch_rsi_k', 50.0)
         stoch_d = last_row.get('stoch_rsi_d', 50.0)
+        cmo = last_row.get('cmo_14', 0.0)
 
         if rsi < 30 and stoch_k < 20 and stoch_k > stoch_d:
             stat_score += 15.0
@@ -132,13 +161,21 @@ class ConfluenceEngine:
             stat_score -= 7.0
             reasons.append(f"Oscillators: Bearish momentum turning down (RSI={rsi:.1f}) (-7)")
 
+        # Chande Momentum Oscillator extreme velocity
+        if cmo < -50.0:
+            stat_score += 6.0
+            reasons.append(f"Oscillators: Chande Momentum deeply oversold (CMO={cmo:.1f}) (+6)")
+        elif cmo > 50.0:
+            stat_score -= 6.0
+            reasons.append(f"Oscillators: Chande Momentum deeply overbought (CMO={cmo:.1f}) (-6)")
+
         if last_row.get('bb_squeeze', False):
             reasons.append("Volatility: Bollinger Band Squeeze — explosive breakout imminent")
 
         score += stat_score
 
         # ==========================================
-        # LAYER 4: MACHINE LEARNING ENSEMBLE (Weight: 20%)
+        # LAYER 4: MULTI-MODEL ML ENSEMBLE (Weight: 20%)
         # ==========================================
         ml_score = 0.0
         p_bull = ml_prediction.get('p_bullish', 0.33)
@@ -148,18 +185,18 @@ class ConfluenceEngine:
         if p_bull > p_bear and ml_conf > 15:
             ml_points = min(20.0, (p_bull - p_bear) * 40.0)
             ml_score += ml_points
-            reasons.append(f"ML: Bullish consensus P(Long)={p_bull*100:.1f}%, Conf={ml_conf:.1f}% (+{ml_points:.1f})")
+            reasons.append(f"ML Ensemble: Bullish consensus P(Long)={p_bull*100:.1f}%, Conf={ml_conf:.1f}% (+{ml_points:.1f})")
         elif p_bear > p_bull and ml_conf > 15:
             ml_points = min(20.0, (p_bear - p_bull) * 40.0)
             ml_score -= ml_points
-            reasons.append(f"ML: Bearish consensus P(Short)={p_bear*100:.1f}%, Conf={ml_conf:.1f}% (-{ml_points:.1f})")
+            reasons.append(f"ML Ensemble: Bearish consensus P(Short)={p_bear*100:.1f}%, Conf={ml_conf:.1f}% (-{ml_points:.1f})")
         else:
-            reasons.append(f"ML: Neutral distribution (P(Long)={p_bull*100:.1f}%, P(Short)={p_bear*100:.1f}%)")
+            reasons.append(f"ML Ensemble: Neutral distribution (P(Long)={p_bull*100:.1f}%, P(Short)={p_bear*100:.1f}%)")
 
         score += ml_score
 
         # ==========================================
-        # LAYER 5: ORDER BOOK PRESSURE (Weight: 10%)
+        # LAYER 5: ORDER BOOK & DELTA FLOW (Weight: 10%)
         # ==========================================
         ob_score = 0.0
         if orderbook_metrics and orderbook_metrics.get('available'):
@@ -172,6 +209,15 @@ class ConfluenceEngine:
                 reasons.append(f"Order Flow: Heavy Seller dominance ({imbalance*100:+.1f}% depth) (-10)")
             else:
                 reasons.append(f"Order Flow: Balanced Bid/Ask depth ({imbalance*100:+.1f}%)")
+
+        cvd_z = last_row.get('cvd_zscore', 0.0)
+        if cvd_z > 1.8:
+            ob_score += 6.0
+            reasons.append(f"Delta Flow: Institutional Aggressive Absorption Buying (CVD Z-Score = {cvd_z:+.2f}) (+6)")
+        elif cvd_z < -1.8:
+            ob_score -= 6.0
+            reasons.append(f"Delta Flow: Institutional Aggressive Absorption Selling (CVD Z-Score = {cvd_z:+.2f}) (-6)")
+
         score += ob_score
 
         # ==========================================

@@ -96,6 +96,8 @@ class QuantitativeIndicators:
 
         # 13. Choppiness Index & Hurst Exponent (AlphaRegime Analysis)
         df = QuantitativeIndicators._calculate_choppiness(df, period=14)
+        df = QuantitativeIndicators._calculate_efficiency_ratio(df, period=10)
+        df = QuantitativeIndicators._calculate_cmo(df, period=14)
         df = QuantitativeIndicators._calculate_hurst(df, max_lag=20)
 
         return df
@@ -109,14 +111,20 @@ class QuantitativeIndicators:
         basic_lower = hl2 - (multiplier * atr)
 
         n = len(df)
+        bu = basic_upper.values
+        bl = basic_lower.values
+        close = df['close'].values
+
         final_upper = np.zeros(n)
         final_lower = np.zeros(n)
         supertrend = np.zeros(n)
         direction = np.zeros(n) # 1 = Bullish, -1 = Bearish
 
-        close = df['close'].values
-        bu = basic_upper.values
-        bl = basic_lower.values
+        if n > 0:
+            final_upper[0] = bu[0]
+            final_lower[0] = bl[0]
+            supertrend[0] = bu[0]
+            direction[0] = 1 if close[0] >= bl[0] else -1
 
         for i in range(1, n):
             # Final Upper Band
@@ -228,6 +236,11 @@ class QuantitativeIndicators:
         bull_div = (df['low'] <= price_low_10 * 1.002) & (df['cvd'] > cvd_low_10 * 1.05)
         bear_div = (df['high'] >= price_high_10 * 0.998) & (df['cvd'] < cvd_high_10 * 0.95)
 
+        # Standardized CVD Z-Score (Institutional aggression anomalies)
+        cvd_mean = df['cvd'].rolling(window=20, min_periods=3).mean()
+        cvd_std = df['cvd'].rolling(window=20, min_periods=3).std().replace(0, 1e-9)
+        df['cvd_zscore'] = ((df['cvd'] - cvd_mean) / cvd_std).fillna(0.0).clip(-4.0, 4.0)
+
         df['cvd_bull_div'] = bull_div
         df['cvd_bear_div'] = bear_div
         return df
@@ -274,22 +287,51 @@ class QuantitativeIndicators:
                 # Avoid zero or nan
                 tau = [max(t, 1e-9) for t in tau]
                 poly = np.polyfit(log_lags, np.log(tau), 1)
-                h = poly[0] * 2.0
+                h = poly[0]
                 hurst_series[i] = np.clip(h, 0.1, 0.95)
             except Exception:
                 hurst_series[i] = 0.50
 
         df['hurst_exponent'] = np.round(hurst_series, 3)
 
-        # AlphaRegime Classification
+        # AlphaRegime Classification with Kaufman ER & Choppiness confluence
         regimes = []
-        for h, chop, c, e50 in zip(df['hurst_exponent'], df['choppiness'], df['close'], df.get('ema_50', df['close'])):
-            if chop < 42.0 and h > 0.52:
+        ker_vals = df.get('kaufman_er', pd.Series(0.3, index=df.index))
+        for h, chop, ker, c, e50 in zip(df['hurst_exponent'], df['choppiness'], ker_vals, df['close'], df.get('ema_50', df['close'])):
+            if (chop < 42.0 and h > 0.52) or (ker > 0.40 and chop < 48.0):
                 regimes.append('TRENDING_BULL' if c >= e50 else 'TRENDING_BEAR')
-            elif chop > 58.0 or h < 0.45:
+            elif chop > 58.0 or h < 0.45 or (ker < 0.18 and chop > 48.0):
                 regimes.append('MEAN_REVERTING')
             else:
                 regimes.append('RANDOM_WALK_NOISE')
 
         df['alpha_regime'] = regimes
+        return df
+
+    @staticmethod
+    def _calculate_efficiency_ratio(df: pd.DataFrame, period: int = 10) -> pd.DataFrame:
+        """
+        Kaufman Efficiency Ratio (KER):
+        Directional change / Total path volatility.
+        KER > 0.38 indicates high signal-to-noise persistent trend.
+        KER < 0.20 indicates noisy random walk / choppy whipsaw.
+        """
+        change = (df['close'] - df['close'].shift(period)).abs()
+        volatility = (df['close'] - df['close'].shift(1)).abs().rolling(window=period, min_periods=1).sum().replace(0, 1e-9)
+        df['kaufman_er'] = (change / volatility).clip(0.0, 1.0).fillna(0.30)
+        return df
+
+    @staticmethod
+    def _calculate_cmo(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+        """
+        Chande Momentum Oscillator (CMO):
+        Measures pure price velocity without asymmetric smoothing bias.
+        CMO > +50 indicates extreme bullish breakout momentum.
+        CMO < -50 indicates extreme bearish breakdown momentum.
+        """
+        delta = df['close'].diff()
+        gain = delta.where(delta > 0, 0.0).rolling(window=period, min_periods=1).sum()
+        loss = (-delta.where(delta < 0, 0.0)).rolling(window=period, min_periods=1).sum()
+        denom = (gain + loss).replace(0, 1e-9)
+        df['cmo_14'] = ((gain - loss) / denom * 100.0).clip(-100.0, 100.0).fillna(0.0)
         return df

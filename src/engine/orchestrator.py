@@ -187,6 +187,8 @@ class PredictorOrchestrator:
         )
 
         effective_action = alpha_sniper['gated_action'] if 'FILTERED' in alpha_sniper['gated_action'] else confluence['action']
+        confluence['unfiltered_action'] = confluence.get('action')
+        confluence['action'] = effective_action
 
         # ────────────────────────────────────────────────────
         # STEP 8: INSTITUTIONAL RISK MANAGEMENT
@@ -245,9 +247,14 @@ class PredictorOrchestrator:
                 'vwap': round(float(latest_ind.get('vwap', current_price)), 4),
                 'vwap_bias': str(latest_ind.get('vwap_bias', 'NEUTRAL')),
                 'cvd': round(float(latest_ind.get('cvd', 0)), 2),
+                'cvd_zscore': round(float(latest_ind.get('cvd_zscore', 0)), 2),
                 'choppiness': round(float(latest_ind.get('choppiness', 50)), 2),
                 'hurst_exponent': round(float(latest_ind.get('hurst_exponent', 0.5)), 3),
+                'kaufman_er': round(float(latest_ind.get('kaufman_er', 0.3)), 3),
+                'cmo_14': round(float(latest_ind.get('cmo_14', 0.0)), 2),
                 'alpha_regime': str(latest_ind.get('alpha_regime', 'RANDOM_WALK_NOISE')),
+                'market_zone': str(market_structure.get('market_zone', 'EQUILIBRIUM')),
+                'in_ote': bool(market_structure.get('in_bull_ote', False) or market_structure.get('in_bear_ote', False)),
                 'atr_14': round(atr_val, 5),
                 'bb_squeeze': bool(latest_ind.get('bb_squeeze', False)),
                 'stoch_rsi_k': round(float(latest_ind.get('stoch_rsi_k', 50)), 2),

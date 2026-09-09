@@ -26,24 +26,39 @@ class RiskManager:
         """
         Generates precise entry, stop loss, 3 take profit targets, and position sizing.
         """
-        if action in ['NEUTRAL', 'HOLD']:
+        clean_action = str(action).upper().strip()
+        is_neutral_or_filtered = (
+            'NEUTRAL' in clean_action or
+            'HOLD' in clean_action or
+            'FILTER' in clean_action or
+            'PRESERVATION' in clean_action or
+            not ('BUY' in clean_action or 'SELL' in clean_action)
+        )
+        if is_neutral_or_filtered:
             return {
-                'action': 'NEUTRAL',
+                'action': clean_action,
                 'status': 'NO_TRADE_SETUP',
-                'recommended_entry': current_price,
-                'stop_loss': current_price,
-                'tp1': current_price,
-                'tp2': current_price,
-                'tp3': current_price,
+                'recommended_entry': round(current_price, 5),
+                'stop_loss': round(current_price, 5),
+                'invalidation_level': round(current_price, 5),
+                'sl_distance_pct': 0.0,
+                'tp1': round(current_price, 5),
+                'tp1_gain_pct': 0.0,
+                'tp2': round(current_price, 5),
+                'tp2_gain_pct': 0.0,
+                'tp3': round(current_price, 5),
+                'tp3_gain_pct': 0.0,
                 'risk_reward_ratio': '0:0',
                 'risk_amount_usd': 0.0,
                 'suggested_position_usd': 0.0,
                 'suggested_units': 0.0,
-                'kelly_fraction_pct': 0.0
+                'half_kelly_pct': 0.0,
+                'expectancy_r': 0.0,
+                'expected_pnl_usd': 0.0
             }
 
         atr = max(atr, current_price * 0.002) # Fallback minimum ATR
-        is_long = 'BUY' in action
+        is_long = 'BUY' in clean_action
 
         # Entry Price determination (current price or optimal pullback)
         entry_price = current_price
@@ -71,10 +86,10 @@ class RiskManager:
                 stop_loss = atr_sl
             risk_per_unit = max(stop_loss - entry_price, entry_price * 0.002)
 
-            # Take Profit targets
-            tp1 = entry_price - (1.5 * risk_per_unit)
-            tp2 = entry_price - (2.5 * risk_per_unit)
-            tp3 = entry_price - (4.0 * risk_per_unit)
+            # Take Profit targets (bounded above 0)
+            tp1 = max(entry_price * 0.001, entry_price - (1.5 * risk_per_unit))
+            tp2 = max(entry_price * 0.001, entry_price - (2.5 * risk_per_unit))
+            tp3 = max(entry_price * 0.001, entry_price - (4.0 * risk_per_unit))
 
         # Position Sizing
         risk_capital_usd = account_size_usd * (risk_per_trade_pct / 100.0)
@@ -83,17 +98,25 @@ class RiskManager:
 
         # Half-Kelly sizing: f = (p * b - q) / b
         b = 2.5 # Using TP2 payoff ratio
-        p = max(0.40, min(0.85, win_probability))
+        p = max(0.40, min(0.97, win_probability))
         q = 1.0 - p
         full_kelly = max(0.0, (p * b - q) / b)
         half_kelly_pct = (full_kelly * 0.5) * 100.0 # Conservative Half-Kelly
 
+        # Mathematical Trade Expectancy
+        expectancy_r = round((p * b) - (q * 1.0), 2)
+        expected_pnl_usd = round(risk_capital_usd * expectancy_r, 2)
+
+        # Invalidation Level: Structural invalidation mark
+        invalidation_level = stop_loss
+
         return {
-            'action': action,
+            'action': clean_action,
             'status': 'ACTIVE_SETUP',
             'current_price': round(current_price, 5),
             'recommended_entry': round(entry_price, 5),
             'stop_loss': round(stop_loss, 5),
+            'invalidation_level': round(invalidation_level, 5),
             'sl_distance_pct': round((abs(entry_price - stop_loss) / entry_price) * 100.0, 2),
             'tp1': round(tp1, 5),
             'tp1_gain_pct': round((abs(tp1 - entry_price) / entry_price) * 100.0, 2),
@@ -105,5 +128,7 @@ class RiskManager:
             'risk_amount_usd': round(risk_capital_usd, 2),
             'suggested_position_usd': round(position_size_usd, 2),
             'suggested_units': round(units, 4),
-            'half_kelly_pct': round(half_kelly_pct, 1)
+            'half_kelly_pct': round(half_kelly_pct, 1),
+            'expectancy_r': expectancy_r,
+            'expected_pnl_usd': expected_pnl_usd
         }

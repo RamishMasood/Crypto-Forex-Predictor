@@ -305,6 +305,14 @@ with t5:
 # ── ALPHASNIPER PROPRIETARY INTELLIGENCE BANNER ──
 if alpha:
     tier_bg = alpha.get('tier_color', '#00e676')
+    win_exp = alpha.get('calibrated_win_probability_pct', 50)
+    exp_r = alpha.get('trade_expectancy_r', 0)
+    ker_val = alpha.get('kaufman_er', 0.3)
+    cmo_val = alpha.get('cmo_14', 0)
+    st_struct = smc.get('structure', {}) if smc else {}
+    mkt_zone = st_struct.get('market_zone', 'EQUILIBRIUM')
+    ote_tag = ' | [OTE GOLDEN POCKET]' if (st_struct.get('in_bull_ote') or st_struct.get('in_bear_ote')) else ''
+
     st.markdown(
         f"<div style='background:linear-gradient(135deg,#161b22,#1c2333);border:1px solid #30363d;border-radius:12px;padding:14px 18px;margin:12px 0;'>"
         f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;'>"
@@ -314,15 +322,18 @@ if alpha:
         f"&nbsp;&nbsp;<span style='color:#c9d1d9;font-weight:700;font-size:1.02rem;'>AlphaSniper™ Proprietary Intelligence</span>"
         f"</div>"
         f"<div style='color:#69f0ae;font-size:1.15rem;font-weight:800;'>"
-        f"Calibrated Win Expectancy: {alpha.get('calibrated_win_probability_pct', 50):.1f}%"
+        f"Calibrated Win Expectancy: {win_exp:.1f}% | Expectancy: +{exp_r:.2f}R"
         f"</div>"
         f"</div>"
         f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:.82rem;color:#8b949e;'>"
         f"<div><b>AlphaRegime™:</b> <span style='color:#38bdf8;'>{alpha.get('alpha_regime')}</span></div>"
+        f"<div><b>Kaufman Efficiency (KER):</b> <span style='color:#c9d1d9;'>{ker_val:.3f}</span></div>"
+        f"<div><b>Chande Momentum (CMO):</b> <span style='color:#c9d1d9;'>{cmo_val:+.1f}</span></div>"
         f"<div><b>Hurst Exponent (H):</b> <span style='color:#c9d1d9;'>{alpha.get('hurst_exponent')}</span></div>"
         f"<div><b>Choppiness (CHOP):</b> <span style='color:#c9d1d9;'>{alpha.get('choppiness_index')}</span></div>"
         f"<div><b>Wyckoff Phase:</b> <span style='color:#facc15;'>{alpha.get('wyckoff_phase')}</span></div>"
         f"<div><b>Institutional Flow (IAI):</b> <span style='color:#a78bfa;'>{alpha.get('iai_status')}</span></div>"
+        f"<div><b>Market Zone:</b> <span style='color:#38bdf8;'>{mkt_zone}{ote_tag}</span></div>"
         f"</div>"
         f"</div>",
         unsafe_allow_html=True
@@ -487,8 +498,8 @@ with st.expander("Technical Indicators Summary", expanded=False):
         st.metric("EMA 20",         f"${ind['ema_20']:,.4f}")
         st.metric("EMA 50",         f"${ind['ema_50']:,.4f}")
     with ic4:
-        st.metric("EMA 200",        f"${ind['ema_200']:,.4f}")
-        st.metric("ATR (14)",       f"{ind['atr_14']:.4f}")
+        st.metric("Kaufman ER",     f"{ind.get('kaufman_er', 0.3):.3f}")
+        st.metric("Chande (CMO)",   f"{ind.get('cmo_14', 0):+.1f}")
 
 # ── TRADE SETUP ──────────────────────────────────────────────────────────────
 st.subheader("Institutional Trade Setup")
@@ -499,12 +510,12 @@ if setup['status'] == 'ACTIVE_SETUP':
         st.metric("Entry Zone", f"${setup['recommended_entry']:,.4f}")
     with sc2:
         st.metric("Stop Loss", f"${setup['stop_loss']:,.4f}", delta=f"-{setup['sl_distance_pct']}%", delta_color="inverse")
-        st.metric("Risk Capital", f"${setup['risk_amount_usd']:,.2f}")
+        st.metric("Invalidation Mark", f"${setup.get('invalidation_level', setup['stop_loss']):,.4f}")
     with sc3:
         st.metric("TP1 (1:1.5 R:R)", f"${setup['tp1']:,.4f}", delta=f"+{setup['tp1_gain_pct']}%")
         st.metric("TP2 (1:2.5 R:R)", f"${setup['tp2']:,.4f}", delta=f"+{setup['tp2_gain_pct']}%")
     with sc4:
-        st.metric("TP3 (Runner 1:4)", f"${setup['tp3']:,.4f}", delta=f"+{setup['tp3_gain_pct']}%")
+        st.metric("Expected Edge", f"+${setup.get('expected_pnl_usd', 0):,.2f}", delta=f"+{setup.get('expectancy_r', 0):.2f}R")
         st.metric("Half-Kelly Alloc", f"{setup['half_kelly_pct']}% of portfolio")
 else:
     st.info("No active setup — market neutral/consolidation. Capital preservation mode.")

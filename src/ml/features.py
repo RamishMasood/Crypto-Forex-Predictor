@@ -21,7 +21,9 @@ class FeatureEngineer:
         'rsi_norm', 'macd_norm', 'macd_slope_norm',
         'bb_pct_b', 'bb_width', 'atr_ratio',
         'adx_norm', 'supertrend_dir', 'ema_trend',
-        'vol_ratio'
+        'vol_ratio',
+        'kaufman_er', 'cmo_norm', 'cvd_zscore',
+        'hurst_norm', 'chop_norm', 'stoch_rsi_diff'
     ]
 
     @classmethod
@@ -81,12 +83,25 @@ class FeatureEngineer:
         else:
             feat['vol_ratio'] = 1.0
 
+        # 9. Advanced Quantitative Signals (KER, CMO, CVD Z-score, Hurst, Choppiness)
+        feat['kaufman_er'] = df['kaufman_er'] if 'kaufman_er' in df.columns else 0.30
+        feat['cmo_norm'] = (df['cmo_14'] / 100.0) if 'cmo_14' in df.columns else 0.0
+        feat['cvd_zscore'] = (df['cvd_zscore'] / 3.0).clip(-1.5, 1.5) if 'cvd_zscore' in df.columns else 0.0
+        feat['hurst_norm'] = ((df['hurst_exponent'] - 0.50) * 2.0).clip(-1.0, 1.0) if 'hurst_exponent' in df.columns else 0.0
+        feat['chop_norm'] = ((df['choppiness'] - 50.0) / 50.0).clip(-1.0, 1.0) if 'choppiness' in df.columns else 0.0
+
+        if 'stoch_rsi_k' in df.columns and 'stoch_rsi_d' in df.columns:
+            feat['stoch_rsi_diff'] = ((df['stoch_rsi_k'] - df['stoch_rsi_d']) / 50.0).clip(-1.0, 1.0)
+        else:
+            feat['stoch_rsi_diff'] = 0.0
+
         return feat[cls.FEATURE_COLUMNS].fillna(0.0)
 
     @classmethod
     def create_training_dataset(cls, df: pd.DataFrame, horizon: int = 3, threshold_pct: float = 0.25) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
         """
         Creates feature matrix X, classification target y_class (-1, 0, 1), and regression target y_reg (forward return %).
+        Adaptive thresholding adjusts to asset volatility (crypto vs forex).
         """
         X = cls.extract_features(df)
         
@@ -94,11 +109,26 @@ class FeatureEngineer:
         forward_close = df['close'].shift(-horizon)
         forward_return = ((forward_close - df['close']) / df['close']) * 100.0
 
+        # Adaptive threshold based on historical volatility
+        ret_std = float(df['close'].pct_change().std() * 100.0) if len(df) > 5 else threshold_pct
+        adaptive_thresh = max(0.03, min(threshold_pct, ret_std * 0.45))
+
         # Class labels: 1 = Bullish, -1 = Bearish, 0 = Neutral
         y_class = pd.Series(0, index=df.index)
-        y_class[forward_return > threshold_pct] = 1
-        y_class[forward_return < -threshold_pct] = -1
+        y_class[forward_return > adaptive_thresh] = 1
+        y_class[forward_return < -adaptive_thresh] = -1
 
-        # Drop the last 'horizon' rows where future data is unknown
         valid_mask = ~forward_return.isna()
+        valid_ret = forward_return[valid_mask]
+
+        # If low volatility or flat prices resulted in < 2 unique classes, apply quantile ternary split
+        if len(valid_ret) >= 15:
+            classes_in_valid = np.unique(y_class[valid_mask])
+            if len(classes_in_valid) < 2:
+                q_low = float(valid_ret.quantile(0.33))
+                q_high = float(valid_ret.quantile(0.67))
+                if q_high > q_low:
+                    y_class[valid_mask & (forward_return >= q_high)] = 1
+                    y_class[valid_mask & (forward_return <= q_low)] = -1
+
         return X[valid_mask], y_class[valid_mask], forward_return[valid_mask]
