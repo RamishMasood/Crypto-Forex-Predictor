@@ -62,6 +62,7 @@ with st.sidebar:
                     "DOGE/USDT","ADA/USDT","AVAX/USDT","LINK/USDT"]
 
     FOREX_PAIRS = ["EUR/USD","GBP/USD","USD/JPY","AUD/USD","XAU/USD","XAG/USD"]
+    is_mt5 = False
 
     if asset_class == "Cryptocurrency":
         symbol = st.selectbox("Symbol", CRYPTO_PAIRS)
@@ -77,9 +78,85 @@ with st.sidebar:
             st.caption(f"⚡ **Feed:** {exchange.upper()} Spot Order Book")
     else:
         symbol = st.selectbox("Pair", FOREX_PAIRS)
-        exchange = "TwelveData / Interbank"
         asset_code = "forex"
-        st.caption("⚡ **Feed:** Twelve Data (Exness-equivalent institutional feed)")
+        from src.data.forex_feeds import ForexFeedManager
+        ff = ForexFeedManager()
+
+        # Check session credentials if previously connected
+        if st.session_state.get('mt5_connected', False):
+            if not ff.is_mt5_connected():
+                ff.connect_mt5(
+                    login=st.session_state.get('mt5_login'),
+                    password=st.session_state.get('mt5_password'),
+                    server=st.session_state.get('mt5_server')
+                )
+
+        mt5_status = ff.get_mt5_status()
+        is_mt5 = mt5_status.get('connected', False)
+
+        if is_mt5:
+            exchange = "Exness MetaTrader 5"
+            acc_num = mt5_status.get('login', 'Exness')
+            srv_name = mt5_status.get('server', 'Real')
+            bal = mt5_status.get('balance', 0.0)
+            st.success(f"🟢 **Exness MT5 Active** (0-ms Direct)\n\n"
+                       f"👤 Account: `{acc_num}` | 🏢 `{srv_name}`\n\n"
+                       f"💰 Balance: `${bal:,.2f}` | ⚡ Direct Ticks")
+            if st.button("🔌 Disconnect MT5", key="mt5_disconnect_btn", use_container_width=True):
+                st.session_state['mt5_connected'] = False
+                st.session_state.pop('mt5_password', None)
+                st.rerun()
+        else:
+            exchange = "TwelveData / Interbank"
+            st.caption("⚡ **Feed:** Twelve Data / London Spot (Exness-equivalent)")
+            with st.expander("🔌 Connect Exness MT5 (0-ms Direct)", expanded=False):
+                if mt5_status.get('terminal_running'):
+                    st.info("ℹ️ **Exness MT5 is running on your PC**, but needs account authorization.")
+                else:
+                    st.warning("⚠️ **Exness MT5 is not running.** Please open MetaTrader 5.")
+
+                st.markdown("""
+                **Option 1: Desktop MT5 App (Recommended)**
+                1. Open **MetaTrader 5 EXNESS** on your Windows PC.
+                2. Go to **File ➔ Login to Trade Account**.
+                3. Enter your Login, Server (`Exness-MT5Real34`), Password.
+                4. ✅ **Tick 'Save password' checkbox!**
+                5. Once MT5 shows green connection bars, click below:
+                """)
+                if st.button("🔄 Re-Check MT5 Connection", key="recheck_mt5_btn", use_container_width=True):
+                    res = ff.connect_mt5()
+                    if res.get('connected'):
+                        st.session_state['mt5_connected'] = True
+                        st.success("🟢 Connected to Exness MT5!")
+                        st.rerun()
+                    else:
+                        st.error(f"Authorization pending: {res.get('last_error')}")
+
+                st.markdown("---")
+                st.markdown("""
+                **Option 2: Direct Broker Login**
+                *(Tip: You can use your Exness **Investor / Read-Only Password** for 100% fund safety. Investor passwords only read prices, never trade!)*
+                """)
+                srv_in = st.text_input("Server", value=st.session_state.get('mt5_server', "Exness-MT5Real34"), key="mt5_srv_input")
+                acc_in = st.text_input("Login ID", value=st.session_state.get('mt5_login', "253508718"), key="mt5_acc_input")
+                pwd_in = st.text_input("Password (Trading or Investor)", type="password", placeholder="Enter MT5 password", key="mt5_pwd_input")
+
+                if st.button("🔐 Connect MT5 Directly", type="primary", key="direct_mt5_login_btn", use_container_width=True):
+                    if not pwd_in:
+                        st.warning("Please enter your MT5 password.")
+                    else:
+                        with st.spinner("Connecting directly to Exness terminal..."):
+                            res = ff.connect_mt5(login=acc_in, password=pwd_in, server=srv_in)
+                            if res.get('connected'):
+                                st.session_state['mt5_connected'] = True
+                                st.session_state['mt5_login'] = acc_in
+                                st.session_state['mt5_server'] = srv_in
+                                st.session_state['mt5_password'] = pwd_in
+                                st.success("🟢 Successfully connected to Exness MT5!")
+                                st.rerun()
+                            else:
+                                err = res.get('last_error')
+                                st.error(f"❌ Connection failed: {err}. Please check your password and server name.")
 
     timeframe = st.selectbox("Timeframe", ["3m","5m","15m","30m","1h","4h","1d"], index=1)
 
@@ -87,6 +164,16 @@ with st.sidebar:
     st.subheader("Risk")
     account = st.number_input("Balance (USD)", min_value=100.0, value=10000.0, step=500.0)
     risk_pct = st.slider("Risk % per trade", 0.25, 5.0, 1.5, 0.25)
+
+    st.divider()
+    auto_refresh = st.toggle("⚡ Real-Time Live Ticker (Auto-Sync)", value=False)
+    if auto_refresh:
+        refresh_interval = st.selectbox("Refresh Frequency", [5, 10, 30], index=0, format_func=lambda x: f"Every {x} seconds")
+        try:
+            from streamlit_autorefresh import st_autorefresh
+            st_autorefresh(interval=refresh_interval * 1000, key="data_auto_sync")
+        except Exception:
+            pass
 
     st.divider()
     run_btn = st.button("🔄 ANALYZE LIVE", type="primary", use_container_width=True)
@@ -225,15 +312,16 @@ def render_deriv(fut_d, df_indicators):
 
 # ── RUN ENGINE ────────────────────────────────────────────────────────────
 # Cache key so we only re-run when inputs actually change
-cache_key = f"{symbol}|{asset_code}|{market_mode_label}|{timeframe}|{exchange}|{account}|{risk_pct}"
+cache_key = f"{symbol}|{asset_code}|{market_mode_label}|{timeframe}|{exchange}|{account}|{risk_pct}|mt5_{is_mt5}"
 
 if "result" not in st.session_state:
     st.session_state.result = None
     st.session_state.cache_key = ""
 
-# Auto-trigger on first load OR when button pressed OR when params change
+# Auto-trigger on first load OR when button pressed OR when params change OR when auto-refresh is active
 should_run = (
     run_btn
+    or auto_refresh
     or st.session_state.result is None
     or st.session_state.cache_key != cache_key
 )
@@ -584,8 +672,17 @@ t1, t2, t3, t4, t5 = st.columns([2,1.5,1.5,1.5,1.5])
 with t1:
     st.markdown(action_html(action), unsafe_allow_html=True)
 with t2:
+    bid_ask_cap = ""
+    tick_obj = mkt.get('ticker') or {}
+    b_val = tick_obj.get('bid')
+    a_val = tick_obj.get('ask')
+    if b_val is not None and a_val is not None:
+        dec = 3 if ('XAU' in symbol or 'JPY' in symbol) else 5
+        bid_ask_cap = f"Bid {b_val:.{dec}f} | Ask {a_val:.{dec}f}"
     st.metric("Live Price", f"${curr_p:,.4f}" if curr_p > 1 else f"${curr_p:.6f}",
-              delta=f"{chg:+.2f}%")
+              delta=f"{chg:+.2f}%" if chg else None)
+    if bid_ask_cap:
+        st.caption(f"⚡ `{bid_ask_cap}`")
 with t3:
     st.metric("Confluence Score", f"{conf['confluence_score']:+.1f} / 100")
 with t4:

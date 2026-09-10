@@ -9,6 +9,7 @@ NOTE: Exness has NO public REST API (MT4/MT5 protocol only).
       Twelve Data is the best publicly-available equivalent.
 """
 
+import os
 import time
 import requests
 import pandas as pd
@@ -74,6 +75,240 @@ YFINANCE_TIMEFRAME_MAP = {
     '4h': {'period': '2y', 'interval': '1h'}, # can resample to 4h
     '1d': {'period': '2y', 'interval': '1d'}
 }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MetaTrader 5 (MT5 / Exness) Provider — Direct Zero-Latency Broker Terminal
+# ─────────────────────────────────────────────────────────────────────────────
+class MT5ExnessProvider:
+    """
+    Direct MetaTrader 5 (MT5 / Exness) Real-Time Data Provider.
+    Pulls tick-by-tick real-time bid/ask and OHLCV bars directly from
+    the running MetaTrader 5 EXNESS terminal with 0.00-ms broker latency.
+    """
+    EXNESS_PATH = r"C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe"
+    DEFAULT_PATH = r"C:\Program Files\MetaTrader 5\terminal64.exe"
+
+    MT5_TF_MAP = {
+        '1m': 1,     # mt5.TIMEFRAME_M1
+        '3m': 3,     # mt5.TIMEFRAME_M3
+        '5m': 5,     # mt5.TIMEFRAME_M5
+        '15m': 15,   # mt5.TIMEFRAME_M15
+        '30m': 30,   # mt5.TIMEFRAME_M30
+        '1h': 16385, # mt5.TIMEFRAME_H1
+        '4h': 16388, # mt5.TIMEFRAME_H4
+        '1d': 16408  # mt5.TIMEFRAME_D1
+    }
+
+    def __init__(self, terminal_path: Optional[str] = None, login: Optional[int] = None, password: Optional[str] = None, server: Optional[str] = None):
+        self.terminal_path = terminal_path or (
+            self.EXNESS_PATH if os.path.exists(self.EXNESS_PATH) else self.DEFAULT_PATH
+        )
+        self.login_id = login or (int(os.getenv('MT5_LOGIN')) if os.getenv('MT5_LOGIN') else None)
+        self.password = password or os.getenv('MT5_PASSWORD')
+        self.server = server or os.getenv('MT5_SERVER')
+        self.is_connected = False
+        self._last_error = (0, "No error")
+        self._check_connection()
+
+    def connect(self, login: Optional[int] = None, password: Optional[str] = None, server: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Explicitly connect or log into MetaTrader 5 with provided credentials.
+        """
+        if login:
+            try:
+                self.login_id = int(login)
+            except Exception:
+                pass
+        if password:
+            self.password = str(password)
+        if server:
+            self.server = str(server)
+
+        self._check_connection()
+        return self.get_connection_status()
+
+    def _check_connection(self) -> bool:
+        try:
+            import MetaTrader5 as mt5
+            # 1. First check if terminal is already initialized and authorized
+            acc_info = mt5.account_info()
+            term_info = mt5.terminal_info()
+            if acc_info is not None and getattr(term_info, 'connected', False):
+                self.is_connected = True
+                self._last_error = (0, "Success")
+                return True
+
+            # 2. If login/password/server are provided, initialize/login with credentials
+            if self.login_id and self.password and self.server:
+                init_args = {
+                    'login': int(self.login_id),
+                    'password': str(self.password),
+                    'server': str(self.server),
+                    'timeout': 30000
+                }
+                if os.path.exists(self.terminal_path):
+                    init_args['path'] = self.terminal_path
+                ok = mt5.initialize(**init_args)
+                if not ok:
+                    # Also try mt5.login() in case already initialized
+                    ok = mt5.login(login=int(self.login_id), password=str(self.password), server=str(self.server))
+                self.is_connected = bool(ok)
+                self._last_error = mt5.last_error()
+                return self.is_connected
+
+            # 3. Otherwise, attach to currently running terminal
+            if os.path.exists(self.terminal_path):
+                ok = mt5.initialize(path=self.terminal_path)
+            else:
+                ok = mt5.initialize()
+
+            self._last_error = mt5.last_error()
+            if ok:
+                acc_info = mt5.account_info()
+                self.is_connected = (acc_info is not None)
+            else:
+                self.is_connected = False
+            return self.is_connected
+        except Exception as e:
+            self.is_connected = False
+            self._last_error = (-1, str(e))
+            return False
+
+    def get_connection_status(self) -> Dict[str, Any]:
+        """
+        Return comprehensive real-time connection diagnostic status.
+        """
+        try:
+            import MetaTrader5 as mt5
+            acc_info = mt5.account_info()
+            term_info = mt5.terminal_info()
+            connected = bool(acc_info is not None and getattr(term_info, 'connected', False))
+            
+            terminal_running = False
+            try:
+                import subprocess
+                res = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Process -Name terminal64 -ErrorAction SilentlyContinue"], capture_output=True, text=True, timeout=3)
+                terminal_running = ("terminal64" in res.stdout)
+            except Exception:
+                terminal_running = bool(term_info is not None)
+
+            err = self._last_error or mt5.last_error()
+            return {
+                'connected': connected,
+                'terminal_running': terminal_running,
+                'authorized': bool(acc_info is not None),
+                'login': getattr(acc_info, 'login', None),
+                'server': getattr(acc_info, 'server', None),
+                'name': getattr(acc_info, 'name', None),
+                'balance': getattr(acc_info, 'balance', 0.0),
+                'equity': getattr(acc_info, 'equity', 0.0),
+                'currency': getattr(acc_info, 'currency', 'USD'),
+                'leverage': getattr(acc_info, 'leverage', 1),
+                'ping': getattr(term_info, 'ping_last', 0),
+                'company': getattr(acc_info, 'company', getattr(term_info, 'company', 'Exness')),
+                'last_error': err,
+                'path': self.terminal_path
+            }
+        except Exception as e:
+            return {
+                'connected': False,
+                'terminal_running': False,
+                'authorized': False,
+                'login': None,
+                'server': None,
+                'balance': 0.0,
+                'equity': 0.0,
+                'last_error': (-1, str(e)),
+                'path': self.terminal_path
+            }
+
+    def get_exness_symbol(self, symbol: str) -> Optional[str]:
+        if not self._check_connection():
+            return None
+        try:
+            import MetaTrader5 as mt5
+            clean = symbol.replace('/', '').replace('-', '').upper()
+            variants = [clean, f"{clean}m", f"{clean}c", f"{clean}.r", f"{clean}#"]
+            if 'XAU' in clean or 'GOLD' in clean:
+                variants.extend(['XAUUSD', 'XAUUSDm', 'GOLD', 'GOLDm', 'XAUUSDc'])
+
+            for var in variants:
+                s_info = mt5.symbol_info(var)
+                if s_info is not None:
+                    if not s_info.visible:
+                        mt5.symbol_select(var, True)
+                    return var
+        except Exception:
+            pass
+        return None
+
+    def get_live_ticker(self, symbol: str) -> Optional[Dict[str, Any]]:
+        if not self._check_connection():
+            return None
+        try:
+            import MetaTrader5 as mt5
+            broker_sym = self.get_exness_symbol(symbol)
+            if not broker_sym:
+                return None
+
+            tick = mt5.symbol_info_tick(broker_sym)
+            if tick is None:
+                mt5.symbol_select(broker_sym, True)
+                tick = mt5.symbol_info_tick(broker_sym)
+                if tick is None:
+                    return None
+
+            s_info = mt5.symbol_info(broker_sym)
+            digits = int(getattr(s_info, 'digits', 5))
+
+            bid = float(tick.bid)
+            ask = float(tick.ask)
+            last_price = float(tick.last) if tick.last > 0 else (bid + ask) / 2.0
+            high = float(getattr(s_info, 'bidhigh', last_price))
+            low = float(getattr(s_info, 'bidlow', last_price))
+            spread = getattr(s_info, 'spread', 0)
+            chg = float(getattr(s_info, 'price_change', 0.0))
+
+            return {
+                'exchange': 'Exness MetaTrader 5 (Direct Broker Terminal)',
+                'symbol': symbol,
+                'broker_symbol': broker_sym,
+                'last': round(last_price, digits),
+                'bid': round(bid, digits),
+                'ask': round(ask, digits),
+                'spread_points': spread,
+                'high': round(high, digits),
+                'low': round(low, digits),
+                'volume': float(getattr(tick, 'volume_real', getattr(tick, 'volume', 0.0))),
+                'change_24h_pct': round(chg, 3),
+                'timestamp': int(tick.time * 1000),
+                'data_source': f'Exness MT5 Live ({broker_sym}) [0-ms Direct]'
+            }
+        except Exception:
+            return None
+
+    def get_ohlcv(self, symbol: str, timeframe: str = '1h', limit: int = 200) -> Optional[pd.DataFrame]:
+        if not self._check_connection():
+            return None
+        try:
+            import MetaTrader5 as mt5
+            broker_sym = self.get_exness_symbol(symbol)
+            if not broker_sym:
+                return None
+
+            tf_val = self.MT5_TF_MAP.get(timeframe, 16385)
+            rates = mt5.copy_rates_from_pos(broker_sym, tf_val, 0, limit)
+            if rates is None or len(rates) == 0:
+                return None
+
+            df = pd.DataFrame(rates)
+            df['timestamp'] = pd.to_datetime(df['time'], unit='s')
+            df = df.rename(columns={'tick_volume': 'volume'})
+            df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
+            return df
+        except Exception:
+            return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -210,6 +445,7 @@ class ForexFeedManager:
     """
     def __init__(self, twelvedata_api_key: Optional[str] = None):
         self.frankfurter_base = 'https://api.frankfurter.dev/v1'
+        self.mt5_exness = MT5ExnessProvider()
         self.twelvedata = TwelveDataForexProvider(api_key=twelvedata_api_key)
         self._data_source_log: Dict[str, str] = {}
 
@@ -441,12 +677,20 @@ class ForexFeedManager:
     def get_live_ticker(self, symbol: str = 'EUR/USD') -> Optional[Dict[str, Any]]:
         """
         Fetch real-time Forex or Commodity ticker.
-        Priority:
-          0. Dedicated Gold/Silver Exness-Equivalent feed (XAU/USD & XAG/USD)
-          1. Twelve Data (institutional-grade forex)
-          2. Yahoo Finance (broad fallback)
-          3. Frankfurter ECB (last resort)
+        # Priority:
+        #   -1. MetaTrader 5 (Exness Direct Realtime Broker Feed) [0-ms latency]
+        #    0. Dedicated Gold/Silver Exness-Equivalent feed (XAU/USD & XAG/USD)
+        #    1. Twelve Data (institutional-grade forex)
+        #    2. Yahoo Finance (broad fallback)
+        #    3. Frankfurter ECB (last resort)
         """
+        # -1) Direct MetaTrader 5 (Exness) Zero-Latency Broker Feed
+        if self.mt5_exness.is_connected:
+            mt5_ticker = self.mt5_exness.get_live_ticker(symbol)
+            if mt5_ticker is not None:
+                self._data_source_log[symbol] = mt5_ticker['data_source']
+                return mt5_ticker
+
         # 0) Direct Gold/Silver Exness-equivalent feed
         clean = symbol.strip().upper()
         if any(metal in clean for metal in ['XAU', 'GOLD', 'XAG', 'SILVER']):
@@ -528,10 +772,18 @@ class ForexFeedManager:
         Returns DataFrame with columns: ['timestamp', 'open', 'high', 'low', 'close', 'volume']
 
         Source priority:
-          0. Dedicated Gold/Silver Exness-Equivalent feed (XAU/USD & XAG/USD)
-          1. Twelve Data (institutional-grade forex)
-          2. Yahoo Finance (broad fallback)
+          -1. MetaTrader 5 (Exness Direct Realtime Broker Candles) [0-ms latency]
+           0. Dedicated Gold/Silver Exness-Equivalent feed (XAU/USD & XAG/USD)
+           1. Twelve Data (institutional-grade forex)
+           2. Yahoo Finance (broad fallback)
         """
+        # Priority -1: MetaTrader 5 (Exness Direct Realtime Broker Candles)
+        if self.mt5_exness.is_connected:
+            df_mt5 = self.mt5_exness.get_ohlcv(symbol, timeframe, limit)
+            if df_mt5 is not None and not df_mt5.empty and len(df_mt5) >= 10:
+                self._data_source_log[symbol] = f"Exness MT5 Direct ({self.mt5_exness.get_exness_symbol(symbol)})"
+                return df_mt5
+
         # Priority 0: Gold & Silver dedicated Exness-equivalent feed
         clean = symbol.strip().upper()
         if any(metal in clean for metal in ['XAU', 'GOLD', 'XAG', 'SILVER']):
@@ -560,6 +812,22 @@ class ForexFeedManager:
     def get_data_source_info(self) -> Dict[str, str]:
         """Returns which data source was last used per symbol."""
         return dict(self._data_source_log)
+
+    def is_mt5_connected(self) -> bool:
+        """Returns True if local MetaTrader 5 terminal is initialized and connected."""
+        return bool(self.mt5_exness and self.mt5_exness.is_connected)
+
+    def connect_mt5(self, login: Optional[int] = None, password: Optional[str] = None, server: Optional[str] = None) -> Dict[str, Any]:
+        """Explicitly connect or log into MetaTrader 5 with provided credentials."""
+        if self.mt5_exness:
+            return self.mt5_exness.connect(login=login, password=password, server=server)
+        return {'connected': False, 'error': 'MT5 provider not available'}
+
+    def get_mt5_status(self) -> Dict[str, Any]:
+        """Return diagnostic status of MetaTrader 5 connection."""
+        if self.mt5_exness:
+            return self.mt5_exness.get_connection_status()
+        return {'connected': False, 'terminal_running': False, 'authorized': False}
 
     def get_market_sessions(self) -> Dict[str, Any]:
         """
