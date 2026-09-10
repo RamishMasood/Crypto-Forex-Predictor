@@ -24,6 +24,9 @@ from src.engine.risk_manager import RiskManager
 from src.engine.orchestrator import PredictorOrchestrator
 from src.strategies.alpha_sniper import AlphaSniperEngine
 from src.engine.verifier import TradeVerifier
+from src.data.economic_calendar import EconomicCalendarManager
+from src.engine.mtf_filter import MultiTimeframeFilter
+from datetime import datetime, timezone, timedelta
 
 class TestCryptoForexPredictor(unittest.TestCase):
 
@@ -367,6 +370,236 @@ class TestCryptoForexPredictor(unittest.TestCase):
                     if t['outcome'] == 'WIN':
                         self.assertTrue('TP1' in t['exit_reason'] or 'TP2' in t['exit_reason'])
                     self.assertGreaterEqual(t['calibrated_win_prob_pct'], 80.0)
+
+    def test_economic_calendar_and_news_blackout_filter(self):
+        cal = EconomicCalendarManager()
+        events = cal.fetch_live_calendar()
+        self.assertIsInstance(events, list)
+        self.assertGreater(len(events), 0)
+
+        # Check currency resolution
+        crypto_ccys = cal.get_affected_currencies('BTC/USDT', 'crypto')
+        self.assertIn('USD', crypto_ccys)
+        forex_ccys = cal.get_affected_currencies('EUR/USD', 'forex')
+        self.assertIn('EUR', forex_ccys)
+        self.assertIn('USD', forex_ccys)
+
+        # Check standard live blackout check (now)
+        live_status = cal.check_blackout_status('BTC/USDT', 'crypto')
+        self.assertIn('is_blackout', live_status)
+        self.assertIn('blackout_reason', live_status)
+        self.assertEqual(live_status['blackout_window_mins'], 30)
+
+        # Check simulated blackout trigger at a known event release time
+        # Using 2026-09-10 12:30 UTC (US PPI / Core PPI)
+        test_event_time = datetime(2026, 9, 10, 12, 30, tzinfo=timezone.utc)
+        blackout_res = cal.check_blackout_status('BTC/USDT', 'crypto', check_time=test_event_time)
+        self.assertTrue(blackout_res['is_blackout'])
+        self.assertIsNotNone(blackout_res['active_event'])
+        self.assertIn('HIGH-IMPACT NEWS BLACKOUT', blackout_res['blackout_reason'])
+
+        # Edge Case Attack: Test EXACT boundary condition (29m 59s vs 30m 01s)
+        # Inside window: 29 minutes and 59 seconds before event -> MUST be blackout
+        inside_window_pre = test_event_time - timedelta(minutes=29, seconds=59)
+        self.assertTrue(cal.check_blackout_status('BTC/USDT', 'crypto', check_time=inside_window_pre)['is_blackout'])
+
+        # Outside window: 30 minutes and 01 seconds before event -> MUST NOT be blackout
+        outside_window_pre = test_event_time - timedelta(minutes=30, seconds=1)
+        self.assertFalse(cal.check_blackout_status('BTC/USDT', 'crypto', check_time=outside_window_pre)['is_blackout'])
+
+        # Inside window post-event: 29 minutes and 59 seconds after event -> MUST be blackout
+        inside_window_post = test_event_time + timedelta(minutes=29, seconds=59)
+        self.assertTrue(cal.check_blackout_status('BTC/USDT', 'crypto', check_time=inside_window_post)['is_blackout'])
+
+        # Outside window post-event: 30 minutes and 01 seconds after event -> MUST NOT be blackout
+        outside_window_post = test_event_time + timedelta(minutes=30, seconds=1)
+        self.assertFalse(cal.check_blackout_status('BTC/USDT', 'crypto', check_time=outside_window_post)['is_blackout'])
+
+        # Timezone Edge Case: Test naive ForexFactory CSV Eastern Time conversion to UTC
+        parsed_dt = cal._parse_event_datetime('09-10-2026 8:30am')
+        self.assertIsNotNone(parsed_dt)
+        self.assertEqual(parsed_dt.hour, 12)
+        self.assertEqual(parsed_dt.minute, 30)
+
+    def test_multi_timeframe_triple_screen_filter(self):
+        # Generate macro (Daily) and intermediate (1h) data
+        n = 60
+        dates_d = pd.date_range('2026-01-01', periods=n, freq='1d')
+        close_up = np.linspace(100.0, 160.0, n)
+        df_macro_bull = pd.DataFrame({
+            'timestamp': dates_d, 'open': close_up, 'high': close_up + 2.0,
+            'low': close_up - 2.0, 'close': close_up, 'volume': np.full(n, 1000.0)
+        })
+
+        dates_h = pd.date_range('2026-01-01', periods=n, freq='1h')
+        df_1h = pd.DataFrame({
+            'timestamp': dates_h, 'open': close_up, 'high': close_up + 1.0,
+            'low': close_up - 1.0, 'close': close_up, 'volume': np.full(n, 1000.0)
+        })
+
+        # Screen 1: Macro Screen
+        s1 = MultiTimeframeFilter.evaluate_macro_screen(df_macro_bull)
+        self.assertTrue(s1['available'])
+        self.assertIn(s1['close_vs_ema200'], ['ABOVE_200_EMA', 'BELOW_200_EMA'])
+
+        # Screen 2: Key Zone Screen
+        s2 = MultiTimeframeFilter.evaluate_zone_screen(df_1h)
+        self.assertTrue(s2['available'])
+        self.assertIn('in_key_zone', s2)
+        self.assertIn('zone_type', s2)
+
+        # Screen 3: Micro Trigger Screen
+        s3 = MultiTimeframeFilter.evaluate_trigger_screen(df_1h)
+        self.assertTrue(s3['available'])
+        self.assertIn('trigger_status', s3)
+
+        # Full Triple-Screen Synthesis
+        # Buying in uptrend above 200 EMA -> no macro conflict
+        bull_synth = MultiTimeframeFilter.evaluate_triple_screen(df_macro_bull, df_1h, df_1h, 'BUY')
+        self.assertFalse(bull_synth['is_macro_conflict'])
+        self.assertIn(bull_synth['triple_screen_status'], ['TRIPLE_SCREEN_ALIGNED', 'PARTIALLY_ALIGNED', 'WEAK_ALIGNMENT'])
+
+        # Selling against uptrend above 200 EMA -> FATAL MACRO CONFLICT
+        bear_synth = MultiTimeframeFilter.evaluate_triple_screen(df_macro_bull, df_1h, df_1h, 'SELL')
+        self.assertTrue(bear_synth['is_macro_conflict'])
+        self.assertEqual(bear_synth['triple_screen_status'], 'MACRO_CONFLICT')
+
+        # Edge Case: Missing Macro Data must NOT yield TRIPLE_SCREEN_ALIGNED (3/3)
+        no_macro_synth = MultiTimeframeFilter.evaluate_triple_screen(None, df_1h, df_1h, 'BUY')
+        self.assertNotEqual(no_macro_synth['triple_screen_status'], 'TRIPLE_SCREEN_ALIGNED')
+        self.assertLessEqual(no_macro_synth['aligned_screens_count'], 2)
+
+    def test_adaptive_target_scaling_and_immediate_breakeven(self):
+        # Verify Precision TP1 target (0.40 ATR) and Immediate Breakeven Stop-Loss
+        current_p = 100.0
+        atr_v = 2.5
+        setup_buy = RiskManager.generate_trade_setup(
+            current_price=current_p,
+            action='BUY',
+            atr=atr_v,
+            account_size_usd=10000.0
+        )
+        self.assertEqual(setup_buy['status'], 'ACTIVE_SETUP')
+        # TP1 should be precision scalp: 100.0 + (0.40 * 2.5) = 101.0
+        self.assertAlmostEqual(setup_buy['tp1'], current_p + (0.40 * atr_v), places=2)
+        self.assertGreater(setup_buy['tp2'], setup_buy['tp1'])
+        self.assertGreater(setup_buy['tp3'], setup_buy['tp2'])
+        # Breakeven SL must be entry + 0.02 ATR
+        self.assertAlmostEqual(setup_buy['breakeven_sl'], current_p + (0.02 * atr_v), places=2)
+        self.assertIn('IMMEDIATE_AT_TP1', setup_buy['breakeven_rule'])
+
+        # Verify SELL setup
+        setup_sell = RiskManager.generate_trade_setup(
+            current_price=current_p,
+            action='SELL',
+            atr=atr_v,
+            account_size_usd=10000.0
+        )
+        self.assertEqual(setup_sell['status'], 'ACTIVE_SETUP')
+        self.assertAlmostEqual(setup_sell['tp1'], current_p - (0.40 * atr_v), places=2)
+        self.assertLess(setup_sell['tp2'], setup_sell['tp1'])
+        self.assertAlmostEqual(setup_sell['breakeven_sl'], current_p - (0.02 * atr_v), places=2)
+
+    def test_futures_whale_sentiment_and_funding_gate(self):
+        df_ind = QuantitativeIndicators.add_all_indicators(self.synth_df)
+        base_conf = {
+            'action': 'STRONG BUY',
+            'confluence_score': 70.0,
+            'layer_scores': {
+                'trend_momentum': 25.0,
+                'smart_money_smc': 20.0,
+                'mean_reversion_stat': 15.0,
+                'orderbook_pressure': 10.0,
+                'f1_funding_rate': 0.0,
+                'f3_squeeze_detection': 0.0,
+            }
+        }
+        ml_pred = {'p_bullish': 0.75, 'p_bearish': 0.10, 'confidence_pct': 65.0}
+
+        # Case 1: Futures mode WITHOUT extreme funding or squeeze
+        # Should be gated below ELITE_SNIPER to HIGH_CONVICTION
+        benign_futures = {
+            'funding_analysis': {'score': 0.0, 'regime': 'NEUTRAL'},
+            'squeeze_analysis': {'score': 0.0, 'squeeze_type': 'NONE'},
+            'oi_analysis': {'oi_at_extreme': False}
+        }
+        res_benign = AlphaSniperEngine.evaluate(
+            df_indicators=df_ind,
+            base_confluence=base_conf,
+            ml_prediction=ml_pred,
+            trade_setup={},
+            futures_signals=benign_futures,
+            timeframe='1h'
+        )
+        self.assertNotEqual(res_benign['sniper_tier'], 'ELITE_SNIPER', "Futures setup without whale catalyst must not unlock ELITE tier")
+        self.assertEqual(res_benign['sniper_tier'], 'HIGH_CONVICTION')
+        self.assertFalse(res_benign['whale_gate_passed'])
+        self.assertLessEqual(res_benign['calibrated_win_probability_pct'], 84.0)
+
+        # Case 2: Futures mode WITH extreme funding squeeze ALIGNED with trade direction (BUY with Short Squeeze)
+        extreme_futures = {
+            'funding_analysis': {'score': 30.0, 'regime': 'EXTREME_SHORT_OVERCROWDED'},
+            'squeeze_analysis': {'score': 20.0, 'squeeze_type': 'SHORT_SQUEEZE_SETUP'},
+            'oi_analysis': {'oi_at_extreme': True}
+        }
+        res_extreme = AlphaSniperEngine.evaluate(
+            df_indicators=df_ind,
+            base_confluence=base_conf,
+            ml_prediction=ml_pred,
+            trade_setup={},
+            futures_signals=extreme_futures,
+            timeframe='1h'
+        )
+        self.assertEqual(res_extreme['sniper_tier'], 'ELITE_SNIPER')
+        self.assertTrue(res_extreme['whale_gate_passed'])
+
+        # Case 3: Counter-Whale Trap Attack: Buying into a Long Squeeze / Overleveraged Longs
+        # Even if score magnitude is high, opposing the whale squeeze MUST block ELITE tier
+        trap_futures = {
+            'funding_analysis': {'score': -30.0, 'regime': 'EXTREME_LONG_OVERCROWDED'},
+            'squeeze_analysis': {'score': -20.0, 'squeeze_type': 'LONG_SQUEEZE_SETUP'},
+            'oi_analysis': {'oi_at_extreme': True}
+        }
+        res_trap = AlphaSniperEngine.evaluate(
+            df_indicators=df_ind,
+            base_confluence=base_conf,
+            ml_prediction=ml_pred,
+            trade_setup={},
+            futures_signals=trap_futures,
+            timeframe='1h'
+        )
+        self.assertNotEqual(res_trap['sniper_tier'], 'ELITE_SNIPER', "Buying into a long squeeze must NOT unlock ELITE")
+        self.assertFalse(res_trap['whale_gate_passed'])
+        self.assertIn('opposes active whale squeeze', res_trap['whale_gate_reason'])
+
+    def test_live_real_market_verification_suite(self):
+        orch = PredictorOrchestrator()
+
+        # Real Live Crypto Spot (BTC/USDT, Binance) forward check
+        res_c = orch.run_prediction(symbol='BTC/USDT', asset_type='crypto', market_mode='spot', timeframe='1h')
+        self.assertGreater(res_c['market_data']['current_price'], 1000.0)
+        self.assertIn('mtf_alignment', res_c)
+        self.assertIn('economic_news', res_c)
+        self.assertIn('whale_sentiment_gate', res_c)
+        self.assertIn('tp1', res_c['trade_setup'])
+        self.assertIn('breakeven_sl', res_c['trade_setup'])
+
+        # Real Live Forex Spot (EUR/USD, Yahoo / TwelveData) forward check
+        res_f = orch.run_prediction(symbol='EUR/USD', asset_type='forex', market_mode='spot', timeframe='1h')
+        self.assertGreater(res_f['market_data']['current_price'], 0.5)
+        self.assertIn('mtf_alignment', res_f)
+        self.assertIn('economic_news', res_f)
+        self.assertIn('tp1', res_f['trade_setup'])
+        self.assertIn('breakeven_sl', res_f['trade_setup'])
+
+        # Real Live Perpetual Futures (BTC/USDT, Bybit) forward check
+        res_fut = orch.run_prediction(symbol='BTC/USDT', asset_type='crypto', market_mode='futures', timeframe='1h')
+        self.assertEqual(res_fut['metadata']['exchange'], 'bybit_perp')
+        self.assertIn('whale_sentiment_gate', res_fut)
+        self.assertIn('funding_analysis', res_fut['futures_signals'])
+        self.assertIn('oi_analysis', res_fut['futures_signals'])
+        self.assertIn('squeeze_analysis', res_fut['futures_signals'])
+        self.assertIn('tp1', res_fut['trade_setup'])
 
 if __name__ == '__main__':
     unittest.main()

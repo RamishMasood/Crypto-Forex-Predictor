@@ -20,6 +20,8 @@ from ..ml.predictor import MachineLearningPredictor
 from ..engine.confluence import ConfluenceEngine
 from ..engine.risk_manager import RiskManager
 from ..strategies.alpha_sniper import AlphaSniperEngine
+from ..data.economic_calendar import EconomicCalendarManager
+from ..engine.mtf_filter import MultiTimeframeFilter
 
 
 class PredictorOrchestrator:
@@ -32,6 +34,8 @@ class PredictorOrchestrator:
         self.forex_feeds   = ForexFeedManager()
         self.futures_feeds = FuturesFeedManager()
         self.orderbook_analyzer = OrderBookAnalyzer()
+        self.economic_calendar = EconomicCalendarManager()
+        self.mtf_filter = MultiTimeframeFilter()
 
     def run_prediction(
         self,
@@ -176,7 +180,51 @@ class PredictorOrchestrator:
         )
 
         # ────────────────────────────────────────────────────
-        # STEP 7: PROPRIETARY ALPHASNIPER™ & QUANTUMSNIPER™ INTELLIGENCE
+        # STEP 7: MULTI-TIMEFRAME (TRIPLE-SCREEN) & ECONOMIC BLACKOUT
+        # ────────────────────────────────────────────────────
+        # 1. Economic News & High-Impact Event Blackout Filter
+        news_blackout = self.economic_calendar.check_blackout_status(
+            symbol=symbol, asset_type=asset_type
+        )
+
+        # 2. Ingest Macro (Daily/4h), Intermediate (1h), & Micro (5m/15m) Feeds
+        df_macro = None
+        df_intermediate = None
+        df_micro = None
+        try:
+            macro_tf = '1d' if timeframe not in ['1d', '1w'] else '1w'
+            micro_tf = '5m' if timeframe not in ['1m', '3m', '5m'] else '1m'
+            macro_limit = 220  # Minimum bars required to calculate a true 200 EMA
+            if asset_type == 'crypto':
+                df_macro = self.crypto_feeds.get_ohlcv(symbol, timeframe=macro_tf, limit=macro_limit, preferred_exchange=preferred_exchange)
+                if timeframe == '1h':
+                    df_intermediate = df_indicators
+                else:
+                    df_intermediate = self.crypto_feeds.get_ohlcv(symbol, timeframe='1h', limit=80, preferred_exchange=preferred_exchange)
+                df_micro = self.crypto_feeds.get_ohlcv(symbol, timeframe=micro_tf, limit=60, preferred_exchange=preferred_exchange)
+            else:
+                df_macro = self.forex_feeds.get_ohlcv(symbol, timeframe=macro_tf, limit=macro_limit)
+                if timeframe == '1h':
+                    df_intermediate = df_indicators
+                else:
+                    df_intermediate = self.forex_feeds.get_ohlcv(symbol, timeframe='1h', limit=80)
+                df_micro = self.forex_feeds.get_ohlcv(symbol, timeframe=micro_tf, limit=60)
+        except Exception:
+            pass
+
+        if df_intermediate is None:
+            df_intermediate = df_indicators
+
+        # 3. Triple-Screen Synthesis
+        mtf_alignment = self.mtf_filter.evaluate_triple_screen(
+            df_macro=df_macro,
+            df_intermediate=df_intermediate,
+            df_micro=df_micro,
+            proposed_action=confluence['action']
+        )
+
+        # ────────────────────────────────────────────────────
+        # STEP 8: PROPRIETARY ALPHASNIPER™ & QUANTUMSNIPER™ INTELLIGENCE
         # ────────────────────────────────────────────────────
         alpha_sniper = AlphaSniperEngine.evaluate(
             df_indicators=df_indicators,
@@ -185,16 +233,19 @@ class PredictorOrchestrator:
             trade_setup={'dummy': True},
             futures_signals=futures_signals_result,
             market_structure=market_structure,
-            timeframe=timeframe
+            quantum_sniper=None,
+            timeframe=timeframe,
+            news_blackout=news_blackout,
+            mtf_alignment=mtf_alignment
         )
         quantum_sniper = alpha_sniper.get('quantum_sniper', {})
 
-        effective_action = alpha_sniper['gated_action'] if 'FILTERED' in alpha_sniper['gated_action'] else confluence['action']
+        effective_action = alpha_sniper['gated_action'] if ('FILTERED' in alpha_sniper['gated_action'] or 'BLACKOUT' in alpha_sniper['gated_action']) else confluence['action']
         confluence['unfiltered_action'] = confluence.get('action')
         confluence['action'] = effective_action
 
         # ────────────────────────────────────────────────────
-        # STEP 8: INSTITUTIONAL RISK MANAGEMENT
+        # STEP 9: INSTITUTIONAL RISK MANAGEMENT
         # ────────────────────────────────────────────────────
         calibrated_win_rate = alpha_sniper['calibrated_win_probability_pct'] / 100.0
         trade_setup = RiskManager.generate_trade_setup(
@@ -230,6 +281,13 @@ class PredictorOrchestrator:
             'confluence': confluence,
             'alpha_sniper': alpha_sniper,
             'quantum_sniper': quantum_sniper,
+            'mtf_alignment': mtf_alignment,
+            'economic_news': news_blackout,
+            'whale_sentiment_gate': {
+                'passed': alpha_sniper.get('whale_gate_passed', True),
+                'market_mode': market_mode,
+                'reason': alpha_sniper.get('whale_gate_reason', '')
+            },
             'trade_setup': trade_setup,
             'ml_prediction': ml_prediction,
             'smc_analysis': {

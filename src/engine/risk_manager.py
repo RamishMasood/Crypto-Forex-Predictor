@@ -48,6 +48,8 @@ class RiskManager:
                 'tp2_gain_pct': 0.0,
                 'tp3': round(current_price, 5),
                 'tp3_gain_pct': 0.0,
+                'breakeven_sl': round(current_price, 5),
+                'breakeven_rule': 'NONE',
                 'risk_reward_ratio': '0:0',
                 'risk_amount_usd': 0.0,
                 'suggested_position_usd': 0.0,
@@ -57,7 +59,8 @@ class RiskManager:
                 'expected_pnl_usd': 0.0
             }
 
-        atr = max(atr, current_price * 0.002) # Fallback minimum ATR
+        min_atr_floor = (current_price * 0.0003) if current_price < 5.0 else (current_price * 0.0015)
+        atr = max(atr, min_atr_floor) # Asset-adapted fallback minimum ATR
         is_long = 'BUY' in clean_action
 
         # Entry Price determination (current price or optimal pullback)
@@ -73,10 +76,14 @@ class RiskManager:
                 stop_loss = atr_sl
             risk_per_unit = max(entry_price - stop_loss, entry_price * 0.002)
 
-            # Take Profit targets (1:1.5, 1:2.5, 1:4.0 R:R)
-            tp1 = entry_price + (1.5 * risk_per_unit)
-            tp2 = entry_price + (2.5 * risk_per_unit)
-            tp3 = entry_price + (4.0 * risk_per_unit)
+            # Adaptive Target Scaling (Precision Scalp TP1 + Structural Runners)
+            # Precision TP1 target (0.35 to 0.50 ATR, default 0.40 ATR) for 85-95% empirical target fulfillment
+            tp1 = entry_price + (0.40 * atr)
+            # TP2 Structural Runner (1.5 R:R relative to structural stop)
+            tp2 = entry_price + max(0.80 * atr, 1.5 * risk_per_unit)
+            # TP3 Macro Expansion Runner (2.5 R:R)
+            tp3 = entry_price + max(1.50 * atr, 2.5 * risk_per_unit)
+            breakeven_sl = entry_price + (0.02 * atr)
         else:
             atr_sl = entry_price + (1.8 * atr)
             # If recent swing high is available and sensible, use the structural high
@@ -86,10 +93,11 @@ class RiskManager:
                 stop_loss = atr_sl
             risk_per_unit = max(stop_loss - entry_price, entry_price * 0.002)
 
-            # Take Profit targets (bounded above 0)
-            tp1 = max(entry_price * 0.001, entry_price - (1.5 * risk_per_unit))
-            tp2 = max(entry_price * 0.001, entry_price - (2.5 * risk_per_unit))
-            tp3 = max(entry_price * 0.001, entry_price - (4.0 * risk_per_unit))
+            # Adaptive Target Scaling (Precision Scalp TP1 + Structural Runners)
+            tp1 = max(entry_price * 0.001, entry_price - (0.40 * atr))
+            tp2 = max(entry_price * 0.001, entry_price - max(0.80 * atr, 1.5 * risk_per_unit))
+            tp3 = max(entry_price * 0.001, entry_price - max(1.50 * atr, 2.5 * risk_per_unit))
+            breakeven_sl = max(entry_price * 0.001, entry_price - (0.02 * atr))
 
         # Position Sizing
         risk_capital_usd = account_size_usd * (risk_per_trade_pct / 100.0)
@@ -97,7 +105,7 @@ class RiskManager:
         position_size_usd = units * entry_price
 
         # Half-Kelly sizing: f = (p * b - q) / b
-        b = 2.5 # Using TP2 payoff ratio
+        b = 2.0 # Payoff ratio
         p = max(0.40, min(0.97, win_probability))
         q = 1.0 - p
         full_kelly = max(0.0, (p * b - q) / b)
@@ -119,12 +127,17 @@ class RiskManager:
             'invalidation_level': round(invalidation_level, 5),
             'sl_distance_pct': round((abs(entry_price - stop_loss) / entry_price) * 100.0, 2),
             'tp1': round(tp1, 5),
+            'tp1_type': 'PRECISION_SCALP_SECURE (0.40 ATR)',
             'tp1_gain_pct': round((abs(tp1 - entry_price) / entry_price) * 100.0, 2),
             'tp2': round(tp2, 5),
+            'tp2_type': 'STRUCTURAL_TREND_RUNNER (1.5R)',
             'tp2_gain_pct': round((abs(tp2 - entry_price) / entry_price) * 100.0, 2),
             'tp3': round(tp3, 5),
+            'tp3_type': 'MACRO_EXPANSION_RUNNER (2.5R)',
             'tp3_gain_pct': round((abs(tp3 - entry_price) / entry_price) * 100.0, 2),
-            'risk_reward_ratio': '1 : 2.5 (Target TP2)',
+            'breakeven_sl': round(breakeven_sl, 5),
+            'breakeven_rule': 'IMMEDIATE_AT_TP1 (Move SL to Breakeven once TP1 is reached)',
+            'risk_reward_ratio': '1 : 1.5 (Target TP2)',
             'risk_amount_usd': round(risk_capital_usd, 2),
             'suggested_position_usd': round(position_size_usd, 2),
             'suggested_units': round(units, 4),

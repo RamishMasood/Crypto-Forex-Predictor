@@ -29,7 +29,9 @@ class AlphaSniperEngine:
         futures_signals: Optional[Dict[str, Any]] = None,
         market_structure: Optional[Dict[str, Any]] = None,
         quantum_sniper: Optional[Dict[str, Any]] = None,
-        timeframe: str = '1h'
+        timeframe: str = '1h',
+        news_blackout: Optional[Dict[str, Any]] = None,
+        mtf_alignment: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Executes proprietary conviction gating, Bayesian probability calibration,
@@ -272,6 +274,14 @@ class AlphaSniperEngine:
             elif gk_vol > 0.065:
                 calibrated_prob -= 5.0  # High erratic volatility penalty
 
+            # MTF Triple-Screen Alignment Bayesian Update
+            if mtf_alignment:
+                mtf_status = mtf_alignment.get('triple_screen_status', 'NONE')
+                if mtf_status == 'TRIPLE_SCREEN_ALIGNED':
+                    calibrated_prob += 4.5  # Synergistic macro + key zone + trigger confirmation
+                elif mtf_alignment.get('is_macro_conflict', False):
+                    calibrated_prob -= 12.0 # Heavy counter-macro trend penalty
+
         # Cap calibrated probability between 45.0% and 97.2%
         calibrated_prob = float(np.clip(calibrated_prob, 45.0, 97.2))
 
@@ -288,11 +298,62 @@ class AlphaSniperEngine:
         elite_conf_thresh = 4.5 if tf_str in ['1m', '3m', '5m', '15m'] else 4.0
         elite_prob_thresh = 84.0 if tf_str in ['1m', '3m', '5m', '15m'] else 82.0
 
+        # Whale Sentiment & Funding Extremes Gate (Futures Mode)
+        # For Perpetual Futures, unlocking ELITE classification strictly requires
+        # extreme funding or high OI squeeze conditions / whale positioning ALIGNED with trade direction.
+        has_whale_catalyst = True
+        whale_gate_reason = ""
+        if futures_signals and is_directional:
+            funding_data = futures_signals.get('funding_analysis', {})
+            squeeze_data = futures_signals.get('squeeze_analysis', {})
+            oi_data      = futures_signals.get('oi_analysis', {})
+            
+            f_score = float(funding_data.get('score', 0.0))
+            f_regime = str(funding_data.get('regime', 'NEUTRAL'))
+            sq_type = str(squeeze_data.get('squeeze_type', 'NONE'))
+            sq_score = float(squeeze_data.get('score', 0.0))
+            oi_extreme = bool(oi_data.get('oi_at_extreme', False))
+            
+            is_buy = 'BUY' in action
+            is_sell = 'SELL' in action
+
+            # Directional Whale Catalyst Verification:
+            # Bullish Catalyst (for BUY):
+            # - Negative funding where shorts pay longs (f_score > 0, e.g. EXTREME_SHORT_OVERCROWDED, HIGH_SHORT_BIAS)
+            # - Short Squeeze setup (shorts trapped, whales pumping price, sq_type == SHORT_SQUEEZE_SETUP)
+            # - Extreme OI build-up with positive squeeze score
+            if is_buy:
+                is_extreme_funding = (f_score >= 15.0) or ('SHORT' in f_regime and ('EXTREME' in f_regime or 'HIGH' in f_regime))
+                is_squeeze_condition = (sq_type == 'SHORT_SQUEEZE_SETUP') or (sq_score >= 10.0) or (oi_extreme and f_score >= 0)
+                # FATAL COUNTER-WHALE CHECK: Buying directly into an active Long Squeeze / Overleveraged Longs
+                is_counter_whale = ('LONG_SQUEEZE' in sq_type) or (f_score <= -15.0) or ('LONG' in f_regime and 'EXTREME' in f_regime)
+            else: # is_sell
+                is_extreme_funding = (f_score <= -15.0) or ('LONG' in f_regime and ('EXTREME' in f_regime or 'HIGH' in f_regime))
+                is_squeeze_condition = (sq_type == 'LONG_SQUEEZE_SETUP') or (sq_score <= -10.0) or (oi_extreme and f_score <= 0)
+                # FATAL COUNTER-WHALE CHECK: Shorting directly into an active Short Squeeze / Overleveraged Shorts
+                is_counter_whale = ('SHORT_SQUEEZE' in sq_type) or (f_score >= 15.0) or ('SHORT' in f_regime and 'EXTREME' in f_regime)
+
+            has_whale_catalyst = (is_extreme_funding or is_squeeze_condition) and (not is_counter_whale)
+            if not has_whale_catalyst:
+                if is_counter_whale:
+                    whale_gate_reason = f"Whale Sentiment & Funding Gate: BLOCKED from ELITE — Trade direction directly opposes active whale squeeze ({sq_type or f_regime})."
+                else:
+                    whale_gate_reason = "Whale Sentiment & Funding Gate: Capped below ELITE (Futures ELITE strictly requires Extreme Funding or High OI Squeeze in direction of trade)."
+
         if calibrated_prob >= elite_prob_thresh and active_confs >= elite_conf_thresh:
-            sniper_tier = 'ELITE_SNIPER'
-            sniper_badge = '[SNIPER] ELITE SNIPER GRADE (85-100%)'
-            tier_color = '#00e676'
-            sniper_reasons.append(f"AlphaSniper: ELITE TIER -- {active_confs:.1f} independent institutional layers aligned with {regime} structure. Expectancy: +{trade_expectancy_r}R.")
+            if futures_signals and not has_whale_catalyst:
+                calibrated_prob = min(calibrated_prob, 84.0)
+                win_rate_dec = calibrated_prob / 100.0
+                trade_expectancy_r = round((win_rate_dec * 2.5) - ((1.0 - win_rate_dec) * 1.0), 2)
+                sniper_tier = 'HIGH_CONVICTION'
+                sniper_badge = '[HIGH] HIGH PROBABILITY (75-84%) [WHALE-GATED]'
+                tier_color = '#38bdf8'
+                sniper_reasons.append(whale_gate_reason)
+            else:
+                sniper_tier = 'ELITE_SNIPER'
+                sniper_badge = '[SNIPER] ELITE SNIPER GRADE (85-100%)'
+                tier_color = '#00e676'
+                sniper_reasons.append(f"AlphaSniper: ELITE TIER -- {active_confs:.1f} independent institutional layers aligned with {regime} structure. Expectancy: +{trade_expectancy_r}R.")
         elif calibrated_prob >= 72.0 and active_confs >= 2.5:
             sniper_tier = 'HIGH_CONVICTION'
             sniper_badge = '[HIGH] HIGH PROBABILITY (75-84%)'
@@ -309,12 +370,30 @@ class AlphaSniperEngine:
             tier_color = '#8b949e'
             sniper_reasons.append(f"AlphaSniper: Market in {regime} regime with insufficient signal alignment (Calibrated P={calibrated_prob:.1f}%). Capital preservation active.")
 
-        # Invalidation Guard: In pure random noise, excessive choppiness, or sub-threshold edge, enforce waiting
+        # Invalidation Guard: Economic News Blackout, MTF Macro Conflict, or Noise
         gated_action = action
-        if sniper_tier == 'CAPITAL_PRESERVATION' and ('BUY' in action or 'SELL' in action):
+        if news_blackout and news_blackout.get('is_blackout'):
+            gated_action = 'NEUTRAL (NEWS BLACKOUT)'
+            sniper_tier = 'CAPITAL_PRESERVATION'
+            sniper_badge = '[BLACKOUT] RED-FOLDER NEWS WINDOW'
+            tier_color = '#ef4444'
+            trade_expectancy_r = 0.0
+            sniper_reasons.insert(0, f"News Blackout Active: {news_blackout.get('blackout_reason')}")
+        elif mtf_alignment and mtf_alignment.get('is_macro_conflict'):
+            if 'BUY' in action or 'SELL' in action:
+                gated_action = 'NEUTRAL (FILTERED)'
+                sniper_tier = 'CAPITAL_PRESERVATION'
+                sniper_badge = '[FILTERED] MACRO TREND CONFLICT'
+                tier_color = '#8b949e'
+                trade_expectancy_r = 0.0
+                sniper_reasons.insert(0, "MTF Filter Gate: Action gated to NEUTRAL due to Fatal Macro 200 EMA Trend Conflict.")
+        elif sniper_tier == 'CAPITAL_PRESERVATION' and ('BUY' in action or 'SELL' in action):
             gated_action = 'NEUTRAL (FILTERED)'
             trade_expectancy_r = 0.0
             sniper_reasons.append("Noise Invalidation Gate: Action filtered to NEUTRAL to preserve 85-100% accuracy threshold.")
+
+        if mtf_alignment and mtf_alignment.get('triple_screen_status') == 'TRIPLE_SCREEN_ALIGNED':
+            sniper_reasons.append("MTF Filter: Triple-Screen Synergy aligned (Macro Tide + 1h Key Zone + Micro Trigger).")
 
         return {
             'calibrated_win_probability_pct': round(calibrated_prob, 1),
@@ -334,5 +413,9 @@ class AlphaSniperEngine:
             'wyckoff_phase': wyckoff_phase,
             'gated_action': gated_action,
             'sniper_reasons': sniper_reasons,
-            'quantum_sniper': quantum_sniper
+            'quantum_sniper': quantum_sniper,
+            'whale_gate_passed': has_whale_catalyst if futures_signals else True,
+            'whale_gate_reason': whale_gate_reason if futures_signals else "",
+            'news_blackout': news_blackout,
+            'mtf_alignment': mtf_alignment
         }
