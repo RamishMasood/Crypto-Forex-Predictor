@@ -78,8 +78,6 @@ with st.sidebar:
         else:
             st.caption(f"⚡ **Feed:** {exchange.upper()} Spot Order Book")
     else:
-        symbol = st.selectbox("Pair", FOREX_PAIRS)
-        asset_code = "forex"
         from src.data.forex_feeds import ForexFeedManager
 
         mt5_disabled = st.session_state.get('mt5_disabled', False)
@@ -100,6 +98,18 @@ with st.sidebar:
         else:
             is_mt5 = False
             mt5_status = {'connected': False, 'terminal_running': True, 'authorized': False}
+
+        # If Exness MT5 is connected, populate with full tradable catalog from Exness
+        if is_mt5:
+            all_exness_symbols = ff.get_available_symbols()
+            selectable_symbols = all_exness_symbols if all_exness_symbols else FOREX_PAIRS
+            # Default to XAU/USD if available
+            def_idx = selectable_symbols.index("XAU/USD") if "XAU/USD" in selectable_symbols else 0
+            symbol = st.selectbox("Pair / Asset (Exness MT5)", selectable_symbols, index=def_idx, help="All Exness tradable assets (Forex, Gold/Metals, BTC/ETH Crypto, Commodities)")
+        else:
+            symbol = st.selectbox("Pair", FOREX_PAIRS)
+
+        asset_code = "forex"
 
         if is_mt5:
             exchange = "Exness MetaTrader 5"
@@ -180,12 +190,25 @@ with st.sidebar:
     risk_pct = st.slider("Risk % per trade", 0.25, 5.0, 1.5, 0.25)
 
     st.divider()
-    auto_refresh = st.toggle("⚡ Real-Time Live Ticker (Auto-Sync)", value=False)
-    if auto_refresh:
-        refresh_interval = st.selectbox("Refresh Frequency", [5, 10, 30], index=0, format_func=lambda x: f"Every {x} seconds")
+    auto_refresh = st.toggle("⚡ Real-Time Live Ticker (Auto-Sync)", value=st.session_state.get('auto_sync_enabled', False), key="auto_sync_toggle")
+    
+    # If there are open MT5 positions, auto-poll every 5s so auto-breakeven executes immediately in the background
+    has_active_mt5 = False
+    if is_mt5:
+        try:
+            import MetaTrader5 as mt5_chk
+            open_chk = mt5_chk.positions_get()
+            has_active_mt5 = bool(open_chk and len(open_chk) > 0)
+        except Exception:
+            pass
+
+    if auto_refresh or has_active_mt5:
+        refresh_interval = st.selectbox("Refresh Frequency", [3, 5, 10, 30], index=1 if not has_active_mt5 else 0, format_func=lambda x: f"Every {x} seconds")
         try:
             from streamlit_autorefresh import st_autorefresh
             st_autorefresh(interval=refresh_interval * 1000, key="data_auto_sync")
+            if has_active_mt5 and not auto_refresh:
+                st.caption("🛡️ *Auto-Breakeven Guardian Active (Polling every 3s)*")
         except Exception:
             pass
 
@@ -1493,7 +1516,19 @@ if is_mt5:
                     c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 1.5, 1.5])
                     with c1:
                         st.markdown(f"<span style='background:{p_col};color:#fff;padding:2px 8px;border-radius:6px;font-weight:700;font-size:.78rem;'>{p['type']}</span> <b>{p['symbol']}</b> &nbsp;`{p['volume']} lots`", unsafe_allow_html=True)
-                        st.caption(f"Ticket #{p['ticket']} | {p['time']}")
+                        # Extract Batch ID and TP Target from comment
+                        cmt = str(p.get('comment', ''))
+                        batch_tag = ""
+                        m_batch = re.search(r'QS_(\d+)_(TP\d)', cmt)
+                        if m_batch:
+                            batch_tag = f"<span style='background:#1e293b;color:#38bdf8;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #0284c7;'>Batch #{m_batch.group(1)} ({m_batch.group(2)})</span> "
+                        elif "QuantSniper_TP" in cmt:
+                            tp_num = cmt.split('_')[-1]
+                            batch_tag = f"<span style='background:#1e293b;color:#a78bfa;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #7c3aed;'>Batch Initial ({tp_num})</span> "
+                        elif cmt:
+                            batch_tag = f"<span style='background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-weight:600;font-size:.72rem;'>{cmt}</span> "
+
+                        st.markdown(f"{batch_tag}<span style='color:#8b949e;font-size:.75rem;'>Ticket #{p['ticket']} | {p['time']}</span>", unsafe_allow_html=True)
                     with c2:
                         st.markdown(f"Open: **${p['price_open']:,.4f}**")
                         st.caption(f"Live: ${p['price_current']:,.4f}")

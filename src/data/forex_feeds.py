@@ -256,6 +256,53 @@ class MT5ExnessProvider:
             pass
         return None
 
+    def get_available_symbols(self) -> List[str]:
+        """
+        Retrieves all active tradable pairs from the Exness MT5 terminal,
+        formatted cleanly with slash notation (e.g., BTC/USD, ETH/USD, EUR/USD, XAU/USD).
+        """
+        if not self._check_connection():
+            return []
+        try:
+            import MetaTrader5 as mt5
+            symbols = mt5.symbols_get()
+            if not symbols:
+                return []
+
+            standard_list = [
+                "XAU/USD", "BTC/USD", "ETH/USD", "EUR/USD", "GBP/USD",
+                "USD/JPY", "AUD/USD", "USD/CAD", "USD/CHF", "NZD/USD",
+                "XAG/USD", "SOL/USD", "BNB/USD", "DOGE/USD", "XRP/USD"
+            ]
+
+            res_set = set(standard_list)
+            for s in symbols:
+                name = s.name
+                # Strip Exness suffix e.g. m, c, .r, #
+                clean = name.rstrip('m').rstrip('c').rstrip('#').rstrip('.r')
+                if len(clean) == 6:
+                    res_set.add(f"{clean[:3]}/{clean[3:]}")
+                elif clean == 'BTCUSD':
+                    res_set.add('BTC/USD')
+                elif clean == 'ETHUSD':
+                    res_set.add('ETH/USD')
+                elif clean == 'XAUUSD':
+                    res_set.add('XAU/USD')
+                elif clean == 'XAGUSD':
+                    res_set.add('XAG/USD')
+
+            # Prioritize gold and majors first
+            res = sorted(list(res_set), key=lambda x: (
+                0 if x == 'XAU/USD' else (
+                    1 if x in ['BTC/USD', 'ETH/USD'] else (
+                        2 if 'USD' in x else 3
+                    )
+                ), x
+            ))
+            return res
+        except Exception:
+            return []
+
     def get_live_ticker(self, symbol: str) -> Optional[Dict[str, Any]]:
         if not self._check_connection():
             return None
@@ -849,6 +896,14 @@ class ForexFeedManager:
         if self.mt5_exness:
             return self.mt5_exness.get_connection_status()
         return {'connected': False, 'terminal_running': False, 'authorized': False}
+
+    def get_available_symbols(self) -> List[str]:
+        """Returns list of available symbols from Exness MT5 if connected, else standard list."""
+        if self.mt5_exness and self.mt5_exness.is_connected:
+            syms = self.mt5_exness.get_available_symbols()
+            if syms:
+                return syms
+        return ["XAU/USD", "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "USD/CHF", "XAG/USD"]
 
     def get_market_sessions(self) -> Dict[str, Any]:
         """

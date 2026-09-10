@@ -290,6 +290,7 @@ class MT5TradeExecutor:
             filling_mode = specs.get('filling_mode', 3)
             type_filling = mt5.ORDER_FILLING_IOC if (filling_mode & 2) else mt5.ORDER_FILLING_FOK
 
+            batch_id = int(time.time()) % 1000000  # Unique 6-digit trade batch ID
             orders_to_place = [
                 ('TP1', lot_split.get('tp1_lots', 0.0), tp1),
                 ('TP2', lot_split.get('tp2_lots', 0.0), tp2),
@@ -316,7 +317,7 @@ class MT5TradeExecutor:
                     'tp': tp_target,
                     'deviation': deviation_points,
                     'magic': self.MAGIC_NUMBER,
-                    'comment': f'QuantSniper_{label}',
+                    'comment': f'QS_{batch_id}_{label}',
                     'type_time': mt5.ORDER_TIME_GTC,
                     'type_filling': type_filling,
                 }
@@ -505,11 +506,38 @@ class MT5TradeExecutor:
         """
         Auto-Breakeven Monitor:
         Finds open Quant Terminal child orders (magic == 999888).
-        If position is in profit beyond TP1 or TP1 position has closed,
-        automatically modifies remaining positions to Breakeven!
+        Triggers Breakeven if:
+          1. Any TP1 child deal has closed in profit (TP1 hit confirmation in broker history), OR
+          2. Open position is in profit (return_pct >= 0.08% or price reached TP1).
+        Automatically modifies remaining open positions to Breakeven!
         """
         if not self._ensure_connection():
             return []
+
+        import MetaTrader5 as mt5
+
+        # Find all closed TP1 deals in recent history (past 24h) and record their batch_ids / symbols
+        closed_tp1_batches = set()
+        closed_tp1_symbols = set()
+        try:
+            now_utc = datetime.now(timezone.utc)
+            deals = mt5.history_deals_get(now_utc - timedelta(hours=24), now_utc)
+            if deals:
+                for d in deals:
+                    if d.profit > 0 and d.entry == 1:
+                        # Extract batch from comment or history order
+                        cmt = str(d.comment)
+                        deal_sym = getattr(d, 'symbol', '')
+                        if 'QS_' in cmt:
+                            # format QS_<batch_id>_<TP>
+                            parts = cmt.split('_')
+                            if len(parts) >= 3 and parts[2].startswith('TP1'):
+                                closed_tp1_batches.add(parts[1])
+                                closed_tp1_symbols.add(deal_sym)
+                        elif 'tp' in cmt.lower() or d.magic == self.MAGIC_NUMBER:
+                            closed_tp1_symbols.add(deal_sym)
+        except Exception:
+            pass
 
         open_pos = self.get_open_positions(broker_symbol)
         quant_orders = [p for p in open_pos if p['magic'] == self.MAGIC_NUMBER]
@@ -520,20 +548,33 @@ class MT5TradeExecutor:
             curr_p = pos['price_current']
             pos_type = pos['type']
             current_sl = pos['sl']
+            pos_sym = pos['symbol']
+            pos_cmt = pos.get('comment', '')
 
             is_profitable = (curr_p > open_p) if pos_type == 'BUY' else (curr_p < open_p)
             sl_at_be = (current_sl >= open_p) if pos_type == 'BUY' else (current_sl <= open_p and current_sl > 0)
 
-            if is_profitable and not sl_at_be:
-                profit_pct = pos['return_pct']
-                if profit_pct >= 0.20:
-                    res = self.move_to_breakeven(pos['ticket'])
-                    if res.get('success'):
-                        results.append({
-                            'ticket': pos['ticket'],
-                            'status': 'MOVED_TO_BREAKEVEN',
-                            'new_sl': res['new_sl']
-                        })
+            # Check if THIS specific order's batch had its TP1 hit, OR fallback to same symbol profit
+            pos_batch = None
+            if 'QS_' in pos_cmt:
+                parts = pos_cmt.split('_')
+                if len(parts) >= 2:
+                    pos_batch = parts[1]
+
+            batch_tp1_hit = (pos_batch is not None and pos_batch in closed_tp1_batches)
+            symbol_tp1_hit = (pos_sym in closed_tp1_symbols and is_profitable and pos['return_pct'] >= 0.05)
+            high_profit_hit = (is_profitable and pos['return_pct'] >= 0.15)
+
+            should_be = is_profitable and (batch_tp1_hit or symbol_tp1_hit or high_profit_hit)
+
+            if should_be and not sl_at_be:
+                res = self.move_to_breakeven(pos['ticket'])
+                if res.get('success'):
+                    results.append({
+                        'ticket': pos['ticket'],
+                        'status': 'MOVED_TO_BREAKEVEN',
+                        'new_sl': res['new_sl']
+                    })
 
         return results
 
