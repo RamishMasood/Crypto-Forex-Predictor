@@ -5,6 +5,7 @@ Streamlit dashboard - auto-loads on page open (no button press needed on first l
 import os
 import sys
 import re
+import time
 import textwrap
 import warnings
 warnings.filterwarnings('ignore')
@@ -80,19 +81,25 @@ with st.sidebar:
         symbol = st.selectbox("Pair", FOREX_PAIRS)
         asset_code = "forex"
         from src.data.forex_feeds import ForexFeedManager
-        ff = ForexFeedManager()
 
-        # Check session credentials if previously connected
-        if st.session_state.get('mt5_connected', False):
-            if not ff.is_mt5_connected():
-                ff.connect_mt5(
-                    login=st.session_state.get('mt5_login'),
-                    password=st.session_state.get('mt5_password'),
-                    server=st.session_state.get('mt5_server')
-                )
+        mt5_disabled = st.session_state.get('mt5_disabled', False)
+        ff = ForexFeedManager(enable_mt5=not mt5_disabled)
 
-        mt5_status = ff.get_mt5_status()
-        is_mt5 = mt5_status.get('connected', False)
+        if not mt5_disabled:
+            # Check session credentials if previously connected
+            if st.session_state.get('mt5_connected', False):
+                if not ff.is_mt5_connected():
+                    ff.connect_mt5(
+                        login=st.session_state.get('mt5_login'),
+                        password=st.session_state.get('mt5_password'),
+                        server=st.session_state.get('mt5_server')
+                    )
+
+            mt5_status = ff.get_mt5_status()
+            is_mt5 = mt5_status.get('connected', False)
+        else:
+            is_mt5 = False
+            mt5_status = {'connected': False, 'terminal_running': True, 'authorized': False}
 
         if is_mt5:
             exchange = "Exness MetaTrader 5"
@@ -103,15 +110,18 @@ with st.sidebar:
                        f"👤 Account: `{acc_num}` | 🏢 `{srv_name}`\n\n"
                        f"💰 Balance: `${bal:,.2f}` | ⚡ Direct Ticks")
             if st.button("🔌 Disconnect MT5", key="mt5_disconnect_btn", use_container_width=True):
+                st.session_state['mt5_disabled'] = True
                 st.session_state['mt5_connected'] = False
                 st.session_state.pop('mt5_password', None)
+                st.session_state.result = None
+                ff.disconnect_mt5()
                 st.rerun()
         else:
             exchange = "TwelveData / Interbank"
             st.caption("⚡ **Feed:** Twelve Data / London Spot (Exness-equivalent)")
             with st.expander("🔌 Connect Exness MT5 (0-ms Direct)", expanded=False):
                 if mt5_status.get('terminal_running'):
-                    st.info("ℹ️ **Exness MT5 is running on your PC**, but needs account authorization.")
+                    st.info("ℹ️ **Exness MT5 is running on your PC**, but disconnected.")
                 else:
                     st.warning("⚠️ **Exness MT5 is not running.** Please open MetaTrader 5.")
 
@@ -124,6 +134,8 @@ with st.sidebar:
                 5. Once MT5 shows green connection bars, click below:
                 """)
                 if st.button("🔄 Re-Check MT5 Connection", key="recheck_mt5_btn", use_container_width=True):
+                    st.session_state['mt5_disabled'] = False
+                    st.session_state.result = None
                     res = ff.connect_mt5()
                     if res.get('connected'):
                         st.session_state['mt5_connected'] = True
@@ -146,6 +158,8 @@ with st.sidebar:
                         st.warning("Please enter your MT5 password.")
                     else:
                         with st.spinner("Connecting directly to Exness terminal..."):
+                            st.session_state['mt5_disabled'] = False
+                            st.session_state.result = None
                             res = ff.connect_mt5(login=acc_in, password=pwd_in, server=srv_in)
                             if res.get('connected'):
                                 st.session_state['mt5_connected'] = True
@@ -992,8 +1006,245 @@ if setup['status'] == 'ACTIVE_SETUP':
         st.metric("Invalidation Level", f"${setup.get('invalidation_level', setup['stop_loss']):,.4f}")
     with sc5:
         st.metric("Expected Edge", f"+${setup.get('expected_pnl_usd', 0):,.2f}", delta=f"+{setup.get('expectancy_r', 0):.2f}R")
-        st.metric("Half-Kelly Alloc", f"{setup['half_kelly_pct']}% of portfolio")
     st.caption(f"⚡ **Breakeven Rule:** Once TP1 hits at ${setup['tp1']:,.4f}, immediately close 70% and shift Stop-Loss to Breakeven (${setup.get('breakeven_sl', setup['recommended_entry']):,.4f}) to guarantee 100% risk-free trade.")
+
+    # ── EXNESS MT5 ONE-CLICK MULTI-TARGET EXECUTION PANEL ───────────────────
+    if asset_code == "forex" and is_mt5:
+        from src.engine.mt5_executor import MT5TradeExecutor
+        executor = MT5TradeExecutor()
+        broker_sym = (mt5_status.get('broker_symbol') if isinstance(mt5_status, dict) else None) or ff.mt5_exness.get_exness_symbol(symbol) or 'XAUUSDc'
+        account_bal = float(mt5_status.get('balance', account)) if isinstance(mt5_status, dict) else float(account)
+
+        st.markdown(
+            clean_html(f"""
+            <div style='background:linear-gradient(135deg,#064e3b,#0f172a);border:1px solid #10b981;border-radius:12px;padding:16px 20px;margin:16px 0;'>
+                <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;'>
+                    <div>
+                        <span style='background:#10b981;color:#000;font-weight:900;font-size:.78rem;padding:3px 10px;border-radius:12px;'>ONE-CLICK EXECUTION</span>
+                        &nbsp;<b style='color:#ffffff;font-size:1.05rem;'>Exness MT5 Broker Terminal Routing</b>
+                    </div>
+                    <div style='color:#6ee7b7;font-size:.84rem;font-weight:600;'>
+                        Broker Symbol: <code>{broker_sym}</code> &nbsp;|&nbsp; Account Balance: <b>${account_bal:,.2f}</b>
+                    </div>
+                </div>
+            </div>
+            """),
+            unsafe_allow_html=True
+        )
+
+        st.markdown("##### 🎯 Multi-Target Scaling & Risk Allocation")
+        
+        alloc_mode = st.radio(
+            "Target Allocation Mode",
+            ["📊 Percentage Allocation (%)", "🔢 Direct Lots Allocation (Lots)"],
+            horizontal=True,
+            key="alloc_mode_radio"
+        )
+
+        custom_lots_input = None
+
+        if "Direct Lots" in alloc_mode:
+            # Pre-compute suggested total lots according to risk slider
+            suggested_calc = executor.calculate_lot_and_risk(
+                broker_symbol=broker_sym,
+                entry_price=setup['recommended_entry'],
+                stop_loss_price=setup['stop_loss'],
+                balance_usd=account_bal,
+                risk_pct=risk_pct
+            )
+            sugg_vol = float(suggested_calc.get('total_lots', 0.05))
+
+            col_dvol, col_tp1, col_tp2, col_tp3 = st.columns([1.2, 1, 1, 1])
+            with col_dvol:
+                custom_direct_total = st.number_input(
+                    "Total Volume (Lots) ✍️",
+                    min_value=0.01,
+                    max_value=100.0,
+                    value=sugg_vol,
+                    step=0.01,
+                    format="%.2f",
+                    key="direct_total_volume_input",
+                    help="Total volume set karein. Teeno TPs ka total is se zyada nahi ho sakta."
+                )
+
+            cur_tot = round(float(custom_direct_total), 2)
+
+            # Auto-split default lots proportionally based on total volume
+            def_l1 = round(cur_tot * 0.50, 2)
+            def_l2 = round(cur_tot * 0.30, 2)
+            def_l3 = max(0.0, round(cur_tot - def_l1 - def_l2, 2))
+
+            with col_tp1:
+                tp1_lots_in = st.number_input(
+                    "TP1 Lots (Lock)",
+                    min_value=0.0,
+                    max_value=cur_tot,
+                    value=min(def_l1, cur_tot),
+                    step=0.01,
+                    format="%.2f",
+                    key="tp1_lots_input"
+                )
+            with col_tp2:
+                rem_after_tp1 = max(0.0, round(cur_tot - float(tp1_lots_in), 2))
+                tp2_lots_in = st.number_input(
+                    "TP2 Lots (Struct)",
+                    min_value=0.0,
+                    max_value=rem_after_tp1,
+                    value=min(def_l2, rem_after_tp1),
+                    step=0.01,
+                    format="%.2f",
+                    key="tp2_lots_input"
+                )
+            with col_tp3:
+                rem_after_tp2 = max(0.0, round(cur_tot - float(tp1_lots_in) - float(tp2_lots_in), 2))
+                tp3_lots_in = st.number_input(
+                    "TP3 Lots (Runner)",
+                    min_value=0.0,
+                    max_value=rem_after_tp2,
+                    value=rem_after_tp2,
+                    step=0.01,
+                    format="%.2f",
+                    key="tp3_lots_input"
+                )
+
+            sum_tp_lots = round(float(tp1_lots_in) + float(tp2_lots_in) + float(tp3_lots_in), 2)
+            lots_mismatch = abs(sum_tp_lots - cur_tot) > 0.001
+
+            if lots_mismatch:
+                if sum_tp_lots > cur_tot:
+                    st.error(f"⚠️ **Validation Error:** TP lots ka total (`{sum_tp_lots:.2f}`) Total Volume (`{cur_tot:.2f}`) se zyada nahi ho sakta! Please lots adjust karein.")
+                else:
+                    st.warning(f"ℹ️ **Allocation Notice:** TP lots ka total (`{sum_tp_lots:.2f}`) Total Volume (`{cur_tot:.2f}`) se kam hai (`{cur_tot - sum_tp_lots:.2f}` lots unallocated).")
+
+            custom_lots_input = {
+                'tp1_lots': float(tp1_lots_in),
+                'tp2_lots': float(tp2_lots_in),
+                'tp3_lots': float(tp3_lots_in)
+            }
+            tp1_share, tp2_share, tp3_share = 50.0, 30.0, 20.0
+            override_total_volume = None
+        else:
+            lots_mismatch = False
+            # Pre-compute suggested total lots according to risk slider
+            suggested_calc = executor.calculate_lot_and_risk(
+                broker_symbol=broker_sym,
+                entry_price=setup['recommended_entry'],
+                stop_loss_price=setup['stop_loss'],
+                balance_usd=account_bal,
+                risk_pct=risk_pct
+            )
+            sugg_vol = float(suggested_calc.get('total_lots', 0.01))
+
+            col_vol, col_tp1, col_tp2, col_tp3 = st.columns([1.2, 1, 1, 0.8])
+            with col_vol:
+                custom_vol_in = st.number_input(
+                    "Total Volume (Lots) ✍️",
+                    min_value=0.01,
+                    max_value=100.0,
+                    value=sugg_vol,
+                    step=0.01,
+                    format="%.2f",
+                    key="custom_total_volume_input",
+                    help="Apne mutabiq total volume (lots) enter karein. Risk in Dollars ($) aur Risk % khud calculate ho jaega."
+                )
+                override_total_volume = float(custom_vol_in)
+            with col_tp1:
+                tp1_share = st.slider("TP1 % (Profit Lock)", 10, 80, 50, 5, key="tp1_share_slider")
+            with col_tp2:
+                tp2_share = st.slider("TP2 % (Structural)", 10, 60, 30, 5, key="tp2_share_slider")
+            with col_tp3:
+                rem_share = max(0, 100 - tp1_share - tp2_share)
+                st.metric("TP3 %", f"{rem_share}%")
+                tp3_share = rem_share
+
+        # Calculate exact lot sizing and risk/reward breakdown
+        calc_risk = executor.calculate_lot_and_risk(
+            broker_symbol=broker_sym,
+            entry_price=setup['recommended_entry'],
+            stop_loss_price=setup['stop_loss'],
+            balance_usd=account_bal,
+            risk_pct=risk_pct,
+            tp1_pct=tp1_share,
+            tp2_pct=tp2_share,
+            tp3_pct=tp3_share,
+            tp1_price=setup['tp1'],
+            tp2_price=setup['tp2'],
+            tp3_price=setup['tp3'],
+            custom_lots=custom_lots_input,
+            total_volume_lots=override_total_volume if "Direct Lots" not in alloc_mode else None
+        )
+
+        split = calc_risk.get('lot_split', {})
+        total_vol = calc_risk.get('total_lots', 0.01)
+        act_risk_usd = calc_risk.get('actual_risk_usd', 0.0)
+        act_risk_pct = calc_risk.get('actual_risk_pct', risk_pct)
+        min_bal_req = calc_risk.get('min_lot_risk_usd', 0.0)
+        tp1_rew_usd = calc_risk.get('tp1_reward_usd', 0.0)
+        tp2_rew_usd = calc_risk.get('tp2_reward_usd', 0.0)
+        tp3_rew_usd = calc_risk.get('tp3_reward_usd', 0.0)
+        total_rew_usd = calc_risk.get('total_reward_usd', 0.0)
+
+        # Metrics display row 1: Capital Risk Management
+        rc1, rc2, rc3, rc4 = st.columns(4)
+        with rc1:
+            st.metric("Total Volume", f"{total_vol:.2f} Lots", help="Automatically rounded to broker volume step")
+        with rc2:
+            st.metric("Risk in Dollars", f"${act_risk_usd:,.2f}")
+        with rc3:
+            st.metric("Risk in %", f"{act_risk_pct:.2f}%", delta=f"{act_risk_pct - risk_pct:+.2f}% vs target" if abs(act_risk_pct - risk_pct) > 0.05 else "Exact")
+        with rc4:
+            st.metric("Min Risk (0.01 lot)", f"${min_bal_req:,.2f}")
+
+        # Metrics display row 2: Target Rewards in Dollars ($) & Expected Scaling
+        rw1, rw2, rw3, rw4 = st.columns(4)
+        with rw1:
+            st.metric("TP1 Target ($)", f"+${tp1_rew_usd:,.2f}", delta=f"{split.get('tp1_lots', 0):.2f} lots @ ${setup['tp1']:,.2f}")
+        with rw2:
+            st.metric("TP2 Target ($)", f"+${tp2_rew_usd:,.2f}", delta=f"{split.get('tp2_lots', 0):.2f} lots @ ${setup['tp2']:,.2f}")
+        with rw3:
+            st.metric("TP3 Runner ($)", f"+${tp3_rew_usd:,.2f}", delta=f"{split.get('tp3_lots', 0):.2f} lots @ ${setup['tp3']:,.2f}")
+        with rw4:
+            net_rr = (total_rew_usd / act_risk_usd) if act_risk_usd > 0 else 0.0
+            st.metric("Total Potential Reward", f"+${total_rew_usd:,.2f}", delta=f"{net_rr:.2f}R Net Ratio")
+
+        st.caption(
+            f"⚡ **Order Split Plan:** Order 1 (TP1 @ ${setup['tp1']:,.4f}): `{split.get('tp1_lots', 0):.2f} lots` (+${tp1_rew_usd:,.2f}) | "
+            f"Order 2 (TP2 @ ${setup['tp2']:,.4f}): `{split.get('tp2_lots', 0):.2f} lots` (+${tp2_rew_usd:,.2f}) | "
+            f"Order 3 (TP3 @ ${setup['tp3']:,.4f}): `{split.get('tp3_lots', 0):.2f} lots` (+${tp3_rew_usd:,.2f})"
+        )
+
+        # Confirmation and Execution
+        ex_col1, ex_col2 = st.columns([1.5, 2.5])
+        with ex_col1:
+            confirm_exec = st.checkbox("🔒 Enable Direct Execution", value=False, key="confirm_trade_exec")
+        with ex_col2:
+            btn_label = f"🚀 EXECUTE {setup['action']} ON EXNESS MT5 ({total_vol:.2f} LOTS)"
+            btn_type = "primary"
+            can_execute = confirm_exec and not lots_mismatch
+            if st.button(btn_label, type=btn_type, disabled=not can_execute, key="btn_execute_exness_mt5", use_container_width=True):
+                with st.spinner("Submitting multi-target orders to Exness broker server..."):
+                    exec_res = executor.execute_multi_target_trade(
+                        broker_symbol=broker_sym,
+                        action=setup['action'],
+                        sl_price=setup['stop_loss'],
+                        tp1_price=setup['tp1'],
+                        tp2_price=setup['tp2'],
+                        tp3_price=setup['tp3'],
+                        lot_split=split
+                    )
+                    if exec_res.get('success'):
+                        st.toast("⚡ Order Executed on Exness MT5", icon="🟢")
+                        st.success(f"🟢 **TRADE EXECUTED SUCCESSFULLY ON EXNESS MT5!** Placed {exec_res['orders_placed']} order(s). Tickets: {[t['ticket'] for t in exec_res.get('tickets', [])]}")
+                        time.sleep(0.5)
+                        st.rerun()
+                    else:
+                        err_msg = exec_res.get('error', '')
+                        st.error(f"❌ Execution failed: {err_msg}")
+                        if "10027" in err_msg or "AutoTrading" in err_msg:
+                            st.warning(
+                                "⚠️ **Hal (Solution):** MetaTrader 5 terminal ki top toolbar par **'Algo Trading'** button ko click karke GREEN kar dein (ya **Tools -> Options -> Expert Advisors -> 'Allow Algo Trading'** check karein). Uske baad dobara execute button dabayein!"
+                            )
+
 else:
     st.info(f"No active setup — [{setup.get('action', 'NEUTRAL')}] Capital preservation mode active.")
 
@@ -1207,6 +1458,86 @@ with st.expander("📊 Complete Multi-Timeframe Benchmark Matrix (AlphaSniper vs
     - **QuantumSniper™ Order Flow Execution:** Dominates on **3m, 5m, 30m, and macro levels** where Point of Control (POC), Value Area High/Low boundaries, and Order Flow CVD divergences detect turning points early (**90% - 100%** accuracy).
     - **The Unified Ensemble Hybrid:** Integrates both engines to reliably achieve an overall **85% to 100%** target accuracy across all timeframes (3m, 5m, 15m, 30m, 1h, 4h, 1d) on both Spot and Futures.
     """)
+
+# ── EXNESS MT5 LIVE TRADE TRACKER & POSITION MANAGER ───────────────────────
+if is_mt5:
+    st.divider()
+    st.subheader("📊 Exness MT5 Live Trade Tracker & History")
+    from src.engine.mt5_executor import MT5TradeExecutor
+    live_exec = MT5TradeExecutor()
+
+    # Check auto-breakeven
+    try:
+        be_updates = live_exec.check_and_apply_auto_breakeven()
+        if be_updates:
+            for b in be_updates:
+                st.info(f"🛡️ **Auto-Breakeven Triggered:** Position #{b['ticket']} Stop-Loss shifted to Breakeven (${b['new_sl']})!")
+    except Exception:
+        pass
+
+    tab_active, tab_history = st.tabs(["🟢 Active Open Positions", "📜 Closed Trades History (7 Days)"])
+
+    with tab_active:
+        positions = live_exec.get_open_positions()
+        if not positions:
+            st.info("ℹ️ No active open positions on Exness MT5 right now.")
+        else:
+            tot_pnl = sum(p['profit'] for p in positions)
+            pnl_color = "#00c853" if tot_pnl >= 0 else "#ff1744"
+            st.markdown(f"**Open Positions ({len(positions)}):** Floating PnL: <span style='color:{pnl_color};font-weight:800;font-size:1.1rem;'>${tot_pnl:+,.2f}</span>", unsafe_allow_html=True)
+
+            for p in positions:
+                with st.container():
+                    p_col = "#00c853" if p['type'] == 'BUY' else "#ff1744"
+                    profit_col = "#00c853" if p['profit'] >= 0 else "#ff1744"
+                    c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 1.5, 1.5])
+                    with c1:
+                        st.markdown(f"<span style='background:{p_col};color:#fff;padding:2px 8px;border-radius:6px;font-weight:700;font-size:.78rem;'>{p['type']}</span> <b>{p['symbol']}</b> &nbsp;`{p['volume']} lots`", unsafe_allow_html=True)
+                        st.caption(f"Ticket #{p['ticket']} | {p['time']}")
+                    with c2:
+                        st.markdown(f"Open: **${p['price_open']:,.4f}**")
+                        st.caption(f"Live: ${p['price_current']:,.4f}")
+                    with c3:
+                        st.markdown(f"SL: **${p['sl']:,.4f}**")
+                        st.caption(f"TP: ${p['tp']:,.4f}")
+                    with c4:
+                        st.markdown(f"<span style='color:{profit_col};font-weight:800;font-size:1.05rem;'>${p['profit']:+,.2f}</span>", unsafe_allow_html=True)
+                        st.caption(f"{p['return_pct']:+.2f}%")
+                    with c5:
+                        btn_c1, btn_c2 = st.columns(2)
+                        with btn_c1:
+                            if st.button("✕ Close", key=f"close_{p['ticket']}", help="Close position at market"):
+                                cres = live_exec.close_position(p['ticket'])
+                                if cres.get('success'):
+                                    st.success(f"Closed #{p['ticket']} @ {cres.get('close_price')}")
+                                    st.rerun()
+                                else:
+                                    st.error(cres.get('error'))
+                        with btn_c2:
+                            if st.button("🛡️ BE", key=f"be_{p['ticket']}", help="Move SL to Breakeven"):
+                                bres = live_exec.move_to_breakeven(p['ticket'])
+                                if bres.get('success'):
+                                    st.success(f"Moved #{p['ticket']} to BE!")
+                                    st.rerun()
+                                else:
+                                    st.error(bres.get('error'))
+                    st.divider()
+
+    with tab_history:
+        history_deals = live_exec.get_trade_history(days=7)
+        if not history_deals:
+            st.info("ℹ️ No closed trades in the past 7 days.")
+        else:
+            net_hist_profit = sum(d['profit'] for d in history_deals)
+            net_col = "#00c853" if net_hist_profit >= 0 else "#ff1744"
+            st.markdown(f"**Past 7 Days Closed Trades ({len(history_deals)}):** Net Realized Profit: <span style='color:{net_col};font-weight:800;font-size:1.1rem;'>${net_hist_profit:+,.2f}</span>", unsafe_allow_html=True)
+
+            hist_df = pd.DataFrame(history_deals)
+            st.dataframe(
+                hist_df[['time', 'deal_id', 'symbol', 'type', 'volume', 'price', 'profit', 'comment']],
+                use_container_width=True,
+                hide_index=True
+            )
 
 st.divider()
 st.caption(

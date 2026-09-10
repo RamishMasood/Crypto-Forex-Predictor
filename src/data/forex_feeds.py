@@ -128,6 +128,19 @@ class MT5ExnessProvider:
         self._check_connection()
         return self.get_connection_status()
 
+    def disconnect(self) -> bool:
+        """Explicitly disconnect and shut down MT5 terminal IPC connection."""
+        try:
+            import MetaTrader5 as mt5
+            mt5.shutdown()
+            self.is_connected = False
+            self._last_error = (0, "Disconnected by user")
+            return True
+        except Exception as e:
+            self.is_connected = False
+            self._last_error = (-1, str(e))
+            return False
+
     def _check_connection(self) -> bool:
         try:
             import MetaTrader5 as mt5
@@ -443,9 +456,9 @@ class ForexFeedManager:
       2. Yahoo Finance (yfinance) — broad coverage fallback
       3. Frankfurter ECB — live rates only, last resort
     """
-    def __init__(self, twelvedata_api_key: Optional[str] = None):
+    def __init__(self, twelvedata_api_key: Optional[str] = None, enable_mt5: bool = True):
         self.frankfurter_base = 'https://api.frankfurter.dev/v1'
-        self.mt5_exness = MT5ExnessProvider()
+        self.mt5_exness = MT5ExnessProvider() if enable_mt5 else None
         self.twelvedata = TwelveDataForexProvider(api_key=twelvedata_api_key)
         self._data_source_log: Dict[str, str] = {}
 
@@ -685,7 +698,7 @@ class ForexFeedManager:
         #    3. Frankfurter ECB (last resort)
         """
         # -1) Direct MetaTrader 5 (Exness) Zero-Latency Broker Feed
-        if self.mt5_exness.is_connected:
+        if self.mt5_exness and self.mt5_exness.is_connected:
             mt5_ticker = self.mt5_exness.get_live_ticker(symbol)
             if mt5_ticker is not None:
                 self._data_source_log[symbol] = mt5_ticker['data_source']
@@ -778,7 +791,7 @@ class ForexFeedManager:
            2. Yahoo Finance (broad fallback)
         """
         # Priority -1: MetaTrader 5 (Exness Direct Realtime Broker Candles)
-        if self.mt5_exness.is_connected:
+        if self.mt5_exness and self.mt5_exness.is_connected:
             df_mt5 = self.mt5_exness.get_ohlcv(symbol, timeframe, limit)
             if df_mt5 is not None and not df_mt5.empty and len(df_mt5) >= 10:
                 self._data_source_log[symbol] = f"Exness MT5 Direct ({self.mt5_exness.get_exness_symbol(symbol)})"
@@ -819,9 +832,17 @@ class ForexFeedManager:
 
     def connect_mt5(self, login: Optional[int] = None, password: Optional[str] = None, server: Optional[str] = None) -> Dict[str, Any]:
         """Explicitly connect or log into MetaTrader 5 with provided credentials."""
+        if self.mt5_exness is None:
+            self.mt5_exness = MT5ExnessProvider()
+        return self.mt5_exness.connect(login=login, password=password, server=server)
+
+    def disconnect_mt5(self) -> bool:
+        """Disconnect and shutdown MT5 terminal connection."""
         if self.mt5_exness:
-            return self.mt5_exness.connect(login=login, password=password, server=server)
-        return {'connected': False, 'error': 'MT5 provider not available'}
+            res = self.mt5_exness.disconnect()
+            self.mt5_exness = None
+            return res
+        return True
 
     def get_mt5_status(self) -> Dict[str, Any]:
         """Return diagnostic status of MetaTrader 5 connection."""

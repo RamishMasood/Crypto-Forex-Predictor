@@ -90,6 +90,9 @@ class PredictorOrchestrator:
             orderbook_data     = self.orderbook_analyzer.get_order_book_metrics(symbol, preferred_exchange)
             forex_sessions     = None
         else:
+            use_mt5 = ('Exness' in str(preferred_exchange) or 'MT5' in str(preferred_exchange))
+            if not use_mt5 and self.forex_feeds.is_mt5_connected():
+                self.forex_feeds.disconnect_mt5()
             live_ticker        = self.forex_feeds.get_live_ticker(symbol)
             df_ohlcv           = self.forex_feeds.get_ohlcv(symbol, timeframe=timeframe, limit=150)
             exchange_prices    = {'forex_interbank': {'price': live_ticker['last'] if live_ticker else None, 'status': 'ONLINE'}}

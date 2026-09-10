@@ -26,6 +26,7 @@ from src.strategies.alpha_sniper import AlphaSniperEngine
 from src.engine.verifier import TradeVerifier
 from src.data.economic_calendar import EconomicCalendarManager
 from src.engine.mtf_filter import MultiTimeframeFilter
+from src.engine.mt5_executor import MT5TradeExecutor
 from datetime import datetime, timezone, timedelta
 
 class TestCryptoForexPredictor(unittest.TestCase):
@@ -600,6 +601,40 @@ class TestCryptoForexPredictor(unittest.TestCase):
         self.assertIn('oi_analysis', res_fut['futures_signals'])
         self.assertIn('squeeze_analysis', res_fut['futures_signals'])
         self.assertIn('tp1', res_fut['trade_setup'])
+
+    def test_mt5_executor_lot_and_risk_calculator(self):
+        executor = MT5TradeExecutor()
+        # Test 1: Standard Cent Gold calculation (1.0 contract size, 0.01 min lot)
+        calc = executor.calculate_lot_and_risk(
+            broker_symbol='XAUUSDc',
+            entry_price=4335.0,
+            stop_loss_price=4345.0,
+            balance_usd=1686.95,
+            risk_pct=1.5,
+            tp1_pct=50.0,
+            tp2_pct=30.0,
+            tp3_pct=20.0
+        )
+        self.assertIn('total_lots', calc)
+        self.assertGreater(calc['total_lots'], 0.0)
+        self.assertIn('lot_split', calc)
+        split = calc['lot_split']
+        self.assertGreater(split['tp1_lots'], 0.0)
+        # Sum of sub-lots should equal total lots
+        self.assertAlmostEqual(split['tp1_lots'] + split['tp2_lots'] + split['tp3_lots'], calc['total_lots'], places=2)
+        # Risk percentage should match target risk closely
+        self.assertTrue(abs(calc['actual_risk_pct'] - 1.5) < 0.2)
+
+        # Test 2: Standard Forex pair (100k contract size)
+        calc_fx = executor.calculate_lot_and_risk(
+            broker_symbol='EURUSDc',
+            entry_price=1.1600,
+            stop_loss_price=1.1550,
+            balance_usd=1000.0,
+            risk_pct=2.0
+        )
+        self.assertGreater(calc_fx['total_lots'], 0.0)
+        self.assertGreater(calc_fx['actual_risk_usd'], 0.0)
 
 if __name__ == '__main__':
     unittest.main()
