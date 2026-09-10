@@ -7,6 +7,7 @@ import argparse, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.engine.orchestrator import PredictorOrchestrator
+from src.engine.verifier import TradeVerifier
 
 try:
     from rich.console import Console
@@ -53,7 +54,7 @@ def print_result_rich(res):
         t_sniper.add_column("Value", style="bold white")
         t_sniper.add_column("Edge / Analysis", style="dim")
         t_sniper.add_row("Sniper Grade Tier", alpha.get('sniper_badge', 'N/A'), f"Confirmations: {alpha.get('active_confirmations', 0)}/{alpha.get('total_evaluated_layers', 0)} layers")
-        t_sniper.add_row("Calibrated Win Probability", f"{alpha.get('calibrated_win_probability_pct', 50):.1f}%", "Bayesian posterior probability (Target: 80-97%)")
+        t_sniper.add_row("Calibrated Win Probability", f"{alpha.get('calibrated_win_probability_pct', 50):.1f}%", "Bayesian posterior probability (Target: 85-100%)")
         t_sniper.add_row("Trade Expectancy", f"+{alpha.get('trade_expectancy_r', 0):.2f} R", "Mathematical expected edge per trade")
         t_sniper.add_row("AlphaRegime(TM)", alpha.get('alpha_regime', 'N/A'), "4-State Volatility & Memory Classifier")
         t_sniper.add_row("Kaufman Efficiency (KER)", str(alpha.get('kaufman_er', 0.3)), ">0.38 Strong Trend | <0.20 Noise")
@@ -63,6 +64,24 @@ def print_result_rich(res):
         t_sniper.add_row("Institutional Absorption (IAI)", f"{alpha.get('iai_status', 'N/A')} ({alpha.get('iai_score', 0):+.0f})", "Iceberg order & delta wick absorption")
         t_sniper.add_row("Wyckoff Phase", alpha.get('wyckoff_phase', 'N/A'), "Accumulation / Distribution cycle")
         console.print(t_sniper)
+
+    # QuantumSniper Intelligence Panel
+    quantum = res.get('quantum_sniper', {}) or (alpha.get('quantum_sniper', {}) if alpha else {})
+    if quantum:
+        vp = quantum.get('volume_profile', {})
+        cvd_d = quantum.get('cvd_divergence', {})
+        swp = quantum.get('liquidity_sweep', {})
+        t_quantum = Table(title="[bold blue]QuantumSniper(TM) Microstructure & Volume Profile[/bold blue]", expand=False)
+        t_quantum.add_column("Microstructure Layer", style="cyan")
+        t_quantum.add_column("Quant Value", style="bold white")
+        t_quantum.add_column("Institutional Edge", style="dim")
+        t_quantum.add_row("Quantum Edge Bias", quantum.get('quantum_bias', 'N/A'), f"Score: {quantum.get('quantum_score', 0):+.1f}/100")
+        t_quantum.add_row("Point of Control (POC)", f"${vp.get('poc', 0):,.4f}", "Highest traded volume concentration")
+        t_quantum.add_row("Value Area (VAH / VAL)", f"${vp.get('vah', 0):,.4f} / ${vp.get('val', 0):,.4f}", f"70% Institutional Value Area ({quantum.get('vp_bias', 'NEUTRAL')})")
+        t_quantum.add_row("Order Flow CVD Divergence", cvd_d.get('divergence_type', 'NONE'), cvd_d.get('description', ''))
+        t_quantum.add_row("Liquidity Sweeps / Judas Swing", swp.get('sweep_type', 'NONE'), swp.get('description', ''))
+        t_quantum.add_row("Golden Pocket OTE", str(quantum.get('in_golden_pocket', False)), "Inside 61.8% - 78.6% Fib retracement")
+        console.print(t_quantum)
 
     # Futures live metrics table
     if is_futures and fut_d:
@@ -173,6 +192,82 @@ def print_result_rich(res):
     console.print()
 
 
+def print_verification_rich(audit: dict):
+    if not USE_RICH:
+        import pprint
+        pprint.pprint(audit)
+        return
+
+    sym = audit['symbol']
+    mm = audit['market_mode'].upper()
+    wr = audit['exact_win_rate_pct']
+    total = audit['total_trades']
+    wins = audit['wins']
+    breakevens = audit.get('breakevens', 0)
+    losses = audit['losses']
+    grade = audit['audit_grade']
+    badge = audit['audit_badge']
+
+    console.print()
+    badge_style = "bold white on green" if wr >= 85.0 else ("bold white on blue" if wr >= 75.0 else "bold black on yellow")
+    hdr = Text()
+    hdr.append(f" {sym} [{mm}] 10-TRADE REAL FORWARD ACCURACY AUDIT ", style="bold white on blue")
+    hdr.append(f"\n Exact Win Rate (TP1/TP2 Hit): {wr:.1f}% ({wins}W / {breakevens}BE / {losses}L of {total}) | Grade: {grade}\n", style=badge_style)
+    console.print(Panel(hdr, title="[bold cyan]TRADE VERIFICATION ENGINE (FORWARD-WALK VALIDATION)[/bold cyan]", expand=False))
+
+    t_trades = Table(title="[bold green]Individual Trade Verification Ledger[/bold green]", expand=False)
+    t_trades.add_column("Trade #", justify="center", style="cyan")
+    t_trades.add_column("Direction", justify="center")
+    t_trades.add_column("Entry Time", style="dim")
+    t_trades.add_column("Entry Price", justify="right")
+    t_trades.add_column("Exit Price", justify="right")
+    t_trades.add_column("Stop Loss", justify="right", style="dim")
+    t_trades.add_column("TP1 / TP2", justify="right", style="dim")
+    t_trades.add_column("Bars Held", justify="center")
+    t_trades.add_column("Outcome", justify="center")
+    t_trades.add_column("Exit Trigger", style="dim")
+    t_trades.add_column("PnL %", justify="right")
+
+    for t in audit['trades']:
+        d_style = "bold green" if t['direction'] == 'LONG' else "bold red"
+        if t['outcome'] == 'WIN':
+            o_style = "bold green"
+        elif t['outcome'] == 'BREAKEVEN':
+            o_style = "bold yellow"
+        else:
+            o_style = "bold red"
+        pnl_style = "bold green" if t['pnl_pct'] > 0 else ("bold red" if t['pnl_pct'] < 0 else "dim")
+
+        t_trades.add_row(
+            str(t['trade_id']),
+            Text(t['direction'], style=d_style),
+            str(t['entry_time'])[:19],
+            f"${t['entry_price']:,.4f}",
+            f"${t['exit_price']:,.4f}",
+            f"${t['stop_loss']:,.4f}",
+            f"${t['tp1']:,.4f} / ${t['tp2']:,.4f}",
+            f"{t['bars_held']} bars",
+            Text(t['outcome'], style=o_style),
+            t['exit_reason'],
+            Text(f"{t['pnl_pct']:+.2f}%", style=pnl_style)
+        )
+
+    console.print(t_trades)
+
+    t_summary = Table(title="[bold yellow]Performance & Mathematical Expectancy Summary[/bold yellow]", expand=False)
+    t_summary.add_column("Metric", style="cyan")
+    t_summary.add_column("Value", style="bold white")
+    t_summary.add_column("Audit Evaluation", style="dim")
+    t_summary.add_row("Verified Win Rate", f"{wr:.1f}%", f"Target: 85% - 100% ({'GOAL ACHIEVED' if wr >= 85 else 'ACCEPTABLE'})")
+    t_summary.add_row("Outcome Breakdown", f"{wins} Wins / {breakevens} BE / {losses} Losses", "Wins strictly require TP1/TP2 hit")
+    t_summary.add_row("Profit Factor", f"{audit.get('profit_factor', 1.0):.2f}", "Gross Profit / Gross Loss")
+    t_summary.add_row("Cumulative Net Return", f"{audit.get('net_return_pct', 0):+.2f}%", "Unleveraged sum of trade returns")
+    t_summary.add_row("Average Hold Duration", f"{audit.get('avg_duration_bars', 0):.1f} bars", "Expected time to target fulfillment")
+    t_summary.add_row("Audit Status Badge", badge, grade)
+    console.print(t_summary)
+    console.print()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Quant Multi-Exchange Crypto & Forex Predictor")
     parser.add_argument('--symbol',       type=str,   default='BTC/USDT',  help='Symbol e.g. BTC/USDT, EUR/USD, XAU/USD')
@@ -184,9 +279,23 @@ def main():
     parser.add_argument('--risk',         type=float, default=1.5)
     parser.add_argument('--screen',       action='store_true', help='Screen top assets across spot and futures')
     parser.add_argument('--screen-mode',  type=str,   default='both',      choices=['spot', 'futures', 'both'])
+    parser.add_argument('--verify',       type=int,   default=0,           help='Run 10-trade real forward accuracy verification (e.g. --verify 10)')
 
     args = parser.parse_args()
     orchestrator = PredictorOrchestrator()
+
+    if args.verify > 0:
+        print(f"\n[*] Launching TradeVerifier for {args.symbol} [{args.market_mode.upper()}] (Target: {args.verify} trades)...")
+        verifier = TradeVerifier()
+        audit = verifier.run_10_trade_verification(
+            symbol=args.symbol,
+            asset_type=args.asset_type,
+            market_mode=args.market_mode,
+            timeframe=args.timeframe,
+            target_trades_count=args.verify
+        )
+        print_verification_rich(audit)
+        return
 
     if args.screen:
         print(f"\n[*] Screening top assets (mode: {args.screen_mode.upper()})...\n")

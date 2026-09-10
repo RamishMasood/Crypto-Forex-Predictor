@@ -23,7 +23,8 @@ class FeatureEngineer:
         'adx_norm', 'supertrend_dir', 'ema_trend',
         'vol_ratio',
         'kaufman_er', 'cmo_norm', 'cvd_zscore',
-        'hurst_norm', 'chop_norm', 'stoch_rsi_diff'
+        'hurst_norm', 'chop_norm', 'stoch_rsi_diff',
+        'garman_klass_norm', 'hma_slope_norm'
     ]
 
     @classmethod
@@ -94,6 +95,10 @@ class FeatureEngineer:
             feat['stoch_rsi_diff'] = ((df['stoch_rsi_k'] - df['stoch_rsi_d']) / 50.0).clip(-1.0, 1.0)
         else:
             feat['stoch_rsi_diff'] = 0.0
+
+        # 10. Garman-Klass Volatility & HMA Slope Norm
+        feat['garman_klass_norm'] = (df['garman_klass_vol'] * 10.0).clip(0.0, 5.0) if 'garman_klass_vol' in df.columns else 0.1
+        feat['hma_slope_norm'] = (df['hma_slope'] / close * 100.0).clip(-3.0, 3.0) if 'hma_slope' in df.columns else 0.0
 
         return feat[cls.FEATURE_COLUMNS].fillna(0.0)
 

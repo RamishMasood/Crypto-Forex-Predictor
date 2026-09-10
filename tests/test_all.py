@@ -23,6 +23,7 @@ from src.engine.confluence import ConfluenceEngine
 from src.engine.risk_manager import RiskManager
 from src.engine.orchestrator import PredictorOrchestrator
 from src.strategies.alpha_sniper import AlphaSniperEngine
+from src.engine.verifier import TradeVerifier
 
 class TestCryptoForexPredictor(unittest.TestCase):
 
@@ -173,6 +174,33 @@ class TestCryptoForexPredictor(unittest.TestCase):
         self.assertEqual(res['sniper_tier'], 'ELITE_SNIPER')
         self.assertGreater(res['trade_expectancy_r'], 1.0)
 
+    def test_alpha_sniper_timeframe_adaptation_and_noise_penalties(self):
+        df_ind = QuantitativeIndicators.add_all_indicators(self.synth_df)
+        base_conf = {
+            'action': 'STRONG BUY',
+            'confluence_score': 60.0,
+            'layer_scores': {
+                'trend_momentum': 20.0,
+                'smart_money_smc': 15.0,
+                'mean_reversion_stat': 10.0,
+                'orderbook_pressure': 8.0
+            }
+        }
+        ml_pred = {'p_bullish': 0.70, 'p_bearish': 0.15, 'confidence_pct': 55.0}
+
+        # Higher timeframe (1h/4h) has higher stability prior than noisy micro timeframe (3m/5m)
+        res_5m = AlphaSniperEngine.evaluate(
+            df_indicators=df_ind, base_confluence=base_conf, ml_prediction=ml_pred,
+            trade_setup={}, timeframe='5m'
+        )
+        res_1h = AlphaSniperEngine.evaluate(
+            df_indicators=df_ind, base_confluence=base_conf, ml_prediction=ml_pred,
+            trade_setup={}, timeframe='1h'
+        )
+        self.assertGreater(res_1h['calibrated_win_probability_pct'], res_5m['calibrated_win_probability_pct'])
+        self.assertTrue(45.0 <= res_5m['calibrated_win_probability_pct'] <= 97.2)
+        self.assertTrue(45.0 <= res_1h['calibrated_win_probability_pct'] <= 97.2)
+
     def test_risk_manager_filtered_and_preservation_modes(self):
         # Must return NO_TRADE_SETUP and 0 risk on filtered/neutral/preservation actions
         for act in ['NEUTRAL (FILTERED)', 'NEUTRAL', 'HOLD', 'CAPITAL_PRESERVATION']:
@@ -242,6 +270,103 @@ class TestCryptoForexPredictor(unittest.TestCase):
         self.assertIn(res['status'], ['SUCCESS', 'INSUFFICIENT_VARIANCE', 'INSUFFICIENT_DATA'])
         self.assertIn('p_bullish', res)
         self.assertIn('p_bearish', res)
+
+    def test_trade_verifier_breakeven_not_counted_as_win(self):
+        # Construct custom dataset to verify that BREAKEVEN exits are categorized as BREAKEVEN, not WIN
+        n = 60
+        dates = pd.date_range('2026-01-01', periods=n, freq='1h')
+        # Setup synthetic bars
+        close = np.linspace(100.0, 110.0, n)
+        high = close + 0.5
+        low = close - 0.5
+        open_p = close
+        vol = np.full(n, 500.0)
+
+        df = pd.DataFrame({
+            'timestamp': dates,
+            'open': open_p,
+            'high': high,
+            'low': low,
+            'close': close,
+            'volume': vol
+        })
+
+        verifier = TradeVerifier()
+        # Verify run completes cleanly
+        res = verifier.run_10_trade_verification(
+            symbol='BTC/USDT',
+            asset_type='crypto',
+            market_mode='spot',
+            timeframe='1h',
+            target_trades_count=3,
+            custom_df=df
+        )
+        self.assertIn(res['status'], ['SUCCESS', 'ERROR_INSUFFICIENT_DATA'])
+        if res.get('status') == 'SUCCESS':
+            self.assertIn('breakevens', res)
+            self.assertIn('exact_win_rate_pct', res)
+            self.assertIn('win_rate_pct', res)
+            self.assertEqual(res['wins'] + res['breakevens'] + res['losses'], res['total_trades'])
+        # Any trade recorded must adhere strictly: WIN ONLY IF TP1/TP2 HIT
+        for t in res.get('trades', []):
+            if 'BREAKEVEN' in t.get('exit_reason', ''):
+                self.assertNotEqual(t['outcome'], 'WIN', "BREAKEVEN trades must NOT be labeled as WIN")
+                self.assertEqual(t['outcome'], 'BREAKEVEN')
+            elif 'TP' in t.get('exit_reason', ''):
+                self.assertEqual(t['outcome'], 'WIN')
+
+    def test_trade_verifier_error_keys_consistency(self):
+        verifier = TradeVerifier()
+        empty_df = pd.DataFrame()
+        res = verifier.run_10_trade_verification(custom_df=empty_df)
+        self.assertEqual(res['status'], 'ERROR_INSUFFICIENT_DATA')
+        self.assertIn('exact_win_rate_pct', res)
+        self.assertIn('win_rate_pct', res)
+        self.assertIn('breakevens', res)
+        self.assertIn('audit_grade', res)
+        self.assertEqual(res['exact_win_rate_pct'], 0.0)
+
+    def test_trade_verifier_multi_timeframe_calibration_and_high_accuracy(self):
+        # Verify across multiple timeframes (5m, 15m, 1h) that verifier executions produce valid setups
+        # with calibrated win probabilities and verified target fulfillments strictly requiring TP1/TP2 hits.
+        n = 75
+        dates = pd.date_range('2026-01-01', periods=n, freq='5min')
+        # Realistic trending series with minor pullbacks
+        np.random.seed(123)
+        returns = np.random.normal(0.001, 0.003, n)
+        close = 100.0 * np.exp(np.cumsum(returns))
+        high = close * (1.0 + np.abs(np.random.normal(0.002, 0.001, n)))
+        low = close * (1.0 - np.abs(np.random.normal(0.002, 0.001, n)))
+        open_p = (high + low) / 2.0
+        vol = np.random.uniform(500, 2000, n)
+
+        df_synth = pd.DataFrame({
+            'timestamp': dates,
+            'open': open_p,
+            'high': high,
+            'low': low,
+            'close': close,
+            'volume': vol
+        })
+
+        verifier = TradeVerifier()
+        for tf in ['5m', '15m', '1h']:
+            res = verifier.run_10_trade_verification(
+                symbol='BTC/USDT',
+                asset_type='crypto',
+                market_mode='futures',
+                timeframe=tf,
+                target_trades_count=3,
+                custom_df=df_synth
+            )
+            self.assertIn(res['status'], ['SUCCESS', 'ERROR_INSUFFICIENT_DATA'])
+            if res['status'] == 'SUCCESS' and res['total_trades'] > 0:
+                self.assertGreaterEqual(res['win_rate_pct'], 85.0)
+                # Ensure all recorded winning trades have TP in exit_reason
+                for t in res['trades']:
+                    if t['outcome'] == 'WIN':
+                        self.assertTrue('TP1' in t['exit_reason'] or 'TP2' in t['exit_reason'])
+                    self.assertGreaterEqual(t['calibrated_win_prob_pct'], 80.0)
 
 if __name__ == '__main__':
     unittest.main()

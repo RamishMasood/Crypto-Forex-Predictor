@@ -41,13 +41,15 @@ class CryptoFeedManager:
 
     def _init_ccxt_exchanges(self):
         for name, cls in [
-            ('bybit', ccxt.bybit),
-            ('coinbase', ccxt.coinbase),
-            ('kucoin', ccxt.kucoin),
-            ('gateio', ccxt.gateio)
+            ('bybit', getattr(ccxt, 'bybit', None)),
+            ('coinbase', getattr(ccxt, 'coinbase', None)),
+            ('kucoin', getattr(ccxt, 'kucoin', None)),
+            ('gateio', getattr(ccxt, 'gateio', getattr(ccxt, 'gate', None)))
         ]:
+            if cls is None:
+                continue
             try:
-                self.exchanges[name] = cls({'enableRateLimit': True, 'timeout': 8000})
+                self.exchanges[name] = cls({'enableRateLimit': True, 'timeout': 2500})
             except Exception:
                 pass
 

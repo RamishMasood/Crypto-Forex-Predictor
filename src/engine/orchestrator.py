@@ -176,15 +176,18 @@ class PredictorOrchestrator:
         )
 
         # ────────────────────────────────────────────────────
-        # STEP 7: PROPRIETARY ALPHASNIPER™ INTELLIGENCE & CONVICTION FILTER
+        # STEP 7: PROPRIETARY ALPHASNIPER™ & QUANTUMSNIPER™ INTELLIGENCE
         # ────────────────────────────────────────────────────
         alpha_sniper = AlphaSniperEngine.evaluate(
             df_indicators=df_indicators,
             base_confluence=confluence,
             ml_prediction=ml_prediction,
             trade_setup={'dummy': True},
-            futures_signals=futures_signals_result
+            futures_signals=futures_signals_result,
+            market_structure=market_structure,
+            timeframe=timeframe
         )
+        quantum_sniper = alpha_sniper.get('quantum_sniper', {})
 
         effective_action = alpha_sniper['gated_action'] if 'FILTERED' in alpha_sniper['gated_action'] else confluence['action']
         confluence['unfiltered_action'] = confluence.get('action')
@@ -226,6 +229,7 @@ class PredictorOrchestrator:
             },
             'confluence': confluence,
             'alpha_sniper': alpha_sniper,
+            'quantum_sniper': quantum_sniper,
             'trade_setup': trade_setup,
             'ml_prediction': ml_prediction,
             'smc_analysis': {

@@ -100,6 +100,10 @@ class QuantitativeIndicators:
         df = QuantitativeIndicators._calculate_cmo(df, period=14)
         df = QuantitativeIndicators._calculate_hurst(df, max_lag=20)
 
+        # 14. Garman-Klass Volatility & Zero-Lag HMA
+        df = QuantitativeIndicators._calculate_garman_klass(df)
+        df = QuantitativeIndicators._calculate_hma(df, period=9)
+
         return df
 
     @staticmethod
@@ -335,3 +339,38 @@ class QuantitativeIndicators:
         denom = (gain + loss).replace(0, 1e-9)
         df['cmo_14'] = ((gain - loss) / denom * 100.0).clip(-100.0, 100.0).fillna(0.0)
         return df
+
+    @staticmethod
+    def _calculate_garman_klass(df: pd.DataFrame, window: int = 14) -> pd.DataFrame:
+        """
+        Garman-Klass Volatility Estimator:
+        Takes Open, High, Low, Close into account, offering up to 8x the efficiency
+        of standard close-to-close historical volatility.
+        """
+        log_hl = np.log(df['high'] / df['low'].replace(0, np.nan))
+        log_co = np.log(df['close'] / df['open'].replace(0, np.nan))
+        gk_per_bar = 0.5 * (log_hl ** 2) - (2 * np.log(2) - 1) * (log_co ** 2)
+        df['garman_klass_vol'] = np.sqrt(gk_per_bar.rolling(window=window, min_periods=1).mean()).fillna(0.01)
+        return df
+
+    @staticmethod
+    def _calculate_hma(df: pd.DataFrame, period: int = 9) -> pd.DataFrame:
+        """
+        Hull Moving Average (HMA):
+        Extremely low lag, smooth directional filter.
+        WMA(2*WMA(n/2) - WMA(n)), sqrt(n)
+        """
+        def _wma(s: pd.Series, length: int) -> pd.Series:
+            weights = np.arange(1, length + 1)
+            return s.rolling(length, min_periods=1).apply(lambda x: np.dot(x, weights[-len(x):]) / weights[-len(x):].sum(), raw=True)
+
+        half_len = max(int(period / 2), 1)
+        sqrt_len = max(int(np.sqrt(period)), 1)
+
+        wma_half = _wma(df['close'], half_len)
+        wma_full = _wma(df['close'], period)
+        diff = 2 * wma_half - wma_full
+        df['hma_9'] = _wma(diff, sqrt_len).fillna(df['close'])
+        df['hma_slope'] = df['hma_9'].diff().fillna(0.0)
+        return df
+
