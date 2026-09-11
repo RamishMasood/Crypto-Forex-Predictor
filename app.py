@@ -104,10 +104,14 @@ with st.sidebar:
             all_exness_symbols = ff.get_available_symbols()
             selectable_symbols = all_exness_symbols if all_exness_symbols else FOREX_PAIRS
             # Default to XAU/USD if available
-            def_idx = selectable_symbols.index("XAU/USD") if "XAU/USD" in selectable_symbols else 0
-            symbol = st.selectbox("Pair / Asset (Exness MT5)", selectable_symbols, index=def_idx, help="All Exness tradable assets (Forex, Gold/Metals, BTC/ETH Crypto, Commodities)")
+            saved_sym = st.session_state.get("selected_forex_symbol")
+            if saved_sym and saved_sym in selectable_symbols:
+                def_idx = selectable_symbols.index(saved_sym)
+            else:
+                def_idx = selectable_symbols.index("XAU/USD") if "XAU/USD" in selectable_symbols else 0
+            symbol = st.selectbox("Pair / Asset (Exness MT5)", selectable_symbols, index=def_idx, key="selected_forex_symbol", help="All Exness tradable assets (Forex, Gold/Metals, BTC/ETH Crypto, Commodities)")
         else:
-            symbol = st.selectbox("Pair", FOREX_PAIRS)
+            symbol = st.selectbox("Pair", FOREX_PAIRS, key="selected_standard_forex_symbol")
 
         asset_code = "forex"
 
@@ -1037,6 +1041,10 @@ if setup['status'] == 'ACTIVE_SETUP':
         executor = MT5TradeExecutor()
         broker_sym = (mt5_status.get('broker_symbol') if isinstance(mt5_status, dict) else None) or ff.mt5_exness.get_exness_symbol(symbol) or 'XAUUSDc'
         account_bal = float(mt5_status.get('balance', account)) if isinstance(mt5_status, dict) else float(account)
+        specs = executor.get_symbol_trade_specs(broker_sym) or {}
+        vol_min = float(specs.get('volume_min', 0.01))
+        vol_step = float(specs.get('volume_step', 0.01))
+        vol_max = float(specs.get('volume_max', 100.0))
 
         st.markdown(
             clean_html(f"""
@@ -1047,7 +1055,7 @@ if setup['status'] == 'ACTIVE_SETUP':
                         &nbsp;<b style='color:#ffffff;font-size:1.05rem;'>Exness MT5 Broker Terminal Routing</b>
                     </div>
                     <div style='color:#6ee7b7;font-size:.84rem;font-weight:600;'>
-                        Broker Symbol: <code>{broker_sym}</code> &nbsp;|&nbsp; Account Balance: <b>${account_bal:,.2f}</b>
+                        Broker Symbol: <code>{broker_sym}</code> &nbsp;|&nbsp; Min Lot: <b>{vol_min:.2f}</b> &nbsp;|&nbsp; Account Balance: <b>${account_bal:,.2f}</b>
                     </div>
                 </div>
             </div>
@@ -1068,148 +1076,189 @@ if setup['status'] == 'ACTIVE_SETUP':
             except Exception:
                 saved_prefs = {}
 
-        # Initialize session_state defaults from disk if not yet present
-        if "alloc_mode_radio" not in st.session_state:
-            st.session_state["alloc_mode_radio"] = saved_prefs.get("alloc_mode", "📊 Percentage Allocation (%)")
-        if "direct_total_volume_input" not in st.session_state and "direct_total" in saved_prefs:
-            st.session_state["direct_total_volume_input"] = float(saved_prefs["direct_total"])
-        if "tp1_lots_input" not in st.session_state and "tp1_lots" in saved_prefs:
-            st.session_state["tp1_lots_input"] = float(saved_prefs["tp1_lots"])
-        if "tp2_lots_input" not in st.session_state and "tp2_lots" in saved_prefs:
-            st.session_state["tp2_lots_input"] = float(saved_prefs["tp2_lots"])
-        if "tp3_lots_input" not in st.session_state and "tp3_lots" in saved_prefs:
-            st.session_state["tp3_lots_input"] = float(saved_prefs["tp3_lots"])
-        if "custom_total_volume_input" not in st.session_state and "pct_total" in saved_prefs:
-            st.session_state["custom_total_volume_input"] = float(saved_prefs["pct_total"])
-        if "tp1_share_slider" not in st.session_state and "tp1_share" in saved_prefs:
-            st.session_state["tp1_share_slider"] = int(saved_prefs["tp1_share"])
-        if "tp2_share_slider" not in st.session_state and "tp2_share" in saved_prefs:
-            st.session_state["tp2_share_slider"] = int(saved_prefs["tp2_share"])
-        if "confirm_trade_exec" not in st.session_state and "enable_direct_exec" in saved_prefs:
-            st.session_state["confirm_trade_exec"] = bool(saved_prefs["enable_direct_exec"])
+        sym_prefs = saved_prefs.get(broker_sym, {})
+        if not isinstance(sym_prefs, dict):
+            sym_prefs = {}
+
+        # Detect active symbol switch and clear old symbol's custom numbers
+        last_broker_sym = st.session_state.get('_last_active_broker_sym')
+        if last_broker_sym != broker_sym:
+            st.session_state['_last_active_broker_sym'] = broker_sym
+            for k in ["direct_total_volume_input", "tp1_lots_input", "tp2_lots_input", "tp3_lots_input"]:
+                st.session_state.pop(k, None)
+
+        # Pre-compute suggested risk lots for this symbol based on risk% and balance
+        suggested_calc = executor.calculate_lot_and_risk(
+            broker_symbol=broker_sym,
+            entry_price=setup['recommended_entry'],
+            stop_loss_price=setup['stop_loss'],
+            balance_usd=account_bal,
+            risk_pct=risk_pct,
+            tp1_price=setup['tp1'],
+            tp2_price=setup['tp2'],
+            tp3_price=setup['tp3'],
+        )
+        sugg_vol = float(suggested_calc.get('total_lots', vol_min))
+        sugg_split = suggested_calc.get('lot_split', {})
+
+        def _compute_default_tp_split(tot: float):
+            tot = round(max(vol_min, tot), 2)
+            if tot >= round(3 * vol_min, 2):
+                avail = round(tot - 3 * vol_min, 2)
+                stps = int(round(avail / vol_step))
+                s1 = int(round(stps * 0.50))
+                s2 = int(round(stps * 0.30))
+                s3 = max(0, stps - s1 - s2)
+                return round(vol_min + s1 * vol_step, 2), round(vol_min + s2 * vol_step, 2), round(vol_min + s3 * vol_step, 2)
+            elif tot >= round(2 * vol_min, 2):
+                avail = round(tot - 2 * vol_min, 2)
+                stps = int(round(avail / vol_step))
+                s1 = int(round(stps * 0.60))
+                s2 = max(0, stps - s1)
+                return round(vol_min + s1 * vol_step, 2), round(vol_min + s2 * vol_step, 2), 0.0
+            else:
+                return tot, 0.0, 0.0
 
         def _save_lot_settings():
             try:
-                to_save = {
-                    "alloc_mode": st.session_state.get("alloc_mode_radio", "📊 Percentage Allocation (%)"),
-                    "direct_total": float(st.session_state.get("direct_total_volume_input", 0.05)),
-                    "tp1_lots": float(st.session_state.get("tp1_lots_input", 0.02)),
-                    "tp2_lots": float(st.session_state.get("tp2_lots_input", 0.02)),
-                    "tp3_lots": float(st.session_state.get("tp3_lots_input", 0.01)),
-                    "pct_total": float(st.session_state.get("custom_total_volume_input", 0.05)),
-                    "tp1_share": int(st.session_state.get("tp1_share_slider", 50)),
-                    "tp2_share": int(st.session_state.get("tp2_share_slider", 30)),
-                    "enable_direct_exec": bool(st.session_state.get("confirm_trade_exec", False)),
-                }
+                saved_prefs["alloc_mode"] = st.session_state.get("alloc_mode_radio", "📊 Percentage Allocation (%)")
+                saved_prefs["enable_direct_exec"] = bool(st.session_state.get("confirm_trade_exec", False))
+                saved_prefs["tp1_share"] = int(st.session_state.get("tp1_share_slider", 50))
+                saved_prefs["tp2_share"] = int(st.session_state.get("tp2_share_slider", 30))
+                
+                # Save symbol-specific custom lot settings
+                sym_dict = saved_prefs.setdefault(broker_sym, {})
+                sym_dict["direct_total"] = float(st.session_state.get("direct_total_volume_input", sugg_vol))
+                sym_dict["tp1_lots"] = float(st.session_state.get("tp1_lots_input", 0.0))
+                sym_dict["tp2_lots"] = float(st.session_state.get("tp2_lots_input", 0.0))
+                sym_dict["tp3_lots"] = float(st.session_state.get("tp3_lots_input", 0.0))
+
                 with open(settings_file, "w", encoding="utf-8") as _sf:
-                    json.dump(to_save, _sf, indent=2)
+                    json.dump(saved_prefs, _sf, indent=2)
             except Exception:
                 pass
 
+        def _on_direct_total_change():
+            tot_v = round(float(st.session_state.get("direct_total_volume_input", sugg_vol)), 2)
+            l1, l2, l3 = _compute_default_tp_split(tot_v)
+            st.session_state["tp1_lots_input"] = l1
+            st.session_state["tp2_lots_input"] = l2
+            st.session_state["tp3_lots_input"] = l3
+            _save_lot_settings()
+
         alloc_modes = ["📊 Percentage Allocation (%)", "🔢 Direct Lots Allocation (Lots)"]
         default_alloc_idx = 0
-        current_alloc_mode = st.session_state.get("alloc_mode_radio")
+        current_alloc_mode = st.session_state.get("alloc_mode_radio", saved_prefs.get("alloc_mode", "📊 Percentage Allocation (%)"))
         if current_alloc_mode in alloc_modes:
             default_alloc_idx = alloc_modes.index(current_alloc_mode)
 
-        alloc_mode = st.radio(
-            "Target Allocation Mode",
-            alloc_modes,
-            index=default_alloc_idx,
-            horizontal=True,
-            key="alloc_mode_radio",
-            on_change=_save_lot_settings
-        )
+        c_alloc, c_recalc = st.columns([3, 2])
+        with c_alloc:
+            alloc_mode = st.radio(
+                "Target Allocation Mode",
+                alloc_modes,
+                index=default_alloc_idx,
+                horizontal=True,
+                key="alloc_mode_radio",
+                on_change=_save_lot_settings
+            )
+        with c_recalc:
+            st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
+            if st.button(f"⚡ Sync Risk Lots ({sugg_vol:.2f} lots @ {risk_pct}%)", key="sync_risk_lots_btn", help="Sidebar ke Balance aur Risk % ke mutabiq recommended lots load karein"):
+                st.session_state["direct_total_volume_input"] = sugg_vol
+                l1, l2, l3 = _compute_default_tp_split(sugg_vol)
+                st.session_state["tp1_lots_input"] = l1
+                st.session_state["tp2_lots_input"] = l2
+                st.session_state["tp3_lots_input"] = l3
+                _save_lot_settings()
+                st.rerun()
 
         custom_lots_input = None
+        vol_errors = []
 
         if "Direct Lots" in alloc_mode:
-            # Pre-compute suggested total lots according to risk slider
-            suggested_calc = executor.calculate_lot_and_risk(
-                broker_symbol=broker_sym,
-                entry_price=setup['recommended_entry'],
-                stop_loss_price=setup['stop_loss'],
-                balance_usd=account_bal,
-                risk_pct=risk_pct
-            )
-            sugg_vol = float(suggested_calc.get('total_lots', 0.05))
+            # Initialize direct_total_volume_input if not present
+            if "direct_total_volume_input" not in st.session_state:
+                saved_tot = sym_prefs.get("direct_total", sugg_vol)
+                st.session_state["direct_total_volume_input"] = round(max(vol_min, float(saved_tot)), 2)
 
-            # Initial value preference: saved or session state, otherwise suggested
-            init_direct_tot = float(st.session_state.get("direct_total_volume_input", saved_prefs.get("direct_total", sugg_vol)))
+            cur_tot = round(float(st.session_state["direct_total_volume_input"]), 2)
+
+            # Initialize TP inputs if not present
+            if "tp1_lots_input" not in st.session_state:
+                dl1, dl2, dl3 = _compute_default_tp_split(cur_tot)
+                st.session_state["tp1_lots_input"] = round(float(sym_prefs.get("tp1_lots", dl1)), 2)
+                st.session_state["tp2_lots_input"] = round(float(sym_prefs.get("tp2_lots", dl2)), 2)
+                st.session_state["tp3_lots_input"] = round(float(sym_prefs.get("tp3_lots", dl3)), 2)
 
             col_dvol, col_tp1, col_tp2, col_tp3 = st.columns([1.2, 1, 1, 1])
             with col_dvol:
                 custom_direct_total = st.number_input(
                     "Total Volume (Lots) ✍️",
-                    min_value=0.01,
-                    max_value=100.0,
-                    value=init_direct_tot,
-                    step=0.01,
+                    min_value=vol_min,
+                    max_value=vol_max,
+                    value=cur_tot,
+                    step=vol_step,
                     format="%.2f",
                     key="direct_total_volume_input",
-                    on_change=_save_lot_settings,
-                    help="Total volume set karein. Teeno TPs ka total is se zyada nahi ho sakta."
+                    on_change=_on_direct_total_change,
+                    help=f"Exness Min: {vol_min:.2f} | Step: {vol_step:.2f}. Total Volume badalne se TPs auto-split ho jayenge."
                 )
 
             cur_tot = round(float(custom_direct_total), 2)
-
-            # Auto-split default lots proportionally based on total volume
-            def_l1 = round(cur_tot * 0.50, 2)
-            def_l2 = round(cur_tot * 0.30, 2)
-            def_l3 = max(0.0, round(cur_tot - def_l1 - def_l2, 2))
-
-            init_tp1 = float(st.session_state.get("tp1_lots_input", saved_prefs.get("tp1_lots", min(def_l1, cur_tot))))
-            init_tp1 = min(max(0.0, init_tp1), cur_tot)
 
             with col_tp1:
                 tp1_lots_in = st.number_input(
                     "TP1 Lots (Lock)",
                     min_value=0.0,
                     max_value=cur_tot,
-                    value=init_tp1,
-                    step=0.01,
+                    value=float(st.session_state.get("tp1_lots_input", cur_tot)),
+                    step=vol_step,
                     format="%.2f",
                     key="tp1_lots_input",
                     on_change=_save_lot_settings
                 )
             with col_tp2:
                 rem_after_tp1 = max(0.0, round(cur_tot - float(tp1_lots_in), 2))
-                init_tp2 = float(st.session_state.get("tp2_lots_input", saved_prefs.get("tp2_lots", min(def_l2, rem_after_tp1))))
-                init_tp2 = min(max(0.0, init_tp2), rem_after_tp1)
                 tp2_lots_in = st.number_input(
                     "TP2 Lots (Struct)",
                     min_value=0.0,
                     max_value=rem_after_tp1,
-                    value=init_tp2,
-                    step=0.01,
+                    value=min(float(st.session_state.get("tp2_lots_input", 0.0)), rem_after_tp1),
+                    step=vol_step,
                     format="%.2f",
                     key="tp2_lots_input",
                     on_change=_save_lot_settings
                 )
             with col_tp3:
                 rem_after_tp2 = max(0.0, round(cur_tot - float(tp1_lots_in) - float(tp2_lots_in), 2))
-                init_tp3 = float(st.session_state.get("tp3_lots_input", saved_prefs.get("tp3_lots", rem_after_tp2)))
-                init_tp3 = min(max(0.0, init_tp3), rem_after_tp2)
                 tp3_lots_in = st.number_input(
                     "TP3 Lots (Runner)",
                     min_value=0.0,
                     max_value=rem_after_tp2,
-                    value=init_tp3,
-                    step=0.01,
+                    value=min(float(st.session_state.get("tp3_lots_input", 0.0)), rem_after_tp2),
+                    step=vol_step,
                     format="%.2f",
                     key="tp3_lots_input",
                     on_change=_save_lot_settings
                 )
 
-            # Auto-save current values whenever rendered
-            _save_lot_settings()
-
             sum_tp_lots = round(float(tp1_lots_in) + float(tp2_lots_in) + float(tp3_lots_in), 2)
             lots_mismatch = abs(sum_tp_lots - cur_tot) > 0.001
 
-            if lots_mismatch:
+            # Validate broker minimum volume constraint on each target
+            for lbl, val in [("TP1", float(tp1_lots_in)), ("TP2", float(tp2_lots_in)), ("TP3", float(tp3_lots_in))]:
+                if 0.0 < val < vol_min:
+                    vol_errors.append(f"{lbl} ({val:.2f} lots) is below broker minimum ({vol_min:.2f} lots)")
+
+            if vol_errors:
+                st.error(f"❌ **Exness Minimum Order Constraint:** On `{broker_sym}`, every placed order must be at least **`{vol_min:.2f} lots`** (or 0.00 to disable). {'; '.join(vol_errors)}.")
+                if st.button("⚡ Click to Auto-Fix & Re-Split Lots According to Broker Rules", key="btn_autofix_split"):
+                    _on_direct_total_change()
+                    st.rerun()
+            elif lots_mismatch:
                 if sum_tp_lots > cur_tot:
-                    st.error(f"⚠️ **Validation Error:** TP lots ka total (`{sum_tp_lots:.2f}`) Total Volume (`{cur_tot:.2f}`) se zyada nahi ho sakta! Please lots adjust karein.")
+                    st.error(f"⚠️ **Validation Error:** TP lots ka total (`{sum_tp_lots:.2f}`) Total Volume (`{cur_tot:.2f}`) se zyada hai! Please lots adjust karein.")
                 else:
                     st.warning(f"ℹ️ **Allocation Notice:** TP lots ka total (`{sum_tp_lots:.2f}`) Total Volume (`{cur_tot:.2f}`) se kam hai (`{cur_tot - sum_tp_lots:.2f}` lots unallocated).")
 
@@ -1219,34 +1268,13 @@ if setup['status'] == 'ACTIVE_SETUP':
                 'tp3_lots': float(tp3_lots_in)
             }
             tp1_share, tp2_share, tp3_share = 50.0, 30.0, 20.0
-            override_total_volume = None
+            override_total_volume = cur_tot
         else:
             lots_mismatch = False
-            # Pre-compute suggested total lots according to risk slider
-            suggested_calc = executor.calculate_lot_and_risk(
-                broker_symbol=broker_sym,
-                entry_price=setup['recommended_entry'],
-                stop_loss_price=setup['stop_loss'],
-                balance_usd=account_bal,
-                risk_pct=risk_pct
-            )
-            sugg_vol = float(suggested_calc.get('total_lots', 0.01))
-            init_pct_vol = float(st.session_state.get("custom_total_volume_input", saved_prefs.get("pct_total", sugg_vol)))
+            vol_errors = []
+            override_total_volume = sugg_vol
 
-            col_vol, col_tp1, col_tp2, col_tp3 = st.columns([1.2, 1, 1, 0.8])
-            with col_vol:
-                custom_vol_in = st.number_input(
-                    "Total Volume (Lots) ✍️",
-                    min_value=0.01,
-                    max_value=100.0,
-                    value=init_pct_vol,
-                    step=0.01,
-                    format="%.2f",
-                    key="custom_total_volume_input",
-                    on_change=_save_lot_settings,
-                    help="Apne mutabiq total volume (lots) enter karein. Risk in Dollars ($) aur Risk % khud calculate ho jaega."
-                )
-                override_total_volume = float(custom_vol_in)
+            col_tp1, col_tp2, col_tp3 = st.columns([1, 1, 0.8])
             with col_tp1:
                 init_tp1_share = int(st.session_state.get("tp1_share_slider", saved_prefs.get("tp1_share", 50)))
                 tp1_share = st.slider("TP1 % (Profit Lock)", 10, 80, init_tp1_share, 5, key="tp1_share_slider", on_change=_save_lot_settings)
@@ -1258,8 +1286,15 @@ if setup['status'] == 'ACTIVE_SETUP':
                 st.metric("TP3 %", f"{rem_share}%")
                 tp3_share = rem_share
 
-            # Auto-save current values whenever rendered
-            _save_lot_settings()
+            # Informative message showing calculated lots
+            split_info = suggested_calc.get('lot_split', {})
+            st.caption(
+                f"📊 **Calculated from {risk_pct:.2f}% Risk on ${account_bal:,.2f}:** "
+                f"Total Volume: `{sugg_vol:.2f} Lots` | "
+                f"TP1: `{split_info.get('tp1_lots', 0):.2f} lots` | "
+                f"TP2: `{split_info.get('tp2_lots', 0):.2f} lots` | "
+                f"TP3: `{split_info.get('tp3_lots', 0):.2f} lots`"
+            )
 
         # Calculate exact lot sizing and risk/reward breakdown
         calc_risk = executor.calculate_lot_and_risk(
@@ -1275,11 +1310,11 @@ if setup['status'] == 'ACTIVE_SETUP':
             tp2_price=setup['tp2'],
             tp3_price=setup['tp3'],
             custom_lots=custom_lots_input,
-            total_volume_lots=override_total_volume if "Direct Lots" not in alloc_mode else None
+            total_volume_lots=override_total_volume
         )
 
         split = calc_risk.get('lot_split', {})
-        total_vol = calc_risk.get('total_lots', 0.01)
+        total_vol = calc_risk.get('total_lots', override_total_volume or 0.01)
         act_risk_usd = calc_risk.get('actual_risk_usd', 0.0)
         act_risk_pct = calc_risk.get('actual_risk_pct', risk_pct)
         min_bal_req = calc_risk.get('min_lot_risk_usd', 0.0)
@@ -1330,7 +1365,7 @@ if setup['status'] == 'ACTIVE_SETUP':
         with ex_col2:
             btn_label = f"🚀 EXECUTE {setup['action']} ON EXNESS MT5 ({total_vol:.2f} LOTS)"
             btn_type = "primary"
-            can_execute = confirm_exec and not lots_mismatch
+            can_execute = confirm_exec and not lots_mismatch and len(vol_errors) == 0
             if st.button(btn_label, type=btn_type, disabled=not can_execute, key="btn_execute_exness_mt5", use_container_width=True):
                 with st.spinner("Submitting multi-target orders to Exness broker server..."):
                     exec_res = executor.execute_multi_target_trade(
@@ -1342,18 +1377,21 @@ if setup['status'] == 'ACTIVE_SETUP':
                         tp3_price=setup['tp3'],
                         lot_split=split
                     )
-                    if exec_res.get('success'):
-                        st.toast("⚡ Order Executed on Exness MT5", icon="🟢")
-                        st.success(f"🟢 **TRADE EXECUTED SUCCESSFULLY ON EXNESS MT5!** Placed {exec_res['orders_placed']} order(s). Tickets: {[t['ticket'] for t in exec_res.get('tickets', [])]}")
-                        time.sleep(0.5)
-                        st.rerun()
-                    else:
-                        err_msg = exec_res.get('error', '')
-                        st.error(f"❌ Execution failed: {err_msg}")
-                        if "10027" in err_msg or "AutoTrading" in err_msg:
-                            st.warning(
-                                "⚠️ **Hal (Solution):** MetaTrader 5 terminal ki top toolbar par **'Algo Trading'** button ko click karke GREEN kar dein (ya **Tools -> Options -> Expert Advisors -> 'Allow Algo Trading'** check karein). Uske baad dobara execute button dabayein!"
-                            )
+                st.session_state['last_exec_res'] = exec_res
+
+            # Display execution feedback instantly without requiring full setup refresh
+            last_res = st.session_state.get('last_exec_res')
+            if last_res:
+                if last_res.get('success'):
+                    st.toast("⚡ Order Executed on Exness MT5", icon="🟢")
+                    st.success(f"🟢 **TRADE EXECUTED SUCCESSFULLY ON EXNESS MT5!** Placed {last_res['orders_placed']} order(s). Tickets: {[t['ticket'] for t in last_res.get('tickets', [])]}")
+                else:
+                    err_msg = last_res.get('error', '')
+                    st.error(f"❌ Execution failed: {err_msg}")
+                    if "10027" in err_msg or "AutoTrading" in err_msg:
+                        st.warning(
+                            "⚠️ **Hal (Solution):** MetaTrader 5 terminal ki top toolbar par **'Algo Trading'** button ko click karke GREEN kar dein (ya **Tools -> Options -> Expert Advisors -> 'Allow Algo Trading'** check karein). Uske baad dobara execute button dabayein!"
+                        )
 
 else:
     st.info(f"No active setup — [{setup.get('action', 'NEUTRAL')}] Capital preservation mode active.")

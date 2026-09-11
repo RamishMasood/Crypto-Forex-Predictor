@@ -184,19 +184,29 @@ class MT5TradeExecutor:
             p2 = tp2_pct / norm_sum
             p3 = tp3_pct / norm_sum
 
-            steps_total = int(round(total_lots / vol_step))
-            if steps_total >= 3:
-                s1 = max(1, int(round(steps_total * p1)))
-                s2 = max(1, int(round(steps_total * p2)))
-                s3 = max(1, steps_total - s1 - s2)
-                lot1 = round(s1 * vol_step, 4)
-                lot2 = round(s2 * vol_step, 4)
-                lot3 = round(s3 * vol_step, 4)
-            elif steps_total == 2:
-                lot1 = round(vol_min, 4)
-                lot2 = round(vol_min, 4)
+            # To split into multiple child orders, each child order MUST be >= vol_min!
+            if total_lots >= round(3 * vol_min, 4):
+                # 3 child orders possible
+                avail = round(total_lots - 3 * vol_min, 4)
+                avail_steps = int(round(avail / vol_step))
+                s1 = int(round(avail_steps * p1))
+                s2 = int(round(avail_steps * p2))
+                s3 = max(0, avail_steps - s1 - s2)
+                lot1 = round(vol_min + s1 * vol_step, 4)
+                lot2 = round(vol_min + s2 * vol_step, 4)
+                lot3 = round(vol_min + s3 * vol_step, 4)
+            elif total_lots >= round(2 * vol_min, 4):
+                # 2 child orders possible
+                avail = round(total_lots - 2 * vol_min, 4)
+                avail_steps = int(round(avail / vol_step))
+                denom = p1 + p2 if (p1 + p2) > 0 else 1.0
+                s1 = int(round(avail_steps * (p1 / denom)))
+                s2 = max(0, avail_steps - s1)
+                lot1 = round(vol_min + s1 * vol_step, 4)
+                lot2 = round(vol_min + s2 * vol_step, 4)
                 lot3 = 0.0
             else:
+                # Only 1 child order possible (total_lots < 2 * vol_min)
                 lot1 = round(total_lots, 4)
                 lot2 = 0.0
                 lot3 = 0.0
@@ -299,9 +309,13 @@ class MT5TradeExecutor:
 
             placed_tickets = []
             errors = []
+            vol_min = float(specs.get('volume_min', 0.01))
 
             for label, volume, tp_target in orders_to_place:
                 if volume <= 0:
+                    continue
+                if volume < vol_min:
+                    errors.append(f"{label} (lots: {volume:.2f}) is below broker minimum ({vol_min:.2f}) for {broker_symbol}")
                     continue
 
                 fresh_tick = mt5.symbol_info_tick(broker_symbol) or tick
