@@ -256,11 +256,16 @@ class MT5ExnessProvider:
             pass
         return None
 
+    _EXNESS_SYMBOLS_CACHE: Optional[List[str]] = None
+
     def get_available_symbols(self) -> List[str]:
         """
         Retrieves all active tradable pairs from the Exness MT5 terminal,
         formatted cleanly with slash notation (e.g., BTC/USD, ETH/USD, EUR/USD, XAU/USD).
         """
+        if MT5ExnessProvider._EXNESS_SYMBOLS_CACHE and len(MT5ExnessProvider._EXNESS_SYMBOLS_CACHE) > 50:
+            return list(MT5ExnessProvider._EXNESS_SYMBOLS_CACHE)
+
         if not self._check_connection():
             return []
         try:
@@ -278,27 +283,36 @@ class MT5ExnessProvider:
             res_set = set(standard_list)
             for s in symbols:
                 name = s.name
-                # Strip Exness suffix e.g. m, c, .r, #
+                # Strip Exness suffixes: standard 'm', raw 'c', micro '#', '.r'
                 clean = name.rstrip('m').rstrip('c').rstrip('#').rstrip('.r')
-                if len(clean) == 6:
+                if clean.endswith('USD') and len(clean) > 3:
+                    res_set.add(f"{clean[:-3]}/USD")
+                elif clean.endswith('USDT') and len(clean) > 4:
+                    res_set.add(f"{clean[:-4]}/USDT")
+                elif len(clean) == 6 and clean.isupper() and clean.isalpha():
                     res_set.add(f"{clean[:3]}/{clean[3:]}")
-                elif clean == 'BTCUSD':
-                    res_set.add('BTC/USD')
-                elif clean == 'ETHUSD':
-                    res_set.add('ETH/USD')
-                elif clean == 'XAUUSD':
-                    res_set.add('XAU/USD')
-                elif clean == 'XAGUSD':
-                    res_set.add('XAG/USD')
+                else:
+                    res_set.add(clean)
 
-            # Prioritize gold and majors first
+            # Clean up duplicates / normalize
+            if 'BTCUSD' in res_set: res_set.remove('BTCUSD')
+            if 'ETHUSD' in res_set: res_set.remove('ETHUSD')
+            if 'XAUUSD' in res_set: res_set.remove('XAUUSD')
+            if 'XAGUSD' in res_set: res_set.remove('XAGUSD')
+
+            # Prioritize gold, major cryptos, major forex pairs, then alphabetical
             res = sorted(list(res_set), key=lambda x: (
                 0 if x == 'XAU/USD' else (
-                    1 if x in ['BTC/USD', 'ETH/USD'] else (
-                        2 if 'USD' in x else 3
+                    1 if x in ['BTC/USD', 'ETH/USD', 'SOL/USD', 'BNB/USD', 'DOGE/USD', 'XRP/USD'] else (
+                        2 if x in ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'USD/CHF', 'NZD/USD'] else (
+                            3 if '/USD' in x else (
+                                4 if '/' in x else 5
+                            )
+                        )
                     )
                 ), x
             ))
+            MT5ExnessProvider._EXNESS_SYMBOLS_CACHE = res
             return res
         except Exception:
             return []

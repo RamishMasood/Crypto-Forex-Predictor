@@ -1,0 +1,13 @@
+{
+  "total_trades_taken": 13,
+  "trades_by_symbol": {},
+  "open_batches": {},
+  "wins": 8,
+  "losses": 3,
+  "breakevens": 2,
+  "last_scan_time": "2026-09-11T12:47:12.409894+00:00",
+  "last_scanned_symbol": null,
+  "engine_status": "STOPPED",
+  "xau_trades_taken": 10,
+  "btc_trades_taken": 3
+}

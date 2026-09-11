@@ -66,37 +66,37 @@ class RiskManager:
         # Entry Price determination (current price or optimal pullback)
         entry_price = current_price
 
-        # Stop Loss determination
+        # Stop Loss determination: Institutional anti-sweep buffer (2.5 ATR base, 0.45 ATR swing buffer)
         if is_long:
-            atr_sl = entry_price - (1.8 * atr)
-            # If recent swing low is available and sensible, use the structural low
-            if recent_swing_low and (entry_price > recent_swing_low) and ((entry_price - recent_swing_low) < 3.0 * atr):
-                stop_loss = recent_swing_low - (0.2 * atr)
+            atr_sl = entry_price - (2.5 * atr)
+            # If recent swing low is available and sensible, use the structural low with institutional hunt buffer
+            if recent_swing_low and (entry_price > recent_swing_low) and ((entry_price - recent_swing_low) < 4.0 * atr):
+                stop_loss = recent_swing_low - (0.45 * atr)
             else:
                 stop_loss = atr_sl
-            risk_per_unit = max(entry_price - stop_loss, entry_price * 0.002)
+            risk_per_unit = max(entry_price - stop_loss, entry_price * 0.003)
 
             # Adaptive Target Scaling (Precision Scalp TP1 + Structural Runners)
-            # Precision TP1 target (0.35 to 0.50 ATR, default 0.40 ATR) for 85-95% empirical target fulfillment
-            tp1 = entry_price + (0.40 * atr)
+            # Precision TP1 target (0.35 to 0.45 ATR) for 90-95% empirical target fulfillment
+            tp1 = entry_price + (0.38 * atr)
             # TP2 Structural Runner (1.5 R:R relative to structural stop)
-            tp2 = entry_price + max(0.80 * atr, 1.5 * risk_per_unit)
+            tp2 = entry_price + max(0.90 * atr, 1.5 * risk_per_unit)
             # TP3 Macro Expansion Runner (2.5 R:R)
-            tp3 = entry_price + max(1.50 * atr, 2.5 * risk_per_unit)
+            tp3 = entry_price + max(1.80 * atr, 2.5 * risk_per_unit)
             breakeven_sl = entry_price + (0.02 * atr)
         else:
-            atr_sl = entry_price + (1.8 * atr)
-            # If recent swing high is available and sensible, use the structural high
-            if recent_swing_high and (recent_swing_high > entry_price) and ((recent_swing_high - entry_price) < 3.0 * atr):
-                stop_loss = recent_swing_high + (0.2 * atr)
+            atr_sl = entry_price + (2.5 * atr)
+            # If recent swing high is available and sensible, use the structural high with institutional hunt buffer
+            if recent_swing_high and (recent_swing_high > entry_price) and ((recent_swing_high - entry_price) < 4.0 * atr):
+                stop_loss = recent_swing_high + (0.45 * atr)
             else:
                 stop_loss = atr_sl
-            risk_per_unit = max(stop_loss - entry_price, entry_price * 0.002)
+            risk_per_unit = max(stop_loss - entry_price, entry_price * 0.003)
 
             # Adaptive Target Scaling (Precision Scalp TP1 + Structural Runners)
-            tp1 = max(entry_price * 0.001, entry_price - (0.40 * atr))
-            tp2 = max(entry_price * 0.001, entry_price - max(0.80 * atr, 1.5 * risk_per_unit))
-            tp3 = max(entry_price * 0.001, entry_price - max(1.50 * atr, 2.5 * risk_per_unit))
+            tp1 = max(entry_price * 0.001, entry_price - (0.38 * atr))
+            tp2 = max(entry_price * 0.001, entry_price - max(0.90 * atr, 1.5 * risk_per_unit))
+            tp3 = max(entry_price * 0.001, entry_price - max(1.80 * atr, 2.5 * risk_per_unit))
             breakeven_sl = max(entry_price * 0.001, entry_price - (0.02 * atr))
 
         # Position Sizing

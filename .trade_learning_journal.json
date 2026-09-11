@@ -1,0 +1,39 @@
+{
+  "lessons_learned": [
+    "Lesson 1: On BTC/USD (5m), local swing low of 76952 was swept down to 76852 by institutional liquidity grab before continuation. Tight 1.8 ATR Stop Loss was hunted by a single wick.",
+    "Optimization 1: Elevated Base Stop Loss from 1.8 ATR to 2.5 ATR and increased structural hunt buffer from 0.20 ATR to 0.45 ATR.",
+    "Optimization 2: Tightened Scalp TP1 multiplier to 0.38 ATR for faster 90-95% target fulfillment and earlier risk-free Breakeven lock-in.",
+    "Status: XAU/USD 1m setup was fully aligned (5/5 Pillars) and shorted at 4338.197 with TP1 at 4335.587.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+  ],
+  "sl_post_mortems": [
+    {
+      "timestamp": "2026-09-11T11:10:21.857250+00:00",
+      "symbol": "BTC/USD",
+      "timeframe": "5m",
+      "action": "BUY",
+      "entry": 77014.5,
+      "sl": 76822.0,
+      "root_cause": "Institutional micro-liquidity sweep down to 76787 on lower timeframes while higher timeframe 4H/Daily remains in macro uptrend.",
+      "action_taken": "Upgraded RiskManager SL multiplier to 2.5 ATR and structural buffer to 0.45 ATR."
+    }
+  ],
+  "optimal_adjustments": {
+    "base_atr_sl_multiplier": 2.5,
+    "swing_buffer_atr": 0.45,
+    "tp1_atr_multiplier": 0.38,
+    "min_confluence_score": 35.0,
+    "min_calibrated_prob": 80.0
+  }
+}

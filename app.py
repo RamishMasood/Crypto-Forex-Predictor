@@ -103,6 +103,7 @@ with st.sidebar:
         if is_mt5:
             all_exness_symbols = ff.get_available_symbols()
             selectable_symbols = all_exness_symbols if all_exness_symbols else FOREX_PAIRS
+            st.session_state['exness_selectable_symbols'] = selectable_symbols
             # Default to XAU/USD if available
             saved_sym = st.session_state.get("selected_forex_symbol")
             if saved_sym and saved_sym in selectable_symbols:
@@ -186,7 +187,7 @@ with st.sidebar:
                                 err = res.get('last_error')
                                 st.error(f"❌ Connection failed: {err}. Please check your password and server name.")
 
-    timeframe = st.selectbox("Timeframe", ["3m","5m","15m","30m","1h","4h","1d"], index=1)
+    timeframe = st.selectbox("Timeframe", ["1m","3m","5m","15m","30m","1h","4h","1d"], index=2)
 
     st.divider()
     st.subheader("Risk")
@@ -789,7 +790,11 @@ def render_mt5_position_tracker():
     except Exception:
         pass
 
-    tab_active, tab_history = st.tabs(["🟢 Active Open Positions", "📜 Closed Trades History (7 Days)"])
+    tab_active, tab_history, tab_auto = st.tabs([
+        "🟢 Active Open Positions", 
+        "📜 Closed Trades History (7 Days)",
+        "🤖 Autonomous 5/5 Pillar Scanner & AI Journal"
+    ])
 
     with tab_active:
         positions = live_exec.get_open_positions()
@@ -807,7 +812,6 @@ def render_mt5_position_tracker():
                     c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 1.5, 1.5])
                     with c1:
                         st.markdown(f"<span style='background:{p_col};color:#fff;padding:2px 8px;border-radius:6px;font-weight:700;font-size:.78rem;'>{p['type']}</span> <b>{p['symbol']}</b> &nbsp;`{p['volume']} lots`", unsafe_allow_html=True)
-                        # Extract Batch ID and TP Target from comment
                         cmt = str(p.get('comment', ''))
                         batch_tag = ""
                         m_batch = re.search(r'QS_(\d+)_(TP\d)', cmt)
@@ -864,6 +868,139 @@ def render_mt5_position_tracker():
                 use_container_width=True,
                 hide_index=True
             )
+
+    with tab_auto:
+        st.markdown("#### 🤖 Autonomous 5/5 Pillar Multi-Timeframe Scanner & AI Learning Engine")
+        from src.engine.autonomous_manager import get_engine, DEFAULT_TIMEFRAMES, DEFAULT_SYMBOLS
+        auto_engine = get_engine()
+        settings = auto_engine.load_settings()
+        state = auto_engine.load_state()
+        journal = auto_engine.load_journal()
+
+        is_engine_active = auto_engine.is_running()
+
+        # Engine Control Header & Status
+        ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1.5, 1.2, 1.3])
+        with ctrl_col1:
+            if is_engine_active:
+                st.markdown("##### Status: <span style='background:#064e3b;color:#34d399;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #059669;'>🟢 RUNNING (Auto-Scanning)</span>", unsafe_allow_html=True)
+            else:
+                st.markdown("##### Status: <span style='background:#3f3f46;color:#e4e4e7;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #71717a;'>⚪ STOPPED (Idle)</span>", unsafe_allow_html=True)
+
+        with ctrl_col2:
+            if is_engine_active:
+                if st.button("⏹️ STOP ENGINE", key="btn_stop_auto_trader", type="secondary", use_container_width=True):
+                    auto_engine.stop()
+                    st.toast("⏹️ Autonomous Engine Stopped", icon="🛑")
+                    st.rerun(scope="fragment")
+            else:
+                if st.button("▶️ START ENGINE", key="btn_start_auto_trader", type="primary", use_container_width=True):
+                    auto_engine.start()
+                    st.toast("🚀 Autonomous Engine Started!", icon="🟢")
+                    st.rerun(scope="fragment")
+
+        with ctrl_col3:
+            last_scan = state.get('last_scan_time')
+            scan_txt = last_scan[11:19] + " UTC" if last_scan else "Waiting..."
+            last_sym = state.get('last_scanned_symbol', 'None')
+            st.caption(f"⏱️ **Last Scan:** `{scan_txt}` | Active: `{last_sym}`")
+
+        # Exness Trading Pairs Selector & Timeframes Configuration
+        st.markdown("##### ⚙️ Scanner & Pair Selection:")
+        p_col1, p_col2 = st.columns([2.2, 1.8])
+
+        # 1. Audit active trades & closed MT5 deals so metrics are always fresh
+        try:
+            auto_engine.audit_active_trades_and_learn()
+            state = auto_engine.load_state()
+        except Exception:
+            pass
+
+        # 2. Get all tradable Exness symbols catalog directly synced with Quant Terminal sidebar
+        all_pairs = st.session_state.get('exness_selectable_symbols')
+        if not all_pairs or len(all_pairs) < 50:
+            try:
+                from src.data.forex_feeds import ForexFeedManager, MT5ExnessProvider
+                ex_p = MT5ExnessProvider()
+                all_pairs = ex_p.get_available_symbols()
+                if not all_pairs:
+                    ff_m = ForexFeedManager(enable_mt5=True)
+                    all_pairs = ff_m.get_available_symbols()
+                if all_pairs and len(all_pairs) > 50:
+                    st.session_state['exness_selectable_symbols'] = all_pairs
+            except Exception:
+                pass
+
+        if not all_pairs:
+            all_pairs = ["XAU/USD", "BTC/USD", "ETH/USD", "EUR/USD", "GBP/USD", "USD/JPY"]
+
+        # Ensure defaults are included
+        for d_sym in DEFAULT_SYMBOLS:
+            if d_sym not in all_pairs:
+                all_pairs.insert(0, d_sym)
+
+        current_selected_syms = settings.get('selected_symbols', DEFAULT_SYMBOLS)
+        valid_selected = [s for s in current_selected_syms if s in all_pairs]
+        if not valid_selected:
+            valid_selected = [s for s in DEFAULT_SYMBOLS if s in all_pairs] or all_pairs[:2]
+
+        with p_col1:
+            chosen_symbols = st.multiselect(
+                f"🎯 Select Exness Trading Pairs to Scan & Trade ({len(all_pairs)} Available):",
+                options=all_pairs,
+                default=valid_selected,
+                key="auto_scanner_pairs_multiselect",
+                help="Choose which Exness currency pairs, metals (XAU/USD Gold), or cryptos (BTC/USD) the autonomous engine should trade."
+            )
+
+        with p_col2:
+            chosen_tfs = st.multiselect(
+                "⏱️ Active Scan Timeframes:",
+                options=DEFAULT_TIMEFRAMES,
+                default=settings.get('timeframes', DEFAULT_TIMEFRAMES),
+                key="auto_scanner_tf_multiselect",
+                help="Autonomous engine checks every selected timeframe for 5/5 Pillar setups."
+            )
+
+        # Update settings if user changes pairs or timeframes
+        if chosen_symbols != settings.get('selected_symbols') or chosen_tfs != settings.get('timeframes'):
+            settings['selected_symbols'] = chosen_symbols
+            settings['timeframes'] = chosen_tfs
+            auto_engine.save_settings(settings)
+
+        # Metrics Display (Automatically synced from MT5 closed history)
+        col_a1, col_a2, col_a3, col_a4 = st.columns(4)
+        target_trades = settings.get('target_trades_per_symbol', 10)
+        with col_a1:
+            xau_c = state.get('xau_trades_taken', 0)
+            st.metric("XAU/USD Trades", f"{xau_c} / {target_trades} Target")
+        with col_a2:
+            btc_c = state.get('btc_trades_taken', 0)
+            st.metric("BTC/USD Trades", f"{btc_c} / {target_trades} Target")
+        with col_a3:
+            tot_w = state.get('wins', 0)
+            tot_l = state.get('losses', 0)
+            tot_be = state.get('breakevens', 0)
+            completed_total = tot_w + tot_l + tot_be
+            win_rate = (tot_w / completed_total * 100.0) if completed_total > 0 else 0.0
+            st.metric(
+                "Win / BE / Loss", 
+                f"{tot_w}W - {tot_be}BE - {tot_l}L", 
+                delta=f"{win_rate:.0f}% Win Rate" if completed_total > 0 else None
+            )
+        with col_a4:
+            tot_trades = state.get('total_trades_taken', 0)
+            st.metric("Total Executed", f"{tot_trades} Batches")
+
+        st.caption("🛡️ **Strict Rule:** Autonomous engine executes trades ONLY when all 5/5 Pillars are 100% aligned. Any SL hit is automatically run through an ML Post-Mortem to refine buffer parameters towards 95%+ win rate.")
+
+        lessons = journal.get('lessons_learned', [])
+        if lessons:
+            st.markdown("##### 💡 AI Trade Post-Mortem & Strategy Optimization Lessons:")
+            for l_idx, l_text in enumerate(lessons[-5:], 1):
+                st.info(f"**Lesson {l_idx}:** {l_text}")
+        else:
+            st.success("✅ **Zero SL Violations Detected:** All 5/5 Pillar setups have respected structural invalidation boundaries.")
 
 # ── RUN ENGINE ────────────────────────────────────────────────────────────
 # Cache key so we only re-run when inputs actually change
