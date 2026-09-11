@@ -784,6 +784,7 @@ def render_mt5_position_tracker():
         be_updates = live_exec.check_and_apply_auto_breakeven()
         if be_updates:
             for b in be_updates:
+                st.toast(f"🛡️ Auto-Breakeven: #{b['ticket']} SL shifted to Breakeven (${b['new_sl']})!", icon="🛡️")
                 st.info(f"🛡️ **Auto-Breakeven Triggered:** Position #{b['ticket']} Stop-Loss shifted to Breakeven (${b['new_sl']})!")
     except Exception:
         pass
