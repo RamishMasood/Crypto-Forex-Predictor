@@ -20,6 +20,30 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ── Streamlit Compatibility Shim ───────────────────────────────────────────
+# st.fragment and st.rerun(scope=...) were stabilized in Streamlit 1.37.0.
+# In Streamlit 1.33-1.36, the decorator was st.experimental_fragment and st.rerun took 0 arguments.
+if not hasattr(st, "fragment"):
+    if hasattr(st, "experimental_fragment"):
+        st.fragment = st.experimental_fragment
+    else:
+        def _dummy_fragment(func=None, **kwargs):
+            if func is not None:
+                return func
+            def _decorator(f):
+                return f
+            return _decorator
+        st.fragment = _dummy_fragment
+
+_orig_st_rerun = st.rerun
+def _safe_st_rerun(*args, **kwargs):
+    try:
+        return _orig_st_rerun(*args, **kwargs)
+    except TypeError:
+        return _orig_st_rerun()
+st.rerun = _safe_st_rerun
+
+
 import pandas as pd
 import numpy as np
 import matplotlib

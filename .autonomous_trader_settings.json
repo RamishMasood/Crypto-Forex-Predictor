@@ -1,9 +1,7 @@
 {
   "enabled": false,
   "selected_symbols": [
-    "XAU/USD",
-    "BTC/USD",
-    "ETH/USD"
+    "XAU/USD"
   ],
   "timeframes": [
     "1m",
