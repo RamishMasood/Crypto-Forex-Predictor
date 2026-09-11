@@ -1057,11 +1057,68 @@ if setup['status'] == 'ACTIVE_SETUP':
 
         st.markdown("##### 🎯 Multi-Target Scaling & Risk Allocation")
         
+        # ── Persist Multi-Target & Risk Preferences ────────────────────────────
+        import json
+        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".user_lot_settings.json")
+        saved_prefs = {}
+        if os.path.exists(settings_file):
+            try:
+                with open(settings_file, "r", encoding="utf-8") as _sf:
+                    saved_prefs = json.load(_sf)
+            except Exception:
+                saved_prefs = {}
+
+        # Initialize session_state defaults from disk if not yet present
+        if "alloc_mode_radio" not in st.session_state:
+            st.session_state["alloc_mode_radio"] = saved_prefs.get("alloc_mode", "📊 Percentage Allocation (%)")
+        if "direct_total_volume_input" not in st.session_state and "direct_total" in saved_prefs:
+            st.session_state["direct_total_volume_input"] = float(saved_prefs["direct_total"])
+        if "tp1_lots_input" not in st.session_state and "tp1_lots" in saved_prefs:
+            st.session_state["tp1_lots_input"] = float(saved_prefs["tp1_lots"])
+        if "tp2_lots_input" not in st.session_state and "tp2_lots" in saved_prefs:
+            st.session_state["tp2_lots_input"] = float(saved_prefs["tp2_lots"])
+        if "tp3_lots_input" not in st.session_state and "tp3_lots" in saved_prefs:
+            st.session_state["tp3_lots_input"] = float(saved_prefs["tp3_lots"])
+        if "custom_total_volume_input" not in st.session_state and "pct_total" in saved_prefs:
+            st.session_state["custom_total_volume_input"] = float(saved_prefs["pct_total"])
+        if "tp1_share_slider" not in st.session_state and "tp1_share" in saved_prefs:
+            st.session_state["tp1_share_slider"] = int(saved_prefs["tp1_share"])
+        if "tp2_share_slider" not in st.session_state and "tp2_share" in saved_prefs:
+            st.session_state["tp2_share_slider"] = int(saved_prefs["tp2_share"])
+        if "confirm_trade_exec" not in st.session_state and "enable_direct_exec" in saved_prefs:
+            st.session_state["confirm_trade_exec"] = bool(saved_prefs["enable_direct_exec"])
+
+        def _save_lot_settings():
+            try:
+                to_save = {
+                    "alloc_mode": st.session_state.get("alloc_mode_radio", "📊 Percentage Allocation (%)"),
+                    "direct_total": float(st.session_state.get("direct_total_volume_input", 0.05)),
+                    "tp1_lots": float(st.session_state.get("tp1_lots_input", 0.02)),
+                    "tp2_lots": float(st.session_state.get("tp2_lots_input", 0.02)),
+                    "tp3_lots": float(st.session_state.get("tp3_lots_input", 0.01)),
+                    "pct_total": float(st.session_state.get("custom_total_volume_input", 0.05)),
+                    "tp1_share": int(st.session_state.get("tp1_share_slider", 50)),
+                    "tp2_share": int(st.session_state.get("tp2_share_slider", 30)),
+                    "enable_direct_exec": bool(st.session_state.get("confirm_trade_exec", False)),
+                }
+                with open(settings_file, "w", encoding="utf-8") as _sf:
+                    json.dump(to_save, _sf, indent=2)
+            except Exception:
+                pass
+
+        alloc_modes = ["📊 Percentage Allocation (%)", "🔢 Direct Lots Allocation (Lots)"]
+        default_alloc_idx = 0
+        current_alloc_mode = st.session_state.get("alloc_mode_radio")
+        if current_alloc_mode in alloc_modes:
+            default_alloc_idx = alloc_modes.index(current_alloc_mode)
+
         alloc_mode = st.radio(
             "Target Allocation Mode",
-            ["📊 Percentage Allocation (%)", "🔢 Direct Lots Allocation (Lots)"],
+            alloc_modes,
+            index=default_alloc_idx,
             horizontal=True,
-            key="alloc_mode_radio"
+            key="alloc_mode_radio",
+            on_change=_save_lot_settings
         )
 
         custom_lots_input = None
@@ -1077,16 +1134,20 @@ if setup['status'] == 'ACTIVE_SETUP':
             )
             sugg_vol = float(suggested_calc.get('total_lots', 0.05))
 
+            # Initial value preference: saved or session state, otherwise suggested
+            init_direct_tot = float(st.session_state.get("direct_total_volume_input", saved_prefs.get("direct_total", sugg_vol)))
+
             col_dvol, col_tp1, col_tp2, col_tp3 = st.columns([1.2, 1, 1, 1])
             with col_dvol:
                 custom_direct_total = st.number_input(
                     "Total Volume (Lots) ✍️",
                     min_value=0.01,
                     max_value=100.0,
-                    value=sugg_vol,
+                    value=init_direct_tot,
                     step=0.01,
                     format="%.2f",
                     key="direct_total_volume_input",
+                    on_change=_save_lot_settings,
                     help="Total volume set karein. Teeno TPs ka total is se zyada nahi ho sakta."
                 )
 
@@ -1097,38 +1158,51 @@ if setup['status'] == 'ACTIVE_SETUP':
             def_l2 = round(cur_tot * 0.30, 2)
             def_l3 = max(0.0, round(cur_tot - def_l1 - def_l2, 2))
 
+            init_tp1 = float(st.session_state.get("tp1_lots_input", saved_prefs.get("tp1_lots", min(def_l1, cur_tot))))
+            init_tp1 = min(max(0.0, init_tp1), cur_tot)
+
             with col_tp1:
                 tp1_lots_in = st.number_input(
                     "TP1 Lots (Lock)",
                     min_value=0.0,
                     max_value=cur_tot,
-                    value=min(def_l1, cur_tot),
+                    value=init_tp1,
                     step=0.01,
                     format="%.2f",
-                    key="tp1_lots_input"
+                    key="tp1_lots_input",
+                    on_change=_save_lot_settings
                 )
             with col_tp2:
                 rem_after_tp1 = max(0.0, round(cur_tot - float(tp1_lots_in), 2))
+                init_tp2 = float(st.session_state.get("tp2_lots_input", saved_prefs.get("tp2_lots", min(def_l2, rem_after_tp1))))
+                init_tp2 = min(max(0.0, init_tp2), rem_after_tp1)
                 tp2_lots_in = st.number_input(
                     "TP2 Lots (Struct)",
                     min_value=0.0,
                     max_value=rem_after_tp1,
-                    value=min(def_l2, rem_after_tp1),
+                    value=init_tp2,
                     step=0.01,
                     format="%.2f",
-                    key="tp2_lots_input"
+                    key="tp2_lots_input",
+                    on_change=_save_lot_settings
                 )
             with col_tp3:
                 rem_after_tp2 = max(0.0, round(cur_tot - float(tp1_lots_in) - float(tp2_lots_in), 2))
+                init_tp3 = float(st.session_state.get("tp3_lots_input", saved_prefs.get("tp3_lots", rem_after_tp2)))
+                init_tp3 = min(max(0.0, init_tp3), rem_after_tp2)
                 tp3_lots_in = st.number_input(
                     "TP3 Lots (Runner)",
                     min_value=0.0,
                     max_value=rem_after_tp2,
-                    value=rem_after_tp2,
+                    value=init_tp3,
                     step=0.01,
                     format="%.2f",
-                    key="tp3_lots_input"
+                    key="tp3_lots_input",
+                    on_change=_save_lot_settings
                 )
+
+            # Auto-save current values whenever rendered
+            _save_lot_settings()
 
             sum_tp_lots = round(float(tp1_lots_in) + float(tp2_lots_in) + float(tp3_lots_in), 2)
             lots_mismatch = abs(sum_tp_lots - cur_tot) > 0.001
@@ -1157,6 +1231,7 @@ if setup['status'] == 'ACTIVE_SETUP':
                 risk_pct=risk_pct
             )
             sugg_vol = float(suggested_calc.get('total_lots', 0.01))
+            init_pct_vol = float(st.session_state.get("custom_total_volume_input", saved_prefs.get("pct_total", sugg_vol)))
 
             col_vol, col_tp1, col_tp2, col_tp3 = st.columns([1.2, 1, 1, 0.8])
             with col_vol:
@@ -1164,21 +1239,27 @@ if setup['status'] == 'ACTIVE_SETUP':
                     "Total Volume (Lots) ✍️",
                     min_value=0.01,
                     max_value=100.0,
-                    value=sugg_vol,
+                    value=init_pct_vol,
                     step=0.01,
                     format="%.2f",
                     key="custom_total_volume_input",
+                    on_change=_save_lot_settings,
                     help="Apne mutabiq total volume (lots) enter karein. Risk in Dollars ($) aur Risk % khud calculate ho jaega."
                 )
                 override_total_volume = float(custom_vol_in)
             with col_tp1:
-                tp1_share = st.slider("TP1 % (Profit Lock)", 10, 80, 50, 5, key="tp1_share_slider")
+                init_tp1_share = int(st.session_state.get("tp1_share_slider", saved_prefs.get("tp1_share", 50)))
+                tp1_share = st.slider("TP1 % (Profit Lock)", 10, 80, init_tp1_share, 5, key="tp1_share_slider", on_change=_save_lot_settings)
             with col_tp2:
-                tp2_share = st.slider("TP2 % (Structural)", 10, 60, 30, 5, key="tp2_share_slider")
+                init_tp2_share = int(st.session_state.get("tp2_share_slider", saved_prefs.get("tp2_share", 30)))
+                tp2_share = st.slider("TP2 % (Structural)", 10, 60, init_tp2_share, 5, key="tp2_share_slider", on_change=_save_lot_settings)
             with col_tp3:
                 rem_share = max(0, 100 - tp1_share - tp2_share)
                 st.metric("TP3 %", f"{rem_share}%")
                 tp3_share = rem_share
+
+            # Auto-save current values whenever rendered
+            _save_lot_settings()
 
         # Calculate exact lot sizing and risk/reward breakdown
         calc_risk = executor.calculate_lot_and_risk(
@@ -1239,7 +1320,13 @@ if setup['status'] == 'ACTIVE_SETUP':
         # Confirmation and Execution
         ex_col1, ex_col2 = st.columns([1.5, 2.5])
         with ex_col1:
-            confirm_exec = st.checkbox("🔒 Enable Direct Execution", value=False, key="confirm_trade_exec")
+            init_confirm = bool(st.session_state.get("confirm_trade_exec", saved_prefs.get("enable_direct_exec", False)))
+            confirm_exec = st.checkbox(
+                "🔒 Enable Direct Execution",
+                value=init_confirm,
+                key="confirm_trade_exec",
+                on_change=_save_lot_settings
+            )
         with ex_col2:
             btn_label = f"🚀 EXECUTE {setup['action']} ON EXNESS MT5 ({total_vol:.2f} LOTS)"
             btn_type = "primary"

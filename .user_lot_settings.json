@@ -1,0 +1,11 @@
+{
+  "alloc_mode": "\ud83d\udd22 Direct Lots Allocation (Lots)",
+  "direct_total": 0.05,
+  "tp1_lots": 0.02,
+  "tp2_lots": 0.02,
+  "tp3_lots": 0.01,
+  "pct_total": 0.04,
+  "tp1_share": 15,
+  "tp2_share": 25,
+  "enable_direct_exec": true
+}
