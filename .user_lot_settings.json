@@ -4,10 +4,10 @@
   "tp2_share": 30,
   "enable_direct_exec": true,
   "BTCUSDm": {
-    "direct_total": 0.01,
-    "tp1_lots": 0.01,
-    "tp2_lots": 0.0,
-    "tp3_lots": 0.0
+    "direct_total": 0.08,
+    "tp1_lots": 0.03,
+    "tp2_lots": 0.03,
+    "tp3_lots": 0.02
   },
   "ADAUSDm": {
     "direct_total": 5.66,
