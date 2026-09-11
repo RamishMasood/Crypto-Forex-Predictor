@@ -8,8 +8,8 @@
     "XAU/USD": {
       "wins": 12,
       "losses": 2,
-      "breakevens": 1,
-      "completed": 15,
+      "breakevens": 2,
+      "completed": 16,
       "total_profit": -3.82
     },
     "BTC/USD": {
@@ -320,9 +320,11 @@
       "status": "OPEN",
       "p1_score": -46.9,
       "p1_prob": 86.5
-    },
-    "157798": {
-      "batch_id": 157798,
+    }
+  },
+  "closed_batches": [
+    {
+      "batch_id": "157798",
       "symbol": "XAU/USD",
       "broker_sym": "XAUUSDm",
       "timeframe": "3m",
@@ -330,10 +332,10 @@
       "entry_price": 4347.893,
       "sl_price": 4354.32883,
       "breakeven_sl": 4347.76256,
+      "matched_pillars": 5,
       "tp1_price": 4345.4147,
       "tp2_price": 4328.32748,
       "tp3_price": 4315.2838,
-      "matched_pillars": 5,
       "lot_split": {
         "tp1_lots": 0.01,
         "tp2_lots": 0.01,
@@ -352,12 +354,12 @@
         1868846418
       ],
       "executed_at": "2026-09-11T20:16:38.167738+00:00",
-      "status": "OPEN",
+      "closed_at": "2026-09-11T20:45:21.339703+00:00",
+      "profit": 0.0,
+      "status": "BREAKEVEN",
       "p1_score": -39.0,
       "p1_prob": 82.0
-    }
-  },
-  "closed_batches": [
+    },
     {
       "batch_id": "156046",
       "symbol": "XAU/USD",
@@ -934,18 +936,408 @@
   ],
   "wins": 12,
   "losses": 2,
-  "breakevens": 2,
-  "last_scan_time": "2026-09-11T20:43:23.283709+00:00",
+  "breakevens": 3,
+  "last_scan_time": "2026-09-11T20:47:27.738213+00:00",
   "last_scanned_symbol": "XAU/USD",
   "engine_status": "RUNNING",
-  "cycle_count": 201,
+  "cycle_count": 206,
   "current_scan": {
-    "cycle": 201,
+    "cycle": 206,
     "symbol": "XAU/USD",
-    "timeframe": "5m",
-    "time": "20:43:25 UTC"
+    "timeframe": "4h",
+    "time": "20:47:35 UTC"
   },
   "scan_activity_log": [
+    {
+      "timestamp": "20:47:36 UTC",
+      "cycle": 206,
+      "symbol": "XAU/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -5.2 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:47:35 UTC",
+      "cycle": 206,
+      "symbol": "XAU/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -7.7 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:47:33 UTC",
+      "cycle": 206,
+      "symbol": "XAU/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +6.7 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:47:32 UTC",
+      "cycle": 206,
+      "symbol": "XAU/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -1.7 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:47:31 UTC",
+      "cycle": 206,
+      "symbol": "XAU/USD",
+      "timeframe": "5m",
+      "action": "SELL",
+      "pillars": "4/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -22.9 | Win Prob: 60%"
+    },
+    {
+      "timestamp": "20:47:30 UTC",
+      "cycle": 206,
+      "symbol": "XAU/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -11.9 | Win Prob: 48%"
+    },
+    {
+      "timestamp": "20:47:28 UTC",
+      "cycle": 206,
+      "symbol": "XAU/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -12.1 | Win Prob: 48%"
+    },
+    {
+      "timestamp": "20:46:55 UTC",
+      "cycle": 205,
+      "symbol": "XAU/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -5.4 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:46:54 UTC",
+      "cycle": 205,
+      "symbol": "XAU/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -7.7 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:46:52 UTC",
+      "cycle": 205,
+      "symbol": "XAU/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +10.9 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:46:51 UTC",
+      "cycle": 205,
+      "symbol": "XAU/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +0.7 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:46:49 UTC",
+      "cycle": 205,
+      "symbol": "XAU/USD",
+      "timeframe": "5m",
+      "action": "SELL",
+      "pillars": "4/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -19.6 | Win Prob: 59%"
+    },
+    {
+      "timestamp": "20:46:48 UTC",
+      "cycle": 205,
+      "symbol": "XAU/USD",
+      "timeframe": "3m",
+      "action": "SELL",
+      "pillars": "4/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -29.1 | Win Prob: 66%"
+    },
+    {
+      "timestamp": "20:46:46 UTC",
+      "cycle": 205,
+      "symbol": "XAU/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -17.5 | Win Prob: 48%"
+    },
+    {
+      "timestamp": "20:46:11 UTC",
+      "cycle": 204,
+      "symbol": "XAU/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -5.4 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:46:10 UTC",
+      "cycle": 204,
+      "symbol": "XAU/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -8.6 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:46:09 UTC",
+      "cycle": 204,
+      "symbol": "XAU/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -2.3 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:46:08 UTC",
+      "cycle": 204,
+      "symbol": "XAU/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +1.7 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:46:05 UTC",
+      "cycle": 204,
+      "symbol": "XAU/USD",
+      "timeframe": "5m",
+      "action": "SELL",
+      "pillars": "4/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -18.7 | Win Prob: 59%"
+    },
+    {
+      "timestamp": "20:46:04 UTC",
+      "cycle": 204,
+      "symbol": "XAU/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -26.1 | Win Prob: 57%"
+    },
+    {
+      "timestamp": "20:46:03 UTC",
+      "cycle": 204,
+      "symbol": "XAU/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -14.4 | Win Prob: 48%"
+    },
+    {
+      "timestamp": "20:45:29 UTC",
+      "cycle": 203,
+      "symbol": "XAU/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -5.4 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:45:28 UTC",
+      "cycle": 203,
+      "symbol": "XAU/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -8.6 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:45:26 UTC",
+      "cycle": 203,
+      "symbol": "XAU/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -2.5 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:45:25 UTC",
+      "cycle": 203,
+      "symbol": "XAU/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +1.7 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:45:24 UTC",
+      "cycle": 203,
+      "symbol": "XAU/USD",
+      "timeframe": "5m",
+      "action": "SELL",
+      "pillars": "4/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -19.2 | Win Prob: 59%"
+    },
+    {
+      "timestamp": "20:45:23 UTC",
+      "cycle": 203,
+      "symbol": "XAU/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -26.4 | Win Prob: 57%"
+    },
+    {
+      "timestamp": "20:45:22 UTC",
+      "cycle": 203,
+      "symbol": "XAU/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -4.3 | Win Prob: 48%"
+    },
+    {
+      "timestamp": "20:44:43 UTC",
+      "cycle": 202,
+      "symbol": "XAU/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -4.1 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:44:42 UTC",
+      "cycle": 202,
+      "symbol": "XAU/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -9.8 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:44:41 UTC",
+      "cycle": 202,
+      "symbol": "XAU/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -2.6 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:44:40 UTC",
+      "cycle": 202,
+      "symbol": "XAU/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +0.0 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:44:39 UTC",
+      "cycle": 202,
+      "symbol": "XAU/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -12.5 | Win Prob: 48%"
+    },
+    {
+      "timestamp": "20:44:37 UTC",
+      "cycle": 202,
+      "symbol": "XAU/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -18.8 | Win Prob: 46%"
+    },
+    {
+      "timestamp": "20:44:36 UTC",
+      "cycle": 202,
+      "symbol": "XAU/USD",
+      "timeframe": "1m",
+      "action": "SELL",
+      "pillars": "4/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -36.0 | Win Prob: 78%"
+    },
+    {
+      "timestamp": "20:43:55 UTC",
+      "cycle": 201,
+      "symbol": "XAU/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -4.2 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:43:32 UTC",
+      "cycle": 201,
+      "symbol": "XAU/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -10.4 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "20:43:30 UTC",
+      "cycle": 201,
+      "symbol": "XAU/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -2.1 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "20:43:29 UTC",
+      "cycle": 201,
+      "symbol": "XAU/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +0.0 | Win Prob: 50%"
+    },
     {
       "timestamp": "20:43:25 UTC",
       "cycle": 201,
@@ -1155,399 +1547,9 @@
       "pillars": "4/5",
       "status": "No Trade (Waiting 5/5)",
       "details": "Score: -27.2 | Win Prob: 66%"
-    },
-    {
-      "timestamp": "20:40:51 UTC",
-      "cycle": 198,
-      "symbol": "XAU/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -18.6 | Win Prob: 46%"
-    },
-    {
-      "timestamp": "20:40:49 UTC",
-      "cycle": 198,
-      "symbol": "XAU/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +14.0 | Win Prob: 48%"
-    },
-    {
-      "timestamp": "20:40:10 UTC",
-      "cycle": 197,
-      "symbol": "XAU/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -5.2 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:40:09 UTC",
-      "cycle": 197,
-      "symbol": "XAU/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -7.7 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:40:08 UTC",
-      "cycle": 197,
-      "symbol": "XAU/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +6.7 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "20:40:06 UTC",
-      "cycle": 197,
-      "symbol": "XAU/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -9.5 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "20:40:05 UTC",
-      "cycle": 197,
-      "symbol": "XAU/USD",
-      "timeframe": "5m",
-      "action": "SELL",
-      "pillars": "4/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -27.3 | Win Prob: 66%"
-    },
-    {
-      "timestamp": "20:40:04 UTC",
-      "cycle": 197,
-      "symbol": "XAU/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -18.3 | Win Prob: 46%"
-    },
-    {
-      "timestamp": "20:40:02 UTC",
-      "cycle": 197,
-      "symbol": "XAU/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +25.3 | Win Prob: 46%"
-    },
-    {
-      "timestamp": "20:39:27 UTC",
-      "cycle": 196,
-      "symbol": "XAU/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -5.2 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:39:26 UTC",
-      "cycle": 196,
-      "symbol": "XAU/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -8.0 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:39:25 UTC",
-      "cycle": 196,
-      "symbol": "XAU/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +6.8 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "20:39:24 UTC",
-      "cycle": 196,
-      "symbol": "XAU/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -8.3 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "20:39:23 UTC",
-      "cycle": 196,
-      "symbol": "XAU/USD",
-      "timeframe": "5m",
-      "action": "SELL",
-      "pillars": "4/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -32.1 | Win Prob: 76%"
-    },
-    {
-      "timestamp": "20:39:22 UTC",
-      "cycle": 196,
-      "symbol": "XAU/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -18.5 | Win Prob: 46%"
-    },
-    {
-      "timestamp": "20:39:21 UTC",
-      "cycle": 196,
-      "symbol": "XAU/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +20.4 | Win Prob: 55%"
-    },
-    {
-      "timestamp": "20:38:42 UTC",
-      "cycle": 195,
-      "symbol": "XAU/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -5.2 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:38:41 UTC",
-      "cycle": 195,
-      "symbol": "XAU/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -8.0 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:38:40 UTC",
-      "cycle": 195,
-      "symbol": "XAU/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +6.6 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "20:38:39 UTC",
-      "cycle": 195,
-      "symbol": "XAU/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -11.8 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "20:38:38 UTC",
-      "cycle": 195,
-      "symbol": "XAU/USD",
-      "timeframe": "5m",
-      "action": "SELL",
-      "pillars": "4/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -33.3 | Win Prob: 69%"
-    },
-    {
-      "timestamp": "20:38:37 UTC",
-      "cycle": 195,
-      "symbol": "XAU/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -20.3 | Win Prob: 56%"
-    },
-    {
-      "timestamp": "20:38:36 UTC",
-      "cycle": 195,
-      "symbol": "XAU/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +12.9 | Win Prob: 48%"
-    },
-    {
-      "timestamp": "20:38:01 UTC",
-      "cycle": 194,
-      "symbol": "XAU/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -5.2 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:38:00 UTC",
-      "cycle": 194,
-      "symbol": "XAU/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -7.9 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:37:59 UTC",
-      "cycle": 194,
-      "symbol": "XAU/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +6.7 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "20:37:58 UTC",
-      "cycle": 194,
-      "symbol": "XAU/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -7.8 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "20:37:57 UTC",
-      "cycle": 194,
-      "symbol": "XAU/USD",
-      "timeframe": "5m",
-      "action": "SELL",
-      "pillars": "4/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -19.1 | Win Prob: 61%"
-    },
-    {
-      "timestamp": "20:37:56 UTC",
-      "cycle": 194,
-      "symbol": "XAU/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -26.5 | Win Prob: 58%"
-    },
-    {
-      "timestamp": "20:37:55 UTC",
-      "cycle": 194,
-      "symbol": "XAU/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +11.1 | Win Prob: 48%"
-    },
-    {
-      "timestamp": "20:37:20 UTC",
-      "cycle": 193,
-      "symbol": "XAU/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -5.4 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:37:19 UTC",
-      "cycle": 193,
-      "symbol": "XAU/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -7.7 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:37:18 UTC",
-      "cycle": 193,
-      "symbol": "XAU/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -2.2 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "20:37:17 UTC",
-      "cycle": 193,
-      "symbol": "XAU/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -7.5 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "20:37:16 UTC",
-      "cycle": 193,
-      "symbol": "XAU/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -8.6 | Win Prob: 48%"
-    },
-    {
-      "timestamp": "20:37:15 UTC",
-      "cycle": 193,
-      "symbol": "XAU/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -27.8 | Win Prob: 58%"
-    },
-    {
-      "timestamp": "20:37:14 UTC",
-      "cycle": 193,
-      "symbol": "XAU/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +15.3 | Win Prob: 48%"
-    },
-    {
-      "timestamp": "20:36:42 UTC",
-      "cycle": 192,
-      "symbol": "XAU/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -5.4 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "20:36:41 UTC",
-      "cycle": 192,
-      "symbol": "XAU/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -8.6 | Win Prob: 52%"
     }
   ],
-  "next_scan_time": "00:01 remaining",
+  "next_scan_time": "00:07 remaining",
   "reset_at": "2026-09-11T18:02:05.644328+00:00",
   "xau_trades_taken": 0,
   "btc_trades_taken": 0
