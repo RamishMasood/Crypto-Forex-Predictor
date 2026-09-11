@@ -1102,6 +1102,9 @@ def render_mt5_position_tracker():
         st.markdown("##### 📊 Target Progress & Independent Pair Win Rates:")
         by_sym = state.get('trades_by_symbol', {})
         sym_stats = state.get('symbol_stats', {})
+        open_batches = state.get('open_batches', {})
+        closed_batches = state.get('closed_batches', [])
+        all_recorded_batches = list(open_batches.values()) + closed_batches
 
         active_symbols = chosen_symbols if chosen_symbols else DEFAULT_SYMBOLS
         
@@ -1132,6 +1135,11 @@ def render_mt5_position_tracker():
             comp = w + be + l
             wr = (w / comp * 100.0) if comp > 0 else 0.0
 
+            # Calculate symbol dollar risk
+            sym_all_b = [b for b in all_recorded_batches if b.get('symbol') == sym]
+            sym_risks = [auto_engine.compute_batch_risk(b) for b in sym_all_b if auto_engine.compute_batch_risk(b) > 0]
+            avg_risk_sym = (sum(sym_risks) / len(sym_risks)) if sym_risks else 0.0
+
             # Target status badge
             is_target_reached = c_taken >= target_trades
             pct_prog = min(100.0, (c_taken / target_trades * 100.0)) if target_trades > 0 else 0.0
@@ -1140,15 +1148,24 @@ def render_mt5_position_tracker():
             target_label = f"{sym} Trades{badge}"
             target_val = f"{c_taken} / {target_trades} Target"
             stats_sub = f"{w}W - {be}BE - {l}L ({wr:.0f}% WR) | ${pnl:+,.2f}"
+            pnl_col = "#34d399" if pnl >= 0 else "#f87171"
+
+            def _render_sym_card(col_target):
+                with col_target:
+                    st.metric(target_label, target_val, delta=stats_sub if comp > 0 else f"{pct_prog:.0f}% progress")
+                    render_html(f"""
+                    <div style='display:flex;justify-content:space-between;align-items:center;background:#0d1527;border:1px solid #1e293b;border-radius:6px;padding:3px 8px;margin-top:2px;font-size:0.75rem;'>
+                        <span><b style='color:#94a3b8;'>Profit:</b> <b style='color:{pnl_col};'>${pnl:+,.2f}</b></span>
+                        <span><b style='color:#94a3b8;'>Avg Risk:</b> <b style='color:#f87171;'>-${avg_risk_sym:,.2f}</b></span>
+                    </div>
+                    """)
 
             if num_pairs <= 3 and idx < len(sym_cols) - 1:
-                with sym_cols[idx]:
-                    st.metric(target_label, target_val, delta=stats_sub if comp > 0 else f"{pct_prog:.0f}% progress")
+                _render_sym_card(sym_cols[idx])
             else:
                 if idx % 3 == 0:
                     grid_cols = st.columns(min(3, num_pairs - idx))
-                with grid_cols[idx % 3]:
-                    st.metric(target_label, target_val, delta=stats_sub if comp > 0 else f"{pct_prog:.0f}% progress")
+                _render_sym_card(grid_cols[idx % 3])
 
         # Global Aggregate Summary Card
         tot_w = state.get('wins', 0)
@@ -1158,7 +1175,11 @@ def render_mt5_position_tracker():
         global_wr = (tot_w / completed_total * 100.0) if completed_total > 0 else 0.0
         tot_trades = state.get('total_trades_taken', 0)
         tot_pnl = sum(s.get('total_profit', 0.0) for s in sym_stats.values()) if sym_stats else 0.0
-        active_batches_count = len(state.get('open_batches', {}))
+        active_batches_count = len(open_batches)
+
+        all_risks = [auto_engine.compute_batch_risk(b) for b in all_recorded_batches if auto_engine.compute_batch_risk(b) > 0]
+        avg_risk_global = (sum(all_risks) / len(all_risks)) if all_risks else 0.0
+        tot_pnl_col = "#34d399" if tot_pnl >= 0 else "#f87171"
 
         if num_pairs <= 3:
             with sym_cols[-1]:
@@ -1167,6 +1188,12 @@ def render_mt5_position_tracker():
                     f"{tot_w}W - {tot_be}BE - {tot_l}L ({completed_total} Closed | {active_batches_count} Active)",
                     delta=f"{global_wr:.0f}% WR | ${tot_pnl:+,.2f} (Total: {tot_trades})" if completed_total > 0 else f"{tot_trades} Batches Executed"
                 )
+                render_html(f"""
+                <div style='display:flex;justify-content:space-between;align-items:center;background:#0d1527;border:1px solid #1e293b;border-radius:6px;padding:3px 8px;margin-top:2px;font-size:0.75rem;'>
+                    <span><b style='color:#94a3b8;'>Net Realized:</b> <b style='color:{tot_pnl_col};'>${tot_pnl:+,.2f}</b></span>
+                    <span><b style='color:#94a3b8;'>Avg Risk / Batch:</b> <b style='color:#f87171;'>-${avg_risk_global:,.2f}</b></span>
+                </div>
+                """)
         else:
             st.divider()
             c_g1, c_g2, c_g3 = st.columns(3)
@@ -1176,6 +1203,12 @@ def render_mt5_position_tracker():
                 st.metric("Overall Outcome", f"{tot_w}W - {tot_be}BE - {tot_l}L", delta=f"{global_wr:.0f}% Win Rate" if completed_total > 0 else None)
             with c_g3:
                 st.metric("Net Realized PnL", f"${tot_pnl:+,.2f}")
+                render_html(f"""
+                <div style='display:flex;justify-content:space-between;align-items:center;background:#0d1527;border:1px solid #1e293b;border-radius:6px;padding:3px 8px;margin-top:2px;font-size:0.75rem;'>
+                    <span><b style='color:#94a3b8;'>Net Realized:</b> <b style='color:{tot_pnl_col};'>${tot_pnl:+,.2f}</b></span>
+                    <span><b style='color:#94a3b8;'>Avg Risk / Batch:</b> <b style='color:#f87171;'>-${avg_risk_global:,.2f}</b></span>
+                </div>
+                """)
 
         # ── 5. Live Scanning Activity Terminal & Console (Requirement 6) ──────────
         st.markdown("---")
@@ -1348,6 +1381,7 @@ def render_mt5_position_tracker():
                     with st.container():
                         act_col = "#00c853" if 'BUY' in b_data.get('action', '') else "#ff1744"
                         be_display = f"{float(b_data['breakeven_sl']):,.4f}" if b_data.get('breakeven_sl') else "-"
+                        b_risk = auto_engine.compute_batch_risk(b_data)
                         render_html(f"""
                         <div style='background:#0f172a;border-left:4px solid {act_col};border-radius:8px;padding:12px 16px;margin:8px 0;'>
                             <b style='color:#38bdf8;'>Batch #{b_id}</b> &nbsp;|&nbsp; 
@@ -1356,6 +1390,7 @@ def render_mt5_position_tracker():
                             Entry: <b>{b_data.get('entry_price')}</b> &nbsp;|&nbsp;
                             🛡️ BE Mark: <b style='color:#38bdf8;'>{be_display}</b> &nbsp;|&nbsp;
                             SL: <b style='color:#f87171;'>{b_data.get('sl_price')}</b> &nbsp;|&nbsp;
+                            <span style='color:#f87171;font-weight:700;'>Risk: -${b_risk:,.2f}</span> &nbsp;|&nbsp;
                             TP1: <b style='color:#34d399;'>{b_data.get('tp1_price')}</b> &nbsp;
                             TP2: <b style='color:#34d399;'>{b_data.get('tp2_price')}</b> &nbsp;
                             TP3: <b style='color:#34d399;'>{b_data.get('tp3_price')}</b> &nbsp;|&nbsp;
@@ -1367,8 +1402,11 @@ def render_mt5_position_tracker():
             if not closed_batches:
                 st.info("ℹ️ No closed autonomous batches recorded in this session yet.")
             else:
+                for b_item in closed_batches:
+                    if 'risk_usd' not in b_item or not b_item['risk_usd']:
+                        b_item['risk_usd'] = auto_engine.compute_batch_risk(b_item)
                 c_df = pd.DataFrame(closed_batches)
-                show_cols = [c for c in ['executed_at', 'batch_id', 'symbol', 'action', 'timeframe', 'entry_price', 'breakeven_sl', 'sl_price', 'tp1_price', 'tp2_price', 'tp3_price', 'profit', 'status', 'tickets'] if c in c_df.columns]
+                show_cols = [c for c in ['executed_at', 'batch_id', 'symbol', 'action', 'timeframe', 'entry_price', 'breakeven_sl', 'sl_price', 'risk_usd', 'tp1_price', 'tp2_price', 'tp3_price', 'profit', 'status', 'tickets'] if c in c_df.columns]
                 
                 if 'executed_at' in c_df.columns:
                     c_df['executed_at'] = c_df['executed_at'].astype(str).str.slice(0, 19).str.replace('T', ' ')
@@ -1377,7 +1415,7 @@ def render_mt5_position_tracker():
                     c_df[show_cols].rename(columns={
                         'executed_at': 'Executed Time', 'batch_id': 'Batch #', 'symbol': 'Symbol',
                         'action': 'Type', 'timeframe': 'TF', 'entry_price': 'Entry', 'breakeven_sl': 'BE Mark',
-                        'sl_price': 'SL', 'tp1_price': 'TP1', 'tp2_price': 'TP2', 'tp3_price': 'TP3',
+                        'sl_price': 'SL', 'risk_usd': 'Risk ($)', 'tp1_price': 'TP1', 'tp2_price': 'TP2', 'tp3_price': 'TP3',
                         'profit': 'PnL ($)', 'status': 'Result', 'tickets': 'MT5 Tickets'
                     }),
                     use_container_width=True,

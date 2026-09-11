@@ -184,6 +184,40 @@ class AutonomousTraderEngine:
             logger.error(f"Error saving journal: {e}")
 
     @staticmethod
+    def compute_batch_risk(trade: Dict[str, Any]) -> float:
+        if trade.get('risk_usd') is not None and float(trade.get('risk_usd', 0)) > 0:
+            return float(trade['risk_usd'])
+        try:
+            entry = float(trade.get('entry_price', 0))
+            sl = float(trade.get('sl_price', 0))
+            dist = abs(entry - sl)
+            if dist <= 0:
+                return 0.0
+            lot_split = trade.get('lot_split', {})
+            tp1_l = float(lot_split.get('tp1_lots', 0.0))
+            tp2_l = float(lot_split.get('tp2_lots', 0.0))
+            tp3_l = float(lot_split.get('tp3_lots', 0.0))
+            tot_lots = tp1_l + tp2_l + tp3_l
+            if tot_lots <= 0:
+                tot_lots = 0.01
+
+            sym = str(trade.get('symbol', '')).upper()
+            if 'XAU' in sym or 'GOLD' in sym:
+                contract_size = 100.0
+            elif 'BTC' in sym:
+                contract_size = 1.0
+            elif 'ETH' in sym:
+                contract_size = 1.0
+            elif any(c in sym for c in ['EUR', 'GBP', 'AUD', 'NZD', 'USD', 'JPY', 'CAD', 'CHF']):
+                contract_size = 100000.0
+            else:
+                contract_size = 100.0
+
+            return round(tot_lots * dist * contract_size, 2)
+        except Exception:
+            return 0.0
+
+    @staticmethod
     def normalize_symbol(broker_symbol: str) -> str:
         s = str(broker_symbol).upper().replace("/", "").replace("_", "")
         for suf in [".RAW", "RAW", "#", "M", "C"]:
@@ -394,6 +428,7 @@ class AutonomousTraderEngine:
                         'executed_at': trade.get('executed_at'),
                         'closed_at': datetime.now(timezone.utc).isoformat(),
                         'profit': round(total_batch_profit, 2),
+                        'risk_usd': round(self.compute_batch_risk(trade), 2),
                         'status': outcome,
                         'p1_score': trade.get('p1_score'),
                         'p1_prob': trade.get('p1_prob')
@@ -641,6 +676,7 @@ class AutonomousTraderEngine:
                     'tp3_price': tp3_price,
                     'matched_pillars': setup_data.get('matched_pillars', 5),
                     'lot_split': lot_split,
+                    'risk_usd': round(actual_risk_usd, 2),
                     'tickets': ticket_ids,
                     'executed_at': datetime.now(timezone.utc).isoformat(),
                     'status': 'OPEN',

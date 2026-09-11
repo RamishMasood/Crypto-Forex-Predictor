@@ -15,7 +15,9 @@
     "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAU/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAU/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
