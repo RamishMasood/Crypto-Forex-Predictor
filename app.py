@@ -1058,11 +1058,11 @@ def render_mt5_position_tracker():
             max_batches_cfg = st.number_input(
                 "🔒 Max Active Batches:",
                 min_value=1,
-                max_value=10,
+                max_value=1000,
                 value=int(settings.get('max_active_batches', 1)),
                 step=1,
                 key="auto_cfg_max_active_batches",
-                help="Set to 1 so the engine strictly waits until the current 3-TP trade batch is 100% closed before triggering any new trade."
+                help="Maximum concurrent running trade batches allowed simultaneously (e.g. 1, 5, 10, 50, 100). Set to 1 if you want the engine to strictly wait until the current batch is closed before opening another."
             )
 
         with cfg_c5:
@@ -1073,7 +1073,7 @@ def render_mt5_position_tracker():
                 value=float(settings.get('max_dollar_risk', 10.0)),
                 step=1.0,
                 key="auto_cfg_max_risk_usd",
-                help="If a trade's projected Stop Loss dollar risk exceeds this cap (e.g. $10.00), the trade will be safely SKIPPED. (Set 0 to disable)."
+                help="Total maximum dollar risk cap for the ENTIRE batch (sum of TP1 + TP2 + TP3). If the projected loss at Stop Loss exceeds this cap (e.g. $50.00), the trade will be safely SKIPPED. (Set 0 to disable)."
             )
 
         # Persist settings changes
@@ -1096,6 +1096,7 @@ def render_mt5_position_tracker():
             settings['max_active_batches'] = max_batches_cfg
             settings['max_dollar_risk'] = max_risk_usd_cfg
             auto_engine.save_settings(settings)
+            st.toast("⚙️ Engine Strategy & Risk Settings Updated!", icon="✅")
 
         # ── 4. Dynamic Pair Metrics & Independent Win Rate Calculation ────────────
         st.markdown("##### 📊 Target Progress & Independent Pair Win Rates:")
@@ -1157,19 +1158,20 @@ def render_mt5_position_tracker():
         global_wr = (tot_w / completed_total * 100.0) if completed_total > 0 else 0.0
         tot_trades = state.get('total_trades_taken', 0)
         tot_pnl = sum(s.get('total_profit', 0.0) for s in sym_stats.values()) if sym_stats else 0.0
+        active_batches_count = len(state.get('open_batches', {}))
 
         if num_pairs <= 3:
             with sym_cols[-1]:
                 st.metric(
                     "Global Win Rate & PnL",
-                    f"{tot_w}W - {tot_be}BE - {tot_l}L ({tot_trades} Batches)",
-                    delta=f"{global_wr:.0f}% WR | ${tot_pnl:+,.2f}" if completed_total > 0 else f"{tot_trades} Batches Executed"
+                    f"{tot_w}W - {tot_be}BE - {tot_l}L ({completed_total} Closed | {active_batches_count} Active)",
+                    delta=f"{global_wr:.0f}% WR | ${tot_pnl:+,.2f} (Total: {tot_trades})" if completed_total > 0 else f"{tot_trades} Batches Executed"
                 )
         else:
             st.divider()
             c_g1, c_g2, c_g3 = st.columns(3)
             with c_g1:
-                st.metric("Total Batches Executed", f"{tot_trades} Batches")
+                st.metric("Total Batches Executed", f"{tot_trades} Total ({active_batches_count} Active, {completed_total} Closed)")
             with c_g2:
                 st.metric("Overall Outcome", f"{tot_w}W - {tot_be}BE - {tot_l}L", delta=f"{global_wr:.0f}% Win Rate" if completed_total > 0 else None)
             with c_g3:

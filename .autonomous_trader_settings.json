@@ -15,7 +15,7 @@
   "risk_pct": 1.0,
   "scan_interval_sec": 30,
   "target_trades_per_symbol": 100,
-  "max_active_batches": 10,
+  "max_active_batches": 100,
   "max_dollar_risk": 50.0,
   "min_pillars_required": 5
 }
