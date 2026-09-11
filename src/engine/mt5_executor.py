@@ -55,14 +55,23 @@ class MT5TradeExecutor:
                 if s_info is None:
                     return None
 
+            raw_v_min = float(s_info.volume_min) if s_info.volume_min is not None else 0.01
+            raw_v_max = float(s_info.volume_max) if s_info.volume_max is not None else 100.0
+            raw_v_step = float(s_info.volume_step) if s_info.volume_step is not None else 0.01
+
+            # MT5 returns 1e-08 or 0.0 for untradeable/uninitialized symbols
+            vol_min = raw_v_min if raw_v_min >= 0.01 else 0.01
+            vol_step = raw_v_step if raw_v_step >= 0.01 else 0.01
+            vol_max = raw_v_max if raw_v_max >= vol_min else max(100.0, vol_min)
+
             return {
                 'symbol': broker_symbol,
                 'digits': int(s_info.digits),
                 'point': float(s_info.point),
-                'contract_size': float(s_info.trade_contract_size),
-                'volume_min': float(s_info.volume_min),
-                'volume_max': float(s_info.volume_max),
-                'volume_step': float(s_info.volume_step),
+                'contract_size': float(s_info.trade_contract_size if s_info.trade_contract_size > 0 else 100000.0),
+                'volume_min': vol_min,
+                'volume_max': vol_max,
+                'volume_step': vol_step,
                 'trade_tick_value': float(s_info.trade_tick_value if s_info.trade_tick_value > 0 else 1.0),
                 'trade_tick_size': float(s_info.trade_tick_size if s_info.trade_tick_size > 0 else s_info.point),
                 'spread': int(s_info.spread),
@@ -123,9 +132,15 @@ class MT5TradeExecutor:
 
         target_risk_usd = balance_usd * (risk_pct / 100.0)
         contract_size = specs['contract_size']
-        vol_min = specs['volume_min']
-        vol_step = specs['volume_step']
-        vol_max = specs['volume_max']
+        vol_min = float(specs.get('volume_min', 0.01))
+        if vol_min < 0.01:
+            vol_min = 0.01
+        vol_step = float(specs.get('volume_step', 0.01))
+        if vol_step < 0.01:
+            vol_step = 0.01
+        vol_max = float(specs.get('volume_max', 100.0))
+        if vol_max < vol_min:
+            vol_max = max(100.0, vol_min)
 
         # Risk per 1.0 standard lot = sl_distance * contract_size
         risk_per_one_lot = sl_distance * contract_size

@@ -196,7 +196,7 @@ with st.sidebar:
     st.divider()
     auto_refresh = st.toggle("⚡ Real-Time Live Ticker (Auto-Sync)", value=st.session_state.get('auto_sync_enabled', False), key="auto_sync_toggle")
     
-    # If there are open MT5 positions, auto-poll every 5s so auto-breakeven executes immediately in the background
+    # Check if there are active MT5 positions for background guardian status
     has_active_mt5 = False
     if is_mt5:
         try:
@@ -206,13 +206,14 @@ with st.sidebar:
         except Exception:
             pass
 
-    if auto_refresh or has_active_mt5:
-        refresh_interval = st.selectbox("Refresh Frequency", [3, 5, 10, 30], index=1 if not has_active_mt5 else 0, format_func=lambda x: f"Every {x} seconds")
+    if is_mt5 and has_active_mt5:
+        st.caption("🛡️ *Auto-Breakeven Guardian Active (3s Isolated Background Polling)*")
+
+    if auto_refresh:
+        refresh_interval = st.selectbox("Refresh Frequency", [5, 10, 30, 60], index=1, format_func=lambda x: f"Every {x} seconds")
         try:
             from streamlit_autorefresh import st_autorefresh
             st_autorefresh(interval=refresh_interval * 1000, key="data_auto_sync")
-            if has_active_mt5 and not auto_refresh:
-                st.caption("🛡️ *Auto-Breakeven Guardian Active (Polling every 3s)*")
         except Exception:
             pass
 
@@ -351,6 +352,518 @@ def render_deriv(fut_d, df_indicators):
     plt.tight_layout()
     return fig
 
+# ── EXNESS MT5 INSTANT EXECUTION CALLBACK & FRAGMENTS ──────────────────────
+def _do_instant_mt5_trade():
+    payload = st.session_state.get('_ready_trade_payload')
+    if not payload:
+        return
+    try:
+        from src.engine.mt5_executor import MT5TradeExecutor
+        _exec = MT5TradeExecutor()
+        _res = _exec.execute_multi_target_trade(
+            broker_symbol=payload['broker_symbol'],
+            action=payload['action'],
+            sl_price=payload['sl_price'],
+            tp1_price=payload['tp1_price'],
+            tp2_price=payload['tp2_price'],
+            tp3_price=payload['tp3_price'],
+            lot_split=payload['lot_split']
+        )
+        st.session_state['last_exec_res'] = _res
+        st.session_state['_exec_dispatched_at'] = time.time()
+    except Exception as _e:
+        st.session_state['last_exec_res'] = {'success': False, 'error': str(_e)}
+        st.session_state['_exec_dispatched_at'] = time.time()
+
+@st.fragment
+def render_mt5_execution_panel(symbol, setup, mt5_status, account, risk_pct, ff):
+    from src.engine.mt5_executor import MT5TradeExecutor
+    executor = MT5TradeExecutor()
+    broker_sym = (mt5_status.get('broker_symbol') if isinstance(mt5_status, dict) else None) or ff.mt5_exness.get_exness_symbol(symbol) or 'XAUUSDc'
+    account_bal = float(mt5_status.get('balance', account)) if isinstance(mt5_status, dict) else float(account)
+    specs = executor.get_symbol_trade_specs(broker_sym) or {}
+    vol_min = float(specs.get('volume_min', 0.01))
+    if vol_min < 0.01:
+        vol_min = 0.01
+    vol_step = float(specs.get('volume_step', 0.01))
+    if vol_step < 0.01:
+        vol_step = 0.01
+    vol_max = float(specs.get('volume_max', 100.0))
+    if vol_max < vol_min:
+        vol_max = max(100.0, vol_min)
+
+    st.markdown(
+        clean_html(f"""
+        <div style='background:linear-gradient(135deg,#064e3b,#0f172a);border:1px solid #10b981;border-radius:12px;padding:16px 20px;margin:16px 0;'>
+            <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;'>
+                <div>
+                    <span style='background:#10b981;color:#000;font-weight:900;font-size:.78rem;padding:3px 10px;border-radius:12px;'>ONE-CLICK EXECUTION</span>
+                    &nbsp;<b style='color:#ffffff;font-size:1.05rem;'>Exness MT5 Broker Terminal Routing</b>
+                </div>
+                <div style='color:#6ee7b7;font-size:.84rem;font-weight:600;'>
+                    Broker Symbol: <code>{broker_sym}</code> &nbsp;|&nbsp; Min Lot: <b>{vol_min:.2f}</b> &nbsp;|&nbsp; Account Balance: <b>${account_bal:,.2f}</b>
+                </div>
+            </div>
+        </div>
+        """),
+        unsafe_allow_html=True
+    )
+
+    st.markdown("##### 🎯 Multi-Target Scaling & Risk Allocation")
+    
+    # ── Persist Multi-Target & Risk Preferences ────────────────────────────
+    import json
+    settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".user_lot_settings.json")
+    saved_prefs = {}
+    if os.path.exists(settings_file):
+        try:
+            with open(settings_file, "r", encoding="utf-8") as _sf:
+                saved_prefs = json.load(_sf)
+        except Exception:
+            saved_prefs = {}
+
+    sym_prefs = saved_prefs.get(broker_sym, {})
+    if not isinstance(sym_prefs, dict):
+        sym_prefs = {}
+
+    # Detect active symbol switch and clear old symbol's custom numbers
+    last_broker_sym = st.session_state.get('_last_active_broker_sym')
+    if last_broker_sym != broker_sym:
+        st.session_state['_last_active_broker_sym'] = broker_sym
+        for k in ["direct_total_volume_input", "tp1_lots_input", "tp2_lots_input", "tp3_lots_input"]:
+            st.session_state.pop(k, None)
+
+    # Pre-compute suggested risk lots for this symbol based on risk% and balance
+    suggested_calc = executor.calculate_lot_and_risk(
+        broker_symbol=broker_sym,
+        entry_price=setup['recommended_entry'],
+        stop_loss_price=setup['stop_loss'],
+        balance_usd=account_bal,
+        risk_pct=risk_pct,
+        tp1_price=setup['tp1'],
+        tp2_price=setup['tp2'],
+        tp3_price=setup['tp3'],
+    )
+    sugg_vol = round(max(vol_min, float(suggested_calc.get('total_lots', vol_min))), 2)
+    sugg_split = suggested_calc.get('lot_split', {})
+
+    def _compute_default_tp_split(tot: float):
+        tot = round(max(vol_min, tot), 2)
+        if tot >= round(3 * vol_min, 2):
+            avail = round(tot - 3 * vol_min, 2)
+            stps = int(round(avail / vol_step))
+            s1 = int(round(stps * 0.50))
+            s2 = int(round(stps * 0.30))
+            s3 = max(0, stps - s1 - s2)
+            return round(vol_min + s1 * vol_step, 2), round(vol_min + s2 * vol_step, 2), round(vol_min + s3 * vol_step, 2)
+        elif tot >= round(2 * vol_min, 2):
+            avail = round(tot - 2 * vol_min, 2)
+            stps = int(round(avail / vol_step))
+            s1 = int(round(stps * 0.60))
+            s2 = max(0, stps - s1)
+            return round(vol_min + s1 * vol_step, 2), round(vol_min + s2 * vol_step, 2), 0.0
+        else:
+            return tot, 0.0, 0.0
+
+    def _save_lot_settings():
+        try:
+            saved_prefs["alloc_mode"] = st.session_state.get("alloc_mode_radio", "📊 Percentage Allocation (%)")
+            saved_prefs["enable_direct_exec"] = bool(st.session_state.get("confirm_trade_exec", False))
+            saved_prefs["tp1_share"] = int(st.session_state.get("tp1_share_slider", 50))
+            saved_prefs["tp2_share"] = int(st.session_state.get("tp2_share_slider", 30))
+            
+            # Save symbol-specific custom lot settings
+            sym_dict = saved_prefs.setdefault(broker_sym, {})
+            sym_dict["direct_total"] = float(st.session_state.get("direct_total_volume_input", sugg_vol))
+            sym_dict["tp1_lots"] = float(st.session_state.get("tp1_lots_input", 0.0))
+            sym_dict["tp2_lots"] = float(st.session_state.get("tp2_lots_input", 0.0))
+            sym_dict["tp3_lots"] = float(st.session_state.get("tp3_lots_input", 0.0))
+
+            with open(settings_file, "w", encoding="utf-8") as _sf:
+                json.dump(saved_prefs, _sf, indent=2)
+        except Exception:
+            pass
+
+    def _on_direct_total_change():
+        tot_v = round(float(st.session_state.get("direct_total_volume_input", sugg_vol)), 2)
+        l1, l2, l3 = _compute_default_tp_split(tot_v)
+        st.session_state["tp1_lots_input"] = l1
+        st.session_state["tp2_lots_input"] = l2
+        st.session_state["tp3_lots_input"] = l3
+        _save_lot_settings()
+
+    alloc_modes = ["📊 Percentage Allocation (%)", "🔢 Direct Lots Allocation (Lots)"]
+    default_alloc_idx = 0
+    current_alloc_mode = st.session_state.get("alloc_mode_radio", saved_prefs.get("alloc_mode", "📊 Percentage Allocation (%)"))
+    if current_alloc_mode in alloc_modes:
+        default_alloc_idx = alloc_modes.index(current_alloc_mode)
+
+    c_alloc, c_recalc = st.columns([3, 2])
+    with c_alloc:
+        alloc_mode = st.radio(
+            "Target Allocation Mode",
+            alloc_modes,
+            index=default_alloc_idx,
+            horizontal=True,
+            key="alloc_mode_radio",
+            on_change=_save_lot_settings
+        )
+    with c_recalc:
+        st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
+        if st.button(f"⚡ Sync Risk Lots ({sugg_vol:.2f} lots @ {risk_pct}%)", key="sync_risk_lots_btn", help="Sidebar ke Balance aur Risk % ke mutabiq recommended lots load karein"):
+            st.session_state["direct_total_volume_input"] = sugg_vol
+            l1, l2, l3 = _compute_default_tp_split(sugg_vol)
+            st.session_state["tp1_lots_input"] = l1
+            st.session_state["tp2_lots_input"] = l2
+            st.session_state["tp3_lots_input"] = l3
+            _save_lot_settings()
+            st.rerun(scope="fragment")
+
+    custom_lots_input = None
+    vol_errors = []
+
+    if "Direct Lots" in alloc_mode:
+        # Ensure session state direct_total_volume_input is never below vol_min
+        if "direct_total_volume_input" in st.session_state:
+            try:
+                if float(st.session_state["direct_total_volume_input"]) < vol_min:
+                    st.session_state["direct_total_volume_input"] = vol_min
+            except Exception:
+                st.session_state["direct_total_volume_input"] = vol_min
+        else:
+            saved_tot = sym_prefs.get("direct_total", sugg_vol)
+            st.session_state["direct_total_volume_input"] = round(max(vol_min, float(saved_tot)), 2)
+
+        cur_tot = round(max(vol_min, float(st.session_state["direct_total_volume_input"])), 2)
+        st.session_state["direct_total_volume_input"] = cur_tot
+
+        # Initialize TP inputs if not present or clamp if out of bounds
+        if "tp1_lots_input" not in st.session_state:
+            dl1, dl2, dl3 = _compute_default_tp_split(cur_tot)
+            st.session_state["tp1_lots_input"] = round(float(sym_prefs.get("tp1_lots", dl1)), 2)
+            st.session_state["tp2_lots_input"] = round(float(sym_prefs.get("tp2_lots", dl2)), 2)
+            st.session_state["tp3_lots_input"] = round(float(sym_prefs.get("tp3_lots", dl3)), 2)
+
+        st.session_state["tp1_lots_input"] = round(max(0.0, min(cur_tot, float(st.session_state.get("tp1_lots_input", cur_tot)))), 2)
+        rem_after_tp1 = max(0.0, round(cur_tot - float(st.session_state["tp1_lots_input"]), 2))
+        st.session_state["tp2_lots_input"] = round(max(0.0, min(rem_after_tp1, float(st.session_state.get("tp2_lots_input", 0.0)))), 2)
+        rem_after_tp2 = max(0.0, round(cur_tot - float(st.session_state["tp1_lots_input"]) - float(st.session_state["tp2_lots_input"]), 2))
+        st.session_state["tp3_lots_input"] = round(max(0.0, min(rem_after_tp2, float(st.session_state.get("tp3_lots_input", 0.0)))), 2)
+
+        col_dvol, col_tp1, col_tp2, col_tp3 = st.columns([1.2, 1, 1, 1])
+        with col_dvol:
+            custom_direct_total = st.number_input(
+                "Total Volume (Lots) ✍️",
+                min_value=vol_min,
+                max_value=max(vol_min, vol_max),
+                value=cur_tot,
+                step=vol_step,
+                format="%.2f",
+                key="direct_total_volume_input",
+                on_change=_on_direct_total_change,
+                help=f"Exness Min: {vol_min:.2f} | Step: {vol_step:.2f}. Total Volume badalne se TPs auto-split ho jayenge."
+            )
+
+        cur_tot = round(max(vol_min, float(custom_direct_total)), 2)
+
+        with col_tp1:
+            tp1_lots_in = st.number_input(
+                "TP1 Lots (Lock)",
+                min_value=0.0,
+                max_value=max(0.0, cur_tot),
+                value=float(st.session_state["tp1_lots_input"]),
+                step=vol_step,
+                format="%.2f",
+                key="tp1_lots_input",
+                on_change=_save_lot_settings
+            )
+        with col_tp2:
+            rem_after_tp1 = max(0.0, round(cur_tot - float(tp1_lots_in), 2))
+            tp2_lots_in = st.number_input(
+                "TP2 Lots (Struct)",
+                min_value=0.0,
+                max_value=max(0.0, rem_after_tp1),
+                value=min(float(st.session_state["tp2_lots_input"]), rem_after_tp1),
+                step=vol_step,
+                format="%.2f",
+                key="tp2_lots_input",
+                on_change=_save_lot_settings
+            )
+        with col_tp3:
+            rem_after_tp2 = max(0.0, round(cur_tot - float(tp1_lots_in) - float(tp2_lots_in), 2))
+            tp3_lots_in = st.number_input(
+                "TP3 Lots (Runner)",
+                min_value=0.0,
+                max_value=max(0.0, rem_after_tp2),
+                value=min(float(st.session_state["tp3_lots_input"]), rem_after_tp2),
+                step=vol_step,
+                format="%.2f",
+                key="tp3_lots_input",
+                on_change=_save_lot_settings
+            )
+
+        sum_tp_lots = round(float(tp1_lots_in) + float(tp2_lots_in) + float(tp3_lots_in), 2)
+        lots_mismatch = abs(sum_tp_lots - cur_tot) > 0.001
+
+        # Validate broker minimum volume constraint on each target
+        for lbl, val in [("TP1", float(tp1_lots_in)), ("TP2", float(tp2_lots_in)), ("TP3", float(tp3_lots_in))]:
+            if 0.0 < val < vol_min:
+                vol_errors.append(f"{lbl} ({val:.2f} lots) is below broker minimum ({vol_min:.2f} lots)")
+
+        if vol_errors:
+            st.error(f"❌ **Exness Minimum Order Constraint:** On `{broker_sym}`, every placed order must be at least **`{vol_min:.2f} lots`** (or 0.00 to disable). {'; '.join(vol_errors)}.")
+            if st.button("⚡ Click to Auto-Fix & Re-Split Lots According to Broker Rules", key="btn_autofix_split"):
+                _on_direct_total_change()
+                st.rerun(scope="fragment")
+        elif lots_mismatch:
+            if sum_tp_lots > cur_tot:
+                st.error(f"⚠️ **Validation Error:** TP lots ka total (`{sum_tp_lots:.2f}`) Total Volume (`{cur_tot:.2f}`) se zyada hai! Please lots adjust karein.")
+            else:
+                st.warning(f"ℹ️ **Allocation Notice:** TP lots ka total (`{sum_tp_lots:.2f}`) Total Volume (`{cur_tot:.2f}`) se kam hai (`{cur_tot - sum_tp_lots:.2f}` lots unallocated).")
+
+        custom_lots_input = {
+            'tp1_lots': float(tp1_lots_in),
+            'tp2_lots': float(tp2_lots_in),
+            'tp3_lots': float(tp3_lots_in)
+        }
+        tp1_share, tp2_share, tp3_share = 50.0, 30.0, 20.0
+        override_total_volume = cur_tot
+    else:
+        lots_mismatch = False
+        vol_errors = []
+        override_total_volume = sugg_vol
+
+        col_tp1, col_tp2, col_tp3 = st.columns([1, 1, 0.8])
+        with col_tp1:
+            init_tp1_share = int(st.session_state.get("tp1_share_slider", saved_prefs.get("tp1_share", 50)))
+            tp1_share = st.slider("TP1 % (Profit Lock)", 10, 80, init_tp1_share, 5, key="tp1_share_slider", on_change=_save_lot_settings)
+        with col_tp2:
+            init_tp2_share = int(st.session_state.get("tp2_share_slider", saved_prefs.get("tp2_share", 30)))
+            tp2_share = st.slider("TP2 % (Structural)", 10, 60, init_tp2_share, 5, key="tp2_share_slider", on_change=_save_lot_settings)
+        with col_tp3:
+            rem_share = max(0, 100 - tp1_share - tp2_share)
+            st.metric("TP3 %", f"{rem_share}%")
+            tp3_share = rem_share
+
+        # Informative message showing calculated lots
+        split_info = suggested_calc.get('lot_split', {})
+        st.caption(
+            f"📊 **Calculated from {risk_pct:.2f}% Risk on ${account_bal:,.2f}:** "
+            f"Total Volume: `{sugg_vol:.2f} Lots` | "
+            f"TP1: `{split_info.get('tp1_lots', 0):.2f} lots` | "
+            f"TP2: `{split_info.get('tp2_lots', 0):.2f} lots` | "
+            f"TP3: `{split_info.get('tp3_lots', 0):.2f} lots`"
+        )
+
+    # Calculate exact lot sizing and risk/reward breakdown
+    calc_risk = executor.calculate_lot_and_risk(
+        broker_symbol=broker_sym,
+        entry_price=setup['recommended_entry'],
+        stop_loss_price=setup['stop_loss'],
+        balance_usd=account_bal,
+        risk_pct=risk_pct,
+        tp1_pct=tp1_share,
+        tp2_pct=tp2_share,
+        tp3_pct=tp3_share,
+        tp1_price=setup['tp1'],
+        tp2_price=setup['tp2'],
+        tp3_price=setup['tp3'],
+        custom_lots=custom_lots_input,
+        total_volume_lots=override_total_volume
+    )
+
+    split = calc_risk.get('lot_split', {})
+    total_vol = calc_risk.get('total_lots', override_total_volume or 0.01)
+    act_risk_usd = calc_risk.get('actual_risk_usd', 0.0)
+    act_risk_pct = calc_risk.get('actual_risk_pct', risk_pct)
+    min_bal_req = calc_risk.get('min_lot_risk_usd', 0.0)
+    tp1_rew_usd = calc_risk.get('tp1_reward_usd', 0.0)
+    tp2_rew_usd = calc_risk.get('tp2_reward_usd', 0.0)
+    tp3_rew_usd = calc_risk.get('tp3_reward_usd', 0.0)
+    total_rew_usd = calc_risk.get('total_reward_usd', 0.0)
+
+    # Save active execution payload in session state for instant on_click callback
+    st.session_state['_ready_trade_payload'] = {
+        'broker_symbol': broker_sym,
+        'action': setup['action'],
+        'sl_price': setup['stop_loss'],
+        'tp1_price': setup['tp1'],
+        'tp2_price': setup['tp2'],
+        'tp3_price': setup['tp3'],
+        'lot_split': split,
+    }
+
+    # Metrics display row 1: Capital Risk Management
+    rc1, rc2, rc3, rc4 = st.columns(4)
+    with rc1:
+        st.metric("Total Volume", f"{total_vol:.2f} Lots", help="Automatically rounded to broker volume step")
+    with rc2:
+        st.metric("Risk in Dollars", f"${act_risk_usd:,.2f}")
+    with rc3:
+        st.metric("Risk in %", f"{act_risk_pct:.2f}%", delta=f"{act_risk_pct - risk_pct:+.2f}% vs target" if abs(act_risk_pct - risk_pct) > 0.05 else "Exact")
+    with rc4:
+        st.metric("Min Risk (0.01 lot)", f"${min_bal_req:,.2f}")
+
+    # Metrics display row 2: Target Rewards in Dollars ($) & Expected Scaling
+    rw1, rw2, rw3, rw4 = st.columns(4)
+    with rw1:
+        st.metric("TP1 Target ($)", f"+${tp1_rew_usd:,.2f}", delta=f"{split.get('tp1_lots', 0):.2f} lots @ ${setup['tp1']:,.2f}")
+    with rw2:
+        st.metric("TP2 Target ($)", f"+${tp2_rew_usd:,.2f}", delta=f"{split.get('tp2_lots', 0):.2f} lots @ ${setup['tp2']:,.2f}")
+    with rw3:
+        st.metric("TP3 Runner ($)", f"+${tp3_rew_usd:,.2f}", delta=f"{split.get('tp3_lots', 0):.2f} lots @ ${setup['tp3']:,.2f}")
+    with rw4:
+        net_rr = (total_rew_usd / act_risk_usd) if act_risk_usd > 0 else 0.0
+        st.metric("Total Potential Reward", f"+${total_rew_usd:,.2f}", delta=f"{net_rr:.2f}R Net Ratio")
+
+    st.caption(
+        f"⚡ **Order Split Plan:** Order 1 (TP1 @ ${setup['tp1']:,.4f}): `{split.get('tp1_lots', 0):.2f} lots` (+${tp1_rew_usd:,.2f}) | "
+        f"Order 2 (TP2 @ ${setup['tp2']:,.4f}): `{split.get('tp2_lots', 0):.2f} lots` (+${tp2_rew_usd:,.2f}) | "
+        f"Order 3 (TP3 @ ${setup['tp3']:,.4f}): `{split.get('tp3_lots', 0):.2f} lots` (+${tp3_rew_usd:,.2f})"
+    )
+
+    # Confirmation and Execution
+    ex_col1, ex_col2 = st.columns([1.5, 2.5])
+    with ex_col1:
+        init_confirm = bool(st.session_state.get("confirm_trade_exec", saved_prefs.get("enable_direct_exec", False)))
+        confirm_exec = st.checkbox(
+            "🔒 Enable Direct Execution",
+            value=init_confirm,
+            key="confirm_trade_exec",
+            on_change=_save_lot_settings
+        )
+    with ex_col2:
+        btn_label = f"🚀 EXECUTE {setup['action']} ON EXNESS MT5 ({total_vol:.2f} LOTS)"
+        btn_type = "primary"
+        can_execute = confirm_exec and not lots_mismatch and len(vol_errors) == 0
+        if st.button(
+            btn_label,
+            type=btn_type,
+            disabled=not can_execute,
+            key="btn_execute_exness_mt5",
+            on_click=_do_instant_mt5_trade,
+            use_container_width=True
+        ):
+            # Fallback if on_click didn't execute for any reason:
+            if not st.session_state.get('last_exec_res') or (time.time() - st.session_state.get('_exec_dispatched_at', 0) > 2.0):
+                with st.spinner("Submitting multi-target orders to Exness broker server..."):
+                    exec_res = executor.execute_multi_target_trade(
+                        broker_symbol=broker_sym,
+                        action=setup['action'],
+                        sl_price=setup['stop_loss'],
+                        tp1_price=setup['tp1'],
+                        tp2_price=setup['tp2'],
+                        tp3_price=setup['tp3'],
+                        lot_split=split
+                    )
+                    st.session_state['last_exec_res'] = exec_res
+
+        # Display execution feedback instantly without requiring full setup refresh
+        last_res = st.session_state.get('last_exec_res')
+        if last_res:
+            if last_res.get('success'):
+                st.toast("⚡ Order Executed on Exness MT5", icon="🟢")
+                st.success(f"🟢 **TRADE EXECUTED SUCCESSFULLY ON EXNESS MT5!** Placed {last_res['orders_placed']} order(s). Tickets: {[t['ticket'] for t in last_res.get('tickets', [])]}")
+            else:
+                err_msg = last_res.get('error', '')
+                st.error(f"❌ Execution failed: {err_msg}")
+                if "10027" in err_msg or "AutoTrading" in err_msg:
+                    st.warning(
+                        "⚠️ **Hal (Solution):** MetaTrader 5 terminal ki top toolbar par **'Algo Trading'** button ko click karke GREEN kar dein (ya **Tools -> Options -> Expert Advisors -> 'Allow Algo Trading'** check karein). Uske baad dobara execute button dabayein!"
+                    )
+
+@st.fragment(run_every=3)
+def render_mt5_position_tracker():
+    st.divider()
+    st.subheader("📊 Exness MT5 Live Trade Tracker & History")
+    from src.engine.mt5_executor import MT5TradeExecutor
+    live_exec = MT5TradeExecutor()
+
+    # Check auto-breakeven
+    try:
+        be_updates = live_exec.check_and_apply_auto_breakeven()
+        if be_updates:
+            for b in be_updates:
+                st.info(f"🛡️ **Auto-Breakeven Triggered:** Position #{b['ticket']} Stop-Loss shifted to Breakeven (${b['new_sl']})!")
+    except Exception:
+        pass
+
+    tab_active, tab_history = st.tabs(["🟢 Active Open Positions", "📜 Closed Trades History (7 Days)"])
+
+    with tab_active:
+        positions = live_exec.get_open_positions()
+        if not positions:
+            st.info("ℹ️ No active open positions on Exness MT5 right now.")
+        else:
+            tot_pnl = sum(p['profit'] for p in positions)
+            pnl_color = "#00c853" if tot_pnl >= 0 else "#ff1744"
+            st.markdown(f"**Open Positions ({len(positions)}):** Floating PnL: <span style='color:{pnl_color};font-weight:800;font-size:1.1rem;'>${tot_pnl:+,.2f}</span>", unsafe_allow_html=True)
+
+            for p in positions:
+                with st.container():
+                    p_col = "#00c853" if p['type'] == 'BUY' else "#ff1744"
+                    profit_col = "#00c853" if p['profit'] >= 0 else "#ff1744"
+                    c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 1.5, 1.5])
+                    with c1:
+                        st.markdown(f"<span style='background:{p_col};color:#fff;padding:2px 8px;border-radius:6px;font-weight:700;font-size:.78rem;'>{p['type']}</span> <b>{p['symbol']}</b> &nbsp;`{p['volume']} lots`", unsafe_allow_html=True)
+                        # Extract Batch ID and TP Target from comment
+                        cmt = str(p.get('comment', ''))
+                        batch_tag = ""
+                        m_batch = re.search(r'QS_(\d+)_(TP\d)', cmt)
+                        if m_batch:
+                            batch_tag = f"<span style='background:#1e293b;color:#38bdf8;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #0284c7;'>Batch #{m_batch.group(1)} ({m_batch.group(2)})</span> "
+                        elif "QuantSniper_TP" in cmt:
+                            tp_num = cmt.split('_')[-1]
+                            batch_tag = f"<span style='background:#1e293b;color:#a78bfa;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #7c3aed;'>Batch Initial ({tp_num})</span> "
+                        elif cmt:
+                            batch_tag = f"<span style='background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-weight:600;font-size:.72rem;'>{cmt}</span> "
+
+                        st.markdown(f"{batch_tag}<span style='color:#8b949e;font-size:.75rem;'>Ticket #{p['ticket']} | {p['time']}</span>", unsafe_allow_html=True)
+                    with c2:
+                        st.markdown(f"Open: **${p['price_open']:,.4f}**")
+                        st.caption(f"Live: ${p['price_current']:,.4f}")
+                    with c3:
+                        st.markdown(f"SL: **${p['sl']:,.4f}**")
+                        st.caption(f"TP: ${p['tp']:,.4f}")
+                    with c4:
+                        st.markdown(f"<span style='color:{profit_col};font-weight:800;font-size:1.05rem;'>${p['profit']:+,.2f}</span>", unsafe_allow_html=True)
+                        st.caption(f"{p['return_pct']:+.2f}%")
+                    with c5:
+                        btn_c1, btn_c2 = st.columns(2)
+                        with btn_c1:
+                            if st.button("✕ Close", key=f"close_{p['ticket']}", help="Close position at market"):
+                                cres = live_exec.close_position(p['ticket'])
+                                if cres.get('success'):
+                                    st.success(f"Closed #{p['ticket']} @ {cres.get('close_price')}")
+                                    st.rerun(scope="fragment")
+                                else:
+                                    st.error(cres.get('error'))
+                        with btn_c2:
+                            if st.button("🛡️ BE", key=f"be_{p['ticket']}", help="Move SL to Breakeven"):
+                                bres = live_exec.move_to_breakeven(p['ticket'])
+                                if bres.get('success'):
+                                    st.success(f"Moved #{p['ticket']} to BE!")
+                                    st.rerun(scope="fragment")
+                                else:
+                                    st.error(bres.get('error'))
+                    st.divider()
+
+    with tab_history:
+        history_deals = live_exec.get_trade_history(days=7)
+        if not history_deals:
+            st.info("ℹ️ No closed trades in the past 7 days.")
+        else:
+            net_hist_profit = sum(d['profit'] for d in history_deals)
+            net_col = "#00c853" if net_hist_profit >= 0 else "#ff1744"
+            st.markdown(f"**Past 7 Days Closed Trades ({len(history_deals)}):** Net Realized Profit: <span style='color:{net_col};font-weight:800;font-size:1.1rem;'>${net_hist_profit:+,.2f}</span>", unsafe_allow_html=True)
+
+            hist_df = pd.DataFrame(history_deals)
+            st.dataframe(
+                hist_df[['time', 'deal_id', 'symbol', 'type', 'volume', 'price', 'profit', 'comment']],
+                use_container_width=True,
+                hide_index=True
+            )
+
 # ── RUN ENGINE ────────────────────────────────────────────────────────────
 # Cache key so we only re-run when inputs actually change
 cache_key = f"{symbol}|{asset_code}|{market_mode_label}|{timeframe}|{exchange}|{account}|{risk_pct}|mt5_{is_mt5}"
@@ -359,12 +872,21 @@ if "result" not in st.session_state:
     st.session_state.result = None
     st.session_state.cache_key = ""
 
-# Auto-trigger on first load OR when button pressed OR when params change OR when auto-refresh is active
+# Track whether the auto-sync timer actually ticked this run
+auto_sync_ticked = False
+if auto_refresh:
+    current_sync_cnt = st.session_state.get("data_auto_sync", 0)
+    last_sync_cnt = st.session_state.get("_last_processed_sync_cnt", -1)
+    if current_sync_cnt != last_sync_cnt:
+        auto_sync_ticked = True
+        st.session_state["_last_processed_sync_cnt"] = current_sync_cnt
+
+# Auto-trigger on first load OR when analyze button pressed OR when params change OR when auto-refresh timer ticks
 should_run = (
     run_btn
-    or auto_refresh
-    or st.session_state.result is None
-    or st.session_state.cache_key != cache_key
+    or auto_sync_ticked
+    or (st.session_state.result is None)
+    or (st.session_state.cache_key != cache_key)
 )
 
 st.title("📊 Quantitative Signal Terminal")
@@ -1037,361 +1559,7 @@ if setup['status'] == 'ACTIVE_SETUP':
 
     # ── EXNESS MT5 ONE-CLICK MULTI-TARGET EXECUTION PANEL ───────────────────
     if asset_code == "forex" and is_mt5:
-        from src.engine.mt5_executor import MT5TradeExecutor
-        executor = MT5TradeExecutor()
-        broker_sym = (mt5_status.get('broker_symbol') if isinstance(mt5_status, dict) else None) or ff.mt5_exness.get_exness_symbol(symbol) or 'XAUUSDc'
-        account_bal = float(mt5_status.get('balance', account)) if isinstance(mt5_status, dict) else float(account)
-        specs = executor.get_symbol_trade_specs(broker_sym) or {}
-        vol_min = float(specs.get('volume_min', 0.01))
-        vol_step = float(specs.get('volume_step', 0.01))
-        vol_max = float(specs.get('volume_max', 100.0))
-
-        st.markdown(
-            clean_html(f"""
-            <div style='background:linear-gradient(135deg,#064e3b,#0f172a);border:1px solid #10b981;border-radius:12px;padding:16px 20px;margin:16px 0;'>
-                <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;'>
-                    <div>
-                        <span style='background:#10b981;color:#000;font-weight:900;font-size:.78rem;padding:3px 10px;border-radius:12px;'>ONE-CLICK EXECUTION</span>
-                        &nbsp;<b style='color:#ffffff;font-size:1.05rem;'>Exness MT5 Broker Terminal Routing</b>
-                    </div>
-                    <div style='color:#6ee7b7;font-size:.84rem;font-weight:600;'>
-                        Broker Symbol: <code>{broker_sym}</code> &nbsp;|&nbsp; Min Lot: <b>{vol_min:.2f}</b> &nbsp;|&nbsp; Account Balance: <b>${account_bal:,.2f}</b>
-                    </div>
-                </div>
-            </div>
-            """),
-            unsafe_allow_html=True
-        )
-
-        st.markdown("##### 🎯 Multi-Target Scaling & Risk Allocation")
-        
-        # ── Persist Multi-Target & Risk Preferences ────────────────────────────
-        import json
-        settings_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".user_lot_settings.json")
-        saved_prefs = {}
-        if os.path.exists(settings_file):
-            try:
-                with open(settings_file, "r", encoding="utf-8") as _sf:
-                    saved_prefs = json.load(_sf)
-            except Exception:
-                saved_prefs = {}
-
-        sym_prefs = saved_prefs.get(broker_sym, {})
-        if not isinstance(sym_prefs, dict):
-            sym_prefs = {}
-
-        # Detect active symbol switch and clear old symbol's custom numbers
-        last_broker_sym = st.session_state.get('_last_active_broker_sym')
-        if last_broker_sym != broker_sym:
-            st.session_state['_last_active_broker_sym'] = broker_sym
-            for k in ["direct_total_volume_input", "tp1_lots_input", "tp2_lots_input", "tp3_lots_input"]:
-                st.session_state.pop(k, None)
-
-        # Pre-compute suggested risk lots for this symbol based on risk% and balance
-        suggested_calc = executor.calculate_lot_and_risk(
-            broker_symbol=broker_sym,
-            entry_price=setup['recommended_entry'],
-            stop_loss_price=setup['stop_loss'],
-            balance_usd=account_bal,
-            risk_pct=risk_pct,
-            tp1_price=setup['tp1'],
-            tp2_price=setup['tp2'],
-            tp3_price=setup['tp3'],
-        )
-        sugg_vol = float(suggested_calc.get('total_lots', vol_min))
-        sugg_split = suggested_calc.get('lot_split', {})
-
-        def _compute_default_tp_split(tot: float):
-            tot = round(max(vol_min, tot), 2)
-            if tot >= round(3 * vol_min, 2):
-                avail = round(tot - 3 * vol_min, 2)
-                stps = int(round(avail / vol_step))
-                s1 = int(round(stps * 0.50))
-                s2 = int(round(stps * 0.30))
-                s3 = max(0, stps - s1 - s2)
-                return round(vol_min + s1 * vol_step, 2), round(vol_min + s2 * vol_step, 2), round(vol_min + s3 * vol_step, 2)
-            elif tot >= round(2 * vol_min, 2):
-                avail = round(tot - 2 * vol_min, 2)
-                stps = int(round(avail / vol_step))
-                s1 = int(round(stps * 0.60))
-                s2 = max(0, stps - s1)
-                return round(vol_min + s1 * vol_step, 2), round(vol_min + s2 * vol_step, 2), 0.0
-            else:
-                return tot, 0.0, 0.0
-
-        def _save_lot_settings():
-            try:
-                saved_prefs["alloc_mode"] = st.session_state.get("alloc_mode_radio", "📊 Percentage Allocation (%)")
-                saved_prefs["enable_direct_exec"] = bool(st.session_state.get("confirm_trade_exec", False))
-                saved_prefs["tp1_share"] = int(st.session_state.get("tp1_share_slider", 50))
-                saved_prefs["tp2_share"] = int(st.session_state.get("tp2_share_slider", 30))
-                
-                # Save symbol-specific custom lot settings
-                sym_dict = saved_prefs.setdefault(broker_sym, {})
-                sym_dict["direct_total"] = float(st.session_state.get("direct_total_volume_input", sugg_vol))
-                sym_dict["tp1_lots"] = float(st.session_state.get("tp1_lots_input", 0.0))
-                sym_dict["tp2_lots"] = float(st.session_state.get("tp2_lots_input", 0.0))
-                sym_dict["tp3_lots"] = float(st.session_state.get("tp3_lots_input", 0.0))
-
-                with open(settings_file, "w", encoding="utf-8") as _sf:
-                    json.dump(saved_prefs, _sf, indent=2)
-            except Exception:
-                pass
-
-        def _on_direct_total_change():
-            tot_v = round(float(st.session_state.get("direct_total_volume_input", sugg_vol)), 2)
-            l1, l2, l3 = _compute_default_tp_split(tot_v)
-            st.session_state["tp1_lots_input"] = l1
-            st.session_state["tp2_lots_input"] = l2
-            st.session_state["tp3_lots_input"] = l3
-            _save_lot_settings()
-
-        alloc_modes = ["📊 Percentage Allocation (%)", "🔢 Direct Lots Allocation (Lots)"]
-        default_alloc_idx = 0
-        current_alloc_mode = st.session_state.get("alloc_mode_radio", saved_prefs.get("alloc_mode", "📊 Percentage Allocation (%)"))
-        if current_alloc_mode in alloc_modes:
-            default_alloc_idx = alloc_modes.index(current_alloc_mode)
-
-        c_alloc, c_recalc = st.columns([3, 2])
-        with c_alloc:
-            alloc_mode = st.radio(
-                "Target Allocation Mode",
-                alloc_modes,
-                index=default_alloc_idx,
-                horizontal=True,
-                key="alloc_mode_radio",
-                on_change=_save_lot_settings
-            )
-        with c_recalc:
-            st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
-            if st.button(f"⚡ Sync Risk Lots ({sugg_vol:.2f} lots @ {risk_pct}%)", key="sync_risk_lots_btn", help="Sidebar ke Balance aur Risk % ke mutabiq recommended lots load karein"):
-                st.session_state["direct_total_volume_input"] = sugg_vol
-                l1, l2, l3 = _compute_default_tp_split(sugg_vol)
-                st.session_state["tp1_lots_input"] = l1
-                st.session_state["tp2_lots_input"] = l2
-                st.session_state["tp3_lots_input"] = l3
-                _save_lot_settings()
-                st.rerun()
-
-        custom_lots_input = None
-        vol_errors = []
-
-        if "Direct Lots" in alloc_mode:
-            # Initialize direct_total_volume_input if not present
-            if "direct_total_volume_input" not in st.session_state:
-                saved_tot = sym_prefs.get("direct_total", sugg_vol)
-                st.session_state["direct_total_volume_input"] = round(max(vol_min, float(saved_tot)), 2)
-
-            cur_tot = round(float(st.session_state["direct_total_volume_input"]), 2)
-
-            # Initialize TP inputs if not present
-            if "tp1_lots_input" not in st.session_state:
-                dl1, dl2, dl3 = _compute_default_tp_split(cur_tot)
-                st.session_state["tp1_lots_input"] = round(float(sym_prefs.get("tp1_lots", dl1)), 2)
-                st.session_state["tp2_lots_input"] = round(float(sym_prefs.get("tp2_lots", dl2)), 2)
-                st.session_state["tp3_lots_input"] = round(float(sym_prefs.get("tp3_lots", dl3)), 2)
-
-            col_dvol, col_tp1, col_tp2, col_tp3 = st.columns([1.2, 1, 1, 1])
-            with col_dvol:
-                custom_direct_total = st.number_input(
-                    "Total Volume (Lots) ✍️",
-                    min_value=vol_min,
-                    max_value=vol_max,
-                    value=cur_tot,
-                    step=vol_step,
-                    format="%.2f",
-                    key="direct_total_volume_input",
-                    on_change=_on_direct_total_change,
-                    help=f"Exness Min: {vol_min:.2f} | Step: {vol_step:.2f}. Total Volume badalne se TPs auto-split ho jayenge."
-                )
-
-            cur_tot = round(float(custom_direct_total), 2)
-
-            with col_tp1:
-                tp1_lots_in = st.number_input(
-                    "TP1 Lots (Lock)",
-                    min_value=0.0,
-                    max_value=cur_tot,
-                    value=float(st.session_state.get("tp1_lots_input", cur_tot)),
-                    step=vol_step,
-                    format="%.2f",
-                    key="tp1_lots_input",
-                    on_change=_save_lot_settings
-                )
-            with col_tp2:
-                rem_after_tp1 = max(0.0, round(cur_tot - float(tp1_lots_in), 2))
-                tp2_lots_in = st.number_input(
-                    "TP2 Lots (Struct)",
-                    min_value=0.0,
-                    max_value=rem_after_tp1,
-                    value=min(float(st.session_state.get("tp2_lots_input", 0.0)), rem_after_tp1),
-                    step=vol_step,
-                    format="%.2f",
-                    key="tp2_lots_input",
-                    on_change=_save_lot_settings
-                )
-            with col_tp3:
-                rem_after_tp2 = max(0.0, round(cur_tot - float(tp1_lots_in) - float(tp2_lots_in), 2))
-                tp3_lots_in = st.number_input(
-                    "TP3 Lots (Runner)",
-                    min_value=0.0,
-                    max_value=rem_after_tp2,
-                    value=min(float(st.session_state.get("tp3_lots_input", 0.0)), rem_after_tp2),
-                    step=vol_step,
-                    format="%.2f",
-                    key="tp3_lots_input",
-                    on_change=_save_lot_settings
-                )
-
-            sum_tp_lots = round(float(tp1_lots_in) + float(tp2_lots_in) + float(tp3_lots_in), 2)
-            lots_mismatch = abs(sum_tp_lots - cur_tot) > 0.001
-
-            # Validate broker minimum volume constraint on each target
-            for lbl, val in [("TP1", float(tp1_lots_in)), ("TP2", float(tp2_lots_in)), ("TP3", float(tp3_lots_in))]:
-                if 0.0 < val < vol_min:
-                    vol_errors.append(f"{lbl} ({val:.2f} lots) is below broker minimum ({vol_min:.2f} lots)")
-
-            if vol_errors:
-                st.error(f"❌ **Exness Minimum Order Constraint:** On `{broker_sym}`, every placed order must be at least **`{vol_min:.2f} lots`** (or 0.00 to disable). {'; '.join(vol_errors)}.")
-                if st.button("⚡ Click to Auto-Fix & Re-Split Lots According to Broker Rules", key="btn_autofix_split"):
-                    _on_direct_total_change()
-                    st.rerun()
-            elif lots_mismatch:
-                if sum_tp_lots > cur_tot:
-                    st.error(f"⚠️ **Validation Error:** TP lots ka total (`{sum_tp_lots:.2f}`) Total Volume (`{cur_tot:.2f}`) se zyada hai! Please lots adjust karein.")
-                else:
-                    st.warning(f"ℹ️ **Allocation Notice:** TP lots ka total (`{sum_tp_lots:.2f}`) Total Volume (`{cur_tot:.2f}`) se kam hai (`{cur_tot - sum_tp_lots:.2f}` lots unallocated).")
-
-            custom_lots_input = {
-                'tp1_lots': float(tp1_lots_in),
-                'tp2_lots': float(tp2_lots_in),
-                'tp3_lots': float(tp3_lots_in)
-            }
-            tp1_share, tp2_share, tp3_share = 50.0, 30.0, 20.0
-            override_total_volume = cur_tot
-        else:
-            lots_mismatch = False
-            vol_errors = []
-            override_total_volume = sugg_vol
-
-            col_tp1, col_tp2, col_tp3 = st.columns([1, 1, 0.8])
-            with col_tp1:
-                init_tp1_share = int(st.session_state.get("tp1_share_slider", saved_prefs.get("tp1_share", 50)))
-                tp1_share = st.slider("TP1 % (Profit Lock)", 10, 80, init_tp1_share, 5, key="tp1_share_slider", on_change=_save_lot_settings)
-            with col_tp2:
-                init_tp2_share = int(st.session_state.get("tp2_share_slider", saved_prefs.get("tp2_share", 30)))
-                tp2_share = st.slider("TP2 % (Structural)", 10, 60, init_tp2_share, 5, key="tp2_share_slider", on_change=_save_lot_settings)
-            with col_tp3:
-                rem_share = max(0, 100 - tp1_share - tp2_share)
-                st.metric("TP3 %", f"{rem_share}%")
-                tp3_share = rem_share
-
-            # Informative message showing calculated lots
-            split_info = suggested_calc.get('lot_split', {})
-            st.caption(
-                f"📊 **Calculated from {risk_pct:.2f}% Risk on ${account_bal:,.2f}:** "
-                f"Total Volume: `{sugg_vol:.2f} Lots` | "
-                f"TP1: `{split_info.get('tp1_lots', 0):.2f} lots` | "
-                f"TP2: `{split_info.get('tp2_lots', 0):.2f} lots` | "
-                f"TP3: `{split_info.get('tp3_lots', 0):.2f} lots`"
-            )
-
-        # Calculate exact lot sizing and risk/reward breakdown
-        calc_risk = executor.calculate_lot_and_risk(
-            broker_symbol=broker_sym,
-            entry_price=setup['recommended_entry'],
-            stop_loss_price=setup['stop_loss'],
-            balance_usd=account_bal,
-            risk_pct=risk_pct,
-            tp1_pct=tp1_share,
-            tp2_pct=tp2_share,
-            tp3_pct=tp3_share,
-            tp1_price=setup['tp1'],
-            tp2_price=setup['tp2'],
-            tp3_price=setup['tp3'],
-            custom_lots=custom_lots_input,
-            total_volume_lots=override_total_volume
-        )
-
-        split = calc_risk.get('lot_split', {})
-        total_vol = calc_risk.get('total_lots', override_total_volume or 0.01)
-        act_risk_usd = calc_risk.get('actual_risk_usd', 0.0)
-        act_risk_pct = calc_risk.get('actual_risk_pct', risk_pct)
-        min_bal_req = calc_risk.get('min_lot_risk_usd', 0.0)
-        tp1_rew_usd = calc_risk.get('tp1_reward_usd', 0.0)
-        tp2_rew_usd = calc_risk.get('tp2_reward_usd', 0.0)
-        tp3_rew_usd = calc_risk.get('tp3_reward_usd', 0.0)
-        total_rew_usd = calc_risk.get('total_reward_usd', 0.0)
-
-        # Metrics display row 1: Capital Risk Management
-        rc1, rc2, rc3, rc4 = st.columns(4)
-        with rc1:
-            st.metric("Total Volume", f"{total_vol:.2f} Lots", help="Automatically rounded to broker volume step")
-        with rc2:
-            st.metric("Risk in Dollars", f"${act_risk_usd:,.2f}")
-        with rc3:
-            st.metric("Risk in %", f"{act_risk_pct:.2f}%", delta=f"{act_risk_pct - risk_pct:+.2f}% vs target" if abs(act_risk_pct - risk_pct) > 0.05 else "Exact")
-        with rc4:
-            st.metric("Min Risk (0.01 lot)", f"${min_bal_req:,.2f}")
-
-        # Metrics display row 2: Target Rewards in Dollars ($) & Expected Scaling
-        rw1, rw2, rw3, rw4 = st.columns(4)
-        with rw1:
-            st.metric("TP1 Target ($)", f"+${tp1_rew_usd:,.2f}", delta=f"{split.get('tp1_lots', 0):.2f} lots @ ${setup['tp1']:,.2f}")
-        with rw2:
-            st.metric("TP2 Target ($)", f"+${tp2_rew_usd:,.2f}", delta=f"{split.get('tp2_lots', 0):.2f} lots @ ${setup['tp2']:,.2f}")
-        with rw3:
-            st.metric("TP3 Runner ($)", f"+${tp3_rew_usd:,.2f}", delta=f"{split.get('tp3_lots', 0):.2f} lots @ ${setup['tp3']:,.2f}")
-        with rw4:
-            net_rr = (total_rew_usd / act_risk_usd) if act_risk_usd > 0 else 0.0
-            st.metric("Total Potential Reward", f"+${total_rew_usd:,.2f}", delta=f"{net_rr:.2f}R Net Ratio")
-
-        st.caption(
-            f"⚡ **Order Split Plan:** Order 1 (TP1 @ ${setup['tp1']:,.4f}): `{split.get('tp1_lots', 0):.2f} lots` (+${tp1_rew_usd:,.2f}) | "
-            f"Order 2 (TP2 @ ${setup['tp2']:,.4f}): `{split.get('tp2_lots', 0):.2f} lots` (+${tp2_rew_usd:,.2f}) | "
-            f"Order 3 (TP3 @ ${setup['tp3']:,.4f}): `{split.get('tp3_lots', 0):.2f} lots` (+${tp3_rew_usd:,.2f})"
-        )
-
-        # Confirmation and Execution
-        ex_col1, ex_col2 = st.columns([1.5, 2.5])
-        with ex_col1:
-            init_confirm = bool(st.session_state.get("confirm_trade_exec", saved_prefs.get("enable_direct_exec", False)))
-            confirm_exec = st.checkbox(
-                "🔒 Enable Direct Execution",
-                value=init_confirm,
-                key="confirm_trade_exec",
-                on_change=_save_lot_settings
-            )
-        with ex_col2:
-            btn_label = f"🚀 EXECUTE {setup['action']} ON EXNESS MT5 ({total_vol:.2f} LOTS)"
-            btn_type = "primary"
-            can_execute = confirm_exec and not lots_mismatch and len(vol_errors) == 0
-            if st.button(btn_label, type=btn_type, disabled=not can_execute, key="btn_execute_exness_mt5", use_container_width=True):
-                with st.spinner("Submitting multi-target orders to Exness broker server..."):
-                    exec_res = executor.execute_multi_target_trade(
-                        broker_symbol=broker_sym,
-                        action=setup['action'],
-                        sl_price=setup['stop_loss'],
-                        tp1_price=setup['tp1'],
-                        tp2_price=setup['tp2'],
-                        tp3_price=setup['tp3'],
-                        lot_split=split
-                    )
-                st.session_state['last_exec_res'] = exec_res
-
-            # Display execution feedback instantly without requiring full setup refresh
-            last_res = st.session_state.get('last_exec_res')
-            if last_res:
-                if last_res.get('success'):
-                    st.toast("⚡ Order Executed on Exness MT5", icon="🟢")
-                    st.success(f"🟢 **TRADE EXECUTED SUCCESSFULLY ON EXNESS MT5!** Placed {last_res['orders_placed']} order(s). Tickets: {[t['ticket'] for t in last_res.get('tickets', [])]}")
-                else:
-                    err_msg = last_res.get('error', '')
-                    st.error(f"❌ Execution failed: {err_msg}")
-                    if "10027" in err_msg or "AutoTrading" in err_msg:
-                        st.warning(
-                            "⚠️ **Hal (Solution):** MetaTrader 5 terminal ki top toolbar par **'Algo Trading'** button ko click karke GREEN kar dein (ya **Tools -> Options -> Expert Advisors -> 'Allow Algo Trading'** check karein). Uske baad dobara execute button dabayein!"
-                        )
+        render_mt5_execution_panel(symbol, setup, mt5_status, account, risk_pct, ff)
 
 else:
     st.info(f"No active setup — [{setup.get('action', 'NEUTRAL')}] Capital preservation mode active.")
@@ -1609,95 +1777,7 @@ with st.expander("📊 Complete Multi-Timeframe Benchmark Matrix (AlphaSniper vs
 
 # ── EXNESS MT5 LIVE TRADE TRACKER & POSITION MANAGER ───────────────────────
 if is_mt5:
-    st.divider()
-    st.subheader("📊 Exness MT5 Live Trade Tracker & History")
-    from src.engine.mt5_executor import MT5TradeExecutor
-    live_exec = MT5TradeExecutor()
-
-    # Check auto-breakeven
-    try:
-        be_updates = live_exec.check_and_apply_auto_breakeven()
-        if be_updates:
-            for b in be_updates:
-                st.info(f"🛡️ **Auto-Breakeven Triggered:** Position #{b['ticket']} Stop-Loss shifted to Breakeven (${b['new_sl']})!")
-    except Exception:
-        pass
-
-    tab_active, tab_history = st.tabs(["🟢 Active Open Positions", "📜 Closed Trades History (7 Days)"])
-
-    with tab_active:
-        positions = live_exec.get_open_positions()
-        if not positions:
-            st.info("ℹ️ No active open positions on Exness MT5 right now.")
-        else:
-            tot_pnl = sum(p['profit'] for p in positions)
-            pnl_color = "#00c853" if tot_pnl >= 0 else "#ff1744"
-            st.markdown(f"**Open Positions ({len(positions)}):** Floating PnL: <span style='color:{pnl_color};font-weight:800;font-size:1.1rem;'>${tot_pnl:+,.2f}</span>", unsafe_allow_html=True)
-
-            for p in positions:
-                with st.container():
-                    p_col = "#00c853" if p['type'] == 'BUY' else "#ff1744"
-                    profit_col = "#00c853" if p['profit'] >= 0 else "#ff1744"
-                    c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 1.5, 1.5])
-                    with c1:
-                        st.markdown(f"<span style='background:{p_col};color:#fff;padding:2px 8px;border-radius:6px;font-weight:700;font-size:.78rem;'>{p['type']}</span> <b>{p['symbol']}</b> &nbsp;`{p['volume']} lots`", unsafe_allow_html=True)
-                        # Extract Batch ID and TP Target from comment
-                        cmt = str(p.get('comment', ''))
-                        batch_tag = ""
-                        m_batch = re.search(r'QS_(\d+)_(TP\d)', cmt)
-                        if m_batch:
-                            batch_tag = f"<span style='background:#1e293b;color:#38bdf8;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #0284c7;'>Batch #{m_batch.group(1)} ({m_batch.group(2)})</span> "
-                        elif "QuantSniper_TP" in cmt:
-                            tp_num = cmt.split('_')[-1]
-                            batch_tag = f"<span style='background:#1e293b;color:#a78bfa;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #7c3aed;'>Batch Initial ({tp_num})</span> "
-                        elif cmt:
-                            batch_tag = f"<span style='background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-weight:600;font-size:.72rem;'>{cmt}</span> "
-
-                        st.markdown(f"{batch_tag}<span style='color:#8b949e;font-size:.75rem;'>Ticket #{p['ticket']} | {p['time']}</span>", unsafe_allow_html=True)
-                    with c2:
-                        st.markdown(f"Open: **${p['price_open']:,.4f}**")
-                        st.caption(f"Live: ${p['price_current']:,.4f}")
-                    with c3:
-                        st.markdown(f"SL: **${p['sl']:,.4f}**")
-                        st.caption(f"TP: ${p['tp']:,.4f}")
-                    with c4:
-                        st.markdown(f"<span style='color:{profit_col};font-weight:800;font-size:1.05rem;'>${p['profit']:+,.2f}</span>", unsafe_allow_html=True)
-                        st.caption(f"{p['return_pct']:+.2f}%")
-                    with c5:
-                        btn_c1, btn_c2 = st.columns(2)
-                        with btn_c1:
-                            if st.button("✕ Close", key=f"close_{p['ticket']}", help="Close position at market"):
-                                cres = live_exec.close_position(p['ticket'])
-                                if cres.get('success'):
-                                    st.success(f"Closed #{p['ticket']} @ {cres.get('close_price')}")
-                                    st.rerun()
-                                else:
-                                    st.error(cres.get('error'))
-                        with btn_c2:
-                            if st.button("🛡️ BE", key=f"be_{p['ticket']}", help="Move SL to Breakeven"):
-                                bres = live_exec.move_to_breakeven(p['ticket'])
-                                if bres.get('success'):
-                                    st.success(f"Moved #{p['ticket']} to BE!")
-                                    st.rerun()
-                                else:
-                                    st.error(bres.get('error'))
-                    st.divider()
-
-    with tab_history:
-        history_deals = live_exec.get_trade_history(days=7)
-        if not history_deals:
-            st.info("ℹ️ No closed trades in the past 7 days.")
-        else:
-            net_hist_profit = sum(d['profit'] for d in history_deals)
-            net_col = "#00c853" if net_hist_profit >= 0 else "#ff1744"
-            st.markdown(f"**Past 7 Days Closed Trades ({len(history_deals)}):** Net Realized Profit: <span style='color:{net_col};font-weight:800;font-size:1.1rem;'>${net_hist_profit:+,.2f}</span>", unsafe_allow_html=True)
-
-            hist_df = pd.DataFrame(history_deals)
-            st.dataframe(
-                hist_df[['time', 'deal_id', 'symbol', 'type', 'volume', 'price', 'profit', 'comment']],
-                use_container_width=True,
-                hide_index=True
-            )
+    render_mt5_position_tracker()
 
 st.divider()
 st.caption(

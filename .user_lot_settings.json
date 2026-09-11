@@ -8,5 +8,23 @@
     "tp1_lots": 0.01,
     "tp2_lots": 0.0,
     "tp3_lots": 0.0
+  },
+  "ADAUSDm": {
+    "direct_total": 5.66,
+    "tp1_lots": 2.83,
+    "tp2_lots": 1.7,
+    "tp3_lots": 1.13
+  },
+  "USDBRLm": {
+    "direct_total": 0.01,
+    "tp1_lots": 0.01,
+    "tp2_lots": 0.0,
+    "tp3_lots": 0.0
+  },
+  "XAUUSDm": {
+    "direct_total": 0.01,
+    "tp1_lots": 0.01,
+    "tp2_lots": 0.0,
+    "tp3_lots": 0.0
   }
 }
