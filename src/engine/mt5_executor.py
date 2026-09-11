@@ -369,6 +369,8 @@ class MT5TradeExecutor:
             if placed_tickets:
                 return {
                     'success': True,
+                    'batch_id': batch_id,
+                    'broker_symbol': broker_symbol,
                     'symbol': broker_symbol,
                     'action': action,
                     'orders_placed': len(placed_tickets),
@@ -484,9 +486,9 @@ class MT5TradeExecutor:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    def move_to_breakeven(self, ticket: int, spread_buffer_points: int = 5) -> Dict[str, Any]:
+    def move_to_breakeven(self, ticket: int, spread_buffer_points: int = 5, target_sl: Optional[float] = None) -> Dict[str, Any]:
         """
-        Shifts the Stop-Loss of a position to its open price (+ buffer points).
+        Shifts the Stop-Loss of a position to its institutional Breakeven Mark (+ buffer) or explicit target_sl.
         """
         if not self._ensure_connection():
             return {'success': False, 'error': 'MT5 terminal not connected'}
@@ -506,11 +508,33 @@ class MT5TradeExecutor:
             digits = specs['digits']
             open_p = float(pos.price_open)
 
-            buffer_val = spread_buffer_points * point
-            if pos.type == mt5.ORDER_TYPE_BUY:
-                new_sl = round(open_p + buffer_val, digits)
+            # Check if explicit target_sl provided or if batch comment has stored institutional BE
+            resolved_be = target_sl
+            if resolved_be is None or resolved_be <= 0:
+                pos_cmt = str(pos.comment or '')
+                if 'QS_' in pos_cmt:
+                    parts = pos_cmt.split('_')
+                    if len(parts) >= 2:
+                        batch_id = parts[1]
+                        try:
+                            state_file = Path(".autonomous_trader_state.json")
+                            if state_file.exists():
+                                with open(state_file, 'r', encoding='utf-8') as f:
+                                    st_data = json.load(f)
+                                b_info = st_data.get('open_batches', {}).get(str(batch_id), {})
+                                if b_info.get('breakeven_sl'):
+                                    resolved_be = float(b_info['breakeven_sl'])
+                        except Exception:
+                            pass
+
+            if resolved_be is not None and resolved_be > 0:
+                new_sl = round(resolved_be, digits)
             else:
-                new_sl = round(open_p - buffer_val, digits)
+                buffer_val = spread_buffer_points * point
+                if pos.type == mt5.ORDER_TYPE_BUY:
+                    new_sl = round(open_p + buffer_val, digits)
+                else:
+                    new_sl = round(open_p - buffer_val, digits)
 
             request = {
                 'action': mt5.TRADE_ACTION_SLTP,
@@ -531,19 +555,34 @@ class MT5TradeExecutor:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    def check_and_apply_auto_breakeven(self, broker_symbol: Optional[str] = None) -> List[Dict[str, Any]]:
+    def check_and_apply_auto_breakeven(self, broker_symbol: Optional[str] = None, batch_breakeven_sl_map: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
         """
         Auto-Breakeven Monitor:
         Finds open Quant Terminal child orders (magic == 999888).
         Triggers Breakeven if:
           1. Any TP1 child deal has closed in profit (TP1 hit confirmation in broker history), OR
           2. Open position is in profit (return_pct >= 0.08% or price reached TP1).
-        Automatically modifies remaining open positions to Breakeven!
+        Automatically modifies remaining open positions to the exact Institutional Breakeven Mark!
         """
         if not self._ensure_connection():
             return []
 
         import MetaTrader5 as mt5
+
+        # Auto-load batch breakeven SL map if not explicitly passed
+        if batch_breakeven_sl_map is None:
+            try:
+                state_file = Path(".autonomous_trader_state.json")
+                if state_file.exists():
+                    with open(state_file, 'r', encoding='utf-8') as f:
+                        st_data = json.load(f)
+                    batch_breakeven_sl_map = {
+                        str(bid): float(binfo['breakeven_sl'])
+                        for bid, binfo in st_data.get('open_batches', {}).items()
+                        if binfo.get('breakeven_sl')
+                    }
+            except Exception:
+                batch_breakeven_sl_map = {}
 
         # Find all closed TP1 deals in recent history (past 24h) and record their batch_ids / symbols
         closed_tp1_batches = set()
@@ -554,7 +593,6 @@ class MT5TradeExecutor:
             if deals:
                 for d in deals:
                     if d.profit > 0 and d.entry == 1:
-                        # Extract batch from comment or history order
                         cmt = str(d.comment)
                         deal_sym = getattr(d, 'symbol', '')
                         if 'QS_' in cmt:
@@ -597,7 +635,11 @@ class MT5TradeExecutor:
             should_be = is_profitable and (batch_tp1_hit or symbol_tp1_hit or high_profit_hit)
 
             if should_be and not sl_at_be:
-                res = self.move_to_breakeven(pos['ticket'])
+                target_be_sl = None
+                if batch_breakeven_sl_map and pos_batch and str(pos_batch) in batch_breakeven_sl_map:
+                    target_be_sl = batch_breakeven_sl_map[str(pos_batch)]
+
+                res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
                 if res.get('success'):
                     results.append({
                         'ticket': pos['ticket'],

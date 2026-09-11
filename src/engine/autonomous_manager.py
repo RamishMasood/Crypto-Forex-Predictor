@@ -41,12 +41,16 @@ JOURNAL_FILE = os.path.join(ROOT_DIR, ".trade_learning_journal.json")
 DEFAULT_TIMEFRAMES = ["1m", "3m", "5m", "15m", "30m", "1h", "4h"]
 DEFAULT_SYMBOLS = ["XAU/USD", "BTC/USD"]
 
+_SCAN_STOP_EVENT = threading.Event()
+_FORCE_STOP_EVENT = threading.Event()
+_STATE_LOCK = threading.Lock()
+
 class AutonomousTraderEngine:
     def __init__(self):
         self.orch = PredictorOrchestrator()
         self.executor = MT5TradeExecutor()
         self._thread: Optional[threading.Thread] = None
-        self._stop_requested = threading.Event()
+        self._stop_requested = _SCAN_STOP_EVENT
         self._is_running = False
 
     @staticmethod
@@ -56,55 +60,101 @@ class AutonomousTraderEngine:
             "selected_symbols": DEFAULT_SYMBOLS,
             "timeframes": DEFAULT_TIMEFRAMES,
             "risk_pct": 1.0,
-            "scan_interval_sec": 40,
-            "target_trades_per_symbol": 10
+            "scan_interval_sec": 180,           # 3 minutes default scan delay
+            "target_trades_per_symbol": 10,     # Customizable target
+            "max_active_batches": 1,            # 1 = wait until previous batch closes
+            "max_dollar_risk": 10.0,            # Max dollar risk cap per batch ($ USD)
+            "min_pillars_required": 5           # Customizable required pillars: 5, 4, 3, or 2
         }
-        if os.path.exists(SETTINGS_FILE):
-            try:
-                with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    default_settings.update(data)
-            except Exception as e:
-                logger.error(f"Error loading settings: {e}")
+        with _STATE_LOCK:
+            if os.path.exists(SETTINGS_FILE):
+                try:
+                    with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        default_settings.update(data)
+                except Exception as e:
+                    logger.error(f"Error loading settings: {e}")
         return default_settings
 
     @staticmethod
     def save_settings(settings: Dict[str, Any]):
-        try:
-            with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(settings, f, indent=2)
-        except Exception as e:
-            logger.error(f"Error saving settings: {e}")
+        with _STATE_LOCK:
+            try:
+                tmp_file = SETTINGS_FILE + ".tmp"
+                with open(tmp_file, 'w', encoding='utf-8') as f:
+                    json.dump(settings, f, indent=2)
+                os.replace(tmp_file, SETTINGS_FILE)
+            except Exception as e:
+                logger.error(f"Error saving settings: {e}")
 
     @staticmethod
     def load_state() -> Dict[str, Any]:
         default_state = {
             "total_trades_taken": 0,
             "trades_by_symbol": {},
+            "symbol_stats": {},
             "open_batches": {},
+            "closed_batches": [],
             "wins": 0,
             "losses": 0,
             "breakevens": 0,
             "last_scan_time": None,
             "last_scanned_symbol": None,
-            "engine_status": "STOPPED"
+            "engine_status": "STOPPED",
+            "cycle_count": 0,
+            "current_scan": {},
+            "scan_activity_log": [],
+            "next_scan_time": None,
+            "reset_at": None
         }
-        if os.path.exists(STATE_FILE):
-            try:
-                with open(STATE_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    default_state.update(data)
-            except Exception as e:
-                logger.error(f"Error loading state: {e}")
+        with _STATE_LOCK:
+            if os.path.exists(STATE_FILE):
+                for _ in range(3):
+                    try:
+                        with open(STATE_FILE, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            for k, v in default_state.items():
+                                if k not in data:
+                                    data[k] = v
+                            return data
+                    except Exception:
+                        time.sleep(0.04)
         return default_state
 
     @staticmethod
     def save_state(state: Dict[str, Any]):
+        with _STATE_LOCK:
+            try:
+                tmp_file = STATE_FILE + ".tmp"
+                with open(tmp_file, 'w', encoding='utf-8') as f:
+                    json.dump(state, f, indent=2)
+                os.replace(tmp_file, STATE_FILE)
+            except Exception as e:
+                logger.error(f"Error saving state: {e}")
+
+    def has_active_batches(self) -> bool:
         try:
-            with open(STATE_FILE, 'w', encoding='utf-8') as f:
-                json.dump(state, f, indent=2)
-        except Exception as e:
-            logger.error(f"Error saving state: {e}")
+            state = self.load_state()
+            return bool(state.get('open_batches', {}))
+        except Exception:
+            return False
+
+    def is_thread_alive(self) -> bool:
+        for t in threading.enumerate():
+            if t.name == "Auto5PillarTraderThread" and t.is_alive():
+                return True
+        return False
+
+    def is_scan_active(self) -> bool:
+        settings = self.load_settings()
+        if not settings.get('enabled', False):
+            return False
+        if _SCAN_STOP_EVENT.is_set():
+            return False
+        return self.is_thread_alive()
+
+    def is_managing_active(self) -> bool:
+        return not self.is_scan_active() and self.has_active_batches()
 
     @staticmethod
     def load_journal() -> Dict[str, Any]:
@@ -132,6 +182,75 @@ class AutonomousTraderEngine:
                 json.dump(journal, f, indent=2)
         except Exception as e:
             logger.error(f"Error saving journal: {e}")
+
+    @staticmethod
+    def normalize_symbol(broker_symbol: str) -> str:
+        s = str(broker_symbol).upper().replace("/", "").replace("_", "")
+        for suf in [".RAW", "RAW", "#", "M", "C"]:
+            if s.endswith(suf) and len(s) > len(suf) + 3:
+                s = s[:-len(suf)]
+                break
+        if "XAU" in s or "GOLD" in s:
+            return "XAU/USD"
+        if "BTC" in s:
+            return "BTC/USD"
+        if "ETH" in s:
+            return "ETH/USD"
+        if len(s) == 6:
+            return f"{s[:3]}/{s[3:]}"
+        return broker_symbol
+
+    def reset_progress(self, clear_journal: bool = False):
+        """Reset target progress, executed counts, and symbol stats back to 0."""
+        state = self.load_state()
+        state["total_trades_taken"] = 0
+        state["trades_by_symbol"] = {}
+        state["symbol_stats"] = {}
+        state["open_batches"] = {}
+        state["closed_batches"] = []
+        state["wins"] = 0
+        state["losses"] = 0
+        state["breakevens"] = 0
+        state["cycle_count"] = 0
+        state["current_scan"] = {}
+        state["xau_trades_taken"] = 0
+        state["btc_trades_taken"] = 0
+        state["last_scan_time"] = None
+        state["last_scanned_symbol"] = None
+        state["next_scan_time"] = None
+        state["reset_at"] = datetime.now(timezone.utc).isoformat()
+        state["scan_activity_log"] = [{
+            "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+            "cycle": 0,
+            "symbol": "SYSTEM",
+            "timeframe": "-",
+            "action": "RESET",
+            "status": "Target Progress Reset",
+            "details": "All trade targets & symbol win rates reset to 0."
+        }]
+        self.save_state(state)
+
+        if clear_journal:
+            journal = {
+                "lessons_learned": [],
+                "sl_post_mortems": [],
+                "optimal_adjustments": {
+                    "min_confluence_score": 35.0,
+                    "min_calibrated_prob": 80.0
+                }
+            }
+            self.save_journal(journal)
+        logger.info("Progress and trade counters successfully reset to 0.")
+
+    def _append_activity_log(self, entry: Dict[str, Any]):
+        try:
+            state = self.load_state()
+            logs = state.get('scan_activity_log', [])
+            logs.insert(0, entry)
+            state['scan_activity_log'] = logs[:60]
+            self.save_state(state)
+        except Exception:
+            pass
 
     def evaluate_5_pillars(self, pred_res: Dict[str, Any]) -> Dict[str, Any]:
         conf = pred_res['confluence']
@@ -194,11 +313,20 @@ class AutonomousTraderEngine:
         state = self.load_state()
         journal = self.load_journal()
         try:
-            # Auto breakeven check
-            be_results = self.executor.check_and_apply_auto_breakeven()
+            open_batches = dict(state.get('open_batches', {}))
+            state_changed = False
+            reset_at = state.get('reset_at')
+
+            # Auto breakeven check with institutional breakeven SL map
+            be_map = {
+                str(bid): float(binfo['breakeven_sl'])
+                for bid, binfo in open_batches.items()
+                if binfo.get('breakeven_sl')
+            }
+            be_results = self.executor.check_and_apply_auto_breakeven(batch_breakeven_sl_map=be_map)
             if be_results:
                 for b in be_results:
-                    logger.info(f"AUTO-BREAKEVEN: Position #{b['ticket']} SL shifted to BE {b['new_sl']}")
+                    logger.info(f"AUTO-BREAKEVEN: Position #{b['ticket']} SL shifted to Institutional BE Mark: {b['new_sl']}")
 
             import MetaTrader5 as mt5
             self.executor._ensure_connection()
@@ -207,9 +335,7 @@ class AutonomousTraderEngine:
             open_pos = mt5.positions_get()
             open_tickets = {p.ticket for p in open_pos} if open_pos else set()
 
-            open_batches = dict(state.get('open_batches', {}))
-            state_changed = False
-
+            # Check open batches for completion
             for batch_id, trade in list(open_batches.items()):
                 batch_tickets = set(trade.get('tickets', []))
                 active_in_batch = batch_tickets.intersection(open_tickets)
@@ -222,6 +348,7 @@ class AutonomousTraderEngine:
                     outcome = 'WIN' if total_batch_profit > 0.5 else ('BREAKEVEN' if abs(total_batch_profit) <= 0.5 else 'LOSS')
                     logger.info(f"Batch #{batch_id} ({trade['symbol']}) Completed: {outcome} | PnL: ${total_batch_profit:+.2f}")
 
+                    # Global stats
                     if outcome == 'WIN':
                         state['wins'] = state.get('wins', 0) + 1
                     elif outcome == 'BREAKEVEN':
@@ -232,22 +359,100 @@ class AutonomousTraderEngine:
                         journal['lessons_learned'].append(lesson_txt)
                         self.save_journal(journal)
 
+                    # Per-symbol stats (Requirement 5)
+                    sym = trade.get('symbol', 'UNKNOWN')
+                    if 'symbol_stats' not in state:
+                        state['symbol_stats'] = {}
+                    if sym not in state['symbol_stats']:
+                        state['symbol_stats'][sym] = {'wins': 0, 'losses': 0, 'breakevens': 0, 'completed': 0, 'total_profit': 0.0}
+                    s_stat = state['symbol_stats'][sym]
+                    s_stat['completed'] = s_stat.get('completed', 0) + 1
+                    s_stat['total_profit'] = round(s_stat.get('total_profit', 0.0) + total_batch_profit, 2)
+                    if outcome == 'WIN':
+                        s_stat['wins'] = s_stat.get('wins', 0) + 1
+                    elif outcome == 'BREAKEVEN':
+                        s_stat['breakevens'] = s_stat.get('breakevens', 0) + 1
+                    else:
+                        s_stat['losses'] = s_stat.get('losses', 0) + 1
+
+                    # Record in closed_batches ledger (Requirement 4)
+                    closed_record = {
+                        'batch_id': batch_id,
+                        'symbol': sym,
+                        'broker_sym': trade.get('broker_sym'),
+                        'timeframe': trade.get('timeframe'),
+                        'action': trade.get('action'),
+                        'entry_price': trade.get('entry_price'),
+                        'sl_price': trade.get('sl_price'),
+                        'breakeven_sl': trade.get('breakeven_sl'),
+                        'matched_pillars': trade.get('matched_pillars', 5),
+                        'tp1_price': trade.get('tp1_price'),
+                        'tp2_price': trade.get('tp2_price'),
+                        'tp3_price': trade.get('tp3_price'),
+                        'lot_split': trade.get('lot_split'),
+                        'tickets': trade.get('tickets', []),
+                        'executed_at': trade.get('executed_at'),
+                        'closed_at': datetime.now(timezone.utc).isoformat(),
+                        'profit': round(total_batch_profit, 2),
+                        'status': outcome,
+                        'p1_score': trade.get('p1_score'),
+                        'p1_prob': trade.get('p1_prob')
+                    }
+                    if 'closed_batches' not in state:
+                        state['closed_batches'] = []
+                    state['closed_batches'].insert(0, closed_record)
+                    state['closed_batches'] = state['closed_batches'][:200]
+
                     del open_batches[batch_id]
                     state['open_batches'] = open_batches
                     state_changed = True
 
-            # If metrics are still zero but historical deals exist, audit directly from MT5 deals
-            if state.get('wins', 0) == 0 and state.get('losses', 0) == 0 and state.get('breakevens', 0) == 0 and deals:
-                pos_pnl = {}
-                for d in deals:
-                    if d.entry == 1:
-                        pid = getattr(d, 'position_id', 0)
-                        pos_pnl[pid] = pos_pnl.get(pid, 0.0) + float(d.profit)
-                if pos_pnl:
-                    state['wins'] = sum(1 for pnl in pos_pnl.values() if pnl > 0.5)
-                    state['breakevens'] = sum(1 for pnl in pos_pnl.values() if abs(pnl) <= 0.5)
-                    state['losses'] = sum(1 for pnl in pos_pnl.values() if pnl < -0.5)
-                    state_changed = True
+                    self._append_activity_log({
+                        "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                        "cycle": state.get('cycle_count', 0),
+                        "symbol": sym,
+                        "timeframe": trade.get('timeframe', '-'),
+                        "action": trade.get('action', '-'),
+                        "pillars": "5/5",
+                        "status": f"Closed ({outcome}) Batch #{batch_id}",
+                        "details": f"PnL: ${total_batch_profit:+.2f} | Tickets: {trade.get('tickets')}"
+                    })
+
+            # Populate initial historical stats ONLY if never reset and no closed_batches exist
+            if reset_at is None and not state.get('closed_batches') and not state.get('open_batches') and deals:
+                if state.get('wins', 0) == 0 and state.get('losses', 0) == 0 and state.get('breakevens', 0) == 0:
+                    pos_pnl = {}
+                    sym_map = {}
+                    for d in deals:
+                        if d.entry == 1:
+                            pid = getattr(d, 'position_id', d.order)
+                            pos_pnl[pid] = pos_pnl.get(pid, 0.0) + float(d.profit)
+                            sym_map[pid] = d.symbol
+
+                    if pos_pnl:
+                        state['wins'] = sum(1 for pnl in pos_pnl.values() if pnl > 0.5)
+                        state['breakevens'] = sum(1 for pnl in pos_pnl.values() if abs(pnl) <= 0.5)
+                        state['losses'] = sum(1 for pnl in pos_pnl.values() if pnl < -0.5)
+
+                        # Breakdown per symbol
+                        if 'symbol_stats' not in state:
+                            state['symbol_stats'] = {}
+                        for pid, pnl in pos_pnl.items():
+                            bsym = sym_map.get(pid, '')
+                            csym = self.normalize_symbol(bsym)
+                            if csym not in state['symbol_stats']:
+                                state['symbol_stats'][csym] = {'wins': 0, 'losses': 0, 'breakevens': 0, 'completed': 0, 'total_profit': 0.0}
+                            s = state['symbol_stats'][csym]
+                            s['completed'] += 1
+                            s['total_profit'] = round(s['total_profit'] + pnl, 2)
+                            if pnl > 0.5:
+                                s['wins'] += 1
+                            elif abs(pnl) <= 0.5:
+                                s['breakevens'] += 1
+                            else:
+                                s['losses'] += 1
+
+                        state_changed = True
 
             if state_changed:
                 self.save_state(state)
@@ -255,14 +460,25 @@ class AutonomousTraderEngine:
         except Exception as e:
             logger.error(f"Error in audit and learning: {e}")
 
-    def scan_symbol_all_timeframes(self, symbol: str, timeframes: List[str]) -> Optional[Dict[str, Any]]:
+    def scan_symbol_all_timeframes(self, symbol: str, timeframes: List[str], cycle: int = 0, min_pillars_required: int = 5) -> Optional[Dict[str, Any]]:
         asset_type = 'crypto' if any(c in symbol.upper() for c in ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE']) else 'forex'
-        logger.info(f"Scanning {symbol} across timeframes: {timeframes}")
+        logger.info(f"Scanning {symbol} across timeframes: {timeframes} (Min Pillars: {min_pillars_required}/5)")
 
         for tf in timeframes:
-            if self._stop_requested.is_set():
+            if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
+                logger.info(f"Stop signal detected. Aborting scan on {symbol}.")
                 return None
             try:
+                # Update current scanning pointer
+                state = self.load_state()
+                state['current_scan'] = {
+                    'cycle': cycle,
+                    'symbol': symbol,
+                    'timeframe': tf,
+                    'time': datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+                }
+                self.save_state(state)
+
                 pred = self.orch.run_prediction(
                     symbol=symbol,
                     asset_type=asset_type,
@@ -272,16 +488,41 @@ class AutonomousTraderEngine:
                 )
                 eval_res = self.evaluate_5_pillars(pred)
                 p_cnt = eval_res['aligned_count']
-                logger.info(f"  -> [{symbol} {tf}] Pillars: {p_cnt}/5 Aligned | Action: {pred['confluence']['action']}")
+                action = pred['confluence']['action']
+                score = eval_res['p1']['score']
+                prob = eval_res['p1']['prob']
 
-                if eval_res['is_fully_aligned']:
-                    logger.info(f"TARGET 5/5 PILLARS ALIGNED! {symbol} on {tf}!")
+                is_actionable = ('BUY' in action or 'SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action)
+                is_eligible = (p_cnt >= min_pillars_required) and is_actionable
+
+                pillar_str = f"{p_cnt}/5"
+
+                if is_eligible:
+                    status_lbl = f"🎯 {p_cnt}/5 Aligned (Executing)"
+                else:
+                    status_lbl = f"No Trade (Waiting {min_pillars_required}/5)"
+
+                self._append_activity_log({
+                    "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                    "cycle": cycle,
+                    "symbol": symbol,
+                    "timeframe": tf,
+                    "action": action,
+                    "pillars": pillar_str,
+                    "status": status_lbl,
+                    "details": f"Score: {score:+.1f} | Win Prob: {prob:.0f}%"
+                })
+
+                if is_eligible:
+                    logger.info(f"TARGET {p_cnt}/5 PILLARS ALIGNED (Req: {min_pillars_required})! {symbol} on {tf}!")
                     return {
                         'symbol': symbol,
                         'timeframe': tf,
                         'asset_type': asset_type,
                         'prediction': pred,
-                        'evaluation': eval_res
+                        'evaluation': eval_res,
+                        'cycle': cycle,
+                        'matched_pillars': p_cnt
                     }
             except Exception as e:
                 logger.error(f"Scan error for {symbol} ({tf}): {e}")
@@ -289,146 +530,376 @@ class AutonomousTraderEngine:
 
         return None
 
-    def execute_trade_batch(self, setup_data: Dict[str, Any], risk_pct: float = 1.0) -> bool:
-        symbol = setup_data['symbol']
-        tf = setup_data['timeframe']
-        pred = setup_data['prediction']
-        eval_res = setup_data['evaluation']
-        setup = pred['recommended_setup']
-        conf = pred['confluence']
+    def execute_trade_batch(self, setup_data: Dict[str, Any], risk_pct: float = 1.0, max_dollar_risk: float = 0.0) -> bool:
+        try:
+            symbol = setup_data['symbol']
+            tf = setup_data['timeframe']
+            pred = setup_data['prediction']
+            eval_res = setup_data['evaluation']
+            setup = pred.get('trade_setup') or pred.get('recommended_setup') or {}
+            conf = pred.get('confluence', {})
+            cycle = setup_data.get('cycle', 0)
 
-        logger.info(f"EXECUTING AUTONOMOUS 5/5 TRADE: {conf['action']} {symbol} ({tf})")
-        exec_res = self.executor.execute_signal_setup(
-            prediction_result=pred,
-            broker_symbol=None,
-            risk_pct=risk_pct
-        )
+            entry_price = float(setup.get('recommended_entry') or pred.get('market_data', {}).get('current_price', 0.0))
+            sl_price = float(setup.get('stop_loss', 0.0))
+            tp1_price = float(setup.get('tp1', 0.0))
+            tp2_price = float(setup.get('tp2', 0.0))
+            tp3_price = float(setup.get('tp3', 0.0))
+            raw_action = str(setup.get('action') or conf.get('action', 'BUY')).upper()
+            action = 'BUY' if 'BUY' in raw_action else 'SELL'
 
-        if exec_res.get('success'):
-            logger.info(f"Executed Batch #{exec_res['batch_id']}: Tickets: {exec_res['tickets']}")
-            state = self.load_state()
-            state['total_trades_taken'] = state.get('total_trades_taken', 0) + 1
-            by_sym = state.get('trades_by_symbol', {})
-            by_sym[symbol] = by_sym.get(symbol, 0) + 1
-            state['trades_by_symbol'] = by_sym
+            # Institutional Breakeven Mark (with ATR fee/spread buffer to avoid fee deductions)
+            breakeven_sl = float(setup.get('breakeven_sl') or 0.0)
+            if breakeven_sl <= 0:
+                atr = float(pred.get('market_data', {}).get('atr') or (abs(entry_price - sl_price) / 2.0))
+                if action == 'BUY':
+                    breakeven_sl = entry_price + (0.02 * atr)
+                else:
+                    breakeven_sl = max(entry_price * 0.001, entry_price - (0.02 * atr))
+            breakeven_sl = round(breakeven_sl, 5)
 
-            if 'XAU' in symbol:
-                state['xau_trades_taken'] = state.get('xau_trades_taken', 0) + 1
-            elif 'BTC' in symbol:
-                state['btc_trades_taken'] = state.get('btc_trades_taken', 0) + 1
+            # 1. Resolve Exness broker symbol
+            from src.data.forex_feeds import MT5ExnessProvider
+            ex_p = MT5ExnessProvider()
+            broker_sym = ex_p.get_exness_symbol(symbol) or (self.normalize_symbol(symbol).replace('/', '') + 'm')
 
-            if 'open_batches' not in state:
-                state['open_batches'] = {}
+            # 2. Get live account balance from MT5
+            self.executor._ensure_connection()
+            import MetaTrader5 as mt5
+            acc = mt5.account_info()
+            balance_usd = float(acc.balance) if acc and acc.balance > 0 else 1000.0
 
-            state['open_batches'][exec_res['batch_id']] = {
-                'batch_id': exec_res['batch_id'],
-                'symbol': symbol,
-                'broker_sym': exec_res.get('broker_symbol'),
-                'timeframe': tf,
-                'action': conf['action'],
-                'entry_price': setup['recommended_entry'],
-                'sl_price': setup['stop_loss'],
-                'tp1_price': setup['tp1'],
-                'tp2_price': setup['tp2'],
-                'tp3_price': setup['tp3'],
-                'lot_split': exec_res.get('lot_split'),
-                'tickets': exec_res.get('tickets', []),
-                'executed_at': datetime.now(timezone.utc).isoformat(),
-                'status': 'OPEN',
-                'p1_score': eval_res['p1']['score'],
-                'p1_prob': eval_res['p1']['prob']
-            }
-            self.save_state(state)
-            return True
-        else:
-            logger.error(f"Execution failed: {exec_res.get('error')}")
+            # 3. Calculate position sizing & lot split
+            lot_sizing = self.executor.calculate_lot_and_risk(
+                broker_symbol=broker_sym,
+                balance_usd=balance_usd,
+                entry_price=entry_price,
+                stop_loss_price=sl_price,
+                risk_pct=risk_pct,
+                tp1_price=tp1_price,
+                tp2_price=tp2_price,
+                tp3_price=tp3_price
+            )
+
+            actual_risk_usd = float(lot_sizing.get('actual_risk_usd', 0.0))
+            lot_split = lot_sizing.get('lot_split', {})
+
+            # 4. Check Dollar Risk Cap (Requirement 9)
+            if max_dollar_risk > 0 and actual_risk_usd > max_dollar_risk:
+                msg = f"RISK FILTER TRIGGERED: Setup on {symbol} ({tf}) has risk of ${actual_risk_usd:.2f}, exceeding max cap of ${max_dollar_risk:.2f}. Trade safely SKIPPED."
+                logger.warning(msg)
+                self._append_activity_log({
+                    "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                    "cycle": cycle,
+                    "symbol": symbol,
+                    "timeframe": tf,
+                    "action": action,
+                    "pillars": "5/5",
+                    "status": "SKIPPED (Risk Cap)",
+                    "details": f"Risk ${actual_risk_usd:.2f} > Cap ${max_dollar_risk:.2f}"
+                })
+                return False
+
+            logger.info(f"EXECUTING AUTONOMOUS 5/5 TRADE: {action} {symbol} ({tf}) on {broker_sym}")
+            exec_res = self.executor.execute_multi_target_trade(
+                broker_symbol=broker_sym,
+                action=action,
+                sl_price=sl_price,
+                tp1_price=tp1_price,
+                tp2_price=tp2_price,
+                tp3_price=tp3_price,
+                lot_split=lot_split
+            )
+
+            if exec_res.get('success'):
+                batch_id = exec_res.get('batch_id') or (int(time.time()) % 1000000)
+                raw_tickets = exec_res.get('tickets', [])
+                ticket_ids = [t['ticket'] if isinstance(t, dict) else t for t in raw_tickets]
+                logger.info(f"Executed Batch #{batch_id}: Tickets: {ticket_ids}")
+
+                state = self.load_state()
+                state['total_trades_taken'] = state.get('total_trades_taken', 0) + 1
+                
+                by_sym = state.get('trades_by_symbol', {})
+                by_sym[symbol] = by_sym.get(symbol, 0) + 1
+                state['trades_by_symbol'] = by_sym
+
+                if 'open_batches' not in state:
+                    state['open_batches'] = {}
+
+                state['open_batches'][str(batch_id)] = {
+                    'batch_id': batch_id,
+                    'symbol': symbol,
+                    'broker_sym': broker_sym,
+                    'timeframe': tf,
+                    'action': action,
+                    'entry_price': entry_price,
+                    'sl_price': sl_price,
+                    'breakeven_sl': breakeven_sl,
+                    'tp1_price': tp1_price,
+                    'tp2_price': tp2_price,
+                    'tp3_price': tp3_price,
+                    'matched_pillars': setup_data.get('matched_pillars', 5),
+                    'lot_split': lot_split,
+                    'tickets': ticket_ids,
+                    'executed_at': datetime.now(timezone.utc).isoformat(),
+                    'status': 'OPEN',
+                    'p1_score': eval_res.get('p1', {}).get('score', 0.0),
+                    'p1_prob': eval_res.get('p1', {}).get('prob', 0.0)
+                }
+                self.save_state(state)
+
+                m_pil = setup_data.get('matched_pillars', 5)
+                self._append_activity_log({
+                    "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                    "cycle": cycle,
+                    "symbol": symbol,
+                    "timeframe": tf,
+                    "action": action,
+                    "pillars": f"{m_pil}/5",
+                    "status": f"EXECUTED (Batch #{batch_id})",
+                    "details": f"Entry: {entry_price} | SL: {sl_price} | BE: {breakeven_sl} | Lots: {lot_split.get('tp1_lots', 0)}/{lot_split.get('tp2_lots', 0)}/{lot_split.get('tp3_lots', 0)}"
+                })
+                return True
+            else:
+                err = exec_res.get('error', 'Execution failed')
+                logger.error(f"Execution failed: {err}")
+                self._append_activity_log({
+                    "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                    "cycle": cycle,
+                    "symbol": symbol,
+                    "timeframe": tf,
+                    "action": action,
+                    "pillars": f"{setup_data.get('matched_pillars', 5)}/5",
+                    "status": "EXECUTION FAILED",
+                    "details": str(err)[:60]
+                })
+                return False
+
+        except Exception as e:
+            logger.error(f"Error in execute_trade_batch: {e}", exc_info=True)
+            self._append_activity_log({
+                "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                "cycle": setup_data.get('cycle', 0),
+                "symbol": setup_data.get('symbol', 'UNKNOWN'),
+                "timeframe": setup_data.get('timeframe', '-'),
+                "action": "ERROR",
+                "status": "EXECUTION ERROR",
+                "details": str(e)[:60]
+            })
             return False
+
+    def _sleep_countdown(self, seconds: int):
+        for i in range(seconds, 0, -1):
+            if _SCAN_STOP_EVENT.is_set() or _FORCE_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
+                break
+            mins = i // 60
+            secs = i % 60
+            countdown_str = f"{mins:02d}:{secs:02d} remaining"
+            try:
+                state = self.load_state()
+                state['next_scan_time'] = countdown_str
+                self.save_state(state)
+            except Exception:
+                pass
+            time.sleep(1)
 
     def run_worker_loop(self):
         logger.info("Autonomous Scanner Worker Loop STARTED.")
         self._is_running = True
+        cycle_count = 0
 
-        while not self._stop_requested.is_set():
-            settings = self.load_settings()
-            if not settings.get('enabled', False):
-                logger.info("Autonomous engine is disabled in settings. Worker loop exiting.")
-                break
+        try:
+            while not _FORCE_STOP_EVENT.is_set():
+                # Check if scanning is stopped/disabled
+                if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
+                    # Trade Management Mode: Autonomously manage existing active batches until completion
+                    if self.has_active_batches():
+                        state = self.load_state()
+                        open_batches = state.get('open_batches', {})
+                        if state.get('engine_status') != 'MANAGING_ACTIVE':
+                            state['engine_status'] = 'MANAGING_ACTIVE'
+                            state['next_scan_time'] = "Managing Trades"
+                            self.save_state(state)
 
-            symbols = settings.get('selected_symbols', DEFAULT_SYMBOLS)
-            timeframes = settings.get('timeframes', DEFAULT_TIMEFRAMES)
-            risk_pct = float(settings.get('risk_pct', 1.0))
-            target_per_sym = int(settings.get('target_trades_per_symbol', 10))
-            interval = int(settings.get('scan_interval_sec', 40))
+                        try:
+                            self.audit_active_trades_and_learn()
+                        except Exception as a_err:
+                            logger.error(f"Error auditing active trades during management mode: {a_err}")
 
-            state = self.load_state()
-            state['engine_status'] = "RUNNING"
-            state['last_scan_time'] = datetime.now(timezone.utc).isoformat()
-            self.save_state(state)
+                        # Responsive short sleep before next audit check
+                        for _ in range(6):
+                            if _FORCE_STOP_EVENT.is_set() or (not _SCAN_STOP_EVENT.is_set() and self.load_settings().get('enabled', False)):
+                                break
+                            time.sleep(0.5)
+                        continue
+                    else:
+                        logger.info("Autonomous scanner stopped and 0 active batches remain. Worker loop exiting cleanly.")
+                        break
 
-            self.audit_active_trades_and_learn()
+                settings = self.load_settings()
+                symbols = settings.get('selected_symbols', DEFAULT_SYMBOLS)
+                timeframes = settings.get('timeframes', DEFAULT_TIMEFRAMES)
+                risk_pct = float(settings.get('risk_pct', 1.0))
+                target_per_sym = int(settings.get('target_trades_per_symbol', 10))
+                interval = int(settings.get('scan_interval_sec', 180))
+                max_active_batches = int(settings.get('max_active_batches', 1))
+                max_dollar_risk = float(settings.get('max_dollar_risk', 10.0))
+                min_pillars_required = int(settings.get('min_pillars_required', 5))
 
-            for sym in symbols:
-                if self._stop_requested.is_set():
-                    break
-
+                cycle_count += 1
                 state = self.load_state()
-                by_sym = state.get('trades_by_symbol', {})
-                current_sym_trades = by_sym.get(sym, 0)
-                if 'XAU' in sym and 'xau_trades_taken' in state and state['xau_trades_taken'] > current_sym_trades:
-                    current_sym_trades = state['xau_trades_taken']
-                if 'BTC' in sym and 'btc_trades_taken' in state and state['btc_trades_taken'] > current_sym_trades:
-                    current_sym_trades = state['btc_trades_taken']
-
-                if current_sym_trades >= target_per_sym:
-                    logger.info(f"Target of {target_per_sym} reached for {sym}. Skipping scan.")
-                    continue
-
-                state['last_scanned_symbol'] = sym
+                state['engine_status'] = "RUNNING"
+                state['cycle_count'] = cycle_count
+                state['last_scan_time'] = datetime.now(timezone.utc).isoformat()
                 self.save_state(state)
 
-                setup = self.scan_symbol_all_timeframes(sym, timeframes)
-                if setup:
-                    self.execute_trade_batch(setup, risk_pct=risk_pct)
-                    time.sleep(2)
+                try:
+                    self.audit_active_trades_and_learn()
+                except Exception as a_err:
+                    logger.error(f"Error in audit_active_trades: {a_err}")
 
-            for _ in range(max(1, interval)):
-                if self._stop_requested.is_set():
-                    break
-                time.sleep(1)
+                # Check Concurrent Active Batches Limit (Requirement 8)
+                state = self.load_state()
+                open_batches = state.get('open_batches', {})
+                if len(open_batches) >= max_active_batches:
+                    msg = f"Active batch limit reached ({len(open_batches)}/{max_active_batches} active). Waiting for positions to close..."
+                    logger.info(msg)
+                    self._append_activity_log({
+                        "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                        "cycle": cycle_count,
+                        "symbol": "LIMIT",
+                        "timeframe": "-",
+                        "action": "WAIT",
+                        "pillars": "-",
+                        "status": f"Waiting ({len(open_batches)}/{max_active_batches} Active)",
+                        "details": "Engine waiting for running trade batch to complete before scanning."
+                    })
+                    self._sleep_countdown(interval)
+                    continue
 
-        self._is_running = False
-        state = self.load_state()
-        state['engine_status'] = "STOPPED"
-        self.save_state(state)
-        logger.info("Autonomous Scanner Worker Loop STOPPED.")
+                for sym in symbols:
+                    if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
+                        break
+
+                    # Re-check active batches
+                    state = self.load_state()
+                    if len(state.get('open_batches', {})) >= max_active_batches:
+                        break
+
+                    by_sym = state.get('trades_by_symbol', {})
+                    current_sym_trades = by_sym.get(sym, 0)
+
+                    # Check custom target limit (Requirement 2)
+                    if current_sym_trades >= target_per_sym:
+                        logger.info(f"Target of {target_per_sym} reached for {sym}. Skipping scan.")
+                        continue
+
+                    state['last_scanned_symbol'] = sym
+                    self.save_state(state)
+
+                    try:
+                        setup = self.scan_symbol_all_timeframes(sym, timeframes, cycle=cycle_count, min_pillars_required=min_pillars_required)
+                        if setup and not _SCAN_STOP_EVENT.is_set() and self.load_settings().get('enabled', False):
+                            traded = self.execute_trade_batch(setup, risk_pct=risk_pct, max_dollar_risk=max_dollar_risk)
+                            if traded:
+                                state = self.load_state()
+                                if len(state.get('open_batches', {})) >= max_active_batches:
+                                    break
+                            time.sleep(2)
+                    except Exception as s_err:
+                        logger.error(f"Error scanning or trading {sym}: {s_err}", exc_info=True)
+
+                if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
+                    continue
+
+                # Sleep interval with countdown in state (Requirement 7)
+                logger.info(f"Cycle {cycle_count} complete. Sleeping for {interval}s before next scan pass...")
+                self._sleep_countdown(interval)
+
+        except Exception as e:
+            logger.error(f"Error in autonomous trader worker loop: {e}", exc_info=True)
+        finally:
+            self._is_running = False
+            state = self.load_state()
+            if not self.has_active_batches():
+                state['engine_status'] = "STOPPED"
+                state['next_scan_time'] = None
+            else:
+                state['engine_status'] = "MANAGING_ACTIVE"
+            self.save_state(state)
+            logger.info("Autonomous Scanner Worker Loop finished.")
 
     def start(self):
-        if self._is_running and self._thread and self._thread.is_alive():
-            logger.info("Worker thread is already running.")
-            return
-
         settings = self.load_settings()
         settings['enabled'] = True
         self.save_settings(settings)
 
-        self._stop_requested.clear()
-        self._thread = threading.Thread(target=self.run_worker_loop, daemon=True, name="Auto5PillarTraderThread")
-        self._thread.start()
-        logger.info("Background trader thread started.")
+        _SCAN_STOP_EVENT.clear()
+        _FORCE_STOP_EVENT.clear()
+
+        state = self.load_state()
+        state['engine_status'] = "RUNNING"
+        self.save_state(state)
+
+        if not self.is_thread_alive():
+            self._thread = threading.Thread(target=self.run_worker_loop, daemon=True, name="Auto5PillarTraderThread")
+            self._thread.start()
+            logger.info("Background trader thread started.")
+        else:
+            logger.info("Background trader thread already alive; resumed scanning mode.")
+        self._is_running = True
 
     def stop(self):
         settings = self.load_settings()
         settings['enabled'] = False
         self.save_settings(settings)
 
-        self._stop_requested.set()
-        logger.info("Stop signal sent to autonomous trader worker thread.")
+        _SCAN_STOP_EVENT.set()
+        has_trades = self.has_active_batches()
+
+        state = self.load_state()
+        state['next_scan_time'] = None
+
+        if has_trades:
+            state['engine_status'] = "MANAGING_ACTIVE"
+            self._append_activity_log({
+                "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                "cycle": state.get('cycle_count', 0),
+                "symbol": "SYSTEM",
+                "timeframe": "-",
+                "action": "STOP_SCAN",
+                "pillars": "-",
+                "status": "Scanning Halted (Managing Trades)",
+                "details": f"Stopped scanning. Autonomously managing {len(state.get('open_batches', {}))} active batch(es)."
+            })
+            logger.info("Scan stop signal sent. Active batches will continue being monitored autonomously.")
+            if not self.is_thread_alive():
+                _FORCE_STOP_EVENT.clear()
+                self._thread = threading.Thread(target=self.run_worker_loop, daemon=True, name="Auto5PillarTraderThread")
+                self._thread.start()
+        else:
+            _FORCE_STOP_EVENT.set()
+            state['engine_status'] = "STOPPED"
+            self._append_activity_log({
+                "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                "cycle": state.get('cycle_count', 0),
+                "symbol": "SYSTEM",
+                "timeframe": "-",
+                "action": "STOP",
+                "pillars": "-",
+                "status": "Engine Stopped (Idle)",
+                "details": "Autonomous scanning and trading stopped."
+            })
+            logger.info("Stop signal sent to autonomous trader worker thread (0 active trades).")
+
+        self.save_state(state)
+        self._is_running = False
 
     def is_running(self) -> bool:
-        if self._thread and self._thread.is_alive():
-            return True
-        settings = self.load_settings()
-        return settings.get('enabled', False)
+        return self.is_scan_active()
+
+
 
 _ENGINE_INSTANCE: Optional[AutonomousTraderEngine] = None
 

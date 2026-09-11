@@ -43,6 +43,11 @@ def _safe_st_rerun(*args, **kwargs):
         return _orig_st_rerun()
 st.rerun = _safe_st_rerun
 
+def render_html(html_str: str):
+    """Renders HTML cleanly in Streamlit without markdown indented-code block corruption."""
+    clean = "\n".join(line.strip() for line in str(html_str).splitlines() if line.strip())
+    st.markdown(clean, unsafe_allow_html=True)
+
 
 import pandas as pd
 import numpy as np
@@ -833,7 +838,7 @@ def render_mt5_position_tracker():
                 with st.container():
                     p_col = "#00c853" if p['type'] == 'BUY' else "#ff1744"
                     profit_col = "#00c853" if p['profit'] >= 0 else "#ff1744"
-                    c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 1.5, 1.5])
+                    c1, c2, c3, c4, c_close, c_be = st.columns([2.5, 1.9, 1.9, 1.5, 0.9, 0.9])
                     with c1:
                         st.markdown(f"<span style='background:{p_col};color:#fff;padding:2px 8px;border-radius:6px;font-weight:700;font-size:.78rem;'>{p['type']}</span> <b>{p['symbol']}</b> &nbsp;`{p['volume']} lots`", unsafe_allow_html=True)
                         cmt = str(p.get('comment', ''))
@@ -857,24 +862,22 @@ def render_mt5_position_tracker():
                     with c4:
                         st.markdown(f"<span style='color:{profit_col};font-weight:800;font-size:1.05rem;'>${p['profit']:+,.2f}</span>", unsafe_allow_html=True)
                         st.caption(f"{p['return_pct']:+.2f}%")
-                    with c5:
-                        btn_c1, btn_c2 = st.columns(2)
-                        with btn_c1:
-                            if st.button("✕ Close", key=f"close_{p['ticket']}", help="Close position at market"):
-                                cres = live_exec.close_position(p['ticket'])
-                                if cres.get('success'):
-                                    st.success(f"Closed #{p['ticket']} @ {cres.get('close_price')}")
-                                    st.rerun(scope="fragment")
-                                else:
-                                    st.error(cres.get('error'))
-                        with btn_c2:
-                            if st.button("🛡️ BE", key=f"be_{p['ticket']}", help="Move SL to Breakeven"):
-                                bres = live_exec.move_to_breakeven(p['ticket'])
-                                if bres.get('success'):
-                                    st.success(f"Moved #{p['ticket']} to BE!")
-                                    st.rerun(scope="fragment")
-                                else:
-                                    st.error(bres.get('error'))
+                    with c_close:
+                        if st.button("✕ Close", key=f"close_{p['ticket']}", help="Close position at market", use_container_width=True):
+                            cres = live_exec.close_position(p['ticket'])
+                            if cres.get('success'):
+                                st.success(f"Closed #{p['ticket']} @ {cres.get('close_price')}")
+                                st.rerun(scope="fragment")
+                            else:
+                                st.error(cres.get('error'))
+                    with c_be:
+                        if st.button("🛡️ BE", key=f"be_{p['ticket']}", help="Move SL to Breakeven", use_container_width=True):
+                            bres = live_exec.move_to_breakeven(p['ticket'])
+                            if bres.get('success'):
+                                st.success(f"Moved #{p['ticket']} to BE!")
+                                st.rerun(scope="fragment")
+                            else:
+                                st.error(bres.get('error'))
                     st.divider()
 
     with tab_history:
@@ -901,46 +904,72 @@ def render_mt5_position_tracker():
         state = auto_engine.load_state()
         journal = auto_engine.load_journal()
 
-        is_engine_active = auto_engine.is_running()
+        is_scan_active = auto_engine.is_scan_active()
+        is_engine_active = is_scan_active
+        has_active_trades = auto_engine.has_active_batches()
 
-        # Engine Control Header & Status
-        ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1.5, 1.2, 1.3])
+        # Sync state status
+        current_status = "RUNNING" if is_scan_active else ("MANAGING_ACTIVE" if has_active_trades else "STOPPED")
+        if state.get('engine_status') != current_status:
+            state['engine_status'] = current_status
+            auto_engine.save_state(state)
+
+        # ── 1. Top Control Bar: Status, Start/Stop, Reset, & Scan Clock ───────────
+        ctrl_col1, ctrl_col2, ctrl_col3, ctrl_col4 = st.columns([1.5, 1.1, 1.1, 1.3])
         with ctrl_col1:
-            if is_engine_active:
+            if is_scan_active:
                 st.markdown("##### Status: <span style='background:#064e3b;color:#34d399;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #059669;'>🟢 RUNNING (Auto-Scanning)</span>", unsafe_allow_html=True)
+            elif has_active_trades:
+                open_cnt = len(state.get('open_batches', {}))
+                st.markdown(f"##### Status: <span style='background:#78350f;color:#fde047;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #b45309;'>🟡 SCANNER OFF ({open_cnt} Active Managed)</span>", unsafe_allow_html=True)
             else:
                 st.markdown("##### Status: <span style='background:#3f3f46;color:#e4e4e7;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #71717a;'>⚪ STOPPED (Idle)</span>", unsafe_allow_html=True)
 
         with ctrl_col2:
-            if is_engine_active:
+            if is_scan_active:
                 if st.button("⏹️ STOP ENGINE", key="btn_stop_auto_trader", type="secondary", use_container_width=True):
                     auto_engine.stop()
-                    st.toast("⏹️ Autonomous Engine Stopped", icon="🛑")
+                    st.toast("⏹️ Scanning Stopped! Active trades will continue being autonomously managed.", icon="🛑")
                     st.rerun(scope="fragment")
             else:
                 if st.button("▶️ START ENGINE", key="btn_start_auto_trader", type="primary", use_container_width=True):
                     auto_engine.start()
-                    st.toast("🚀 Autonomous Engine Started!", icon="🟢")
+                    st.toast("🚀 Autonomous Scanner Started!", icon="🟢")
                     st.rerun(scope="fragment")
 
         with ctrl_col3:
+            if st.button("🔄 RESET STATS", key="btn_reset_auto_trader", help="Reset all target counts, symbol win rates, and trade history back to 0", use_container_width=True):
+                auto_engine.reset_progress(clear_journal=False)
+                st.toast("🔄 Target progress & win rates reset to 0!", icon="🔄")
+                st.rerun(scope="fragment")
+
+        with ctrl_col4:
             last_scan = state.get('last_scan_time')
             scan_txt = last_scan[11:19] + " UTC" if last_scan else "Waiting..."
-            last_sym = state.get('last_scanned_symbol', 'None')
-            st.caption(f"⏱️ **Last Scan:** `{scan_txt}` | Active: `{last_sym}`")
+            cycles = state.get('cycle_count', 0)
+            next_scan = state.get('next_scan_time')
+            cycle_info = f"Cycle #{cycles}"
+            if is_scan_active and next_scan:
+                cycle_info += f" | Next: {next_scan}"
+            elif has_active_trades:
+                cycle_info += " | Managing Active Trades"
+            st.caption(f"⏱️ **Last:** `{scan_txt}` | `{cycle_info}`")
 
-        # Exness Trading Pairs Selector & Timeframes Configuration
+        if not is_scan_active and has_active_trades:
+            st.info(f"ℹ️ **Scanner Stopped:** New scans and new trades are paused. The autonomous manager is actively monitoring and managing your {len(state.get('open_batches', {}))} open trade batch(es) until completion.")
+
+        # ── 2. Pair Selection & Timeframes ─────────────────────────────────────────
         st.markdown("##### ⚙️ Scanner & Pair Selection:")
         p_col1, p_col2 = st.columns([2.2, 1.8])
 
-        # 1. Audit active trades & closed MT5 deals so metrics are always fresh
+        # Audit active trades & closed MT5 deals so metrics are always fresh
         try:
             auto_engine.audit_active_trades_and_learn()
             state = auto_engine.load_state()
         except Exception:
             pass
 
-        # 2. Get all tradable Exness symbols catalog directly synced with Quant Terminal sidebar
+        # Get all tradable Exness symbols catalog directly synced with Quant Terminal sidebar
         all_pairs = st.session_state.get('exness_selectable_symbols')
         if not all_pairs or len(all_pairs) < 50:
             try:
@@ -958,7 +987,6 @@ def render_mt5_position_tracker():
         if not all_pairs:
             all_pairs = ["XAU/USD", "BTC/USD", "ETH/USD", "EUR/USD", "GBP/USD", "USD/JPY"]
 
-        # Ensure defaults are included
         for d_sym in DEFAULT_SYMBOLS:
             if d_sym not in all_pairs:
                 all_pairs.insert(0, d_sym)
@@ -974,7 +1002,7 @@ def render_mt5_position_tracker():
                 options=all_pairs,
                 default=valid_selected,
                 key="auto_scanner_pairs_multiselect",
-                help="Choose which Exness currency pairs, metals (XAU/USD Gold), or cryptos (BTC/USD) the autonomous engine should trade."
+                help="Choose which currency pairs, metals (XAU/USD), or cryptos the autonomous engine should trade."
             )
 
         with p_col2:
@@ -986,38 +1014,385 @@ def render_mt5_position_tracker():
                 help="Autonomous engine checks every selected timeframe for 5/5 Pillar setups."
             )
 
-        # Update settings if user changes pairs or timeframes
-        if chosen_symbols != settings.get('selected_symbols') or chosen_tfs != settings.get('timeframes'):
+        # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap) ───
+        st.markdown("##### 🎛️ Engine Strategy & Risk Controls:")
+        cfg_c1, cfg_c2, cfg_c3, cfg_c4, cfg_c5 = st.columns([1.1, 1.3, 1.2, 1.2, 1.2])
+        
+        with cfg_c1:
+            target_trades = st.number_input(
+                "🎯 Target Batches / Pair:",
+                min_value=1,
+                max_value=1000,
+                value=int(settings.get('target_trades_per_symbol', 10)),
+                step=1,
+                key="auto_cfg_target_trades",
+                help="Customizable target batches/trades per pair (e.g. 10, 15, 50, 100, 200). Engine stops scanning a pair once target is fulfilled."
+            )
+
+        with cfg_c2:
+            current_min_pil = int(settings.get('min_pillars_required', 5))
+            pillar_opts = [5, 4, 3, 2]
+            pil_idx = pillar_opts.index(current_min_pil) if current_min_pil in pillar_opts else 0
+            min_pillars_cfg = st.selectbox(
+                "🏛️ Execution Pillar Threshold:",
+                options=pillar_opts,
+                index=pil_idx,
+                format_func=lambda x: f"🎯 {x}/5 Pillars (100% Strict)" if x == 5 else f"⚡ {x}/5 Pillars Confluence",
+                key="auto_cfg_min_pillars",
+                help="Execution threshold: Choose whether trades require strict 5/5 alignment, or 4/5, 3/5, 2/5 high-confluence setups."
+            )
+
+        with cfg_c3:
+            current_delay_mins = float(settings.get('scan_interval_sec', 180)) / 60.0
+            scan_delay_mins = st.number_input(
+                "⏱️ Scan Delay (Min):",
+                min_value=0.25,
+                max_value=60.0,
+                value=float(max(0.25, current_delay_mins)),
+                step=0.5,
+                key="auto_cfg_scan_delay_mins",
+                help="Pause duration between consecutive multi-timeframe scan passes (e.g. 3.0 min = scans every 3 minutes)."
+            )
+
+        with cfg_c4:
+            max_batches_cfg = st.number_input(
+                "🔒 Max Active Batches:",
+                min_value=1,
+                max_value=10,
+                value=int(settings.get('max_active_batches', 1)),
+                step=1,
+                key="auto_cfg_max_active_batches",
+                help="Set to 1 so the engine strictly waits until the current 3-TP trade batch is 100% closed before triggering any new trade."
+            )
+
+        with cfg_c5:
+            max_risk_usd_cfg = st.number_input(
+                "🛡️ Max Risk Cap ($ USD):",
+                min_value=0.0,
+                max_value=2000.0,
+                value=float(settings.get('max_dollar_risk', 10.0)),
+                step=1.0,
+                key="auto_cfg_max_risk_usd",
+                help="If a trade's projected Stop Loss dollar risk exceeds this cap (e.g. $10.00), the trade will be safely SKIPPED. (Set 0 to disable)."
+            )
+
+        # Persist settings changes
+        new_interval_sec = int(scan_delay_mins * 60)
+        settings_changed = (
+            chosen_symbols != settings.get('selected_symbols')
+            or chosen_tfs != settings.get('timeframes')
+            or target_trades != settings.get('target_trades_per_symbol')
+            or min_pillars_cfg != settings.get('min_pillars_required')
+            or new_interval_sec != settings.get('scan_interval_sec')
+            or max_batches_cfg != settings.get('max_active_batches')
+            or max_risk_usd_cfg != settings.get('max_dollar_risk')
+        )
+        if settings_changed:
             settings['selected_symbols'] = chosen_symbols
             settings['timeframes'] = chosen_tfs
+            settings['target_trades_per_symbol'] = target_trades
+            settings['min_pillars_required'] = min_pillars_cfg
+            settings['scan_interval_sec'] = new_interval_sec
+            settings['max_active_batches'] = max_batches_cfg
+            settings['max_dollar_risk'] = max_risk_usd_cfg
             auto_engine.save_settings(settings)
 
-        # Metrics Display (Automatically synced from MT5 closed history)
-        col_a1, col_a2, col_a3, col_a4 = st.columns(4)
-        target_trades = settings.get('target_trades_per_symbol', 10)
-        with col_a1:
-            xau_c = state.get('xau_trades_taken', 0)
-            st.metric("XAU/USD Trades", f"{xau_c} / {target_trades} Target")
-        with col_a2:
-            btc_c = state.get('btc_trades_taken', 0)
-            st.metric("BTC/USD Trades", f"{btc_c} / {target_trades} Target")
-        with col_a3:
-            tot_w = state.get('wins', 0)
-            tot_l = state.get('losses', 0)
-            tot_be = state.get('breakevens', 0)
-            completed_total = tot_w + tot_l + tot_be
-            win_rate = (tot_w / completed_total * 100.0) if completed_total > 0 else 0.0
-            st.metric(
-                "Win / BE / Loss", 
-                f"{tot_w}W - {tot_be}BE - {tot_l}L", 
-                delta=f"{win_rate:.0f}% Win Rate" if completed_total > 0 else None
+        # ── 4. Dynamic Pair Metrics & Independent Win Rate Calculation ────────────
+        st.markdown("##### 📊 Target Progress & Independent Pair Win Rates:")
+        by_sym = state.get('trades_by_symbol', {})
+        sym_stats = state.get('symbol_stats', {})
+
+        active_symbols = chosen_symbols if chosen_symbols else DEFAULT_SYMBOLS
+        
+        # Display selected pair cards dynamically
+        num_pairs = len(active_symbols)
+        if num_pairs == 1:
+            sym_cols = st.columns([2, 2])
+        elif num_pairs == 2:
+            sym_cols = st.columns([1.5, 1.5, 1.5])
+        elif num_pairs == 3:
+            sym_cols = st.columns([1.2, 1.2, 1.2, 1.4])
+        else:
+            sym_cols = []
+
+        for idx, sym in enumerate(active_symbols):
+            c_taken = by_sym.get(sym, 0)
+            if c_taken == 0:
+                if 'XAU' in sym and state.get('xau_trades_taken', 0) > 0 and state.get('reset_at') is None:
+                    c_taken = state.get('xau_trades_taken', 0)
+                elif 'BTC' in sym and state.get('btc_trades_taken', 0) > 0 and state.get('reset_at') is None:
+                    c_taken = state.get('btc_trades_taken', 0)
+
+            s_info = sym_stats.get(sym, {})
+            w = s_info.get('wins', 0)
+            be = s_info.get('breakevens', 0)
+            l = s_info.get('losses', 0)
+            pnl = s_info.get('total_profit', 0.0)
+            comp = w + be + l
+            wr = (w / comp * 100.0) if comp > 0 else 0.0
+
+            # Target status badge
+            is_target_reached = c_taken >= target_trades
+            pct_prog = min(100.0, (c_taken / target_trades * 100.0)) if target_trades > 0 else 0.0
+            badge = " 🎯 TARGET REACHED" if is_target_reached else ""
+
+            target_label = f"{sym} Trades{badge}"
+            target_val = f"{c_taken} / {target_trades} Target"
+            stats_sub = f"{w}W - {be}BE - {l}L ({wr:.0f}% WR) | ${pnl:+,.2f}"
+
+            if num_pairs <= 3 and idx < len(sym_cols) - 1:
+                with sym_cols[idx]:
+                    st.metric(target_label, target_val, delta=stats_sub if comp > 0 else f"{pct_prog:.0f}% progress")
+            else:
+                if idx % 3 == 0:
+                    grid_cols = st.columns(min(3, num_pairs - idx))
+                with grid_cols[idx % 3]:
+                    st.metric(target_label, target_val, delta=stats_sub if comp > 0 else f"{pct_prog:.0f}% progress")
+
+        # Global Aggregate Summary Card
+        tot_w = state.get('wins', 0)
+        tot_l = state.get('losses', 0)
+        tot_be = state.get('breakevens', 0)
+        completed_total = tot_w + tot_l + tot_be
+        global_wr = (tot_w / completed_total * 100.0) if completed_total > 0 else 0.0
+        tot_trades = state.get('total_trades_taken', 0)
+        tot_pnl = sum(s.get('total_profit', 0.0) for s in sym_stats.values()) if sym_stats else 0.0
+
+        if num_pairs <= 3:
+            with sym_cols[-1]:
+                st.metric(
+                    "Global Win Rate & PnL",
+                    f"{tot_w}W - {tot_be}BE - {tot_l}L ({tot_trades} Batches)",
+                    delta=f"{global_wr:.0f}% WR | ${tot_pnl:+,.2f}" if completed_total > 0 else f"{tot_trades} Batches Executed"
+                )
+        else:
+            st.divider()
+            c_g1, c_g2, c_g3 = st.columns(3)
+            with c_g1:
+                st.metric("Total Batches Executed", f"{tot_trades} Batches")
+            with c_g2:
+                st.metric("Overall Outcome", f"{tot_w}W - {tot_be}BE - {tot_l}L", delta=f"{global_wr:.0f}% Win Rate" if completed_total > 0 else None)
+            with c_g3:
+                st.metric("Net Realized PnL", f"${tot_pnl:+,.2f}")
+
+        # ── 5. Live Scanning Activity Terminal & Console (Requirement 6) ──────────
+        st.markdown("---")
+        curr_scan = state.get('current_scan', {})
+        curr_sym = curr_scan.get('symbol', 'Idle')
+        curr_tf = curr_scan.get('timeframe', '-')
+        curr_cycle = state.get('cycle_count', 0)
+        next_pass_txt = state.get('next_scan_time', 'In Progress...') or 'Active'
+
+        if is_engine_active:
+            render_html(f"""
+            <div style='background:linear-gradient(135deg,#0b1329,#092e20);border:1px solid #10b981;border-radius:10px;padding:12px 18px;margin:10px 0;'>
+                <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;'>
+                    <div>
+                        <span style='background:#10b981;color:#000;font-weight:900;font-size:.78rem;padding:3px 10px;border-radius:12px;'>LIVE SCANNING TERMINAL</span>
+                        &nbsp;<b style='color:#ffffff;font-size:1.0rem;'>Autonomous 5/5 Pillar Multi-Timeframe Radar</b>
+                    </div>
+                    <div style='color:#6ee7b7;font-size:.82rem;font-weight:600;'>
+                        Cycle: <b>#{curr_cycle}</b> &nbsp;|&nbsp; Scanning: <code>{curr_sym} ({curr_tf})</code> &nbsp;|&nbsp; Next Cycle: <b>{next_pass_txt}</b>
+                    </div>
+                </div>
+            </div>
+            """)
+        else:
+            render_html(f"""
+            <div style='background:#18181b;border:1px solid #3f3f46;border-radius:10px;padding:12px 18px;margin:10px 0;'>
+                <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;'>
+                    <div>
+                        <span style='background:#71717a;color:#fff;font-weight:800;font-size:.78rem;padding:3px 10px;border-radius:12px;'>SCANNER IDLE</span>
+                        &nbsp;<b style='color:#e4e4e7;font-size:1.0rem;'>Autonomous Engine is currently Stopped</b>
+                    </div>
+                    <div style='color:#a1a1aa;font-size:.82rem;'>
+                        Click <b>▶️ START ENGINE</b> above to start auto-scanning & trading.
+                    </div>
+                </div>
+            </div>
+            """)
+
+        # Display Live Activity Feed (Native HTML Table to prevent React Error #185)
+        act_logs = state.get('scan_activity_log', [])
+        if act_logs:
+            st.markdown("##### 📡 Real-time Scan Activity Terminal Feed:")
+            rows_html = []
+            for item in act_logs[:40]:
+                tm = item.get('timestamp', '')
+                cyc = item.get('cycle', '')
+                sym = item.get('symbol', '')
+                tf = item.get('timeframe', '')
+                act = str(item.get('action', '')).upper()
+                raw_pillars = item.get('pillars', '')
+                raw_stt = str(item.get('status', ''))
+                det = str(item.get('details', ''))
+
+                # Action Badge
+                if 'BUY' in act:
+                    act_badge = f"<span style='background:#064e3b;color:#34d399;padding:1px 6px;border-radius:4px;font-weight:700;font-size:0.72rem;'>{act}</span>"
+                elif 'SELL' in act:
+                    act_badge = f"<span style='background:#4c0519;color:#f87171;padding:1px 6px;border-radius:4px;font-weight:700;font-size:0.72rem;'>{act}</span>"
+                elif 'WAIT' in act or 'PAUSE' in act or 'LIMIT' in act:
+                    act_badge = f"<span style='background:#3f2c06;color:#fbbf24;padding:1px 6px;border-radius:4px;font-weight:700;font-size:0.72rem;'>{act}</span>"
+                elif 'RESET' in act:
+                    act_badge = f"<span style='background:#0e7490;color:#67e8f9;padding:1px 6px;border-radius:4px;font-weight:700;font-size:0.72rem;'>{act}</span>"
+                else:
+                    act_badge = f"<span style='background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-size:0.72rem;'>{act}</span>"
+
+                # 1. Dedicated Pillars Column
+                if raw_pillars:
+                    pil = raw_pillars
+                elif '5/5' in raw_stt or '100%' in raw_stt or 'EXECUTED' in raw_stt or 'Closed' in raw_stt:
+                    pil = '5/5'
+                elif '4/5' in raw_stt:
+                    pil = '4/5'
+                elif '3/5' in raw_stt:
+                    pil = '3/5'
+                elif '2/5' in raw_stt:
+                    pil = '2/5'
+                elif '1/5' in raw_stt:
+                    pil = '1/5'
+                elif 'RESET' in act or 'LIMIT' in sym:
+                    pil = '-'
+                else:
+                    pil = '-'
+
+                if '5/5' in pil:
+                    pil_badge = f"<span style='background:#065f46;color:#34d399;padding:1px 6px;border-radius:4px;font-weight:800;font-size:0.72rem;border:1px solid #10b981;'>🎯 5/5</span>"
+                elif '4/5' in pil:
+                    pil_badge = f"<span style='background:#1e3a8a;color:#93c5fd;padding:1px 6px;border-radius:4px;font-weight:700;font-size:0.72rem;border:1px solid #3b82f6;'>4/5</span>"
+                elif any(x in pil for x in ['1/5', '2/5', '3/5']):
+                    pil_badge = f"<span style='background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-size:0.72rem;'>{pil}</span>"
+                else:
+                    pil_badge = f"<span style='color:#64748b;'>-</span>"
+
+                # 2. Dedicated Trade Decision / Execution Status Column
+                if 'EXECUTED' in raw_stt:
+                    stt_html = f"<b style='color:#34d399;'>🚀 {raw_stt}</b>"
+                elif 'SKIPPED' in raw_stt or 'FAILED' in raw_stt or 'ERROR' in raw_stt:
+                    stt_html = f"<b style='color:#fbbf24;'>⚠️ {raw_stt}</b>"
+                elif 'Closed' in raw_stt:
+                    stt_html = f"<b style='color:#38bdf8;'>🏁 {raw_stt}</b>"
+                elif 'Reset' in raw_stt:
+                    stt_html = f"<span style='color:#38bdf8;'>🔁 {raw_stt}</span>"
+                elif 'Active Batches' in raw_stt or 'WAIT' in act or ('Waiting' in raw_stt and 'Active' in raw_stt):
+                    stt_html = f"<span style='color:#f59e0b;'>⏳ {raw_stt}</span>"
+                elif '5/5' in pil:
+                    stt_html = f"<b style='color:#34d399;'>🎯 5/5 Aligned</b>"
+                else:
+                    stt_html = f"<span style='color:#64748b;'>⚪ No Trade (Waiting 5/5)</span>"
+
+                rows_html.append(
+                    f"<tr style='border-bottom:1px solid #1e293b;font-family:monospace;font-size:0.78rem;'>"
+                    f"<td style='padding:6px 10px;color:#94a3b8;white-space:nowrap;'>{tm}</td>"
+                    f"<td style='padding:6px 8px;color:#64748b;'>#{cyc}</td>"
+                    f"<td style='padding:6px 10px;color:#f8fafc;font-weight:600;'>{sym}</td>"
+                    f"<td style='padding:6px 8px;color:#cbd5e1;'><code>{tf}</code></td>"
+                    f"<td style='padding:6px 8px;'>{act_badge}</td>"
+                    f"<td style='padding:6px 8px;'>{pil_badge}</td>"
+                    f"<td style='padding:6px 10px;'>{stt_html}</td>"
+                    f"<td style='padding:6px 10px;color:#94a3b8;'>{det}</td>"
+                    f"</tr>"
+                )
+
+            table_body = "".join(rows_html)
+            terminal_html = f"""
+            <div style='background:#070b14;border:1px solid #1e293b;border-radius:10px;max-height:280px;overflow-y:auto;margin:6px 0 16px 0;'>
+                <table style='width:100%;border-collapse:collapse;text-align:left;'>
+                    <thead style='position:sticky;top:0;background:#0d1527;border-bottom:2px solid #334155;color:#94a3b8;font-size:0.74rem;text-transform:uppercase;letter-spacing:0.05em;z-index:2;'>
+                        <tr>
+                            <th style='padding:8px 10px;'>Time</th>
+                            <th style='padding:8px 8px;'>Cycle</th>
+                            <th style='padding:8px 10px;'>Symbol</th>
+                            <th style='padding:8px 8px;'>TF</th>
+                            <th style='padding:8px 8px;'>Action</th>
+                            <th style='padding:8px 8px;'>Pillars</th>
+                            <th style='padding:8px 10px;'>Trade Status</th>
+                            <th style='padding:8px 10px;'>Confluence / Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {table_body}
+                    </tbody>
+                </table>
+            </div>
+            """
+            render_html(terminal_html)
+
+        # ── 6. Executed Batches Tracking Ledger (Active & Closed History) (Requirement 4) ─
+        open_batches = state.get('open_batches', {})
+        closed_batches = state.get('closed_batches', [])
+
+        led_hdr_col, led_toggle_col = st.columns([1.6, 2.4])
+        with led_hdr_col:
+            st.markdown("##### 📜 Executed Trade Batches Ledger:")
+        with led_toggle_col:
+            batch_view = st.radio(
+                "Select Ledger View:",
+                options=[
+                    f"🟢 Active Running Batches ({len(open_batches)})",
+                    f"📜 Closed Batches History ({len(closed_batches)})"
+                ],
+                horizontal=True,
+                label_visibility="collapsed",
+                key="auto_batches_ledger_view_radio"
             )
-        with col_a4:
-            tot_trades = state.get('total_trades_taken', 0)
-            st.metric("Total Executed", f"{tot_trades} Batches")
 
-        st.caption("🛡️ **Strict Rule:** Autonomous engine executes trades ONLY when all 5/5 Pillars are 100% aligned. Any SL hit is automatically run through an ML Post-Mortem to refine buffer parameters towards 95%+ win rate.")
+        if "Active" in batch_view:
+            if not open_batches:
+                st.info("ℹ️ No active autonomous batches running in MT5 right now.")
+            else:
+                for b_id, b_data in open_batches.items():
+                    with st.container():
+                        act_col = "#00c853" if 'BUY' in b_data.get('action', '') else "#ff1744"
+                        be_display = f"{float(b_data['breakeven_sl']):,.4f}" if b_data.get('breakeven_sl') else "-"
+                        render_html(f"""
+                        <div style='background:#0f172a;border-left:4px solid {act_col};border-radius:8px;padding:12px 16px;margin:8px 0;'>
+                            <b style='color:#38bdf8;'>Batch #{b_id}</b> &nbsp;|&nbsp; 
+                            <span style='background:{act_col};color:#fff;padding:2px 8px;border-radius:4px;font-weight:700;font-size:.78rem;'>{b_data.get('action')}</span>
+                            &nbsp;<b>{b_data.get('symbol')}</b> ({b_data.get('timeframe')}) &nbsp;|&nbsp;
+                            Entry: <b>{b_data.get('entry_price')}</b> &nbsp;|&nbsp;
+                            🛡️ BE Mark: <b style='color:#38bdf8;'>{be_display}</b> &nbsp;|&nbsp;
+                            SL: <b style='color:#f87171;'>{b_data.get('sl_price')}</b> &nbsp;|&nbsp;
+                            TP1: <b style='color:#34d399;'>{b_data.get('tp1_price')}</b> &nbsp;
+                            TP2: <b style='color:#34d399;'>{b_data.get('tp2_price')}</b> &nbsp;
+                            TP3: <b style='color:#34d399;'>{b_data.get('tp3_price')}</b> &nbsp;|&nbsp;
+                            Lots: <code>{b_data.get('lot_split')}</code> &nbsp;|&nbsp;
+                            Tickets: <code>{b_data.get('tickets')}</code>
+                        </div>
+                        """)
+        else:
+            if not closed_batches:
+                st.info("ℹ️ No closed autonomous batches recorded in this session yet.")
+            else:
+                c_df = pd.DataFrame(closed_batches)
+                show_cols = [c for c in ['executed_at', 'batch_id', 'symbol', 'action', 'timeframe', 'entry_price', 'breakeven_sl', 'sl_price', 'tp1_price', 'tp2_price', 'tp3_price', 'profit', 'status', 'tickets'] if c in c_df.columns]
+                
+                if 'executed_at' in c_df.columns:
+                    c_df['executed_at'] = c_df['executed_at'].astype(str).str.slice(0, 19).str.replace('T', ' ')
 
+                st.dataframe(
+                    c_df[show_cols].rename(columns={
+                        'executed_at': 'Executed Time', 'batch_id': 'Batch #', 'symbol': 'Symbol',
+                        'action': 'Type', 'timeframe': 'TF', 'entry_price': 'Entry', 'breakeven_sl': 'BE Mark',
+                        'sl_price': 'SL', 'tp1_price': 'TP1', 'tp2_price': 'TP2', 'tp3_price': 'TP3',
+                        'profit': 'PnL ($)', 'status': 'Result', 'tickets': 'MT5 Tickets'
+                    }),
+                    use_container_width=True,
+                    hide_index=True,
+                    key="auto_closed_batches_stable_df"
+                )
+                
+                csv_bytes = c_df[show_cols].to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Export Batches History (CSV)",
+                    data=csv_bytes,
+                    file_name="autonomous_batches_history.csv",
+                    mime="text/csv",
+                    key="dl_auto_batches_csv"
+                )
+
+        # ── 7. AI Trade Post-Mortem & Learning Journal ─────────────────────────────
         lessons = journal.get('lessons_learned', [])
         if lessons:
             st.markdown("##### 💡 AI Trade Post-Mortem & Strategy Optimization Lessons:")
@@ -1025,6 +1400,7 @@ def render_mt5_position_tracker():
                 st.info(f"**Lesson {l_idx}:** {l_text}")
         else:
             st.success("✅ **Zero SL Violations Detected:** All 5/5 Pillar setups have respected structural invalidation boundaries.")
+
 
 # ── RUN ENGINE ────────────────────────────────────────────────────────────
 # Cache key so we only re-run when inputs actually change
