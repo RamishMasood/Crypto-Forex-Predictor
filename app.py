@@ -819,13 +819,20 @@ def render_mt5_position_tracker():
     except Exception:
         pass
 
-    tab_active, tab_history, tab_auto = st.tabs([
-        "🟢 Active Open Positions", 
-        "📜 Closed Trades History (7 Days)",
-        "🤖 Autonomous 5/5 Pillar Scanner & AI Journal"
-    ])
+    # Use stable segmented radio selector instead of st.tabs inside @st.fragment to prevent "Bad 'setIn' index" protobuf delta errors
+    selected_tracker_tab = st.radio(
+        "Tracker View Mode:",
+        options=[
+            "🟢 Active Open Positions", 
+            "📜 Closed Trades History (7 Days)",
+            "🤖 Autonomous 5/5 Pillar Scanner & AI Journal"
+        ],
+        horizontal=True,
+        key="mt5_tracker_main_view_selector",
+        label_visibility="collapsed"
+    )
 
-    with tab_active:
+    if "Active Open Positions" in selected_tracker_tab:
         positions = live_exec.get_open_positions()
         if not positions:
             st.info("ℹ️ No active open positions on Exness MT5 right now.")
@@ -880,7 +887,7 @@ def render_mt5_position_tracker():
                                 st.error(bres.get('error'))
                     st.divider()
 
-    with tab_history:
+    elif "Closed Trades History" in selected_tracker_tab:
         history_deals = live_exec.get_trade_history(days=7)
         if not history_deals:
             st.info("ℹ️ No closed trades in the past 7 days.")
@@ -896,7 +903,7 @@ def render_mt5_position_tracker():
                 hide_index=True
             )
 
-    with tab_auto:
+    else:
         st.markdown("#### 🤖 Autonomous 5/5 Pillar Multi-Timeframe Scanner & AI Learning Engine")
         from src.engine.autonomous_manager import get_engine, DEFAULT_TIMEFRAMES, DEFAULT_SYMBOLS
         auto_engine = get_engine()
@@ -1014,9 +1021,9 @@ def render_mt5_position_tracker():
                 help="Autonomous engine checks every selected timeframe for 5/5 Pillar setups."
             )
 
-        # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap) ───
+        # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap, Batch Lot Size) ───
         st.markdown("##### 🎛️ Engine Strategy & Risk Controls:")
-        cfg_c1, cfg_c2, cfg_c3, cfg_c4, cfg_c5 = st.columns([1.1, 1.3, 1.2, 1.2, 1.2])
+        cfg_c1, cfg_c2, cfg_c3, cfg_c4, cfg_c5, cfg_c6 = st.columns([1.1, 1.3, 1.1, 1.1, 1.1, 1.1])
         
         with cfg_c1:
             target_trades = st.number_input(
@@ -1076,6 +1083,18 @@ def render_mt5_position_tracker():
                 help="Total maximum dollar risk cap for the ENTIRE batch (sum of TP1 + TP2 + TP3). If the projected loss at Stop Loss exceeds this cap (e.g. $50.00), the trade will be safely SKIPPED. (Set 0 to disable)."
             )
 
+        with cfg_c6:
+            batch_lot_size_cfg = st.number_input(
+                "📦 Batch Lot Size:",
+                min_value=0.01,
+                max_value=50.0,
+                value=float(settings.get('batch_lot_size', 0.03)),
+                step=0.01,
+                format="%.2f",
+                key="auto_cfg_batch_lot_size",
+                help="Total volume per trade batch. (0.03 = 0.01 each on TP1/TP2/TP3. >0.03 allocates 65% on TP1 to secure wins)."
+            )
+
         # Persist settings changes
         new_interval_sec = int(scan_delay_mins * 60)
         settings_changed = (
@@ -1086,6 +1105,7 @@ def render_mt5_position_tracker():
             or new_interval_sec != settings.get('scan_interval_sec')
             or max_batches_cfg != settings.get('max_active_batches')
             or max_risk_usd_cfg != settings.get('max_dollar_risk')
+            or abs(batch_lot_size_cfg - float(settings.get('batch_lot_size', 0.03))) > 1e-4
         )
         if settings_changed:
             settings['selected_symbols'] = chosen_symbols
@@ -1095,6 +1115,7 @@ def render_mt5_position_tracker():
             settings['scan_interval_sec'] = new_interval_sec
             settings['max_active_batches'] = max_batches_cfg
             settings['max_dollar_risk'] = max_risk_usd_cfg
+            settings['batch_lot_size'] = round(batch_lot_size_cfg, 2)
             auto_engine.save_settings(settings)
             st.toast("⚙️ Engine Strategy & Risk Settings Updated!", icon="✅")
 
@@ -1160,7 +1181,7 @@ def render_mt5_position_tracker():
                     </div>
                     """)
 
-            if num_pairs <= 3 and idx < len(sym_cols) - 1:
+            if num_pairs <= 3:
                 _render_sym_card(sym_cols[idx])
             else:
                 if idx % 3 == 0:

@@ -64,7 +64,8 @@ class AutonomousTraderEngine:
             "target_trades_per_symbol": 10,     # Customizable target
             "max_active_batches": 1,            # 1 = wait until previous batch closes
             "max_dollar_risk": 10.0,            # Max dollar risk cap per batch ($ USD)
-            "min_pillars_required": 5           # Customizable required pillars: 5, 4, 3, or 2
+            "min_pillars_required": 5,          # Customizable required pillars: 5, 4, 3, or 2
+            "batch_lot_size": 0.03              # Customizable batch lot size (e.g. 0.03 -> 0.01, 0.01, 0.01)
         }
         with _STATE_LOCK:
             if os.path.exists(SETTINGS_FILE):
@@ -565,7 +566,7 @@ class AutonomousTraderEngine:
 
         return None
 
-    def execute_trade_batch(self, setup_data: Dict[str, Any], risk_pct: float = 1.0, max_dollar_risk: float = 0.0) -> bool:
+    def execute_trade_batch(self, setup_data: Dict[str, Any], risk_pct: float = 1.0, max_dollar_risk: float = 0.0, batch_lot_size: Optional[float] = None) -> bool:
         try:
             symbol = setup_data['symbol']
             tf = setup_data['timeframe']
@@ -605,6 +606,7 @@ class AutonomousTraderEngine:
             balance_usd = float(acc.balance) if acc and acc.balance > 0 else 1000.0
 
             # 3. Calculate position sizing & lot split
+            active_lot_size = batch_lot_size if (batch_lot_size is not None and batch_lot_size > 0) else float(self.load_settings().get('batch_lot_size', 0.03))
             lot_sizing = self.executor.calculate_lot_and_risk(
                 broker_symbol=broker_sym,
                 balance_usd=balance_usd,
@@ -613,7 +615,8 @@ class AutonomousTraderEngine:
                 risk_pct=risk_pct,
                 tp1_price=tp1_price,
                 tp2_price=tp2_price,
-                tp3_price=tp3_price
+                tp3_price=tp3_price,
+                total_volume_lots=active_lot_size
             )
 
             actual_risk_usd = float(lot_sizing.get('actual_risk_usd', 0.0))
@@ -782,6 +785,7 @@ class AutonomousTraderEngine:
                 max_active_batches = int(settings.get('max_active_batches', 1))
                 max_dollar_risk = float(settings.get('max_dollar_risk', 10.0))
                 min_pillars_required = int(settings.get('min_pillars_required', 5))
+                batch_lot_size = float(settings.get('batch_lot_size', 0.03))
 
                 cycle_count += 1
                 state = self.load_state()
@@ -837,7 +841,7 @@ class AutonomousTraderEngine:
                     try:
                         setup = self.scan_symbol_all_timeframes(sym, timeframes, cycle=cycle_count, min_pillars_required=min_pillars_required)
                         if setup and not _SCAN_STOP_EVENT.is_set() and self.load_settings().get('enabled', False):
-                            traded = self.execute_trade_batch(setup, risk_pct=risk_pct, max_dollar_risk=max_dollar_risk)
+                            traded = self.execute_trade_batch(setup, risk_pct=risk_pct, max_dollar_risk=max_dollar_risk, batch_lot_size=batch_lot_size)
                             if traded:
                                 state = self.load_state()
                                 if len(state.get('open_batches', {})) >= max_active_batches:

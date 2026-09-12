@@ -142,8 +142,27 @@ class MT5TradeExecutor:
         if vol_max < vol_min:
             vol_max = max(100.0, vol_min)
 
-        # Risk per 1.0 standard lot = sl_distance * contract_size
-        risk_per_one_lot = sl_distance * contract_size
+        # Risk per 1.0 standard lot in USD:
+        # Use broker's official order_calc_profit if MT5 is available, with tick formula fallback.
+        # This handles cross-currency crypto/forex pairs (e.g. ETH/BTC where profit is in BTC, not USD)
+        # without blowing up the lot size to 99.99!
+        risk_per_one_lot = None
+        try:
+            import MetaTrader5 as mt5
+            calc_val = mt5.order_calc_profit(mt5.ORDER_TYPE_BUY, broker_symbol, 1.0, entry_price, stop_loss_price)
+            if calc_val is not None and abs(float(calc_val)) > 0:
+                risk_per_one_lot = abs(float(calc_val))
+        except Exception:
+            pass
+
+        if risk_per_one_lot is None or risk_per_one_lot <= 0:
+            tick_size = float(specs.get('trade_tick_size') or specs.get('point', 0.0001))
+            tick_val = float(specs.get('trade_tick_value') or 1.0)
+            if tick_size > 0 and tick_val > 0:
+                risk_per_one_lot = (sl_distance / tick_size) * tick_val
+            else:
+                risk_per_one_lot = sl_distance * contract_size
+
         if risk_per_one_lot <= 0:
             return {'error': 'Cannot calculate risk per lot'}
 
@@ -189,51 +208,56 @@ class MT5TradeExecutor:
             actual_risk_usd = total_lots * risk_per_one_lot
             actual_risk_pct = (actual_risk_usd / balance_usd * 100.0) if balance_usd > 0 else risk_pct
 
-            # Split across TP1, TP2, TP3
-            norm_sum = tp1_pct + tp2_pct + tp3_pct
-            if norm_sum <= 0:
-                tp1_pct, tp2_pct, tp3_pct = 50.0, 30.0, 20.0
-                norm_sum = 100.0
-
-            p1 = tp1_pct / norm_sum
-            p2 = tp2_pct / norm_sum
-            p3 = tp3_pct / norm_sum
-
-            # To split into multiple child orders, each child order MUST be >= vol_min!
-            if total_lots >= round(3 * vol_min, 4):
-                # 3 child orders possible
-                avail = round(total_lots - 3 * vol_min, 4)
-                avail_steps = int(round(avail / vol_step))
-                s1 = int(round(avail_steps * p1))
-                s2 = int(round(avail_steps * p2))
-                s3 = max(0, avail_steps - s1 - s2)
-                lot1 = round(vol_min + s1 * vol_step, 4)
-                lot2 = round(vol_min + s2 * vol_step, 4)
-                lot3 = round(vol_min + s3 * vol_step, 4)
-            elif total_lots >= round(2 * vol_min, 4):
-                # 2 child orders possible
-                avail = round(total_lots - 2 * vol_min, 4)
-                avail_steps = int(round(avail / vol_step))
-                denom = p1 + p2 if (p1 + p2) > 0 else 1.0
-                s1 = int(round(avail_steps * (p1 / denom)))
-                s2 = max(0, avail_steps - s1)
-                lot1 = round(vol_min + s1 * vol_step, 4)
-                lot2 = round(vol_min + s2 * vol_step, 4)
+            # Exact User Allocation Rules:
+            # - 0.03 lots: TP1=0.01, TP2=0.01, TP3=0.01
+            # - 0.02 lots: TP1=0.01, TP2=0.01, TP3=0.00
+            # - 0.01 lots: TP1=0.01, TP2=0.00, TP3=0.00
+            # - >0.03 lots: TP1 gets major share (65%-70% to bank the win),
+            #   with the remainder split between TP2 (~60%) and TP3 (~40%).
+            if abs(total_lots - round(3 * vol_min, 4)) < 1e-5:
+                lot1 = round(vol_min, 4)
+                lot2 = round(vol_min, 4)
+                lot3 = round(vol_min, 4)
+            elif abs(total_lots - round(2 * vol_min, 4)) < 1e-5:
+                lot1 = round(vol_min, 4)
+                lot2 = round(vol_min, 4)
                 lot3 = 0.0
+            elif abs(total_lots - round(vol_min, 4)) < 1e-5 or total_lots < round(2 * vol_min, 4):
+                lot1 = round(total_lots, 4)
+                lot2 = 0.0
+                lot3 = 0.0
+            elif total_lots > round(3 * vol_min, 4):
+                # Major share for TP1 (65% to lock in highest win probability)
+                max_lot1 = round(total_lots - 2 * vol_min, 4)
+                raw_lot1 = round(total_lots * 0.65, 4)
+                steps1 = max(1, min(int(round(max_lot1 / vol_step)), int(round(raw_lot1 / vol_step))))
+                lot1 = round(steps1 * vol_step, 4)
+
+                remaining = round(total_lots - lot1, 4)
+                max_lot2 = round(remaining - vol_min, 4)
+                raw_lot2 = round(remaining * 0.60, 4)
+                steps2 = max(1, min(int(round(max_lot2 / vol_step)), int(round(raw_lot2 / vol_step))))
+                lot2 = round(steps2 * vol_step, 4)
+
+                lot3 = round(remaining - lot2, 4)
             else:
-                # Only 1 child order possible (total_lots < 2 * vol_min)
                 lot1 = round(total_lots, 4)
                 lot2 = 0.0
                 lot3 = 0.0
 
-        # Compute dollar reward ($) for each TP level
+            tp1_pct = round((lot1 / total_lots * 100.0), 1) if total_lots > 0 else 0.0
+            tp2_pct = round((lot2 / total_lots * 100.0), 1) if total_lots > 0 else 0.0
+            tp3_pct = round((lot3 / total_lots * 100.0), 1) if total_lots > 0 else 0.0
+
+        # Compute dollar reward ($) for each TP level accurately
         tp1_dist = abs(tp1_price - entry_price) if tp1_price is not None else 0.0
         tp2_dist = abs(tp2_price - entry_price) if tp2_price is not None else 0.0
         tp3_dist = abs(tp3_price - entry_price) if tp3_price is not None else 0.0
 
-        tp1_reward_usd = round(lot1 * tp1_dist * contract_size, 2)
-        tp2_reward_usd = round(lot2 * tp2_dist * contract_size, 2)
-        tp3_reward_usd = round(lot3 * tp3_dist * contract_size, 2)
+        unit_reward_per_price = (risk_per_one_lot / sl_distance) if sl_distance > 0 else contract_size
+        tp1_reward_usd = round(lot1 * tp1_dist * unit_reward_per_price, 2)
+        tp2_reward_usd = round(lot2 * tp2_dist * unit_reward_per_price, 2)
+        tp3_reward_usd = round(lot3 * tp3_dist * unit_reward_per_price, 2)
         total_reward_usd = round(tp1_reward_usd + tp2_reward_usd + tp3_reward_usd, 2)
 
         return {
