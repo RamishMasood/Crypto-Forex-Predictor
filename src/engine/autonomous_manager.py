@@ -4,6 +4,7 @@ import time
 import json
 import logging
 import threading
+import concurrent.futures
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 
@@ -44,6 +45,7 @@ DEFAULT_SYMBOLS = ["XAU/USD", "BTC/USD"]
 _SCAN_STOP_EVENT = threading.Event()
 _FORCE_STOP_EVENT = threading.Event()
 _STATE_LOCK = threading.Lock()
+_TRADE_EXEC_LOCK = threading.Lock()
 
 class AutonomousTraderEngine:
     def __init__(self):
@@ -824,37 +826,63 @@ class AutonomousTraderEngine:
                     self._sleep_countdown(interval)
                     continue
 
+                # Filter eligible symbols (not reached trade target)
+                eligible_symbols = []
+                by_sym = state.get('trades_by_symbol', {})
                 for sym in symbols:
-                    if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
-                        break
-
-                    # Re-check active batches
-                    state = self.load_state()
-                    if len(state.get('open_batches', {})) >= max_active_batches:
-                        break
-
-                    by_sym = state.get('trades_by_symbol', {})
-                    current_sym_trades = by_sym.get(sym, 0)
-
-                    # Check custom target limit (Requirement 2)
-                    if current_sym_trades >= target_per_sym:
+                    if by_sym.get(sym, 0) < target_per_sym:
+                        eligible_symbols.append(sym)
+                    else:
                         logger.info(f"Target of {target_per_sym} reached for {sym}. Skipping scan.")
-                        continue
 
-                    state['last_scanned_symbol'] = sym
-                    self.save_state(state)
+                if not eligible_symbols:
+                    logger.info("All selected symbols have reached their trade targets.")
+                    self._sleep_countdown(interval)
+                    continue
+
+                # Parallel Multi-Pair Scanner Worker function
+                def _scan_and_trade_single_symbol(sym: str):
+                    if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
+                        return None
+
+                    # Check max active batches before scanning
+                    with _TRADE_EXEC_LOCK:
+                        curr_st = self.load_state()
+                        if len(curr_st.get('open_batches', {})) >= max_active_batches:
+                            return None
 
                     try:
-                        setup = self.scan_symbol_all_timeframes(sym, timeframes, cycle=cycle_count, min_pillars_required=min_pillars_required)
+                        setup = self.scan_symbol_all_timeframes(
+                            sym, timeframes, cycle=cycle_count, min_pillars_required=min_pillars_required
+                        )
                         if setup and not _SCAN_STOP_EVENT.is_set() and self.load_settings().get('enabled', False):
-                            traded = self.execute_trade_batch(setup, risk_pct=risk_pct, max_dollar_risk=max_dollar_risk, batch_lot_size=batch_lot_size)
-                            if traded:
-                                state = self.load_state()
-                                if len(state.get('open_batches', {})) >= max_active_batches:
-                                    break
-                            time.sleep(2)
+                            with _TRADE_EXEC_LOCK:
+                                curr_st = self.load_state()
+                                if len(curr_st.get('open_batches', {})) < max_active_batches:
+                                    traded = self.execute_trade_batch(
+                                        setup,
+                                        risk_pct=risk_pct,
+                                        max_dollar_risk=max_dollar_risk,
+                                        batch_lot_size=batch_lot_size
+                                    )
+                                    return traded
+                        return False
                     except Exception as s_err:
-                        logger.error(f"Error scanning or trading {sym}: {s_err}", exc_info=True)
+                        logger.error(f"Error in parallel scan/trade for {sym}: {s_err}", exc_info=True)
+                        return False
+
+                # Execute all eligible symbols in PARALLEL threads
+                num_workers = min(len(eligible_symbols), 6)
+                logger.info(f"[ParallelScanner] Launching concurrent scan for {len(eligible_symbols)} symbols: {eligible_symbols} with {num_workers} threads.")
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers, thread_name_prefix="PairScanner") as pool:
+                    future_to_sym = {pool.submit(_scan_and_trade_single_symbol, s): s for s in eligible_symbols}
+                    for fut in concurrent.futures.as_completed(future_to_sym):
+                        s_name = future_to_sym[fut]
+                        try:
+                            fut.result()
+                        except Exception as fut_err:
+                            logger.error(f"Parallel worker error on {s_name}: {fut_err}")
 
                 if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
                     continue

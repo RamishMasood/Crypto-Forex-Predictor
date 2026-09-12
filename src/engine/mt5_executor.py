@@ -64,17 +64,27 @@ class MT5TradeExecutor:
             vol_step = raw_v_step if raw_v_step >= 0.01 else 0.01
             vol_max = raw_v_max if raw_v_max >= vol_min else max(100.0, vol_min)
 
+            raw_stop_level = int(getattr(s_info, 'trade_stops_level', 0) or 0)
+            spread_pts     = int(s_info.spread)
+            point_val      = float(s_info.point)
+            # Effective minimum stop distance = max(broker stop_level, spread) in price units
+            # This prevents "Invalid stops (Code: 10016)" caused by SL/TP being inside the spread
+            effective_min_stops_pts = max(raw_stop_level, spread_pts, 1)
+            min_stop_distance_price = round(effective_min_stops_pts * point_val, int(s_info.digits) + 2)
+
             return {
                 'symbol': broker_symbol,
                 'digits': int(s_info.digits),
-                'point': float(s_info.point),
+                'point': point_val,
                 'contract_size': float(s_info.trade_contract_size if s_info.trade_contract_size > 0 else 100000.0),
                 'volume_min': vol_min,
                 'volume_max': vol_max,
                 'volume_step': vol_step,
                 'trade_tick_value': float(s_info.trade_tick_value if s_info.trade_tick_value > 0 else 1.0),
-                'trade_tick_size': float(s_info.trade_tick_size if s_info.trade_tick_size > 0 else s_info.point),
-                'spread': int(s_info.spread),
+                'trade_tick_size': float(s_info.trade_tick_size if s_info.trade_tick_size > 0 else point_val),
+                'spread': spread_pts,
+                'stop_level_pts': raw_stop_level,
+                'min_stop_distance_price': min_stop_distance_price,
                 'filling_mode': int(s_info.filling_mode),
                 'currency': getattr(s_info, 'currency_profit', 'USD')
             }
@@ -336,15 +346,55 @@ class MT5TradeExecutor:
 
             digits = specs['digits']
             order_type = mt5.ORDER_TYPE_BUY if 'BUY' in action.upper() else mt5.ORDER_TYPE_SELL
+            is_buy = (order_type == mt5.ORDER_TYPE_BUY)
 
             tick = mt5.symbol_info_tick(broker_symbol)
             if tick is None:
                 return {'success': False, 'error': f'Cannot get live tick for {broker_symbol}'}
 
-            sl = round(float(sl_price), digits)
-            tp1 = round(float(tp1_price), digits)
-            tp2 = round(float(tp2_price), digits)
-            tp3 = round(float(tp3_price), digits)
+            # Get current market price for validation
+            current_market_price = tick.ask if is_buy else tick.bid
+
+            # ── Minimum Stop Distance Guard ─────────────────────────────────────
+            # Prevents "Invalid stops (Code: 10016)": SL/TP must be at least
+            # max(broker stop_level, spread) away from current market price.
+            min_dist = float(specs.get('min_stop_distance_price', 0.0))
+            # Add a 20% safety buffer on top of the broker minimum
+            min_dist_safe = round(min_dist * 1.20, digits)
+
+            sl_raw  = float(sl_price)
+            tp1_raw = float(tp1_price)
+            tp2_raw = float(tp2_price)
+            tp3_raw = float(tp3_price)
+
+            if is_buy:
+                # For BUY: SL must be BELOW (current_price - min_dist), TP must be ABOVE (current_price + min_dist)
+                sl_floor  = round(current_market_price - min_dist_safe, digits)
+                tp1_floor = round(current_market_price + min_dist_safe, digits)
+                sl  = round(min(sl_raw, sl_floor), digits)   # keep the lower of the two (safer SL)
+                tp1 = round(max(tp1_raw, tp1_floor), digits) # push TP up if too close
+                tp2 = round(max(tp2_raw, tp1_floor + round(min_dist_safe * 0.5, digits)), digits)
+                tp3 = round(max(tp3_raw, tp1_floor + round(min_dist_safe * 1.0, digits)), digits)
+            else:
+                # For SELL: SL must be ABOVE (current_price + min_dist), TP must be BELOW (current_price - min_dist)
+                sl_ceil   = round(current_market_price + min_dist_safe, digits)
+                tp1_ceil  = round(current_market_price - min_dist_safe, digits)
+                sl  = round(max(sl_raw, sl_ceil), digits)
+                tp1 = round(min(tp1_raw, tp1_ceil), digits)
+                tp2 = round(min(tp2_raw, tp1_ceil - round(min_dist_safe * 0.5, digits)), digits)
+                tp3 = round(min(tp3_raw, tp1_ceil - round(min_dist_safe * 1.0, digits)), digits)
+
+            # Final sanity: SL and TP must not equal each other or current price
+            if is_buy and (sl >= current_market_price or tp1 <= current_market_price):
+                return {'success': False, 'error': f'Invalid stops after adjustment: BUY but SL={sl}>={current_market_price} or TP1={tp1}<={current_market_price}'}
+            if not is_buy and (sl <= current_market_price or tp1 >= current_market_price):
+                return {'success': False, 'error': f'Invalid stops after adjustment: SELL but SL={sl}<={current_market_price} or TP1={tp1}>={current_market_price}'}
+
+            import logging as _log
+            _log.getLogger("MT5Executor").info(
+                f"[StopGuard] {broker_symbol} {action} | Market={current_market_price} | min_dist={min_dist_safe} | "
+                f"SL: {sl_raw}->{sl} | TP1: {tp1_raw}->{tp1} | TP2: {tp2_raw}->{tp2} | TP3: {tp3_raw}->{tp3}"
+            )
 
             filling_mode = specs.get('filling_mode', 3)
             type_filling = mt5.ORDER_FILLING_IOC if (filling_mode & 2) else mt5.ORDER_FILLING_FOK
@@ -368,7 +418,7 @@ class MT5TradeExecutor:
                     continue
 
                 fresh_tick = mt5.symbol_info_tick(broker_symbol) or tick
-                entry_p = fresh_tick.ask if order_type == mt5.ORDER_TYPE_BUY else fresh_tick.bid
+                entry_p = fresh_tick.ask if is_buy else fresh_tick.bid
 
                 request = {
                     'action': mt5.TRADE_ACTION_DEAL,

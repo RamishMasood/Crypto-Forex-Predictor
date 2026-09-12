@@ -19,7 +19,10 @@
     "On XAU/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On XAU/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On ETH/BTC (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On ETH/BTC (3m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On ETH/BTC (3m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On ETH/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On ETH/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On ETH/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {

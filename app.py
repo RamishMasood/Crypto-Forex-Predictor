@@ -803,12 +803,7 @@ def render_mt5_execution_panel(symbol, setup, mt5_status, account, risk_pct, ff)
                     )
 
 @st.fragment(run_every=3)
-def render_mt5_position_tracker():
-    st.divider()
-    st.subheader("📊 Exness MT5 Live Trade Tracker & History")
-    from src.engine.mt5_executor import MT5TradeExecutor
-    live_exec = MT5TradeExecutor()
-
+def render_mt5_active_positions_view(live_exec):
     # Check auto-breakeven
     try:
         be_updates = live_exec.check_and_apply_auto_breakeven()
@@ -819,91 +814,225 @@ def render_mt5_position_tracker():
     except Exception:
         pass
 
-    # Use stable segmented radio selector instead of st.tabs inside @st.fragment to prevent "Bad 'setIn' index" protobuf delta errors
-    selected_tracker_tab = st.radio(
-        "Tracker View Mode:",
-        options=[
-            "🟢 Active Open Positions", 
-            "📜 Closed Trades History (7 Days)",
-            "🤖 Autonomous 5/5 Pillar Scanner & AI Journal"
-        ],
+    positions = live_exec.get_open_positions()
+    if not positions:
+        st.info("ℹ️ No active open positions on Exness MT5 right now.")
+        return
+
+    tot_pnl = sum(p['profit'] for p in positions)
+    pnl_color = "#00c853" if tot_pnl >= 0 else "#ff1744"
+    winning_cnt = sum(1 for p in positions if p['profit'] >= 0)
+    losing_cnt = len(positions) - winning_cnt
+
+    # Header & Floating PnL Stat Summary Banner (Single Element)
+    render_html(f"""
+    <div style='background:linear-gradient(135deg,#0d1117,#161b22);border:1px solid #30363d;border-radius:10px;padding:12px 18px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;'>
+        <div>
+            <span style='background:#1f293d;color:#58a6ff;font-weight:700;font-size:0.8rem;padding:3px 10px;border-radius:12px;border:1px solid #388bfd44;'>LIVE MT5 POSITIONS</span>
+            &nbsp;<b style='color:#ffffff;font-size:1.1rem;'>Active Open Trades ({len(positions)})</b>
+            &nbsp;<span style='color:#8b949e;font-size:0.8rem;'>({winning_cnt} in profit / {losing_cnt} in drawdown)</span>
+        </div>
+        <div>
+            <span style='color:#8b949e;font-size:0.85rem;margin-right:6px;'>Total Floating PnL:</span>
+            <span style='color:{pnl_color};font-weight:900;font-size:1.3rem;text-shadow:0 0 10px {pnl_color}44;'>${tot_pnl:+,.2f}</span>
+        </div>
+    </div>
+    """)
+
+    # ── Fixed Action Bar (Stable Widget Structure Prevents Protobuf Delta Index Mismatch) ──
+    c_sel, c_close, c_be, c_close_all = st.columns([2.6, 1.1, 1.2, 1.1])
+    with c_sel:
+        pos_options = [p['ticket'] for p in positions]
+        def _fmt_pos(tk):
+            match = next((x for x in positions if x['ticket'] == tk), None)
+            if not match:
+                return f"#{tk}"
+            s_col = "+" if match['profit'] >= 0 else ""
+            return f"#{match['ticket']} | {match['type']} {match['volume']} {match['symbol']} | PnL: {s_col}${match['profit']:,.2f}"
+        
+        selected_ticket = st.selectbox(
+            "⚡ Select Position to Manage:",
+            options=pos_options,
+            format_func=_fmt_pos,
+            key="mt5_pos_action_selected_ticket"
+        )
+
+    with c_close:
+        st.write("")
+        st.write("")
+        if st.button("✕ Close Selected", key="btn_close_single_pos", use_container_width=True, help="Close the selected position at market"):
+            if selected_ticket:
+                cres = live_exec.close_position(selected_ticket)
+                if cres.get('success'):
+                    st.toast(f"✅ Closed #{selected_ticket} @ {cres.get('close_price')}", icon="✅")
+                    st.rerun(scope="fragment")
+                else:
+                    st.toast(f"❌ Close failed: {cres.get('error')}", icon="❌")
+
+    with c_be:
+        st.write("")
+        st.write("")
+        if st.button("🛡️ Move to BE", key="btn_be_single_pos", use_container_width=True, help="Move Stop-Loss of selected position to Breakeven"):
+            if selected_ticket:
+                bres = live_exec.move_to_breakeven(selected_ticket)
+                if bres.get('success'):
+                    st.toast(f"🛡️ Position #{selected_ticket} moved to BE!", icon="🛡️")
+                    st.rerun(scope="fragment")
+                else:
+                    st.toast(f"❌ BE failed: {bres.get('error')}", icon="❌")
+
+    with c_close_all:
+        st.write("")
+        st.write("")
+        if st.button("🚨 Close ALL", key="btn_close_all_open_positions", type="primary", use_container_width=True, help=f"Close all {len(positions)} open positions immediately at market"):
+            closed_cnt = 0
+            fail_cnt = 0
+            for p_item in positions:
+                res_c = live_exec.close_position(p_item['ticket'])
+                if res_c.get('success'):
+                    closed_cnt += 1
+                else:
+                    fail_cnt += 1
+            st.toast(f"🚨 Closed {closed_cnt}/{len(positions)} positions!", icon="🚨")
+            st.rerun(scope="fragment")
+
+    # ── Display Mode Selector ──
+    view_mode = st.radio(
+        "Positions Display Format:",
+        options=["📋 High-Density Live Table", "🃏 Visual Cards Grid"],
         horizontal=True,
-        key="mt5_tracker_main_view_selector",
+        key="mt5_positions_layout_mode",
         label_visibility="collapsed"
     )
 
-    if "Active Open Positions" in selected_tracker_tab:
-        positions = live_exec.get_open_positions()
-        if not positions:
-            st.info("ℹ️ No active open positions on Exness MT5 right now.")
-        else:
-            tot_pnl = sum(p['profit'] for p in positions)
-            pnl_color = "#00c853" if tot_pnl >= 0 else "#ff1744"
-            st.markdown(f"**Open Positions ({len(positions)}):** Floating PnL: <span style='color:{pnl_color};font-weight:800;font-size:1.1rem;'>${tot_pnl:+,.2f}</span>", unsafe_allow_html=True)
+    # Render entire collection as a single HTML element to eliminate React / Protobuf index errors
+    if "Table" in view_mode:
+        t_rows = []
+        for p in positions:
+            p_side_col = "#00c853" if p['type'] == 'BUY' else "#ff1744"
+            p_profit_col = "#00c853" if p['profit'] >= 0 else "#ff1744"
+            cmt = str(p.get('comment', ''))
+            m_batch = re.search(r'QS_(\d+)_(TP\d)', cmt)
+            if m_batch:
+                batch_label = f"<span style='background:#1e293b;color:#38bdf8;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #0284c7;'>B#{m_batch.group(1)} ({m_batch.group(2)})</span>"
+            elif "QuantSniper_TP" in cmt:
+                tp_num = cmt.split('_')[-1]
+                batch_label = f"<span style='background:#1e293b;color:#a78bfa;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #7c3aed;'>Initial ({tp_num})</span>"
+            elif cmt:
+                batch_label = f"<span style='background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-size:.72rem;'>{cmt}</span>"
+            else:
+                batch_label = "<span style='color:#6e7681;font-size:.72rem;'>Manual</span>"
 
-            for p in positions:
-                with st.container():
-                    p_col = "#00c853" if p['type'] == 'BUY' else "#ff1744"
-                    profit_col = "#00c853" if p['profit'] >= 0 else "#ff1744"
-                    c1, c2, c3, c4, c_close, c_be = st.columns([2.5, 1.9, 1.9, 1.5, 0.9, 0.9])
-                    with c1:
-                        st.markdown(f"<span style='background:{p_col};color:#fff;padding:2px 8px;border-radius:6px;font-weight:700;font-size:.78rem;'>{p['type']}</span> <b>{p['symbol']}</b> &nbsp;`{p['volume']} lots`", unsafe_allow_html=True)
-                        cmt = str(p.get('comment', ''))
-                        batch_tag = ""
-                        m_batch = re.search(r'QS_(\d+)_(TP\d)', cmt)
-                        if m_batch:
-                            batch_tag = f"<span style='background:#1e293b;color:#38bdf8;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #0284c7;'>Batch #{m_batch.group(1)} ({m_batch.group(2)})</span> "
-                        elif "QuantSniper_TP" in cmt:
-                            tp_num = cmt.split('_')[-1]
-                            batch_tag = f"<span style='background:#1e293b;color:#a78bfa;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #7c3aed;'>Batch Initial ({tp_num})</span> "
-                        elif cmt:
-                            batch_tag = f"<span style='background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-weight:600;font-size:.72rem;'>{cmt}</span> "
+            t_rows.append(f"""
+            <tr style='border-bottom:1px solid #21262d;'>
+                <td style='padding:8px 10px;'><span style='background:{p_side_col};color:#fff;padding:2px 7px;border-radius:4px;font-weight:700;font-size:.75rem;'>{p['type']}</span></td>
+                <td style='padding:8px 10px;font-weight:700;color:#e6edf3;'>{p['symbol']}</td>
+                <td style='padding:8px 10px;color:#79c0ff;font-family:monospace;font-weight:600;'>{p['volume']}</td>
+                <td style='padding:8px 10px;'>{batch_label}</td>
+                <td style='padding:8px 10px;color:#8b949e;font-size:.78rem;font-family:monospace;'>#{p['ticket']}</td>
+                <td style='padding:8px 10px;color:#c9d1d9;font-family:monospace;'>${p['price_open']:,.4f}</td>
+                <td style='padding:8px 10px;color:#58a6ff;font-family:monospace;font-weight:600;'>${p['price_current']:,.4f}</td>
+                <td style='padding:8px 10px;color:#f87171;font-family:monospace;'>${p['sl']:,.4f}</td>
+                <td style='padding:8px 10px;color:#3fb950;font-family:monospace;'>${p['tp']:,.4f}</td>
+                <td style='padding:8px 10px;text-align:right;color:{p_profit_col};font-weight:800;font-size:.92rem;font-family:monospace;'>${p['profit']:+,.2f}</td>
+                <td style='padding:8px 10px;text-align:right;color:{p_profit_col};font-size:.82rem;font-family:monospace;'>{p['return_pct']:+.2f}%</td>
+                <td style='padding:8px 10px;color:#8b949e;font-size:.75rem;'>{p['time']}</td>
+            </tr>
+            """)
 
-                        st.markdown(f"{batch_tag}<span style='color:#8b949e;font-size:.75rem;'>Ticket #{p['ticket']} | {p['time']}</span>", unsafe_allow_html=True)
-                    with c2:
-                        st.markdown(f"Open: **${p['price_open']:,.4f}**")
-                        st.caption(f"Live: ${p['price_current']:,.4f}")
-                    with c3:
-                        st.markdown(f"SL: **${p['sl']:,.4f}**")
-                        st.caption(f"TP: ${p['tp']:,.4f}")
-                    with c4:
-                        st.markdown(f"<span style='color:{profit_col};font-weight:800;font-size:1.05rem;'>${p['profit']:+,.2f}</span>", unsafe_allow_html=True)
-                        st.caption(f"{p['return_pct']:+.2f}%")
-                    with c_close:
-                        if st.button("✕ Close", key=f"close_{p['ticket']}", help="Close position at market", use_container_width=True):
-                            cres = live_exec.close_position(p['ticket'])
-                            if cres.get('success'):
-                                st.success(f"Closed #{p['ticket']} @ {cres.get('close_price')}")
-                                st.rerun(scope="fragment")
-                            else:
-                                st.error(cres.get('error'))
-                    with c_be:
-                        if st.button("🛡️ BE", key=f"be_{p['ticket']}", help="Move SL to Breakeven", use_container_width=True):
-                            bres = live_exec.move_to_breakeven(p['ticket'])
-                            if bres.get('success'):
-                                st.success(f"Moved #{p['ticket']} to BE!")
-                                st.rerun(scope="fragment")
-                            else:
-                                st.error(bres.get('error'))
-                    st.divider()
-
-    elif "Closed Trades History" in selected_tracker_tab:
-        history_deals = live_exec.get_trade_history(days=7)
-        if not history_deals:
-            st.info("ℹ️ No closed trades in the past 7 days.")
-        else:
-            net_hist_profit = sum(d['profit'] for d in history_deals)
-            net_col = "#00c853" if net_hist_profit >= 0 else "#ff1744"
-            st.markdown(f"**Past 7 Days Closed Trades ({len(history_deals)}):** Net Realized Profit: <span style='color:{net_col};font-weight:800;font-size:1.1rem;'>${net_hist_profit:+,.2f}</span>", unsafe_allow_html=True)
-
-            hist_df = pd.DataFrame(history_deals)
-            st.dataframe(
-                hist_df[['time', 'deal_id', 'symbol', 'type', 'volume', 'price', 'profit', 'comment']],
-                use_container_width=True,
-                hide_index=True
-            )
-
+        table_full_html = f"""
+        <div style='overflow-x:auto;margin:10px 0;border:1px solid #30363d;border-radius:8px;'>
+            <table style='width:100%;border-collapse:collapse;background:#0d1117;font-size:0.82rem;text-align:left;'>
+                <thead>
+                    <tr style='background:#161b22;border-bottom:2px solid #30363d;color:#58a6ff;'>
+                        <th style='padding:8px 10px;'>Side</th>
+                        <th style='padding:8px 10px;'>Symbol</th>
+                        <th style='padding:8px 10px;'>Lots</th>
+                        <th style='padding:8px 10px;'>Batch</th>
+                        <th style='padding:8px 10px;'>Ticket</th>
+                        <th style='padding:8px 10px;'>Open Price</th>
+                        <th style='padding:8px 10px;'>Live Price</th>
+                        <th style='padding:8px 10px;'>Stop Loss</th>
+                        <th style='padding:8px 10px;'>Take Profit</th>
+                        <th style='padding:8px 10px;text-align:right;'>Floating PnL</th>
+                        <th style='padding:8px 10px;text-align:right;'>Return %</th>
+                        <th style='padding:8px 10px;'>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {"".join(t_rows)}
+                </tbody>
+            </table>
+        </div>
+        """
+        render_html(table_full_html)
     else:
+        cards_html = []
+        for p in positions:
+            p_side_col = "#00c853" if p['type'] == 'BUY' else "#ff1744"
+            p_profit_col = "#00c853" if p['profit'] >= 0 else "#ff1744"
+            cmt = str(p.get('comment', ''))
+            m_batch = re.search(r'QS_(\d+)_(TP\d)', cmt)
+            if m_batch:
+                b_badge = f"<span style='background:#1e293b;color:#38bdf8;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #0284c7;'>Batch #{m_batch.group(1)} ({m_batch.group(2)})</span>"
+            elif "QuantSniper_TP" in cmt:
+                tp_num = cmt.split('_')[-1]
+                b_badge = f"<span style='background:#1e293b;color:#a78bfa;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #7c3aed;'>Batch Initial ({tp_num})</span>"
+            elif cmt:
+                b_badge = f"<span style='background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-size:.72rem;'>{cmt}</span>"
+            else:
+                b_badge = ""
+
+            cards_html.append(f"""
+            <div style='background:#161b22;border:1px solid #30363d;border-left:4px solid {p_side_col};border-radius:8px;padding:12px 14px;'>
+                <div style='display:flex;justify-content:space-between;align-items:center;'>
+                    <div>
+                        <span style='background:{p_side_col};color:#fff;padding:2px 7px;border-radius:4px;font-weight:700;font-size:0.75rem;'>{p['type']}</span>
+                        <b style='color:#e6edf3;font-size:0.95rem;margin-left:6px;'>{p['symbol']}</b>
+                        <code style='color:#79c0ff;font-size:0.8rem;margin-left:4px;'>{p['volume']} lots</code>
+                    </div>
+                    <div style='text-align:right;'>
+                        <span style='color:{p_profit_col};font-weight:800;font-size:1.05rem;'>${p['profit']:+,.2f}</span>
+                        <div style='color:#8b949e;font-size:0.72rem;'>{p['return_pct']:+.2f}%</div>
+                    </div>
+                </div>
+                <div style='margin-top:8px;font-size:0.76rem;color:#8b949e;'>
+                    {b_badge} Ticket: <b>#{p['ticket']}</b> | {p['time']}
+                </div>
+                <div style='display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px;background:#0d1117;padding:8px;border-radius:6px;font-size:0.78rem;'>
+                    <div>Open: <b style='color:#c9d1d9;'>${p['price_open']:,.4f}</b></div>
+                    <div>Live: <b style='color:#58a6ff;'>${p['price_current']:,.4f}</b></div>
+                    <div>SL: <b style='color:#f87171;'>${p['sl']:,.4f}</b></div>
+                    <div>TP: <b style='color:#3fb950;'>${p['tp']:,.4f}</b></div>
+                </div>
+            </div>
+            """)
+
+        cards_grid_html = f"""
+        <div style='display:grid;grid-template-columns:repeat(auto-fill, minmax(310px, 1fr));gap:12px;margin:12px 0;'>
+            {"".join(cards_html)}
+        </div>
+        """
+        render_html(cards_grid_html)
+
+def render_mt5_closed_history_view(live_exec):
+    history_deals = live_exec.get_trade_history(days=7)
+    if not history_deals:
+        st.info("ℹ️ No closed trades in the past 7 days.")
+    else:
+        net_hist_profit = sum(d['profit'] for d in history_deals)
+        net_col = "#00c853" if net_hist_profit >= 0 else "#ff1744"
+        st.markdown(f"**Past 7 Days Closed Trades ({len(history_deals)}):** Net Realized Profit: <span style='color:{net_col};font-weight:800;font-size:1.1rem;'>${net_hist_profit:+,.2f}</span>", unsafe_allow_html=True)
+
+        hist_df = pd.DataFrame(history_deals)
+        st.dataframe(
+            hist_df[['time', 'deal_id', 'symbol', 'type', 'volume', 'price', 'profit', 'comment']],
+            use_container_width=True,
+            hide_index=True
+        )
+
+@st.fragment(run_every=4)
+def render_mt5_autonomous_engine_view(live_exec):
         st.markdown("#### 🤖 Autonomous 5/5 Pillar Multi-Timeframe Scanner & AI Learning Engine")
         from src.engine.autonomous_manager import get_engine, DEFAULT_TIMEFRAMES, DEFAULT_SYMBOLS
         auto_engine = get_engine()
@@ -1240,15 +1369,17 @@ def render_mt5_position_tracker():
         next_pass_txt = state.get('next_scan_time', 'In Progress...') or 'Active'
 
         if is_engine_active:
+            scan_mode_label = f"⚡ Parallel Scanning: <code>{curr_sym} ({curr_tf})</code>" if curr_sym != 'Idle' else "Scanning"
             render_html(f"""
             <div style='background:linear-gradient(135deg,#0b1329,#092e20);border:1px solid #10b981;border-radius:10px;padding:12px 18px;margin:10px 0;'>
                 <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;'>
                     <div>
                         <span style='background:#10b981;color:#000;font-weight:900;font-size:.78rem;padding:3px 10px;border-radius:12px;'>LIVE SCANNING TERMINAL</span>
                         &nbsp;<b style='color:#ffffff;font-size:1.0rem;'>Autonomous 5/5 Pillar Multi-Timeframe Radar</b>
+                        &nbsp;<span style='background:#065f46;color:#34d399;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:700;'>⚡ MULTI-THREADED PARALLEL</span>
                     </div>
                     <div style='color:#6ee7b7;font-size:.82rem;font-weight:600;'>
-                        Cycle: <b>#{curr_cycle}</b> &nbsp;|&nbsp; Scanning: <code>{curr_sym} ({curr_tf})</code> &nbsp;|&nbsp; Next Cycle: <b>{next_pass_txt}</b>
+                        Cycle: <b>#{curr_cycle}</b> &nbsp;|&nbsp; {scan_mode_label} &nbsp;|&nbsp; Next Cycle: <b>{next_pass_txt}</b>
                     </div>
                 </div>
             </div>
@@ -1398,27 +1529,28 @@ def render_mt5_position_tracker():
             if not open_batches:
                 st.info("ℹ️ No active autonomous batches running in MT5 right now.")
             else:
+                batch_cards_html = []
                 for b_id, b_data in open_batches.items():
-                    with st.container():
-                        act_col = "#00c853" if 'BUY' in b_data.get('action', '') else "#ff1744"
-                        be_display = f"{float(b_data['breakeven_sl']):,.4f}" if b_data.get('breakeven_sl') else "-"
-                        b_risk = auto_engine.compute_batch_risk(b_data)
-                        render_html(f"""
-                        <div style='background:#0f172a;border-left:4px solid {act_col};border-radius:8px;padding:12px 16px;margin:8px 0;'>
-                            <b style='color:#38bdf8;'>Batch #{b_id}</b> &nbsp;|&nbsp; 
-                            <span style='background:{act_col};color:#fff;padding:2px 8px;border-radius:4px;font-weight:700;font-size:.78rem;'>{b_data.get('action')}</span>
-                            &nbsp;<b>{b_data.get('symbol')}</b> ({b_data.get('timeframe')}) &nbsp;|&nbsp;
-                            Entry: <b>{b_data.get('entry_price')}</b> &nbsp;|&nbsp;
-                            🛡️ BE Mark: <b style='color:#38bdf8;'>{be_display}</b> &nbsp;|&nbsp;
-                            SL: <b style='color:#f87171;'>{b_data.get('sl_price')}</b> &nbsp;|&nbsp;
-                            <span style='color:#f87171;font-weight:700;'>Risk: -${b_risk:,.2f}</span> &nbsp;|&nbsp;
-                            TP1: <b style='color:#34d399;'>{b_data.get('tp1_price')}</b> &nbsp;
-                            TP2: <b style='color:#34d399;'>{b_data.get('tp2_price')}</b> &nbsp;
-                            TP3: <b style='color:#34d399;'>{b_data.get('tp3_price')}</b> &nbsp;|&nbsp;
-                            Lots: <code>{b_data.get('lot_split')}</code> &nbsp;|&nbsp;
-                            Tickets: <code>{b_data.get('tickets')}</code>
-                        </div>
-                        """)
+                    act_col = "#00c853" if 'BUY' in b_data.get('action', '') else "#ff1744"
+                    be_display = f"{float(b_data['breakeven_sl']):,.4f}" if b_data.get('breakeven_sl') else "-"
+                    b_risk = auto_engine.compute_batch_risk(b_data)
+                    batch_cards_html.append(f"""
+                    <div style='background:#0f172a;border-left:4px solid {act_col};border-radius:8px;padding:12px 16px;margin:8px 0;'>
+                        <b style='color:#38bdf8;'>Batch #{b_id}</b> &nbsp;|&nbsp; 
+                        <span style='background:{act_col};color:#fff;padding:2px 8px;border-radius:4px;font-weight:700;font-size:.78rem;'>{b_data.get('action')}</span>
+                        &nbsp;<b>{b_data.get('symbol')}</b> ({b_data.get('timeframe')}) &nbsp;|&nbsp;
+                        Entry: <b>{b_data.get('entry_price')}</b> &nbsp;|&nbsp;
+                        🛡️ BE Mark: <b style='color:#38bdf8;'>{be_display}</b> &nbsp;|&nbsp;
+                        SL: <b style='color:#f87171;'>{b_data.get('sl_price')}</b> &nbsp;|&nbsp;
+                        <span style='color:#f87171;font-weight:700;'>Risk: -${b_risk:,.2f}</span> &nbsp;|&nbsp;
+                        TP1: <b style='color:#34d399;'>{b_data.get('tp1_price')}</b> &nbsp;
+                        TP2: <b style='color:#34d399;'>{b_data.get('tp2_price')}</b> &nbsp;
+                        TP3: <b style='color:#34d399;'>{b_data.get('tp3_price')}</b> &nbsp;|&nbsp;
+                        Lots: <code>{b_data.get('lot_split')}</code> &nbsp;|&nbsp;
+                        Tickets: <code>{b_data.get('tickets')}</code>
+                    </div>
+                    """)
+                render_html("".join(batch_cards_html))
         else:
             if not closed_batches:
                 st.info("ℹ️ No closed autonomous batches recorded in this session yet.")
@@ -1457,10 +1589,37 @@ def render_mt5_position_tracker():
         lessons = journal.get('lessons_learned', [])
         if lessons:
             st.markdown("##### 💡 AI Trade Post-Mortem & Strategy Optimization Lessons:")
-            for l_idx, l_text in enumerate(lessons[-5:], 1):
-                st.info(f"**Lesson {l_idx}:** {l_text}")
+            lesson_cards = [f"<div style='background:#18181b;border-left:3px solid #0284c7;padding:8px 12px;margin:6px 0;border-radius:4px;'><b>Lesson {l_idx}:</b> {l_text}</div>" for l_idx, l_text in enumerate(lessons[-5:], 1)]
+            render_html("".join(lesson_cards))
         else:
             st.success("✅ **Zero SL Violations Detected:** All 5/5 Pillar setups have respected structural invalidation boundaries.")
+
+def render_mt5_position_tracker():
+    st.divider()
+    st.subheader("📊 Exness MT5 Live Trade Tracker & History")
+    from src.engine.mt5_executor import MT5TradeExecutor
+    live_exec = MT5TradeExecutor()
+
+    # Stable segmented radio selector outside fragments prevents protobuf delta conflicts
+    selected_tracker_tab = st.radio(
+        "Tracker View Mode:",
+        options=[
+            "🟢 Active Open Positions", 
+            "📜 Closed Trades History (7 Days)",
+            "🤖 Autonomous 5/5 Pillar Scanner & AI Journal"
+        ],
+        horizontal=True,
+        key="mt5_tracker_main_view_selector",
+        label_visibility="collapsed"
+    )
+
+    if "Active Open Positions" in selected_tracker_tab:
+        render_mt5_active_positions_view(live_exec)
+    elif "Closed Trades History" in selected_tracker_tab:
+        render_mt5_closed_history_view(live_exec)
+    else:
+        render_mt5_autonomous_engine_view(live_exec)
+
 
 
 # ── RUN ENGINE ────────────────────────────────────────────────────────────

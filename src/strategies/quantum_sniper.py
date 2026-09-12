@@ -269,7 +269,8 @@ class QuantumSniperEngine:
 
         # 5. Overextension & Anti-Chasing Safeguard
         ema20 = float(df_indicators['ema_20'].iloc[-1]) if 'ema_20' in df_indicators.columns else curr_price
-        atr = float(df_indicators['atr_14'].iloc[-1]) if 'atr_14' in df_indicators.columns else curr_price * 0.012
+        atr_raw = float(df_indicators['atr_14'].iloc[-1]) if 'atr_14' in df_indicators.columns else 0.0
+        atr = max(atr_raw, curr_price * 0.001, 1e-5)
         dist_ema20 = curr_price - ema20
         if dist_ema20 > (atr * 2.2):
             quantum_score -= 30.0
