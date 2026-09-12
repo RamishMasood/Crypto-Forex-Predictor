@@ -255,6 +255,7 @@ class AutonomousTraderEngine:
         state["last_scan_time"] = None
         state["last_scanned_symbol"] = None
         state["next_scan_time"] = None
+        state["tf_rotation_indices"] = {}
         state["reset_at"] = datetime.now(timezone.utc).isoformat()
         state["scan_activity_log"] = [{
             "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
@@ -530,23 +531,37 @@ class AutonomousTraderEngine:
             logger.error(f"Error in audit and learning: {e}")
 
     def scan_symbol_all_timeframes(self, symbol: str, timeframes: List[str], cycle: int = 0, min_pillars_required: int = 5) -> Optional[Dict[str, Any]]:
-        asset_type = 'crypto' if any(c in symbol.upper() for c in ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE']) else 'forex'
-        logger.info(f"Scanning {symbol} across timeframes: {timeframes} (Min Pillars: {min_pillars_required}/5)")
+        if not timeframes:
+            return None
 
-        for tf in timeframes:
+        asset_type = 'crypto' if any(c in symbol.upper() for c in ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE']) else 'forex'
+
+        # Load rotation pointer so scan order rotates across timeframes
+        state = self.load_state()
+        tf_rotation = state.get('tf_rotation_indices', {})
+        start_idx = int(tf_rotation.get(symbol, 0)) % len(timeframes)
+
+        # Order timeframes starting from start_idx
+        ordered_tfs = timeframes[start_idx:] + timeframes[:start_idx]
+        logger.info(f"Scanning {symbol} across timeframes: {ordered_tfs} (Rotated Start: {timeframes[start_idx]}, Min Pillars: {min_pillars_required}/5)")
+
+        found_setup = None
+
+        for tf in ordered_tfs:
             if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
                 logger.info(f"Stop signal detected. Aborting scan on {symbol}.")
                 return None
+
             try:
                 # Update current scanning pointer
-                state = self.load_state()
-                state['current_scan'] = {
+                st_now = self.load_state()
+                st_now['current_scan'] = {
                     'cycle': cycle,
                     'symbol': symbol,
                     'timeframe': tf,
                     'time': datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
                 }
-                self.save_state(state)
+                self.save_state(st_now)
 
                 pred = self.orch.run_prediction(
                     symbol=symbol,
@@ -584,7 +599,16 @@ class AutonomousTraderEngine:
 
                 if is_eligible:
                     logger.info(f"TARGET {p_cnt}/5 PILLARS ALIGNED (Req: {min_pillars_required})! {symbol} on {tf}!")
-                    return {
+                    
+                    # Advance the rotation pointer to the NEXT timeframe after this one
+                    next_idx = (timeframes.index(tf) + 1) % len(timeframes)
+                    st_up = self.load_state()
+                    if 'tf_rotation_indices' not in st_up:
+                        st_up['tf_rotation_indices'] = {}
+                    st_up['tf_rotation_indices'][symbol] = next_idx
+                    self.save_state(st_up)
+
+                    found_setup = {
                         'symbol': symbol,
                         'timeframe': tf,
                         'asset_type': asset_type,
@@ -593,11 +617,22 @@ class AutonomousTraderEngine:
                         'cycle': cycle,
                         'matched_pillars': p_cnt
                     }
+                    break
+
             except Exception as e:
                 logger.error(f"Scan error for {symbol} ({tf}): {e}")
                 time.sleep(1)
 
-        return None
+        # If no setup was found in this pass, advance the pointer by 1 so the next cycle tests the next timeframe
+        if not found_setup and timeframes:
+            next_idx = (start_idx + 1) % len(timeframes)
+            st_up = self.load_state()
+            if 'tf_rotation_indices' not in st_up:
+                st_up['tf_rotation_indices'] = {}
+            st_up['tf_rotation_indices'][symbol] = next_idx
+            self.save_state(st_up)
+
+        return found_setup
 
     def execute_trade_batch(self, setup_data: Dict[str, Any], risk_pct: float = 1.0, max_dollar_risk: float = 0.0, batch_lot_size: Optional[float] = None) -> bool:
         try:
