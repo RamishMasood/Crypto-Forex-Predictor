@@ -318,33 +318,168 @@ class AutonomousTraderEngine:
         p1_score = float(conf.get('confluence_score', 0))
         p1_prob = float(alpha.get('calibrated_win_probability_pct', conf.get('quality_index_pct', 50)))
         p1_ok = False
-        if not is_chop and is_spread_pass:
-            if is_dir_buy and p1_score >= req_score and p1_prob >= req_prob:
-                p1_ok = True
-            elif is_dir_sell and p1_score <= -req_score and p1_prob >= req_prob:
-                p1_ok = True
+
+        if is_chop:
+            p1_ok = False
+            p1_status = "CHOP CONSOLIDATION DETECTED"
+            p1_desc = chop_gate.get('reason', 'Market dead sideways. Breakout expansion awaited.')
+            p1_badge = "CHOP BLOCKED"
+            p1_col = "#ef4444"
+        elif not is_spread_pass:
+            p1_ok = False
+            p1_status = "SPREAD FILTER EXCEEDED"
+            p1_desc = f"Spread eats {spread_guard.get('spread_to_target_pct', 0):.1f}% of TP1 target (> 25%)"
+            p1_badge = "SPREAD BLOCKED"
+            p1_col = "#ef4444"
+        elif is_dir_buy and p1_score >= req_score and p1_prob >= req_prob:
+            p1_ok = True
+            p1_status = "GREEN LIGHT: BUY ALIGNED"
+            p1_desc = f"Conviction Score: {p1_score:+.1f} | Calibrated Probability: {p1_prob:.1f}% (≥{req_prob:.0f}%)"
+            p1_badge = "BUY READY"
+            p1_col = "#00c853"
+        elif is_dir_sell and p1_score <= -req_score and p1_prob >= req_prob:
+            p1_ok = True
+            p1_status = "RED LIGHT: SELL ALIGNED"
+            p1_desc = f"Conviction Score: {p1_score:+.1f} | Calibrated Probability: {p1_prob:.1f}% (≥{req_prob:.0f}%)"
+            p1_badge = "SELL READY"
+            p1_col = "#ff1744"
+        else:
+            p1_ok = False
+            p1_status = "GATE BLOCKED: INSUFFICIENT CONFLUENCE"
+            p1_desc = f"Score: {p1_score:+.1f} (Req: ±{req_score:.0f}) | Probability: {p1_prob:.1f}% (Req: ≥{req_prob:.0f}%)"
+            p1_badge = "WAIT"
+            p1_col = "#eab308"
 
         # Pillar 2: MTF Alignment
         s1 = mtf.get('screen1_macro', {}) if mtf else {}
+        s2 = mtf.get('screen2_zone', {}) if mtf else {}
+        s3 = mtf.get('screen3_trigger', {}) if mtf else {}
         s1_bias = s1.get('macro_bias', 'NEUTRAL')
         s1_200 = s1.get('close_vs_ema200', 'UNKNOWN')
+        s2_zone = s2.get('zone_type', 'EQUILIBRIUM')
+        s3_trig = s3.get('trigger_status', 'WAITING')
         p2_ok = False
-        if is_dir_buy and s1_bias in ['BULLISH', 'MILD_BULLISH'] and s1_200 == 'ABOVE_200_EMA':
-            p2_ok = True
-        elif is_dir_sell and s1_bias in ['BEARISH', 'MILD_BEARISH'] and s1_200 == 'BELOW_200_EMA':
-            p2_ok = True
+        if is_dir_buy:
+            if s1_bias in ['BULLISH', 'MILD_BULLISH'] and s1_200 == 'ABOVE_200_EMA':
+                p2_ok = True
+                p2_status = "ALIGNED FOR BUY"
+                p2_desc = f"Macro: Above 200 EMA ({s1_bias}) | Zone: {s2_zone} | Trigger: {s3_trig}"
+                p2_badge = "3/3 ALIGNED"
+                p2_col = "#00c853"
+            else:
+                p2_ok = False
+                p2_status = "MACRO CONFLICT (BUY FORBIDDEN)"
+                p2_desc = f"Price is below 200 EMA or Macro is Bearish ({s1_bias}). Counter-trend long blocked."
+                p2_badge = "MACRO CONFLICT"
+                p2_col = "#ef4444"
+        elif is_dir_sell:
+            if s1_bias in ['BEARISH', 'MILD_BEARISH'] and s1_200 == 'BELOW_200_EMA':
+                p2_ok = True
+                p2_status = "ALIGNED FOR SELL"
+                p2_desc = f"Macro: Below 200 EMA ({s1_bias}) | Zone: {s2_zone} | Trigger: {s3_trig}"
+                p2_badge = "3/3 ALIGNED"
+                p2_col = "#ff1744"
+            else:
+                p2_ok = False
+                p2_status = "MACRO CONFLICT (SELL FORBIDDEN)"
+                p2_desc = f"Price is above 200 EMA or Macro is Bullish ({s1_bias}). Counter-trend short blocked."
+                p2_badge = "MACRO CONFLICT"
+                p2_col = "#ef4444"
+        else:
+            p2_ok = False
+            p2_status = "NEUTRAL / MONITORING"
+            p2_desc = f"Screen 1: {s1_bias} ({s1_200}) | Screen 2: {s2_zone}"
+            p2_badge = "NEUTRAL"
+            p2_col = "#9ca3af"
 
         # Pillar 3: Economic News Guard
-        p3_ok = not bool(news.get('is_blackout', False)) if news else True
+        is_news_blackout = bool(news.get('is_blackout', False)) if news else False
+        next_news = news.get('next_high_impact_event', {}) if news else {}
+        mins_to_event = news.get('minutes_to_next_event') if news else None
+        p3_ok = not is_news_blackout
+        if not is_news_blackout:
+            p3_status = "CLEAR: SAFE TO TRADE"
+            if next_news and mins_to_event is not None and mins_to_event < 180:
+                p3_desc = f"No immediate red-folder event. Next: {next_news.get('title','')} in {int(mins_to_event)}m ({next_news.get('country','')})"
+            else:
+                p3_desc = "No high-impact central bank or CPI releases within blackout threshold."
+            p3_badge = "CLEAR / SAFE"
+            p3_col = "#00c853"
+        else:
+            p3_status = "🚨 DANGER: BLACKOUT ACTIVE"
+            p3_desc = f"{news.get('blackout_reason', 'High-impact macroeconomic release window active.')} Do NOT trade."
+            p3_badge = "DO NOT TRADE"
+            p3_col = "#ef4444"
 
         # Pillar 4: Quantum Overextension Guard
+        q_cvd = quantum.get('cvd_divergence', {}) if quantum else {}
+        q_cvd_type = q_cvd.get('divergence_type', 'NONE')
+        q_swp = quantum.get('liquidity_sweep', {}) if quantum else {}
+        q_swp_type = q_swp.get('sweep_type', 'NONE')
         q_overext = quantum.get('overextension', {}) if quantum else {}
         is_overextended = bool(q_overext.get('is_overextended', False))
-        p4_ok = is_trade_active and (not is_overextended)
+        p4_ok = False
+        if is_overextended:
+            p4_ok = False
+            p4_status = "OVEREXTENDED (ANTI-CHASE ACTIVE)"
+            p4_desc = "Price extended >2.2 ATR from EMA 20. High mean-reversion exhaustion risk."
+            p4_badge = "CHASE BLOCKED"
+            p4_col = "#ef4444"
+        elif is_dir_buy:
+            if 'BULLISH' in q_cvd_type or 'BULLISH' in q_swp_type or 'BULL' in quantum.get('quantum_bias', ''):
+                p4_ok = True
+                p4_status = "ORDER FLOW BULLISH CONFIRMED"
+                p4_desc = f"CVD: {q_cvd_type} | Judas Sweep: {q_swp_type} | Anti-Chase: SAFE"
+                p4_badge = "BUY CONFIRMED"
+                p4_col = "#00c853"
+            else:
+                p4_ok = True
+                p4_status = "ORDER FLOW BALANCED"
+                p4_desc = "No adverse order flow divergence against Buy setup. Anti-Chase: SAFE"
+                p4_badge = "PASS"
+                p4_col = "#38bdf8"
+        elif is_dir_sell:
+            if 'BEARISH' in q_cvd_type or 'BEARISH' in q_swp_type or 'BEAR' in quantum.get('quantum_bias', ''):
+                p4_ok = True
+                p4_status = "ORDER FLOW BEARISH CONFIRMED"
+                p4_desc = f"CVD: {q_cvd_type} | Judas Sweep: {q_swp_type} | Anti-Chase: SAFE"
+                p4_badge = "SELL CONFIRMED"
+                p4_col = "#ff1744"
+            else:
+                p4_ok = True
+                p4_status = "ORDER FLOW BALANCED"
+                p4_desc = "No adverse order flow divergence against Sell setup. Anti-Chase: SAFE"
+                p4_badge = "PASS"
+                p4_col = "#38bdf8"
+        else:
+            p4_ok = False
+            p4_status = "AWAITING DIRECTION"
+            p4_desc = f"CVD: {q_cvd_type} | Sweeps: {q_swp_type} | Bias: {quantum.get('quantum_bias', 'NEUTRAL')}"
+            p4_badge = "WAIT"
+            p4_col = "#9ca3af"
 
         # Pillar 5: Whale Sentiment Gate
-        p5_status = whale_gate.get('status', 'NEUTRAL')
-        p5_ok = is_trade_active and (p5_status != 'BLOCKED')
+        w_passed = whale_gate.get('passed', True) if whale_gate else True
+        w_unlocked = whale_gate.get('whale_gate_unlocked', False) if whale_gate else False
+        w_reason = whale_gate.get('reason', 'Benign standard funding') if whale_gate else 'Benign funding'
+        if w_unlocked:
+            p5_ok = True
+            p5_status = "WHALE CATALYST UNLOCKED"
+            p5_desc = f"{w_reason} — Squeeze energy supports explosive move."
+            p5_badge = "WHALE CONFIRMED"
+            p5_col = "#00c853" if is_dir_buy else "#ff1744"
+        elif not w_passed or ('TRAP' in str(w_reason) or 'COUNTER' in str(w_reason)):
+            p5_ok = False
+            p5_status = "COUNTER-WHALE TRAP DANGER"
+            p5_desc = f"{w_reason} — High risk of liquidation cascade."
+            p5_badge = "TRAP DANGER"
+            p5_col = "#ef4444"
+        else:
+            p5_ok = is_trade_active
+            p5_status = "BENIGN FUNDING (HIGH CONVICTION SAFE)"
+            p5_desc = f"{w_reason} — No squeeze trap detected."
+            p5_badge = "SAFE"
+            p5_col = "#38bdf8"
 
         aligned_count = sum([p1_ok, p2_ok, p3_ok, p4_ok, p5_ok])
         is_fully_aligned = (aligned_count == 5) and is_trade_active
@@ -352,11 +487,16 @@ class AutonomousTraderEngine:
         return {
             'is_fully_aligned': is_fully_aligned,
             'aligned_count': aligned_count,
-            'p1': {'ok': p1_ok, 'score': p1_score, 'prob': p1_prob},
-            'p2': {'ok': p2_ok, 'bias': s1_bias, 'ema200': s1_200},
-            'p3': {'ok': p3_ok, 'is_blackout': bool(news.get('is_blackout', False)) if news else False},
-            'p4': {'ok': p4_ok, 'is_overextended': is_overextended},
-            'p5': {'ok': p5_ok, 'status': p5_status},
+            'is_trade_active': is_trade_active,
+            'is_dir_buy': is_dir_buy,
+            'is_dir_sell': is_dir_sell,
+            'req_score': req_score,
+            'req_prob': req_prob,
+            'p1': {'ok': p1_ok, 'score': p1_score, 'prob': p1_prob, 'status': p1_status, 'desc': p1_desc, 'badge': p1_badge, 'col': p1_col},
+            'p2': {'ok': p2_ok, 'bias': s1_bias, 'ema200': s1_200, 'status': p2_status, 'desc': p2_desc, 'badge': p2_badge, 'col': p2_col},
+            'p3': {'ok': p3_ok, 'is_blackout': is_news_blackout, 'status': p3_status, 'desc': p3_desc, 'badge': p3_badge, 'col': p3_col},
+            'p4': {'ok': p4_ok, 'is_overextended': is_overextended, 'status': p4_status, 'desc': p4_desc, 'badge': p4_badge, 'col': p4_col},
+            'p5': {'ok': p5_ok, 'status': p5_status, 'desc': p5_desc, 'badge': p5_badge, 'col': p5_col},
             'chop_gate': chop_gate,
             'spread_guard': spread_guard
         }
@@ -555,11 +695,23 @@ class AutonomousTraderEngine:
         logger.info(f"Scanning {symbol} across timeframes: {ordered_tfs} (Rotated Start: {timeframes[start_idx]}, Min Pillars: {min_pillars_required}/5)")
 
         found_setup = None
+        open_batches = state.get('open_batches', {})
 
         for tf in ordered_tfs:
             if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
                 logger.info(f"Stop signal detected. Aborting scan on {symbol}.")
                 return None
+
+            # Prevent duplicate position stacking: if a batch is already running on (symbol, tf), advance to next tf
+            active_batch_id = None
+            for bid, binfo in open_batches.items():
+                if binfo.get('symbol') == symbol and binfo.get('timeframe') == tf:
+                    active_batch_id = bid
+                    break
+
+            if active_batch_id:
+                logger.info(f"Active batch #{active_batch_id} already running on {symbol} ({tf}). Advancing to prevent duplicate stacking.")
+                continue
 
             try:
                 # Update current scanning pointer
@@ -575,7 +727,7 @@ class AutonomousTraderEngine:
                 pred = self.orch.run_prediction(
                     symbol=symbol,
                     asset_type=asset_type,
-                    market_mode='spot',
+                    market_mode='futures' if asset_type == 'crypto' else 'spot',
                     timeframe=tf,
                     preferred_exchange='Exness (MetaTrader 5)'
                 )

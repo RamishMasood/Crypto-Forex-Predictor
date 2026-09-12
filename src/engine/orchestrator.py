@@ -62,7 +62,31 @@ class PredictorOrchestrator:
         futures_raw_data: Optional[Dict] = None
         futures_signals_result: Optional[Dict] = None
 
-        if is_futures:
+        use_mt5 = ('Exness' in str(preferred_exchange) or 'MT5' in str(preferred_exchange))
+        has_mt5_symbol = False
+        if use_mt5 and self.forex_feeds.is_mt5_connected() and getattr(self.forex_feeds, 'mt5_exness', None):
+            has_mt5_symbol = bool(self.forex_feeds.mt5_exness.get_exness_symbol(symbol))
+
+        is_crypto = (asset_type == 'crypto') or any(c in symbol.upper() for c in ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'])
+
+        if has_mt5_symbol:
+            live_ticker        = self.forex_feeds.get_live_ticker(symbol)
+            df_ohlcv           = self.forex_feeds.get_ohlcv(symbol, timeframe=timeframe, limit=150)
+            exchange_prices    = {'exness_mt5': {'price': live_ticker['last'] if live_ticker else None, 'status': 'ONLINE'}}
+            arbitrage_data     = {'arbitrage_available': False, 'reason': 'Direct Exness MT5 execution'}
+            orderbook_data     = self.orderbook_analyzer.get_order_book_metrics(symbol, 'bybit') if is_crypto else {'available': False, 'pressure_bias': 'INTERBANK_LIQUIDITY'}
+            forex_sessions     = self.forex_feeds.get_market_sessions() if not is_crypto else None
+
+            # For crypto on MT5, also ingest Bybit derivatives metrics in background for Whale Gate
+            if is_crypto:
+                try:
+                    futures_raw_data = self.futures_feeds.get_all_futures_data(
+                        symbol=symbol, timeframe=timeframe, limit=150
+                    )
+                except Exception:
+                    pass
+
+        elif is_futures:
             # Primary: Bybit Perp live data
             futures_raw_data = self.futures_feeds.get_all_futures_data(
                 symbol=symbol, timeframe=timeframe, limit=150
@@ -92,7 +116,6 @@ class PredictorOrchestrator:
             orderbook_data     = self.orderbook_analyzer.get_order_book_metrics(symbol, preferred_exchange)
             forex_sessions     = None
         else:
-            use_mt5 = ('Exness' in str(preferred_exchange) or 'MT5' in str(preferred_exchange))
             if not use_mt5 and self.forex_feeds.is_mt5_connected():
                 self.forex_feeds.disconnect_mt5()
             live_ticker        = self.forex_feeds.get_live_ticker(symbol)
