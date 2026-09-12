@@ -77,8 +77,6 @@ class RiskManager:
         base_sl_dist = 1.80 * atr
 
         if is_long:
-            tp1 = entry_price + tp1_dist
-            
             # Structural swing check with institutional buffer
             if recent_swing_low and (entry_price > recent_swing_low) and ((entry_price - recent_swing_low) < 2.5 * atr):
                 stop_loss = recent_swing_low - (0.20 * atr)
@@ -87,14 +85,14 @@ class RiskManager:
 
             risk_per_unit = max(entry_price - stop_loss, entry_price * 0.001)
 
-            # TP2: Realistic impulse expansion (1.65x TP1 distance)
-            tp2 = entry_price + (1.65 * tp1_dist)
-            # TP3: Macro trend runner (2.80x TP1 distance)
-            tp3 = entry_price + (2.80 * tp1_dist)
+            # TP1: High-probability instant scalp bank (0.38 ATR)
+            tp1 = entry_price + tp1_dist
+            # TP2: Structural runner with at least 1:1+ Risk-to-Reward (1.15R)
+            tp2 = entry_price + (1.15 * risk_per_unit)
+            # TP3: Macro expansion runner (2.20R)
+            tp3 = entry_price + (2.20 * risk_per_unit)
             breakeven_sl = entry_price + (0.02 * atr)
         else:
-            tp1 = max(entry_price * 0.001, entry_price - tp1_dist)
-
             if recent_swing_high and (recent_swing_high > entry_price) and ((recent_swing_high - entry_price) < 2.5 * atr):
                 stop_loss = recent_swing_high + (0.20 * atr)
             else:
@@ -102,8 +100,12 @@ class RiskManager:
 
             risk_per_unit = max(stop_loss - entry_price, entry_price * 0.001)
 
-            tp2 = max(entry_price * 0.001, entry_price - (1.65 * tp1_dist))
-            tp3 = max(entry_price * 0.001, entry_price - (2.80 * tp1_dist))
+            # TP1: High-probability instant scalp bank (0.38 ATR)
+            tp1 = max(entry_price * 0.001, entry_price - tp1_dist)
+            # TP2: Structural runner with at least 1:1+ Risk-to-Reward (1.15R)
+            tp2 = max(entry_price * 0.001, entry_price - (1.15 * risk_per_unit))
+            # TP3: Macro expansion runner (2.20R)
+            tp3 = max(entry_price * 0.001, entry_price - (2.20 * risk_per_unit))
             breakeven_sl = max(entry_price * 0.001, entry_price - (0.02 * atr))
 
         # Position Sizing
@@ -134,17 +136,17 @@ class RiskManager:
             'invalidation_level': round(invalidation_level, 5),
             'sl_distance_pct': round((abs(entry_price - stop_loss) / entry_price) * 100.0, 2),
             'tp1': round(tp1, 5),
-            'tp1_type': 'PRECISION_SCALP_SECURE (0.40 ATR)',
+            'tp1_type': 'PRECISION_SCALP_SECURE (0.38 ATR)',
             'tp1_gain_pct': round((abs(tp1 - entry_price) / entry_price) * 100.0, 2),
             'tp2': round(tp2, 5),
-            'tp2_type': 'STRUCTURAL_TREND_RUNNER (1.5R)',
+            'tp2_type': 'STRUCTURAL_TREND_RUNNER (1.15R - 1:1+ R:R)',
             'tp2_gain_pct': round((abs(tp2 - entry_price) / entry_price) * 100.0, 2),
             'tp3': round(tp3, 5),
-            'tp3_type': 'MACRO_EXPANSION_RUNNER (2.5R)',
+            'tp3_type': 'MACRO_EXPANSION_RUNNER (2.20R - 1:2+ R:R)',
             'tp3_gain_pct': round((abs(tp3 - entry_price) / entry_price) * 100.0, 2),
             'breakeven_sl': round(breakeven_sl, 5),
             'breakeven_rule': 'IMMEDIATE_AT_TP1 (Move SL to Breakeven once TP1 is reached)',
-            'risk_reward_ratio': '1 : 1.5 (Target TP2)',
+            'risk_reward_ratio': '1 : 1.15 (Target TP2)',
             'risk_amount_usd': round(risk_capital_usd, 2),
             'suggested_position_usd': round(position_size_usd, 2),
             'suggested_units': round(units, 4),

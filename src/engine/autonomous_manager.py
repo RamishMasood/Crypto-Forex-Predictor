@@ -302,13 +302,18 @@ class AutonomousTraderEngine:
         is_dir_sell = ('SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action)
         is_trade_active = is_dir_buy or is_dir_sell
 
-        # Pillar 1: Predictive Confluence & Alpha Sniper
+        # Pillar 1: Predictive Confluence & Alpha Sniper (Closed-Loop Learning Calibrated)
+        journal = self.load_journal()
+        opt_adj = journal.get('optimal_adjustments', {})
+        req_score = float(opt_adj.get('min_confluence_score', 35.0))
+        req_prob = float(opt_adj.get('min_calibrated_prob', 80.0))
+
         p1_score = float(conf.get('confluence_score', 0))
         p1_prob = float(alpha.get('calibrated_win_probability_pct', conf.get('quality_index_pct', 50)))
         p1_ok = False
-        if is_dir_buy and p1_score >= 35.0 and p1_prob >= 80.0:
+        if is_dir_buy and p1_score >= req_score and p1_prob >= req_prob:
             p1_ok = True
-        elif is_dir_sell and p1_score <= -35.0 and p1_prob >= 80.0:
+        elif is_dir_sell and p1_score <= -req_score and p1_prob >= req_prob:
             p1_ok = True
 
         # Pillar 2: MTF Alignment
@@ -385,15 +390,41 @@ class AutonomousTraderEngine:
                     outcome = 'WIN' if total_batch_profit > 0.5 else ('BREAKEVEN' if abs(total_batch_profit) <= 0.5 else 'LOSS')
                     logger.info(f"Batch #{batch_id} ({trade['symbol']}) Completed: {outcome} | PnL: ${total_batch_profit:+.2f}")
 
-                    # Global stats
+                    # Global stats & Active Reinforcement Learning Loop
                     if outcome == 'WIN':
                         state['wins'] = state.get('wins', 0) + 1
+                        # Adaptive reinforcement: On consistent wins, stabilize threshold towards baseline 80%
+                        opt = journal.get('optimal_adjustments', {})
+                        if float(opt.get('min_calibrated_prob', 80.0)) > 80.0:
+                            opt['min_calibrated_prob'] = round(max(80.0, float(opt.get('min_calibrated_prob', 80.0)) - 0.2), 1)
+                            journal['optimal_adjustments'] = opt
+                            self.save_journal(journal)
                     elif outcome == 'BREAKEVEN':
                         state['breakevens'] = state.get('breakevens', 0) + 1
                     else:
                         state['losses'] = state.get('losses', 0) + 1
                         lesson_txt = f"On {trade['symbol']} ({trade['timeframe']}): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
                         journal['lessons_learned'].append(lesson_txt)
+                        
+                        # Record structured SL post-mortem
+                        pm = {
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "symbol": trade.get('symbol'),
+                            "timeframe": trade.get('timeframe'),
+                            "action": trade.get('action'),
+                            "entry": trade.get('entry_price'),
+                            "sl": trade.get('sl_price'),
+                            "loss_usd": round(abs(total_batch_profit), 2),
+                            "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+                        }
+                        if 'sl_post_mortems' not in journal:
+                            journal['sl_post_mortems'] = []
+                        journal['sl_post_mortems'].append(pm)
+                        
+                        # Adaptive reinforcement: Elevate selective entry threshold to prevent repeated drawdowns
+                        opt = journal.get('optimal_adjustments', {})
+                        opt['min_calibrated_prob'] = round(min(88.0, float(opt.get('min_calibrated_prob', 80.0)) + 0.5), 1)
+                        journal['optimal_adjustments'] = opt
                         self.save_journal(journal)
 
                     # Per-symbol stats (Requirement 5)

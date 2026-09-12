@@ -13,10 +13,10 @@
     "4h"
   ],
   "risk_pct": 1.0,
-  "scan_interval_sec": 30,
+  "scan_interval_sec": 15,
   "target_trades_per_symbol": 100,
   "max_active_batches": 100,
-  "max_dollar_risk": 10.0,
+  "max_dollar_risk": 5.0,
   "min_pillars_required": 5,
-  "batch_lot_size": 0.5
+  "batch_lot_size": 0.4
 }

@@ -22,7 +22,9 @@
     "On ETH/BTC (3m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On ETH/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On ETH/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On ETH/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On ETH/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On ETH/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On ETH/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
