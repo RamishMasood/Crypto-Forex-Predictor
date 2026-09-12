@@ -167,7 +167,7 @@ class AutonomousTraderEngine:
             "sl_post_mortems": [],
             "optimal_adjustments": {
                 "min_confluence_score": 35.0,
-                "min_calibrated_prob": 58.0
+                "min_calibrated_prob": 82.0   # Bayesian AlphaSniper threshold (realistically reaches 82%+ in ELITE setups)
             }
         }
         if os.path.exists(JOURNAL_FILE):
@@ -275,7 +275,7 @@ class AutonomousTraderEngine:
                 "sl_post_mortems": [],
                 "optimal_adjustments": {
                     "min_confluence_score": 35.0,
-                    "min_calibrated_prob": 58.0
+                    "min_calibrated_prob": 82.0   # Bayesian AlphaSniper threshold
                 }
             }
             self.save_journal(journal)
@@ -313,7 +313,7 @@ class AutonomousTraderEngine:
         journal = self.load_journal()
         opt_adj = journal.get('optimal_adjustments', {})
         req_score = float(opt_adj.get('min_confluence_score', 35.0))
-        req_prob = float(opt_adj.get('min_calibrated_prob', 58.0))
+        req_prob = float(opt_adj.get('min_calibrated_prob', 82.0))
 
         p1_score = float(conf.get('confluence_score', 0))
         p1_prob = float(alpha.get('calibrated_win_probability_pct', conf.get('quality_index_pct', 50)))
@@ -676,10 +676,10 @@ class AutonomousTraderEngine:
                     # Global stats & Active Reinforcement Learning Loop
                     if outcome == 'WIN':
                         state['wins'] = state.get('wins', 0) + 1
-                        # Adaptive reinforcement: On consistent wins, stabilize threshold towards baseline 58%
+                        # Adaptive reinforcement: On consistent wins, stabilize threshold towards Bayesian baseline 82%
                         opt = journal.get('optimal_adjustments', {})
-                        if float(opt.get('min_calibrated_prob', 58.0)) > 58.0:
-                            opt['min_calibrated_prob'] = round(max(58.0, float(opt.get('min_calibrated_prob', 58.0)) - 0.2), 1)
+                        if float(opt.get('min_calibrated_prob', 82.0)) > 82.0:
+                            opt['min_calibrated_prob'] = round(max(72.0, float(opt.get('min_calibrated_prob', 82.0)) - 0.5), 1)
                             journal['optimal_adjustments'] = opt
                             self.save_journal(journal)
                     elif outcome == 'BREAKEVEN':
@@ -706,7 +706,7 @@ class AutonomousTraderEngine:
                         
                         # Adaptive reinforcement: Elevate selective entry threshold to prevent repeated drawdowns
                         opt = journal.get('optimal_adjustments', {})
-                        opt['min_calibrated_prob'] = round(min(68.0, float(opt.get('min_calibrated_prob', 58.0)) + 0.5), 1)
+                        opt['min_calibrated_prob'] = round(min(92.0, float(opt.get('min_calibrated_prob', 82.0)) + 0.5), 1)
                         journal['optimal_adjustments'] = opt
                         self.save_journal(journal)
 

@@ -7,100 +7,40 @@
   "wins": 0,
   "losses": 0,
   "breakevens": 0,
-  "last_scan_time": "2026-09-12T15:18:30.897745+00:00",
+  "last_scan_time": "2026-09-12T15:25:55.800211+00:00",
   "last_scanned_symbol": null,
   "engine_status": "RUNNING",
-  "cycle_count": 27,
+  "cycle_count": 38,
   "current_scan": {
-    "cycle": 27,
-    "symbol": "ETH/USD",
-    "timeframe": "4h",
-    "time": "15:18:42 UTC"
+    "cycle": 38,
+    "symbol": "XAUUSD247",
+    "timeframe": "5m",
+    "time": "15:26:00 UTC"
   },
   "scan_activity_log": [
     {
-      "timestamp": "15:18:42 UTC",
-      "cycle": 27,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:18:42 UTC",
-      "cycle": 27,
-      "symbol": "BTC/USD",
-      "timeframe": "4h",
-      "action": "BUY",
-      "pillars": "3/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +31.9 | Win Prob: 84%"
-    },
-    {
-      "timestamp": "15:18:40 UTC",
-      "cycle": 27,
-      "symbol": "ETH/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +15.0 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "15:18:39 UTC",
-      "cycle": 27,
-      "symbol": "BTC/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:18:37 UTC",
-      "cycle": 27,
-      "symbol": "ETH/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -24.2 | Win Prob: 85%"
-    },
-    {
-      "timestamp": "15:18:37 UTC",
-      "cycle": 27,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -20.1 | Win Prob: 62%"
-    },
-    {
-      "timestamp": "15:18:36 UTC",
-      "cycle": 27,
+      "timestamp": "15:26:00 UTC",
+      "cycle": 38,
       "symbol": "XAUUSD247",
       "timeframe": "3m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +40.6 | Win Prob: 82%"
+      "details": "Score: +40.9 | Win Prob: 68%"
     },
     {
-      "timestamp": "15:18:35 UTC",
-      "cycle": 27,
+      "timestamp": "15:25:57 UTC",
+      "cycle": 38,
       "symbol": "XAUUSD247",
       "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
+      "action": "NEUTRAL",
       "pillars": "1/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +34.1 | Win Prob: 69%"
+      "details": "Score: +13.6 | Win Prob: 48%"
     },
     {
-      "timestamp": "15:18:35 UTC",
-      "cycle": 27,
+      "timestamp": "15:25:56 UTC",
+      "cycle": 38,
       "symbol": "XAUUSD247",
       "timeframe": "4h",
       "action": "NEUTRAL",
@@ -109,78 +49,108 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (9.9)"
     },
     {
-      "timestamp": "15:18:34 UTC",
-      "cycle": 27,
-      "symbol": "ETH/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:18:34 UTC",
-      "cycle": 27,
-      "symbol": "XAUUSD247",
+      "timestamp": "15:25:32 UTC",
+      "cycle": 37,
+      "symbol": "BTC/USD",
       "timeframe": "1h",
-      "action": "NEUTRAL",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
       "status": "SKIPPED (Chop Gate)",
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:18:33 UTC",
-      "cycle": 27,
-      "symbol": "XAUUSD247",
+      "timestamp": "15:25:31 UTC",
+      "cycle": 37,
+      "symbol": "ETH/USD",
       "timeframe": "30m",
       "action": "NEUTRAL",
       "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.4)"
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +14.8 | Win Prob: 50%"
     },
     {
-      "timestamp": "15:18:32 UTC",
-      "cycle": 27,
-      "symbol": "XAUUSD247",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "15:18:31 UTC",
-      "cycle": 27,
-      "symbol": "XAUUSD247",
-      "timeframe": "5m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "15:18:13 UTC",
-      "cycle": 26,
-      "symbol": "ETH/USD",
-      "timeframe": "1m",
-      "action": "STRONG BUY",
-      "pillars": "3/5",
-      "status": "SKIPPED (Spread > 25% TP1)",
-      "details": "Spread: $1.0 (69.0%) > 25%"
-    },
-    {
-      "timestamp": "15:18:13 UTC",
-      "cycle": 26,
+      "timestamp": "15:25:28 UTC",
+      "cycle": 37,
       "symbol": "BTC/USD",
-      "timeframe": "3m",
+      "timeframe": "30m",
       "action": "NEUTRAL",
       "pillars": "1/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +4.0 | Win Prob: 48%"
+      "details": "Score: -10.6 | Win Prob: 50%"
     },
     {
-      "timestamp": "15:18:11 UTC",
-      "cycle": 26,
+      "timestamp": "15:25:25 UTC",
+      "cycle": 37,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -39.0 | Win Prob: 86%"
+    },
+    {
+      "timestamp": "15:25:20 UTC",
+      "cycle": 37,
+      "symbol": "BTC/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +12.4 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "15:25:19 UTC",
+      "cycle": 37,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +30.0 | Win Prob: 83%"
+    },
+    {
+      "timestamp": "15:25:16 UTC",
+      "cycle": 37,
+      "symbol": "BTC/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -8.8 | Win Prob: 48%"
+    },
+    {
+      "timestamp": "15:25:16 UTC",
+      "cycle": 37,
+      "symbol": "ETH/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (16.9)"
+    },
+    {
+      "timestamp": "15:25:12 UTC",
+      "cycle": 37,
+      "symbol": "BTC/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +21.4 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "15:25:12 UTC",
+      "cycle": 37,
+      "symbol": "ETH/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (16.6)"
+    },
+    {
+      "timestamp": "15:25:08 UTC",
+      "cycle": 37,
       "symbol": "ETH/USD",
       "timeframe": "4h",
       "action": "BUY",
@@ -189,98 +159,68 @@
       "details": "Score: +40.4 | Win Prob: 84%"
     },
     {
-      "timestamp": "15:18:11 UTC",
-      "cycle": 26,
-      "symbol": "BTC/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +53.4 | Win Prob: 88%"
-    },
-    {
-      "timestamp": "15:18:08 UTC",
-      "cycle": 26,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:18:08 UTC",
-      "cycle": 26,
-      "symbol": "BTC/USD",
-      "timeframe": "4h",
-      "action": "BUY",
-      "pillars": "3/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +31.9 | Win Prob: 84%"
-    },
-    {
-      "timestamp": "15:18:06 UTC",
-      "cycle": 26,
-      "symbol": "ETH/USD",
+      "timestamp": "15:25:03 UTC",
+      "cycle": 37,
+      "symbol": "XAUUSD247",
       "timeframe": "30m",
       "action": "NEUTRAL",
       "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +15.0 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "15:18:05 UTC",
-      "cycle": 26,
-      "symbol": "BTC/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
       "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.4)"
     },
     {
-      "timestamp": "15:18:03 UTC",
-      "cycle": 26,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -20.1 | Win Prob: 62%"
-    },
-    {
-      "timestamp": "15:18:01 UTC",
-      "cycle": 26,
-      "symbol": "ETH/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:18:01 UTC",
-      "cycle": 26,
-      "symbol": "BTC/USD",
+      "timestamp": "15:25:02 UTC",
+      "cycle": 37,
+      "symbol": "XAUUSD247",
       "timeframe": "15m",
-      "action": "NEUTRAL",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +2.2 | Win Prob: 50%"
+      "details": "Score: +29.8 | Win Prob: 72%"
     },
     {
-      "timestamp": "15:17:59 UTC",
-      "cycle": 26,
+      "timestamp": "15:25:00 UTC",
+      "cycle": 37,
+      "symbol": "XAUUSD247",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +27.5 | Win Prob: 64%"
+    },
+    {
+      "timestamp": "15:25:00 UTC",
+      "cycle": 37,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "15:24:59 UTC",
+      "cycle": 37,
+      "symbol": "XAUUSD247",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +40.9 | Win Prob: 68%"
+    },
+    {
+      "timestamp": "15:24:57 UTC",
+      "cycle": 37,
       "symbol": "XAUUSD247",
       "timeframe": "1m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +46.1 | Win Prob: 73%"
+      "details": "Score: +19.7 | Win Prob: 53%"
     },
     {
-      "timestamp": "15:17:59 UTC",
-      "cycle": 26,
+      "timestamp": "15:24:54 UTC",
+      "cycle": 37,
       "symbol": "XAUUSD247",
       "timeframe": "4h",
       "action": "NEUTRAL",
@@ -289,78 +229,98 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (9.9)"
     },
     {
-      "timestamp": "15:17:58 UTC",
-      "cycle": 26,
+      "timestamp": "15:24:54 UTC",
+      "cycle": 37,
+      "symbol": "XAUUSD247",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "15:24:29 UTC",
+      "cycle": 36,
       "symbol": "ETH/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (19.7)"
-    },
-    {
-      "timestamp": "15:17:58 UTC",
-      "cycle": 26,
-      "symbol": "BTC/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +5.3 | Win Prob: 48%"
-    },
-    {
-      "timestamp": "15:17:57 UTC",
-      "cycle": 26,
-      "symbol": "XAUUSD247",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.4)"
-    },
-    {
-      "timestamp": "15:17:56 UTC",
-      "cycle": 26,
-      "symbol": "XAUUSD247",
       "timeframe": "15m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -39.1 | Win Prob: 86%"
     },
     {
-      "timestamp": "15:17:55 UTC",
-      "cycle": 26,
-      "symbol": "XAUUSD247",
+      "timestamp": "15:24:27 UTC",
+      "cycle": 36,
+      "symbol": "BTC/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -21.9 | Win Prob: 51%"
+    },
+    {
+      "timestamp": "15:24:23 UTC",
+      "cycle": 36,
+      "symbol": "ETH/USD",
       "timeframe": "5m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
       "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:17:54 UTC",
-      "cycle": 26,
-      "symbol": "XAUUSD247",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "15:17:38 UTC",
-      "cycle": 25,
+      "timestamp": "15:24:21 UTC",
+      "cycle": 36,
       "symbol": "BTC/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
       "pillars": "1/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +40.1 | Win Prob: 73%"
+      "details": "Score: +0.3 | Win Prob: 50%"
     },
     {
-      "timestamp": "15:17:37 UTC",
-      "cycle": 25,
+      "timestamp": "15:24:18 UTC",
+      "cycle": 36,
+      "symbol": "ETH/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (16.9)"
+    },
+    {
+      "timestamp": "15:24:14 UTC",
+      "cycle": 36,
+      "symbol": "BTC/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -8.1 | Win Prob: 48%"
+    },
+    {
+      "timestamp": "15:24:13 UTC",
+      "cycle": 36,
+      "symbol": "ETH/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.3)"
+    },
+    {
+      "timestamp": "15:24:12 UTC",
+      "cycle": 36,
+      "symbol": "BTC/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +3.0 | Win Prob: 48%"
+    },
+    {
+      "timestamp": "15:24:08 UTC",
+      "cycle": 36,
       "symbol": "ETH/USD",
       "timeframe": "4h",
       "action": "BUY",
@@ -369,118 +329,88 @@
       "details": "Score: +40.4 | Win Prob: 84%"
     },
     {
-      "timestamp": "15:17:36 UTC",
-      "cycle": 25,
+      "timestamp": "15:24:08 UTC",
+      "cycle": 36,
+      "symbol": "BTC/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
+    },
+    {
+      "timestamp": "15:24:05 UTC",
+      "cycle": 36,
+      "symbol": "XAUUSD247",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +29.8 | Win Prob: 72%"
+    },
+    {
+      "timestamp": "15:24:02 UTC",
+      "cycle": 36,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "15:24:01 UTC",
+      "cycle": 36,
       "symbol": "BTC/USD",
       "timeframe": "4h",
       "action": "BUY",
-      "pillars": "3/5",
+      "pillars": "4/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +31.9 | Win Prob: 84%"
+      "details": "Score: +41.9 | Win Prob: 84%"
     },
     {
-      "timestamp": "15:17:35 UTC",
-      "cycle": 25,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:17:33 UTC",
-      "cycle": 25,
-      "symbol": "BTC/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:17:32 UTC",
-      "cycle": 25,
-      "symbol": "ETH/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +14.7 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "15:17:31 UTC",
-      "cycle": 25,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -20.1 | Win Prob: 62%"
-    },
-    {
-      "timestamp": "15:17:30 UTC",
-      "cycle": 25,
-      "symbol": "ETH/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -6.1 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "15:17:28 UTC",
-      "cycle": 25,
-      "symbol": "BTC/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +2.4 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "15:17:28 UTC",
-      "cycle": 25,
-      "symbol": "ETH/USD",
+      "timestamp": "15:24:01 UTC",
+      "cycle": 36,
+      "symbol": "XAUUSD247",
       "timeframe": "5m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:17:26 UTC",
-      "cycle": 25,
-      "symbol": "BTC/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +5.1 | Win Prob: 48%"
+      "details": "Score: +27.5 | Win Prob: 64%"
     },
     {
-      "timestamp": "15:17:25 UTC",
-      "cycle": 25,
-      "symbol": "ETH/USD",
+      "timestamp": "15:23:59 UTC",
+      "cycle": 36,
+      "symbol": "XAUUSD247",
       "timeframe": "3m",
-      "action": "NEUTRAL",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (19.9)"
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +40.9 | Win Prob: 68%"
     },
     {
-      "timestamp": "15:17:25 UTC",
-      "cycle": 25,
+      "timestamp": "15:23:58 UTC",
+      "cycle": 36,
       "symbol": "XAUUSD247",
       "timeframe": "1m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +46.1 | Win Prob: 73%"
+      "details": "Score: +31.7 | Win Prob: 60%"
     },
     {
-      "timestamp": "15:17:24 UTC",
-      "cycle": 25,
+      "timestamp": "15:23:57 UTC",
+      "cycle": 36,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +14.9 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "15:23:57 UTC",
+      "cycle": 36,
       "symbol": "XAUUSD247",
       "timeframe": "4h",
       "action": "NEUTRAL",
@@ -489,8 +419,8 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (9.9)"
     },
     {
-      "timestamp": "15:17:23 UTC",
-      "cycle": 25,
+      "timestamp": "15:23:55 UTC",
+      "cycle": 36,
       "symbol": "XAUUSD247",
       "timeframe": "1h",
       "action": "NEUTRAL",
@@ -499,18 +429,8 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:17:22 UTC",
-      "cycle": 25,
-      "symbol": "BTC/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +31.3 | Win Prob: 67%"
-    },
-    {
-      "timestamp": "15:17:22 UTC",
-      "cycle": 25,
+      "timestamp": "15:23:54 UTC",
+      "cycle": 36,
       "symbol": "XAUUSD247",
       "timeframe": "30m",
       "action": "NEUTRAL",
@@ -519,58 +439,68 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.4)"
     },
     {
-      "timestamp": "15:17:21 UTC",
-      "cycle": 25,
+      "timestamp": "15:23:35 UTC",
+      "cycle": 35,
       "symbol": "ETH/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +17.4 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "15:17:21 UTC",
-      "cycle": 25,
-      "symbol": "XAUUSD247",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "15:17:20 UTC",
-      "cycle": 25,
-      "symbol": "XAUUSD247",
       "timeframe": "5m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
       "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:17:19 UTC",
-      "cycle": 25,
-      "symbol": "XAUUSD247",
+      "timestamp": "15:23:35 UTC",
+      "cycle": 35,
+      "symbol": "BTC/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +0.4 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "15:23:32 UTC",
+      "cycle": 35,
+      "symbol": "BTC/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: -8.1 | Win Prob: 48%"
+    },
+    {
+      "timestamp": "15:23:32 UTC",
+      "cycle": 35,
+      "symbol": "ETH/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (15.9)"
+    },
+    {
+      "timestamp": "15:23:30 UTC",
+      "cycle": 35,
+      "symbol": "ETH/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.5)"
+    },
+    {
+      "timestamp": "15:23:30 UTC",
+      "cycle": 35,
+      "symbol": "BTC/USD",
       "timeframe": "3m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "15:17:01 UTC",
-      "cycle": 24,
-      "symbol": "BTC/USD",
-      "timeframe": "4h",
-      "action": "BUY",
-      "pillars": "3/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +31.9 | Win Prob: 84%"
+      "details": "Score: +27.5 | Win Prob: 50%"
     },
     {
-      "timestamp": "15:17:01 UTC",
-      "cycle": 24,
+      "timestamp": "15:23:27 UTC",
+      "cycle": 35,
       "symbol": "ETH/USD",
       "timeframe": "4h",
       "action": "BUY",
@@ -579,8 +509,48 @@
       "details": "Score: +40.4 | Win Prob: 84%"
     },
     {
-      "timestamp": "15:16:58 UTC",
-      "cycle": 24,
+      "timestamp": "15:23:27 UTC",
+      "cycle": 35,
+      "symbol": "BTC/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
+    },
+    {
+      "timestamp": "15:23:25 UTC",
+      "cycle": 35,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "15:23:25 UTC",
+      "cycle": 35,
+      "symbol": "BTC/USD",
+      "timeframe": "4h",
+      "action": "BUY",
+      "pillars": "4/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +41.9 | Win Prob: 84%"
+    },
+    {
+      "timestamp": "15:23:22 UTC",
+      "cycle": 35,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +14.8 | Win Prob: 50%"
+    },
+    {
+      "timestamp": "15:23:22 UTC",
+      "cycle": 35,
       "symbol": "BTC/USD",
       "timeframe": "1h",
       "action": "NEUTRAL (FILTERED)",
@@ -589,34 +559,64 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:16:58 UTC",
-      "cycle": 24,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:16:56 UTC",
-      "cycle": 24,
-      "symbol": "ETH/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
+      "timestamp": "15:23:21 UTC",
+      "cycle": 35,
+      "symbol": "XAUUSD247",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +14.7 | Win Prob: 50%"
+      "details": "Score: +27.5 | Win Prob: 64%"
     },
     {
-      "timestamp": "15:16:56 UTC",
-      "cycle": 24,
+      "timestamp": "15:23:19 UTC",
+      "cycle": 35,
+      "symbol": "XAUUSD247",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +40.9 | Win Prob: 68%"
+    },
+    {
+      "timestamp": "15:23:15 UTC",
+      "cycle": 35,
+      "symbol": "XAUUSD247",
+      "timeframe": "1m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting 5/5)",
+      "details": "Score: +31.7 | Win Prob: 60%"
+    },
+    {
+      "timestamp": "15:23:14 UTC",
+      "cycle": 35,
       "symbol": "BTC/USD",
       "timeframe": "30m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
       "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -20.4 | Win Prob: 62%"
+      "details": "Score: -26.1 | Win Prob: 52%"
+    },
+    {
+      "timestamp": "15:23:14 UTC",
+      "cycle": 35,
+      "symbol": "XAUUSD247",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (9.9)"
+    },
+    {
+      "timestamp": "15:23:13 UTC",
+      "cycle": 35,
+      "symbol": "XAUUSD247",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     }
   ],
   "next_scan_time": "00:01 remaining",
@@ -624,8 +624,8 @@
   "xau_trades_taken": 0,
   "btc_trades_taken": 0,
   "tf_rotation_indices": {
-    "XAUUSD247": 1,
-    "BTC/USD": 1,
-    "ETH/USD": 0
+    "XAUUSD247": 4,
+    "BTC/USD": 5,
+    "ETH/USD": 4
   }
 }
