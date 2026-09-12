@@ -41,8 +41,16 @@ class FuturesFeedManager:
         return None
 
     def normalize_symbol(self, symbol: str) -> str:
-        """Convert 'BTC/USDT' -> 'BTCUSDT'"""
-        return symbol.replace('/', '').replace('-', '').upper()
+        """Convert 'BTC/USDT', 'BTC/USD', 'BTCUSDm' -> 'BTCUSDT'"""
+        clean = symbol.replace('/', '').replace('-', '').replace('_', '').upper()
+        # Strip broker suffixes: 'm', '.r', 'pro', 'raw', 'c'
+        for suf in ['M', '.R', 'PRO', 'RAW', 'C']:
+            if clean.endswith(suf) and len(clean) > len(suf) + 3:
+                clean = clean[:-len(suf)]
+                break
+        if clean.endswith('USD') and not clean.endswith('USDT'):
+            clean = clean + 'T'
+        return clean
 
     def get_futures_ticker(self, symbol: str = 'BTC/USDT') -> Optional[Dict[str, Any]]:
         """

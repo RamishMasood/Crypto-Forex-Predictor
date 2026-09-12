@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import sys
 import os
+import time
 
 # Ensure src can be imported
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -29,6 +30,8 @@ from src.engine.mtf_filter import MultiTimeframeFilter
 from src.engine.mt5_executor import MT5TradeExecutor
 from src.data.cme_proxy import CMEProxyFeed
 from src.data.currency_strength import CurrencyStrengthMeter
+from src.data.cot_sentiment import COTSentimentProvider
+from src.engine.autonomous_manager import AutonomousTraderEngine, get_engine
 from datetime import datetime, timezone, timedelta
 
 class TestCryptoForexPredictor(unittest.TestCase):
@@ -794,5 +797,262 @@ class TestCryptoForexPredictor(unittest.TestCase):
         self.assertEqual(alpha_res_fake['gated_action'], 'NEUTRAL (FILTERED)')
         self.assertEqual(alpha_res_fake['sniper_badge'], '[CHOP GATE] CHOP CONSOLIDATION DETECTED')
 
+    def test_ml_calibrated_classifier_cv_and_expected_value(self):
+        # 1. Test CalibratedClassifierCV Platt Scaling produces grounded probabilities
+        df_ind = QuantitativeIndicators.add_all_indicators(self.synth_df)
+        predictor = MachineLearningPredictor(n_estimators=20)
+        res = predictor.fit_and_predict(df_ind, horizon=2, symbol='EUR/USD', timeframe='1h')
+        
+        self.assertEqual(res['status'], 'SUCCESS')
+        self.assertIn('calibration_method', res)
+        self.assertIn('Platt Scaling', res['calibration_method'])
+        self.assertIn('expected_value_r', res)
+        self.assertIn('is_ev_positive', res)
+        self.assertIn('p_calibrated_win_pct', res)
+        self.assertTrue(0.0 <= res['p_bullish'] <= 1.0)
+        self.assertTrue(0.0 <= res['p_bearish'] <= 1.0)
+        self.assertAlmostEqual(res['p_bullish'] + res['p_bearish'] + res['p_neutral'], 1.0, places=2)
+
+        # 2. Test persistent model caching and sub-millisecond live inference
+        self.assertTrue(predictor.is_model_cached('EUR/USD', '1h'))
+        predictor_live = MachineLearningPredictor()
+        live_res = predictor_live.predict_live(df_ind, symbol='EUR/USD', timeframe='1h')
+        self.assertEqual(live_res['status'], 'SUCCESS')
+        self.assertTrue(live_res['is_cached_model'])
+        self.assertIn('expected_value_r', live_res)
+
+        # 3. Test MT5ForexProvider alias and train_on_mt5_history
+        from src.data.forex_feeds import MT5ForexProvider, MT5ExnessProvider
+        self.assertEqual(MT5ForexProvider, MT5ExnessProvider)
+        p_mt5 = MT5ForexProvider()
+        if p_mt5.is_connected:
+            mt5_train_ok = predictor.train_on_mt5_history('EUR/USD', '1h', n_bars=2000)
+            self.assertTrue(mt5_train_ok)
+
+    def test_alpha_sniper_expected_value_ev_gate(self):
+        df_ind = QuantitativeIndicators.add_all_indicators(self.synth_df)
+        
+        # Case A: Positive Expectancy (EV >= +0.15R) passes through cleanly
+        high_conf = {
+            'action': 'STRONG BUY',
+            'confluence_score': 65.0,
+            'layer_scores': {'trend_momentum': 25.0, 'smart_money_smc': 18.0, 'mean_reversion_stat': 12.0, 'orderbook_pressure': 10.0}
+        }
+        ml_pred_good = {'p_bullish': 0.70, 'p_bearish': 0.15, 'confidence_pct': 55.0}
+        res_good = AlphaSniperEngine.evaluate(
+            df_indicators=df_ind,
+            base_confluence=high_conf,
+            ml_prediction=ml_pred_good,
+            trade_setup={}
+        )
+        self.assertIn('expected_value_r', res_good)
+        self.assertIn('ev_gate_passed', res_good)
+        self.assertTrue(res_good['ev_gate_passed'])
+        self.assertGreaterEqual(res_good['expected_value_r'], 0.15)
+        self.assertIn('BUY', res_good['gated_action'])
+
+        # Case B: Sub-optimal Expectancy (EV < +0.15R) is gated by the EV Gate
+        # Clean trending background to isolate EV Gate without chop interference
+        df_trending = df_ind.copy()
+        df_trending.loc[df_trending.index[-1], 'adx_14'] = 28.0
+        df_trending.loc[df_trending.index[-1], 'choppiness'] = 38.0
+        df_trending.loc[df_trending.index[-1], 'bb_squeeze'] = False
+
+        low_conf = {
+            'action': 'BUY',
+            'confluence_score': 10.0,
+            'layer_scores': {'trend_momentum': 0.0, 'smart_money_smc': 0.0, 'mean_reversion_stat': 0.0, 'orderbook_pressure': 0.0}
+        }
+        ml_pred_weak = {'p_bullish': 0.35, 'p_bearish': 0.35, 'confidence_pct': 0.0}
+        res_weak = AlphaSniperEngine.evaluate(
+            df_indicators=df_trending,
+            base_confluence=low_conf,
+            ml_prediction=ml_pred_weak,
+            trade_setup={}
+        )
+        self.assertFalse(res_weak['ev_gate_passed'])
+        self.assertEqual(res_weak['gated_action'], 'NEUTRAL (FILTERED)')
+        self.assertEqual(res_weak['sniper_badge'], '[EV GATE] SUB-OPTIMAL EXPECTANCY')
+        self.assertEqual(res_weak['trade_expectancy_r'], 0.0)
+
+    def test_cftc_cot_sentiment_provider_and_honest_labeling(self):
+        # 1. Supported Forex pair (EUR/USD)
+        cot_eur = COTSentimentProvider.get_sentiment('EUR/USD')
+        self.assertTrue(cot_eur['available'])
+        self.assertIn('cftc_market', cot_eur)
+        self.assertIn('non_commercial_net', cot_eur)
+        self.assertIn('retail_long_pct', cot_eur)
+        self.assertIn('smart_money_bias', cot_eur)
+        self.assertEqual(cot_eur['honest_label'], '5/5 Pillars Aligned (COT Smart Money Active)')
+
+        # 2. Supported Gold (XAU/USD)
+        cot_gold = COTSentimentProvider.get_sentiment('XAU/USD')
+        self.assertTrue(cot_gold['available'])
+        self.assertEqual(cot_gold['smart_money_bias'], 'STRONG_BULLISH')
+
+        # 3. Directional Alignment evaluation for BUY and SELL
+        align_buy = COTSentimentProvider.evaluate_directional_alignment('EUR/USD', 'BUY')
+        self.assertTrue(align_buy['available'])
+        self.assertTrue(align_buy['aligned'])
+        self.assertIn('CONFIRMED', align_buy['status'])
+
+        # 4. Broker Suffixes and Non-standard symbol formats (.r, .pro, .raw, m, _i, 247, silver)
+        for sym_var in ['EURUSDm', 'EURUSD.r', 'EURUSD.pro', 'EURUSD.raw', 'EUR_USD_i', 'XAUUSDm', 'XAUUSD.r', 'XAUUSD247', 'XAUUSD247m', 'XAG/USD', 'XAGUSD', 'XAGUSDm']:
+            cot_var = COTSentimentProvider.get_sentiment(sym_var)
+            self.assertTrue(cot_var['available'], f"Failed to resolve broker symbol variation {sym_var}")
+            self.assertIn(cot_var['normalized_symbol'], ['EUR/USD', 'XAU/USD', 'XAG/USD'])
+
+        # 5. Honest Labeling for Unsupported Spot Asset (no whale/COT data)
+        cot_unsupported = COTSentimentProvider.get_sentiment('PEPE/USDT')
+        self.assertFalse(cot_unsupported['available'])
+        self.assertEqual(cot_unsupported['honest_label'], '4/4 Pillars Aligned (Whale Flow N/A)')
+        self.assertEqual(cot_unsupported['smart_money_bias'], 'NONE')
+
+    def test_cftc_live_auto_scraper_and_cache(self):
+        from src.data.cot_sentiment import CFTCAutoScraper, CACHE_FILE
+        # 1. Verify live scraping from official CFTC deafut.txt feed
+        live_data = CFTCAutoScraper.fetch_live_cftc_data()
+        self.assertIsNotNone(live_data)
+        self.assertGreaterEqual(len(live_data), 9)
+        for expected in ['EUR/USD', 'GBP/USD', 'USD/JPY', 'XAU/USD', 'XAG/USD']:
+            self.assertIn(expected, live_data)
+            self.assertIn('report_date', live_data[expected])
+            self.assertIn('non_commercial_net', live_data[expected])
+            self.assertIn('cot_index_pct', live_data[expected])
+
+        # 2. Verify cache file was updated on disk
+        self.assertTrue(os.path.exists(CACHE_FILE))
+
+        # 3. Verify get_all_sentiment returns cached or live data
+        all_sent = CFTCAutoScraper.get_all_sentiment()
+        self.assertIn('XAU/USD', all_sent)
+        self.assertEqual(all_sent['XAU/USD']['smart_money_bias'], 'STRONG_BULLISH')
+
+    def test_pillar5_unified_evaluation_and_honest_labeling(self):
+        auto_engine = get_engine()
+
+        # Case A: Spot Crypto setup without futures/whale/COT feed -> Honest Labeling 4/4
+        pred_spot = {
+            'confluence': {'action': 'STRONG BUY', 'confluence_score': 60.0},
+            'alpha_sniper': {'calibrated_win_probability_pct': 85.0, 'expected_value_r': 1.8, 'trade_expectancy_r': 1.8},
+            'mtf_alignment': {
+                'screen1_macro': {'macro_bias': 'BULLISH', 'close_vs_ema200': 'ABOVE_200_EMA'},
+                'screen2_zone': {'zone_type': 'DISCOUNT'},
+                'screen3_trigger': {'trigger_status': 'TRIGGER_FIRED'}
+            },
+            'economic_news': {'is_blackout': False},
+            'quantum_sniper': {'overextension': {'is_overextended': False}, 'quantum_bias': 'BULLISH'},
+            'whale_sentiment_gate': {'passed': True, 'reason': ''},
+            'chop_gate': {'is_chop': False},
+            'spread_guard': {'passed': True}
+            # No futures_signals and no cot_sentiment
+        }
+        eval_spot = auto_engine.evaluate_5_pillars(pred_spot)
+        self.assertFalse(eval_spot['p5']['available'])
+        self.assertEqual(eval_spot['p5']['badge'], 'N/A')
+        self.assertEqual(eval_spot['p5']['status'], 'WHALE FLOW N/A')
+        self.assertEqual(eval_spot['total_applicable'], 4)
+        self.assertEqual(eval_spot['aligned_count'], 4)
+        self.assertTrue(eval_spot['is_fully_aligned'])
+        self.assertIn('4/4 PILLARS ALIGNED (Whale Flow N/A)', eval_spot['honest_label'])
+
+        # Case B: Forex/Metals Setup WITH CFTC COT Smart Money Aligned -> 5/5 Pillars
+        cot_aligned = COTSentimentProvider.get_sentiment('XAU/USD')
+        pred_fx = dict(pred_spot)
+        pred_fx['cot_sentiment'] = cot_aligned
+        eval_fx = auto_engine.evaluate_5_pillars(pred_fx)
+        self.assertTrue(eval_fx['p5']['available'])
+        self.assertTrue(eval_fx['p5']['ok'])
+        self.assertEqual(eval_fx['p5']['badge'], 'COT ALIGNED')
+        self.assertEqual(eval_fx['total_applicable'], 5)
+        self.assertEqual(eval_fx['aligned_count'], 5)
+        self.assertTrue(eval_fx['is_fully_aligned'])
+        self.assertEqual(eval_fx['honest_label'], '5/5 PILLARS ALIGNED')
+
+        # Case C: Forex Setup WITH COT Conflict (e.g. Selling into Bullish Smart Money)
+        pred_fx_short = dict(pred_fx)
+        pred_fx_short['confluence'] = {'action': 'STRONG SELL', 'confluence_score': -60.0}
+        pred_fx_short['mtf_alignment'] = {
+            'screen1_macro': {'macro_bias': 'BEARISH', 'close_vs_ema200': 'BELOW_200_EMA'},
+            'screen2_zone': {'zone_type': 'PREMIUM'},
+            'screen3_trigger': {'trigger_status': 'TRIGGER_FIRED'}
+        }
+        eval_fx_short = auto_engine.evaluate_5_pillars(pred_fx_short)
+        self.assertTrue(eval_fx_short['p5']['available'])
+        self.assertFalse(eval_fx_short['p5']['ok'])
+        self.assertEqual(eval_fx_short['p5']['badge'], 'COT CONFLICT')
+        self.assertFalse(eval_fx_short['is_fully_aligned'])
+
+    def test_cme_proxy_direct_mt5_tick_volume(self):
+        # Verify 0.00-ms direct local MT5 tick volume ingestion & volume expansion ratio calculation
+        df_dummy = pd.DataFrame({
+            'open': [2000.0, 2002.0, 2005.0, 2010.0],
+            'high': [2005.0, 2006.0, 2012.0, 2018.0],
+            'low': [1998.0, 2000.0, 2003.0, 2008.0],
+            'close': [2002.0, 2004.0, 2009.0, 2016.0],
+            'tick_volume': [100.0, 110.0, 105.0, 250.0]  # Volume surge on current bar
+        })
+        t0 = time.time()
+        cme_res = CMEProxyFeed.get_institutional_order_flow('XAU/USD', df_ohlcv=df_dummy)
+        latency_ms = (time.time() - t0) * 1000.0
+        
+        self.assertTrue(cme_res['available'])
+        self.assertEqual(cme_res['status'], 'ONLINE_REALTIME_MT5')
+        self.assertEqual(cme_res['cme_volume'], 250)
+        self.assertGreater(cme_res['volume_ratio'], 1.5)
+        self.assertEqual(cme_res['institutional_bias'], 'BULLISH_INSTITUTIONAL_EXPANSION')
+        self.assertIn('Exness MT5 Real-Time', cme_res['source'])
+        self.assertLess(latency_ms, 25.0)  # Zero network roundtrip
+
+    def test_multi_timeframe_horizon_adaptation_pillar5(self):
+        auto_engine = AutonomousTraderEngine()
+        cot_bullish = COTSentimentProvider.get_sentiment('XAU/USD')
+
+        # Case 1: Scalp Timeframe (5m) with Aligned COT -> Scalp Boost
+        pred_5m_long = {
+            'timeframe': '5m',
+            'confluence': {'action': 'STRONG BUY', 'confluence_score': 65.0},
+            'alpha_sniper': {'calibrated_win_probability_pct': 85.0, 'expected_value_r': 0.65},
+            'mtf_alignment': {
+                'screen1_macro': {'macro_bias': 'BULLISH', 'close_vs_ema200': 'ABOVE_200_EMA'},
+                'screen2_zone': {'zone_type': 'DISCOUNT'},
+                'screen3_trigger': {'trigger_status': 'TRIGGER_FIRED'}
+            },
+            'economic_news': {'is_blackout': False},
+            'quantum_sniper': {'overextension': {'is_overextended': False}, 'quantum_bias': 'BULLISH_QUANTUM_EDGE'},
+            'chop_gate': {'is_chop': False},
+            'spread_guard': {'passed': True},
+            'cot_sentiment': cot_bullish
+        }
+        eval_5m_long = auto_engine.evaluate_5_pillars(pred_5m_long)
+        self.assertTrue(eval_5m_long['p5']['ok'])
+        self.assertEqual(eval_5m_long['p5']['badge'], 'COT MACRO BOOST')
+        self.assertTrue(eval_5m_long['is_fully_aligned'])
+
+        # Case 2: Scalp Timeframe (5m) Selling into Bullish COT (Counter-macro Scalp)
+        # Horizon Adaptation: Weekly macro lag does not kill a micro scalp setup, but labels as INTRADAY SCALP
+        pred_5m_short = dict(pred_5m_long)
+        pred_5m_short['confluence'] = {'action': 'STRONG SELL', 'confluence_score': -65.0}
+        pred_5m_short['mtf_alignment'] = {
+            'screen1_macro': {'macro_bias': 'BEARISH', 'close_vs_ema200': 'BELOW_200_EMA'},
+            'screen2_zone': {'zone_type': 'PREMIUM'},
+            'screen3_trigger': {'trigger_status': 'TRIGGER_FIRED'}
+        }
+        eval_5m_short = auto_engine.evaluate_5_pillars(pred_5m_short)
+        self.assertTrue(eval_5m_short['p5']['ok'])
+        self.assertEqual(eval_5m_short['p5']['badge'], 'INTRADAY SCALP')
+        self.assertTrue(eval_5m_short['is_fully_aligned'])
+        self.assertIn('TP1', eval_5m_short['p5']['desc'])
+
+        # Case 3: Macro Timeframe (1h) Selling into Bullish COT -> Macro Blocked
+        pred_1h_short = dict(pred_5m_short)
+        pred_1h_short['timeframe'] = '1h'
+        eval_1h_short = auto_engine.evaluate_5_pillars(pred_1h_short)
+        self.assertFalse(eval_1h_short['p5']['ok'])
+        self.assertEqual(eval_1h_short['p5']['badge'], 'COT CONFLICT')
+        self.assertFalse(eval_1h_short['is_fully_aligned'])
+
+
 if __name__ == '__main__':
     unittest.main()
+

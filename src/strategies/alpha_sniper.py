@@ -33,7 +33,8 @@ class AlphaSniperEngine:
         news_blackout: Optional[Dict[str, Any]] = None,
         mtf_alignment: Optional[Dict[str, Any]] = None,
         cme_proxy: Optional[Dict[str, Any]] = None,
-        currency_strength: Optional[Dict[str, Any]] = None
+        currency_strength: Optional[Dict[str, Any]] = None,
+        cot_sentiment: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Executes proprietary conviction gating, Bayesian probability calibration,
@@ -303,14 +304,59 @@ class AlphaSniperEngine:
                 elif 'CONFLICT' in csm_align or csm_score <= -10.0:
                     calibrated_prob -= 8.0
 
+            # CFTC Commitments of Traders (COT) & Retail Contrarian Sentiment (Forex & Gold)
+            if cot_sentiment and cot_sentiment.get('available'):
+                cot_bias = str(cot_sentiment.get('smart_money_bias', 'NEUTRAL')).upper()
+                cot_score = float(cot_sentiment.get('sentiment_score', 0.0))
+
+                # Multi-Timeframe Horizon Adaptation:
+                # Scalp timeframes (1m, 3m, 5m) scale weekly macro COT down to 0.25x so 7-day-old reports
+                # do not arbitrarily penalize fresh microstructure breaks. Intermediate 15m/30m use 0.50x.
+                # Macro timeframes (1h, 4h, 1d) maintain full 1.0x institutional weighting.
+                tf_norm = str(timeframe).lower()
+                if tf_norm in ['1m', '3m', '5m']:
+                    cot_weight = 0.25
+                elif tf_norm in ['15m', '30m']:
+                    cot_weight = 0.50
+                else:
+                    cot_weight = 1.00
+
+                if ('BUY' in action and ('BULLISH' in cot_bias or cot_score >= 12.0)) or \
+                   ('SELL' in action and ('BEARISH' in cot_bias or cot_score <= -12.0)):
+                    calibrated_prob += (4.5 * cot_weight)
+                    active_confs += (0.5 * cot_weight)
+                elif ('BUY' in action and ('BEARISH' in cot_bias or cot_score <= -15.0)) or \
+                     ('SELL' in action and ('BULLISH' in cot_bias or cot_score >= 15.0)):
+                    calibrated_prob -= (8.0 * cot_weight)
+
         # Cap calibrated probability between 45.0% and 97.2%
         calibrated_prob = float(np.clip(calibrated_prob, 45.0, 97.2))
 
         # ─────────────────────────────────────────────────────────────
         # 6. EXPECTANCY & SNIPER GRADE CLASSIFICATION
         # ─────────────────────────────────────────────────────────────
+        avg_reward_r = 2.0
+        avg_risk_r = 1.0
+        if trade_setup and isinstance(trade_setup, dict):
+            entry_p = float(trade_setup.get('recommended_entry', trade_setup.get('current_price', 0.0)) or 0.0)
+            sl_p = float(trade_setup.get('stop_loss', 0.0) or 0.0)
+            risk_dist = abs(entry_p - sl_p)
+            tp1_p = float(trade_setup.get('tp1', 0.0) or 0.0)
+            tp2_p = float(trade_setup.get('tp2', 0.0) or 0.0)
+            tp3_p = float(trade_setup.get('tp3', 0.0) or 0.0)
+            if risk_dist > 0 and tp2_p > 0:
+                r1 = abs(tp1_p - entry_p) / risk_dist
+                r2 = abs(tp2_p - entry_p) / risk_dist
+                r3 = abs(tp3_p - entry_p) / risk_dist if tp3_p > 0 else r2
+                avg_reward_r = round((r1 + r2 + r3) / 3.0, 2)
+
         win_rate_dec = calibrated_prob / 100.0
-        trade_expectancy_r = round((win_rate_dec * 2.5) - ((1.0 - win_rate_dec) * 1.0), 2) if is_directional else 0.0
+        if ml_prediction and isinstance(ml_prediction, dict) and is_directional:
+            p_dir = float(ml_prediction.get('p_bullish', 0.5)) if 'BUY' in action else float(ml_prediction.get('p_bearish', 0.5))
+            if p_dir < 0.40:
+                win_rate_dec = min(win_rate_dec, max(0.25, p_dir + 0.03))
+
+        trade_expectancy_r = round((win_rate_dec * avg_reward_r) - ((1.0 - win_rate_dec) * avg_risk_r), 2) if is_directional else 0.0
 
         sniper_reasons = []
 
@@ -365,7 +411,7 @@ class AlphaSniperEngine:
             if futures_signals and not has_whale_catalyst:
                 calibrated_prob = min(calibrated_prob, 84.0)
                 win_rate_dec = calibrated_prob / 100.0
-                trade_expectancy_r = round((win_rate_dec * 2.5) - ((1.0 - win_rate_dec) * 1.0), 2)
+                trade_expectancy_r = round((win_rate_dec * avg_reward_r) - ((1.0 - win_rate_dec) * avg_risk_r), 2)
                 sniper_tier = 'HIGH_CONVICTION'
                 sniper_badge = '[HIGH] HIGH PROBABILITY (75-84%) [WHALE-GATED]'
                 tier_color = '#38bdf8'
@@ -421,7 +467,15 @@ class AlphaSniperEngine:
             ).strip() if is_chop_consolidation else "Healthy volatility and directional trend expansion confirmed."
         }
 
-        # Invalidation Guard: Economic News Blackout, MTF Macro Conflict, Chop Gate, or Noise
+        # Expected Value (EV) Gate (Positive Mathematical Expectancy Filter: EV >= +0.15R)
+        ev_gate_passed = True
+        ev_gate_reason = ""
+        if is_directional:
+            if trade_expectancy_r < 0.15:
+                ev_gate_passed = False
+                ev_gate_reason = f"EV Gate: Expected Value (+{trade_expectancy_r:.2f}R) below +0.15R threshold. Sub-optimal statistical edge."
+
+        # Invalidation Guard: Economic News Blackout, MTF Macro Conflict, Chop Gate, EV Gate, or Noise
         gated_action = action
         if news_blackout and news_blackout.get('is_blackout'):
             gated_action = 'NEUTRAL (NEWS BLACKOUT)'
@@ -446,6 +500,13 @@ class AlphaSniperEngine:
             trade_expectancy_r = 0.0
             calibrated_prob = min(calibrated_prob, 52.0)
             sniper_reasons.insert(0, chop_gate_data['reason'])
+        elif not ev_gate_passed and ('BUY' in action or 'SELL' in action):
+            gated_action = 'NEUTRAL (FILTERED)'
+            sniper_tier = 'CAPITAL_PRESERVATION'
+            sniper_badge = '[EV GATE] SUB-OPTIMAL EXPECTANCY'
+            tier_color = '#8b949e'
+            trade_expectancy_r = 0.0
+            sniper_reasons.insert(0, ev_gate_reason)
         elif sniper_tier == 'CAPITAL_PRESERVATION' and ('BUY' in action or 'SELL' in action):
             gated_action = 'NEUTRAL (FILTERED)'
             trade_expectancy_r = 0.0
@@ -456,12 +517,16 @@ class AlphaSniperEngine:
 
         return {
             'calibrated_win_probability_pct': round(calibrated_prob, 1),
+            'platt_calibrated_win_pct': round(win_rate_dec * 100.0, 1),
             'sniper_tier': sniper_tier,
             'sniper_badge': sniper_badge,
             'tier_color': tier_color,
             'active_confirmations': round(active_confs, 1),
             'total_evaluated_layers': total_layers,
             'trade_expectancy_r': trade_expectancy_r,
+            'expected_value_r': trade_expectancy_r,
+            'ev_gate_passed': ev_gate_passed if is_directional else True,
+            'ev_threshold_r': 0.15,
             'alpha_regime': regime,
             'hurst_exponent': hurst,
             'kaufman_er': round(ker, 3),
@@ -479,5 +544,6 @@ class AlphaSniperEngine:
             'mtf_alignment': mtf_alignment,
             'chop_gate': chop_gate_data,
             'cme_proxy': cme_proxy,
-            'currency_strength': currency_strength
+            'currency_strength': currency_strength,
+            'cot_sentiment': cot_sentiment
         }

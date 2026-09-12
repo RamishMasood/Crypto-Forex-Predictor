@@ -167,7 +167,7 @@ class AutonomousTraderEngine:
             "sl_post_mortems": [],
             "optimal_adjustments": {
                 "min_confluence_score": 35.0,
-                "min_calibrated_prob": 80.0
+                "min_calibrated_prob": 58.0
             }
         }
         if os.path.exists(JOURNAL_FILE):
@@ -275,7 +275,7 @@ class AutonomousTraderEngine:
                 "sl_post_mortems": [],
                 "optimal_adjustments": {
                     "min_confluence_score": 35.0,
-                    "min_calibrated_prob": 80.0
+                    "min_calibrated_prob": 58.0
                 }
             }
             self.save_journal(journal)
@@ -313,10 +313,11 @@ class AutonomousTraderEngine:
         journal = self.load_journal()
         opt_adj = journal.get('optimal_adjustments', {})
         req_score = float(opt_adj.get('min_confluence_score', 35.0))
-        req_prob = float(opt_adj.get('min_calibrated_prob', 80.0))
+        req_prob = float(opt_adj.get('min_calibrated_prob', 58.0))
 
         p1_score = float(conf.get('confluence_score', 0))
         p1_prob = float(alpha.get('calibrated_win_probability_pct', conf.get('quality_index_pct', 50)))
+        p1_ev = float(alpha.get('expected_value_r', alpha.get('trade_expectancy_r', 0.0)))
         p1_ok = False
 
         if is_chop:
@@ -331,22 +332,28 @@ class AutonomousTraderEngine:
             p1_desc = f"Spread eats {spread_guard.get('spread_to_target_pct', 0):.1f}% of TP1 target (> 25%)"
             p1_badge = "SPREAD BLOCKED"
             p1_col = "#ef4444"
+        elif (is_dir_buy or is_dir_sell) and p1_ev < 0.15:
+            p1_ok = False
+            p1_status = f"EV GATE: +{p1_ev:.2f}R < +0.15R"
+            p1_desc = f"Expected Value (+{p1_ev:.2f}R) below +0.15R threshold. Sub-optimal expectancy."
+            p1_badge = "LOW EV"
+            p1_col = "#eab308"
         elif is_dir_buy and p1_score >= req_score and p1_prob >= req_prob:
             p1_ok = True
             p1_status = "GREEN LIGHT: BUY ALIGNED"
-            p1_desc = f"Conviction Score: {p1_score:+.1f} | Calibrated Probability: {p1_prob:.1f}% (≥{req_prob:.0f}%)"
+            p1_desc = f"Score: {p1_score:+.1f} | Calibrated Prob: {p1_prob:.1f}% | EV: +{p1_ev:.2f}R"
             p1_badge = "BUY READY"
             p1_col = "#00c853"
         elif is_dir_sell and p1_score <= -req_score and p1_prob >= req_prob:
             p1_ok = True
             p1_status = "RED LIGHT: SELL ALIGNED"
-            p1_desc = f"Conviction Score: {p1_score:+.1f} | Calibrated Probability: {p1_prob:.1f}% (≥{req_prob:.0f}%)"
+            p1_desc = f"Score: {p1_score:+.1f} | Calibrated Prob: {p1_prob:.1f}% | EV: +{p1_ev:.2f}R"
             p1_badge = "SELL READY"
             p1_col = "#ff1744"
         else:
             p1_ok = False
             p1_status = "GATE BLOCKED: INSUFFICIENT CONFLUENCE"
-            p1_desc = f"Score: {p1_score:+.1f} (Req: ±{req_score:.0f}) | Probability: {p1_prob:.1f}% (Req: ≥{req_prob:.0f}%)"
+            p1_desc = f"Score: {p1_score:+.1f} (Req: ±{req_score:.0f}) | Probability: {p1_prob:.1f}% (Req: ≥{req_prob:.0f}%) | EV: +{p1_ev:.2f}R"
             p1_badge = "WAIT"
             p1_col = "#eab308"
 
@@ -458,35 +465,161 @@ class AutonomousTraderEngine:
             p4_badge = "WAIT"
             p4_col = "#9ca3af"
 
-        # Pillar 5: Whale Sentiment Gate
-        w_passed = whale_gate.get('passed', True) if whale_gate else True
-        w_unlocked = whale_gate.get('whale_gate_unlocked', False) if whale_gate else False
-        w_reason = whale_gate.get('reason', 'Benign standard funding') if whale_gate else 'Benign funding'
-        if w_unlocked:
-            p5_ok = True
-            p5_status = "WHALE CATALYST UNLOCKED"
-            p5_desc = f"{w_reason} — Squeeze energy supports explosive move."
-            p5_badge = "WHALE CONFIRMED"
-            p5_col = "#00c853" if is_dir_buy else "#ff1744"
-        elif not w_passed or ('TRAP' in str(w_reason) or 'COUNTER' in str(w_reason)):
-            p5_ok = False
-            p5_status = "COUNTER-WHALE TRAP DANGER"
-            p5_desc = f"{w_reason} — High risk of liquidation cascade."
-            p5_badge = "TRAP DANGER"
-            p5_col = "#ef4444"
-        else:
-            p5_ok = is_trade_active
-            p5_status = "BENIGN FUNDING (HIGH CONVICTION SAFE)"
-            p5_desc = f"{w_reason} — No squeeze trap detected."
-            p5_badge = "SAFE"
-            p5_col = "#38bdf8"
+        # Pillar 5: Whale Sentiment & Smart Money Gate (Crypto Futures, Forex & Gold, Honest Labeling)
+        cot = pred_res.get('cot_sentiment') or whale_gate.get('cot_sentiment')
+        fut_signals = pred_res.get('futures_signals')
+        has_futures = bool(fut_signals and fut_signals.get('funding_analysis'))
+        has_cot = bool(cot and cot.get('available'))
+        p5_available = has_futures or has_cot
 
-        aligned_count = sum([p1_ok, p2_ok, p3_ok, p4_ok, p5_ok])
-        is_fully_aligned = (aligned_count == 5) and is_trade_active
+        if has_futures:
+            # Perpetual Futures: Squeeze & Funding Analysis
+            w_passed = whale_gate.get('passed', True) if whale_gate else True
+            w_unlocked = whale_gate.get('whale_gate_unlocked', False) if whale_gate else False
+            w_reason = whale_gate.get('reason', 'Benign standard funding') if whale_gate else 'Benign funding'
+            if w_unlocked:
+                p5_ok = True
+                p5_status = "WHALE CATALYST UNLOCKED"
+                p5_desc = f"{w_reason} — Squeeze energy supports explosive move."
+                p5_badge = "WHALE CONFIRMED"
+                p5_col = "#00c853" if is_dir_buy else "#ff1744"
+            elif not w_passed or ('TRAP' in str(w_reason) or 'COUNTER' in str(w_reason)):
+                p5_ok = False
+                p5_status = "COUNTER-WHALE TRAP DANGER"
+                p5_desc = f"{w_reason} — High risk of liquidation cascade."
+                p5_badge = "TRAP DANGER"
+                p5_col = "#ef4444"
+            else:
+                p5_ok = is_trade_active
+                p5_status = "BENIGN FUNDING (HIGH CONVICTION SAFE)"
+                p5_desc = f"{w_reason} — No squeeze trap detected."
+                p5_badge = "SAFE"
+                p5_col = "#38bdf8"
+        elif has_cot:
+            # Forex & Gold: CFTC Commitments of Traders (COT) Smart Money & Retail Sentiment
+            cot_bias = str(cot.get('smart_money_bias', 'NEUTRAL')).upper()
+            cot_score = float(cot.get('sentiment_score', 0.0))
+            cot_summary = cot.get('summary', 'CFTC COT Smart Money Active')
+            
+            # Multi-Timeframe Horizon Adaptation:
+            # Scalp timeframes (1m, 3m, 5m, 15m) evaluate real-time order flow and broker volume.
+            # Weekly macro COT lag (3-7 days old) acts as a macro boost when aligned, and permits
+            # intraday scalps with forced TP1 (0.38*ATR) scalp bank & Auto-BE rather than an inappropriate binary block.
+            # Macro timeframes (30m, 1h, 4h, 1d) strictly enforce weekly COT as a macro institutional gatekeeper.
+            tf = pred_res.get('metadata', {}).get('timeframe') or pred_res.get('timeframe') or '1h'
+            is_scalp_tf = str(tf).lower() in ['1m', '3m', '5m', '15m']
+
+            if is_scalp_tf:
+                # ─── SCALP HORIZON LOGIC (1m, 3m, 5m, 15m) ───
+                if is_dir_buy:
+                    if 'BULLISH' in cot_bias or cot_score >= 12.0:
+                        p5_ok = True
+                        p5_status = f"COT MACRO TAILWIND ({str(tf).upper()} SCALP BOOST)"
+                        p5_desc = f"{cot_summary} — Weekly institutional smart money aligns with intraday scalp entry."
+                        p5_badge = "COT MACRO BOOST"
+                        p5_col = "#00c853"
+                    elif 'BEARISH' in cot_bias or cot_score <= -15.0:
+                        p5_ok = is_trade_active
+                        p5_status = f"INTRADAY SCALP CONFIRMED ({str(tf).upper()} HORIZON)"
+                        p5_desc = f"Intraday scalp approved on {tf}. Weekly COT opposes ({cot_bias}), strictly enforce TP1 (0.38*ATR) scalp bank & Auto-BE."
+                        p5_badge = "INTRADAY SCALP"
+                        p5_col = "#eab308"
+                    else:
+                        p5_ok = is_trade_active
+                        p5_status = f"SCALP PERMITTED (NEUTRAL COT, {str(tf).upper()})"
+                        p5_desc = f"{cot_summary} — Real-time price action clear for intraday scalp execution."
+                        p5_badge = "SCALP SAFE"
+                        p5_col = "#00c853"
+                elif is_dir_sell:
+                    if 'BEARISH' in cot_bias or cot_score <= -12.0:
+                        p5_ok = True
+                        p5_status = f"COT MACRO TAILWIND ({str(tf).upper()} SCALP BOOST)"
+                        p5_desc = f"{cot_summary} — Weekly institutional smart money aligns with intraday scalp entry."
+                        p5_badge = "COT MACRO BOOST"
+                        p5_col = "#ff1744"
+                    elif 'BULLISH' in cot_bias or cot_score >= 15.0:
+                        p5_ok = is_trade_active
+                        p5_status = f"INTRADAY SCALP CONFIRMED ({str(tf).upper()} HORIZON)"
+                        p5_desc = f"Intraday scalp approved on {tf}. Weekly COT opposes ({cot_bias}), strictly enforce TP1 (0.38*ATR) scalp bank & Auto-BE."
+                        p5_badge = "INTRADAY SCALP"
+                        p5_col = "#eab308"
+                    else:
+                        p5_ok = is_trade_active
+                        p5_status = f"SCALP PERMITTED (NEUTRAL COT, {str(tf).upper()})"
+                        p5_desc = f"{cot_summary} — Real-time price action clear for intraday scalp execution."
+                        p5_badge = "SCALP SAFE"
+                        p5_col = "#00c853"
+                else:
+                    p5_ok = False
+                    p5_status = "COT SENTIMENT MONITORING"
+                    p5_desc = cot_summary
+                    p5_badge = "MONITORING"
+                    p5_col = "#9ca3af"
+            else:
+                # ─── MACRO HORIZON LOGIC (30m, 1h, 4h, 1d) ───
+                if is_dir_buy:
+                    if 'BULLISH' in cot_bias or cot_score >= 12.0:
+                        p5_ok = True
+                        p5_status = "COT SMART MONEY BULLISH CONFIRMED"
+                        p5_desc = f"{cot_summary} — Institutional smart money net long supports Buy."
+                        p5_badge = "COT ALIGNED"
+                        p5_col = "#00c853"
+                    elif 'BEARISH' in cot_bias or cot_score <= -15.0:
+                        p5_ok = False
+                        p5_status = "COT SMART MONEY BEARISH CONFLICT"
+                        p5_desc = f"{cot_summary} — Weekly CFTC institutional positioning opposes Macro Buy."
+                        p5_badge = "COT CONFLICT"
+                        p5_col = "#ef4444"
+                    else:
+                        p5_ok = is_trade_active
+                        p5_status = "COT SENTIMENT BALANCED"
+                        p5_desc = f"{cot_summary} — Neutral institutional positioning."
+                        p5_badge = "COT NEUTRAL"
+                        p5_col = "#38bdf8"
+                elif is_dir_sell:
+                    if 'BEARISH' in cot_bias or cot_score <= -12.0:
+                        p5_ok = True
+                        p5_status = "COT SMART MONEY BEARISH CONFIRMED"
+                        p5_desc = f"{cot_summary} — Institutional smart money net short supports Sell."
+                        p5_badge = "COT ALIGNED"
+                        p5_col = "#ff1744"
+                    elif 'BULLISH' in cot_bias or cot_score >= 15.0:
+                        p5_ok = False
+                        p5_status = "COT SMART MONEY BULLISH CONFLICT"
+                        p5_desc = f"{cot_summary} — Weekly CFTC institutional positioning opposes Macro Sell."
+                        p5_badge = "COT CONFLICT"
+                        p5_col = "#ef4444"
+                    else:
+                        p5_ok = is_trade_active
+                        p5_status = "COT SENTIMENT BALANCED"
+                        p5_desc = f"{cot_summary} — Neutral institutional positioning."
+                        p5_badge = "COT NEUTRAL"
+                        p5_col = "#38bdf8"
+                else:
+                    p5_ok = False
+                    p5_status = "COT SENTIMENT MONITORING"
+                    p5_desc = cot_summary
+                    p5_badge = "MONITORING"
+                    p5_col = "#9ca3af"
+        else:
+            # Honest Labeling: Neither Futures nor COT available for this asset (Spot Altcoin)
+            p5_available = False
+            p5_ok = False
+            p5_status = "WHALE FLOW N/A"
+            p5_desc = "No institutional whale or derivatives order flow feed for this asset (Spot only)."
+            p5_badge = "N/A"
+            p5_col = "#6b7280"
+
+        total_applicable = 5 if p5_available else 4
+        aligned_count = sum([p1_ok, p2_ok, p3_ok, p4_ok, (p5_ok if p5_available else False)])
+        is_fully_aligned = (aligned_count == total_applicable) and is_trade_active
+        honest_label = f"{aligned_count}/{total_applicable} PILLARS ALIGNED" + (" (Whale Flow N/A)" if not p5_available else "")
 
         return {
             'is_fully_aligned': is_fully_aligned,
             'aligned_count': aligned_count,
+            'total_applicable': total_applicable,
+            'honest_label': honest_label,
             'is_trade_active': is_trade_active,
             'is_dir_buy': is_dir_buy,
             'is_dir_sell': is_dir_sell,
@@ -496,7 +629,7 @@ class AutonomousTraderEngine:
             'p2': {'ok': p2_ok, 'bias': s1_bias, 'ema200': s1_200, 'status': p2_status, 'desc': p2_desc, 'badge': p2_badge, 'col': p2_col},
             'p3': {'ok': p3_ok, 'is_blackout': is_news_blackout, 'status': p3_status, 'desc': p3_desc, 'badge': p3_badge, 'col': p3_col},
             'p4': {'ok': p4_ok, 'is_overextended': is_overextended, 'status': p4_status, 'desc': p4_desc, 'badge': p4_badge, 'col': p4_col},
-            'p5': {'ok': p5_ok, 'status': p5_status, 'desc': p5_desc, 'badge': p5_badge, 'col': p5_col},
+            'p5': {'available': p5_available, 'ok': p5_ok, 'status': p5_status, 'desc': p5_desc, 'badge': p5_badge, 'col': p5_col},
             'chop_gate': chop_gate,
             'spread_guard': spread_guard
         }
@@ -543,10 +676,10 @@ class AutonomousTraderEngine:
                     # Global stats & Active Reinforcement Learning Loop
                     if outcome == 'WIN':
                         state['wins'] = state.get('wins', 0) + 1
-                        # Adaptive reinforcement: On consistent wins, stabilize threshold towards baseline 80%
+                        # Adaptive reinforcement: On consistent wins, stabilize threshold towards baseline 58%
                         opt = journal.get('optimal_adjustments', {})
-                        if float(opt.get('min_calibrated_prob', 80.0)) > 80.0:
-                            opt['min_calibrated_prob'] = round(max(80.0, float(opt.get('min_calibrated_prob', 80.0)) - 0.2), 1)
+                        if float(opt.get('min_calibrated_prob', 58.0)) > 58.0:
+                            opt['min_calibrated_prob'] = round(max(58.0, float(opt.get('min_calibrated_prob', 58.0)) - 0.2), 1)
                             journal['optimal_adjustments'] = opt
                             self.save_journal(journal)
                     elif outcome == 'BREAKEVEN':
@@ -573,7 +706,7 @@ class AutonomousTraderEngine:
                         
                         # Adaptive reinforcement: Elevate selective entry threshold to prevent repeated drawdowns
                         opt = journal.get('optimal_adjustments', {})
-                        opt['min_calibrated_prob'] = round(min(88.0, float(opt.get('min_calibrated_prob', 80.0)) + 0.5), 1)
+                        opt['min_calibrated_prob'] = round(min(68.0, float(opt.get('min_calibrated_prob', 58.0)) + 0.5), 1)
                         journal['optimal_adjustments'] = opt
                         self.save_journal(journal)
 
@@ -742,13 +875,14 @@ class AutonomousTraderEngine:
                 spread_guard = pred.get('spread_guard', {})
                 is_spread_fail = bool(spread_guard and not spread_guard.get('passed', True))
 
+                total_req = eval_res.get('total_applicable', 5)
                 is_actionable = ('BUY' in action or 'SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action) and ('CHOP' not in action) and (not is_chop) and (not is_spread_fail)
-                is_eligible = (p_cnt >= min_pillars_required) and is_actionable
+                is_eligible = (p_cnt >= min(min_pillars_required, total_req)) and is_actionable
 
-                pillar_str = f"{p_cnt}/5"
+                pillar_str = f"{p_cnt}/{total_req}"
 
                 if is_eligible:
-                    status_lbl = f"🎯 {p_cnt}/5 Aligned (Executing)"
+                    status_lbl = f"🎯 {p_cnt}/{total_req} Aligned (Executing)"
                 elif is_chop:
                     status_lbl = "SKIPPED (Chop Gate)"
                 elif is_spread_fail:

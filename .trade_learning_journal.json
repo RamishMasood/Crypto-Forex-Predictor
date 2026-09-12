@@ -98,6 +98,6 @@
     "swing_buffer_atr": 0.45,
     "tp1_atr_multiplier": 0.38,
     "min_confluence_score": 35.0,
-    "min_calibrated_prob": 82.5
+    "min_calibrated_prob": 58.0
   }
 }

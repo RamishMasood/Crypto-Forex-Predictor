@@ -24,6 +24,7 @@ from ..data.economic_calendar import EconomicCalendarManager
 from ..engine.mtf_filter import MultiTimeframeFilter
 from ..data.cme_proxy import CMEProxyFeed
 from ..data.currency_strength import CurrencyStrengthMeter
+from ..data.cot_sentiment import COTSentimentProvider
 
 
 class PredictorOrchestrator:
@@ -54,7 +55,8 @@ class PredictorOrchestrator:
         """
         asset_type  = asset_type.lower()
         market_mode = market_mode.lower()
-        is_futures  = (market_mode == 'futures') and (asset_type == 'crypto')
+        is_crypto   = (asset_type == 'crypto') or any(c in symbol.upper() for c in ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE', 'TON', 'BNB', 'ADA'])
+        is_futures  = (market_mode == 'futures') and is_crypto
 
         # ────────────────────────────────────────────────────
         # STEP 1: INGEST LIVE DATA
@@ -66,8 +68,6 @@ class PredictorOrchestrator:
         has_mt5_symbol = False
         if use_mt5 and self.forex_feeds.is_mt5_connected() and getattr(self.forex_feeds, 'mt5_exness', None):
             has_mt5_symbol = bool(self.forex_feeds.mt5_exness.get_exness_symbol(symbol))
-
-        is_crypto = (asset_type == 'crypto') or any(c in symbol.upper() for c in ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'])
 
         if has_mt5_symbol:
             live_ticker        = self.forex_feeds.get_live_ticker(symbol)
@@ -141,15 +141,17 @@ class PredictorOrchestrator:
             except Exception:
                 pass
 
-        # Institutional Decentralized Feeds (CME Proxy & Currency Strength Meter)
+        # Institutional Decentralized Feeds (CME Proxy, Currency Strength, and CFTC COT Sentiment)
         cme_proxy_data = None
         csm_data = None
         is_gold_or_commodity = any(m in symbol.upper() for m in ['XAU', 'GOLD', 'XAG', 'SILVER', 'WTI', 'OIL', 'CL'])
         if is_gold_or_commodity:
-            cme_proxy_data = CMEProxyFeed.get_institutional_order_flow(symbol)
+            cme_proxy_data = CMEProxyFeed.get_institutional_order_flow(symbol, df_ohlcv=df_ohlcv)
 
-        if asset_type == 'forex' and not is_gold_or_commodity:
+        if asset_type == 'forex' and not is_gold_or_commodity and not is_crypto:
             csm_data = CurrencyStrengthMeter.evaluate_pair(symbol, 'NEUTRAL')
+
+        cot_data = COTSentimentProvider.get_sentiment(symbol) if not is_crypto else None
 
         # ────────────────────────────────────────────────────
         # STEP 2: QUANTITATIVE INDICATORS
@@ -171,15 +173,24 @@ class PredictorOrchestrator:
         }
 
         # ────────────────────────────────────────────────────
-        # STEP 4: MACHINE LEARNING
+        # STEP 4: MACHINE LEARNING (Persistent Pre-Trained Weights & MT5 2,000-5,000 Candles)
         # ────────────────────────────────────────────────────
-        ml_model     = MachineLearningPredictor(n_estimators=50)
-        ml_prediction = ml_model.fit_and_predict(df_indicators, horizon=3, threshold_pct=0.25)
+        ml_model = MachineLearningPredictor(n_estimators=50)
+        if ml_model.is_model_cached(symbol, timeframe):
+            ml_prediction = ml_model.predict_live(df_indicators, symbol=symbol, timeframe=timeframe)
+        else:
+            mt5_trained = False
+            if self.forex_feeds.is_mt5_connected():
+                mt5_trained = ml_model.train_on_mt5_history(symbol=symbol, timeframe=timeframe, n_bars=3000)
+            if mt5_trained:
+                ml_prediction = ml_model.predict_live(df_indicators, symbol=symbol, timeframe=timeframe)
+            else:
+                ml_prediction = ml_model.fit_and_predict(df_indicators, horizon=3, threshold_pct=0.25, symbol=symbol, timeframe=timeframe)
 
         # ────────────────────────────────────────────────────
-        # STEP 5: FUTURES-SPECIFIC SIGNALS (if futures mode)
+        # STEP 5: FUTURES-SPECIFIC SIGNALS (if futures mode or crypto on MT5)
         # ────────────────────────────────────────────────────
-        if is_futures and futures_raw_data:
+        if (is_futures or (is_crypto and futures_raw_data)) and futures_raw_data:
             current_funding  = futures_raw_data.get('current_funding_rate', 0.0)
             funding_history  = futures_raw_data.get('funding_history', pd.DataFrame())
             oi_history       = futures_raw_data.get('oi_history', pd.DataFrame())
@@ -292,7 +303,8 @@ class PredictorOrchestrator:
             news_blackout=news_blackout,
             mtf_alignment=mtf_alignment,
             cme_proxy=cme_proxy_data,
-            currency_strength=csm_data
+            currency_strength=csm_data,
+            cot_sentiment=cot_data
         )
         quantum_sniper = alpha_sniper.get('quantum_sniper', {})
 
@@ -346,11 +358,13 @@ class PredictorOrchestrator:
             'whale_sentiment_gate': {
                 'passed': alpha_sniper.get('whale_gate_passed', True),
                 'market_mode': market_mode,
-                'reason': alpha_sniper.get('whale_gate_reason', '')
+                'reason': alpha_sniper.get('whale_gate_reason', ''),
+                'cot_sentiment': cot_data
             },
             'trade_setup': trade_setup,
             'cme_proxy_data': cme_proxy_data,
             'currency_strength': csm_data,
+            'cot_sentiment': cot_data,
             'chop_gate': alpha_sniper.get('chop_gate', {}),
             'spread_guard': trade_setup.get('spread_filter', {}),
             'ml_prediction': ml_prediction,

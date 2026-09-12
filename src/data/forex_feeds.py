@@ -100,6 +100,7 @@ class MT5ExnessProvider:
         '1d': 16408  # mt5.TIMEFRAME_D1
     }
 
+
     def __init__(self, terminal_path: Optional[str] = None, login: Optional[int] = None, password: Optional[str] = None, server: Optional[str] = None):
         self.terminal_path = terminal_path or (
             self.EXNESS_PATH if os.path.exists(self.EXNESS_PATH) else self.DEFAULT_PATH
@@ -241,10 +242,44 @@ class MT5ExnessProvider:
             return None
         try:
             import MetaTrader5 as mt5
-            clean = symbol.replace('/', '').replace('-', '').upper()
-            variants = [clean, f"{clean}m", f"{clean}c", f"{clean}.r", f"{clean}#"]
-            if 'XAU' in clean or 'GOLD' in clean:
-                variants.extend(['XAUUSD', 'XAUUSDm', 'GOLD', 'GOLDm', 'XAUUSDc'])
+            # 1. First check directly as passed
+            s_direct = mt5.symbol_info(symbol)
+            if s_direct is not None:
+                if not s_direct.visible:
+                    mt5.symbol_select(symbol, True)
+                return symbol
+
+            clean = symbol.replace('/', '').replace('-', '').strip()
+            upper_clean = clean.upper()
+
+            # 2. Precise commodity variants
+            if '247' in upper_clean:
+                variants = ['XAUUSD247m', 'XAUUSD247', 'XAUUSD247c', 'XAUUSD247.r']
+            elif 'XAG' in upper_clean or 'SILVER' in upper_clean:
+                variants = ['XAGUSDm', 'XAGUSD', 'XAGUSDc', 'XAGUSD.r', 'SILVERm', 'SILVER']
+            elif 'XAU' in upper_clean or 'GOLD' in upper_clean:
+                # Normal Gold with automatic weekend 24/7 routing fallback
+                is_weekend = datetime.now(timezone.utc).weekday() in (5, 6)
+                if is_weekend:
+                    variants = ['XAUUSD247m', 'XAUUSDm', 'XAUUSD', 'GOLDm', 'GOLD', 'XAUUSDc', 'XAUUSD.r']
+                else:
+                    variants = ['XAUUSDm', 'XAUUSD', 'GOLDm', 'GOLD', 'XAUUSDc', 'XAUUSD.r', 'XAUUSD247m']
+            else:
+                base = clean
+                for sfx in ['m', 'M', 'c', 'C', '.r', '.R', '#']:
+                    if base.endswith(sfx):
+                        base = base[:-len(sfx)]
+                        break
+                variants = [
+                    f"{base}m",
+                    base,
+                    f"{base}c",
+                    f"{base}.r",
+                    f"{base.upper()}m",
+                    base.upper(),
+                    f"{base.upper()}c",
+                    f"{base.upper()}.r"
+                ]
 
             for var in variants:
                 s_info = mt5.symbol_info(var)
@@ -275,7 +310,7 @@ class MT5ExnessProvider:
                 return []
 
             standard_list = [
-                "XAU/USD", "BTC/USD", "ETH/USD", "EUR/USD", "GBP/USD",
+                "XAU/USD", "XAUUSD247", "BTC/USD", "ETH/USD", "EUR/USD", "GBP/USD",
                 "USD/JPY", "AUD/USD", "USD/CAD", "USD/CHF", "NZD/USD",
                 "XAG/USD", "SOL/USD", "BNB/USD", "DOGE/USD", "XRP/USD"
             ]
@@ -300,13 +335,15 @@ class MT5ExnessProvider:
             if 'XAUUSD' in res_set: res_set.remove('XAUUSD')
             if 'XAGUSD' in res_set: res_set.remove('XAGUSD')
 
-            # Prioritize gold, major cryptos, major forex pairs, then alphabetical
+            # Prioritize gold (including 24/7 Gold) and Silver, major cryptos, major forex pairs, then alphabetical
             res = sorted(list(res_set), key=lambda x: (
-                0 if x == 'XAU/USD' else (
-                    1 if x in ['BTC/USD', 'ETH/USD', 'SOL/USD', 'BNB/USD', 'DOGE/USD', 'XRP/USD'] else (
-                        2 if x in ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'USD/CHF', 'NZD/USD'] else (
-                            3 if '/USD' in x else (
-                                4 if '/' in x else 5
+                0 if x in ['XAU/USD', 'XAUUSD247'] else (
+                    1 if x == 'XAG/USD' else (
+                        2 if x in ['BTC/USD', 'ETH/USD', 'SOL/USD', 'BNB/USD', 'DOGE/USD', 'XRP/USD'] else (
+                            3 if x in ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'USD/CHF', 'NZD/USD'] else (
+                                4 if '/USD' in x else (
+                                    5 if '/' in x else 6
+                                )
                             )
                         )
                     )
@@ -383,6 +420,11 @@ class MT5ExnessProvider:
             return df
         except Exception:
             return None
+
+
+# Backwards compatibility alias
+MT5ForexProvider = MT5ExnessProvider
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

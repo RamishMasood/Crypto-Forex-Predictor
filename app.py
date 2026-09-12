@@ -91,7 +91,7 @@ with st.sidebar:
     CRYPTO_PAIRS = ["BTC/USDT","ETH/USDT","SOL/USDT","BNB/USDT","XRP/USDT",
                     "DOGE/USDT","ADA/USDT","AVAX/USDT","LINK/USDT"]
 
-    FOREX_PAIRS = ["EUR/USD","GBP/USD","USD/JPY","AUD/USD","XAU/USD","XAG/USD"]
+    FOREX_PAIRS = ["EUR/USD","GBP/USD","USD/JPY","AUD/USD","XAU/USD","XAUUSD247","XAG/USD"]
     is_mt5 = False
 
     if asset_class == "Cryptocurrency":
@@ -1121,7 +1121,7 @@ def render_mt5_autonomous_engine_view(live_exec):
                 pass
 
         if not all_pairs:
-            all_pairs = ["XAU/USD", "BTC/USD", "ETH/USD", "EUR/USD", "GBP/USD", "USD/JPY"]
+            all_pairs = ["XAU/USD", "XAUUSD247", "BTC/USD", "ETH/USD", "EUR/USD", "GBP/USD", "USD/JPY", "XAG/USD"]
 
         for d_sym in DEFAULT_SYMBOLS:
             if d_sym not in all_pairs:
@@ -1138,7 +1138,7 @@ def render_mt5_autonomous_engine_view(live_exec):
                 options=all_pairs,
                 default=valid_selected,
                 key="auto_scanner_pairs_multiselect",
-                help="Choose which currency pairs, metals (XAU/USD), or cryptos the autonomous engine should trade."
+                help="Choose which currency pairs, metals (XAU/USD, XAUUSD247, XAG/USD), or cryptos the autonomous engine should trade."
             )
 
         with p_col2:
@@ -1750,13 +1750,16 @@ p5_badge = p5_info['badge']
 p5_col = p5_info['col']
 
 total_aligned = pillars_eval['aligned_count']
+total_applicable = pillars_eval.get('total_applicable', 5)
 is_perfect_setup = pillars_eval['is_fully_aligned']
 is_dir_buy = pillars_eval['is_dir_buy']
 is_dir_sell = pillars_eval['is_dir_sell']
+p5_available = p5_info.get('available', True)
 
 verdict_title = "🏆 A+ PERFECT SETUP DETECTED (READY TO EXECUTE)" if is_perfect_setup else "⏳ CAPITAL PRESERVATION MODE: WAIT FOR ALIGNMENT"
 verdict_col = "#00c853" if (is_perfect_setup and is_dir_buy) else ("#ff1744" if (is_perfect_setup and is_dir_sell) else "#eab308")
-verdict_sub = f"<b>{total_aligned}/5 PILLARS ALIGNED</b> — Strict Institutional 90%+ Win Rate Checklist"
+honest_lbl = pillars_eval.get('honest_label', f"{total_aligned}/{total_applicable} PILLARS ALIGNED")
+verdict_sub = f"<b>{honest_lbl}</b> — Strict Institutional 90%+ Win Rate Checklist"
 
 # ── RENDER COMPREHENSIVE A+ TRADE ALIGNMENT MATRIX ───────────────────────────
 st.markdown(
@@ -1818,7 +1821,7 @@ st.markdown(
             <!-- Pillar 5 -->
             <div style='background:#111827;border:1px solid {p5_col};border-radius:8px;padding:10px 14px;'>
                 <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;'>
-                    <b style='color:#f3f4f6;font-size:.82rem;'>5. Whale & Squeeze Gate</b>
+                    <b style='color:#f3f4f6;font-size:.82rem;'>5. Whale & COT Gate{' (N/A)' if not p5_available else ''}</b>
                     <span style='background:{p5_col};color:#000;font-weight:800;font-size:.7rem;padding:2px 8px;border-radius:10px;'>{p5_badge}</span>
                 </div>
                 <div style='color:{p5_col};font-weight:700;font-size:.84rem;'>{p5_status}</div>
@@ -1866,6 +1869,7 @@ else:
 # ── THREE ADVANCED INSTITUTIONAL QUANT ENHANCEMENTS CARD ────────────────────
 cme_feed = res.get('cme_proxy_data')
 csm_feed = res.get('currency_strength')
+cot_feed = res.get('cot_sentiment')
 chop_gate = res.get('chop_gate', {})
 spread_g = res.get('spread_guard', {})
 
@@ -1882,6 +1886,22 @@ if cme_feed and cme_feed.get('available'):
             Vol: <b>{cme_feed.get('cme_volume', 0):,}</b> ({cme_feed.get('volume_ratio', 1.0):.1f}x Avg) | Global OI: <b>{cme_feed.get('open_interest', 0):,}</b>
         </div>
         <div style='margin-top:2px;font-size:.73rem;color:#94a3b8;'>{cme_feed.get('flow_description', '')}</div>
+    </div>
+    """
+
+cot_html = ""
+if cot_feed and cot_feed.get('available'):
+    cot_c = "#00c853" if "BULLISH" in cot_feed.get('smart_money_bias', '') else ("#ff1744" if "BEARISH" in cot_feed.get('smart_money_bias', '') else "#38bdf8")
+    cot_html = f"""
+    <div style='background:#1e293b;border:1px solid {cot_c};border-radius:8px;padding:8px 12px;font-size:.8rem;color:#cbd5e1;'>
+        <div style='display:flex;justify-content:space-between;align-items:center;'>
+            <b style='color:#f3f4f6;font-size:.82rem;'>🏛️ CFTC COT & Retail Sentiment ({cot_feed.get('cftc_market', '')})</b>
+            <span style='background:{cot_c};color:#000;font-weight:800;font-size:.68rem;padding:2px 6px;border-radius:6px;'>{cot_feed.get('smart_money_bias')}</span>
+        </div>
+        <div style='margin-top:4px;font-size:.78rem;color:#e2e8f0;'>
+            Speculators Net: <b>{cot_feed.get('non_commercial_net', 0):+d}</b> | Retail: <b>{cot_feed.get('retail_long_pct', 50)}% Long / {cot_feed.get('retail_short_pct', 50)}% Short</b>
+        </div>
+        <div style='margin-top:2px;font-size:.73rem;color:#94a3b8;'>{cot_feed.get('summary', '')}</div>
     </div>
     """
 
@@ -1922,12 +1942,15 @@ spread_pass = spread_g.get('passed', True) if spread_g else True
 spread_badge_col = "#10b981" if spread_pass else "#ef4444"
 spread_txt = f"Spread: ${spread_g.get('spread_price', 0):.5f} ({spread_pct:.1f}% TP1, Cap: {spread_cap:.0f}%)" if (spread_g and spread_g.get('spread_price', 0) > 0) else "Spread: Low"
 
+inst_feed_html = cme_html if cme_html else (cot_html if cot_html else csm_html)
+extra_feed_html = cot_html if (cme_html and cot_html) else (csm_html if (cot_html and csm_html and not cme_html) else "")
+
 st.markdown(
     clean_html(f"""
     <div style='background:#0f172a;border:1px solid #334155;border-radius:12px;padding:12px 16px;margin-bottom:14px;'>
         <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;'>
             <div style='display:flex;align-items:center;gap:8px;'>
-                <b style='color:#f8fafc;font-size:.88rem;'>⚡ ADVANCED QUANT GUARDS (WICKS • CME FLOW • CHOP GATE):</b>
+                <b style='color:#f8fafc;font-size:.88rem;'>⚡ ADVANCED QUANT GUARDS (WICKS • CME FLOW • CFTC COT • CHOP GATE):</b>
                 <span style='background:{chop_col};color:#fff;font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:6px;'>{chop_title}</span>
                 <span style='background:{spread_badge_col};color:#000;font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:6px;'>{spread_txt}</span>
             </div>
@@ -1938,7 +1961,8 @@ st.markdown(
                 <b>Chop Gate Metrics:</b> ADX(14): <code>{chop_gate.get('adx_14', 20.0)}</code> | Choppiness: <code>{chop_gate.get('choppiness', 50.0)}</code> | BB Squeeze: <code>{chop_gate.get('bb_squeeze', False)}</code>
                 <div style='font-size:.73rem;color:#94a3b8;margin-top:3px;'>{chop_gate.get('reason', '')}</div>
             </div>
-            {cme_html if cme_html else csm_html}
+            {inst_feed_html}
+            {extra_feed_html}
         </div>
     </div>
     """),
@@ -1965,7 +1989,22 @@ with t2:
 with t3:
     st.metric("Confluence Score", f"{conf['confluence_score']:+.1f} / 100")
 with t4:
-    st.metric("Calibrated Accuracy", f"{alpha.get('calibrated_win_probability_pct', 50):.1f}%" if alpha else f"{conf['quality_index_pct']}%")
+    ev_metric = alpha.get('expected_value_r', alpha.get('trade_expectancy_r', 0.0))
+    # Platt Prob: prefer live ML calibrated output; fall back to AlphaSniper Bayesian prob
+    _ml_prob = (res.get('ml_prediction') or {}).get('p_calibrated_win_pct')
+    _alpha_bayesian = alpha.get('calibrated_win_probability_pct') or alpha.get('platt_calibrated_win_pct')
+    if _ml_prob is not None and _ml_prob > 0:
+        platt_p = float(_ml_prob)
+        _platt_src = "ML"
+    elif _alpha_bayesian is not None:
+        platt_p = float(_alpha_bayesian)
+        _platt_src = "Bayesian"
+    else:
+        platt_p = 50.0
+        _platt_src = "—"
+    st.metric("Calibrated Prob (Platt)", f"{platt_p:.1f}%",
+              delta=f"EV: +{ev_metric:.2f}R" if ev_metric > 0 else f"EV: {ev_metric:.2f}R")
+    st.caption(f"🎯 Bayesian Edge: {alpha.get('calibrated_win_probability_pct', 50):.1f}% | src: {_platt_src}")
 with t5:
     if is_futures and fut_d and fut_d.get('ticker'):
         fr = (fut_d['ticker'].get('funding_rate', 0) or 0) * 100
@@ -1979,6 +2018,8 @@ if alpha:
     tier_bg = alpha.get('tier_color', '#00e676')
     win_exp = alpha.get('calibrated_win_probability_pct', 50)
     exp_r = alpha.get('trade_expectancy_r', 0)
+    ev_gate_status = "PASS (≥+0.15R)" if exp_r >= 0.15 else "BLOCKED (<+0.15R)"
+    ev_gate_color = "#69f0ae" if exp_r >= 0.15 else "#f87171"
     ker_val = alpha.get('kaufman_er', 0.3)
     cmo_val = alpha.get('cmo_14', 0)
     st_struct = smc.get('structure', {}) if smc else {}
@@ -1993,8 +2034,8 @@ if alpha:
         f"{alpha.get('sniper_badge', 'SNIPER FILTER')}</span>"
         f"&nbsp;&nbsp;<span style='color:#c9d1d9;font-weight:700;font-size:1.02rem;'>AlphaSniper™ Proprietary Intelligence</span>"
         f"</div>"
-        f"<div style='color:#69f0ae;font-size:1.15rem;font-weight:800;'>"
-        f"Calibrated Win Expectancy: {win_exp:.1f}% | Expectancy: +{exp_r:.2f}R"
+        f"<div style='color:#69f0ae;font-size:1.1rem;font-weight:800;'>"
+        f"Calibrated Prob: {win_exp:.1f}% | Expected Value (EV): +{exp_r:.2f}R &nbsp;<span style='color:{ev_gate_color};font-size:.82rem;'>(EV Gate: {ev_gate_status})</span>"
         f"</div>"
         f"</div>"
         f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;font-size:.82rem;color:#8b949e;'>"
@@ -2201,7 +2242,12 @@ with a2:
     st.metric("Direction",            ml['predicted_direction'])
     st.metric("Model Confidence",     f"{ml['confidence_pct']}%")
     st.metric("Walk-Forward CV Acc",  f"{ml['cv_accuracy_pct']}%")
+    ml_ev = ml.get('expected_value_r', alpha.get('trade_expectancy_r', 0.0))
+    st.metric("Expected Value (EV)", f"+{ml_ev:.2f}R", delta="PASS (≥+0.15R)" if ml.get('is_ev_positive', ml_ev >= 0.15) else "LOW EV (<+0.15R)")
     st.metric("Expected Move",        f"{ml['expected_return_pct']:+.2f}%")
+    cal_lbl = ml.get('calibration_method', 'Platt Scaling (CalibratedClassifierCV)')
+    cached_str = " | ⚡ Persistent Model (2,000-5,000 Bars)" if ml.get('is_cached_model') else ""
+    st.caption(f"🎯 `{cal_lbl}`{cached_str}")
 
 with a3:
     st.subheader("Smart Money (SMC)")
