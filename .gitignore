@@ -4,3 +4,6 @@
 .env.*
 test_err.log
 *.log
+build/
+dist/
+packaging/quant_terminal.ico

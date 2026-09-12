@@ -230,9 +230,11 @@ class AutonomousTraderEngine:
                 break
         if "XAU" in s or "GOLD" in s:
             return "XAU/USD"
-        if "BTC" in s:
+        if len(s) == 6 and not s.endswith("USD"):
+            return f"{s[:3]}/{s[3:]}"
+        if s in ["BTC", "BTCUSD"]:
             return "BTC/USD"
-        if "ETH" in s:
+        if s in ["ETH", "ETHUSD"]:
             return "ETH/USD"
         if len(s) == 6:
             return f"{s[:3]}/{s[3:]}"

@@ -232,25 +232,35 @@ $$\mathbf{5m} \longrightarrow \mathbf{15m} \longrightarrow \mathbf{30m} \longrig
 
 ## 🛠️ Installation & Setup
 
-### 1. Prerequisites
-- Windows 10/11 (Required for MetaTrader 5 desktop client)
+### Desktop app (recommended)
+On this PC, build the Windows installer once:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\build.ps1
+```
+
+That produces `dist\QuantTerminalSetup.exe`. Send that single file (or zip it) to another Windows PC. The other person only needs to:
+
+1. Double-click `QuantTerminalSetup.exe`
+2. Click Install
+3. Open **Quant Terminal** from the Desktop or Start Menu — no VS Code, Python, or `streamlit run` required
+
+The installer also creates a Windows Startup shortcut so the app can open after login.
+
+### Developer launch (source)
+- Windows 10/11 (required for MetaTrader 5 desktop client)
 - Python 3.10 or higher
 - MetaTrader 5 terminal installed and logged into your broker account (e.g., Exness Demo/Live)
 
-### 2. Clone and Install Dependencies
 ```bash
 git clone https://github.com/RamishMasood/Crypto-Forex-Predictor.git
 cd "Crypto-Forex-Predictor"
 pip install -r requirements.txt
-```
-
-### 3. Launch the Interactive Web Dashboard
-```bash
 streamlit run app.py
 ```
 Open your browser at `http://localhost:8501`.
 
-### 4. Enable Autonomous Trading
+### Enable Autonomous Trading
 1. Open the **MetaTrader 5 Live & Autonomous Execution Terminal** tab.
 2. Verify connection to your MT5 account (e.g., Exness Demo).
 3. Set your desired **Batch Lot Size** (e.g. `0.02` or `0.03`) and **Max Dollar Risk**.

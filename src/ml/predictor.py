@@ -22,7 +22,10 @@ from .features import FeatureEngineer
 logger = logging.getLogger("MachineLearningPredictor")
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
-os.makedirs(MODELS_DIR, exist_ok=True)
+try:
+    os.makedirs(MODELS_DIR, exist_ok=True)
+except OSError:
+    pass
 
 
 class MachineLearningPredictor:

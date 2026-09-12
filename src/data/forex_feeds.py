@@ -249,7 +249,7 @@ class MT5ExnessProvider:
                     mt5.symbol_select(symbol, True)
                 return symbol
 
-            clean = symbol.replace('/', '').replace('-', '').strip()
+            clean = symbol.replace('/', '').replace('-', '').replace('_', '').strip()
             upper_clean = clean.upper()
 
             # 2. Precise commodity variants
@@ -265,21 +265,23 @@ class MT5ExnessProvider:
                 else:
                     variants = ['XAUUSDm', 'XAUUSD', 'GOLDm', 'GOLD', 'XAUUSDc', 'XAUUSD.r', 'XAUUSD247m']
             else:
-                base = clean
-                for sfx in ['m', 'M', 'c', 'C', '.r', '.R', '#']:
-                    if base.endswith(sfx):
-                        base = base[:-len(sfx)]
-                        break
+                # Try direct name with common Exness suffixes
                 variants = [
-                    f"{base}m",
-                    base,
-                    f"{base}c",
-                    f"{base}.r",
-                    f"{base.upper()}m",
-                    base.upper(),
-                    f"{base.upper()}c",
-                    f"{base.upper()}.r"
+                    f"{upper_clean}m",
+                    upper_clean,
+                    f"{upper_clean}c",
+                    f"{upper_clean}.r",
+                    f"{clean}m",
+                    clean,
+                    f"{clean}c",
+                    f"{clean}.r"
                 ]
+                # If clean already ends with an Exness suffix, strip it carefully and also try stripped base variants
+                for sfx in ['.r', '.R', '#', 'm', 'M', 'c', 'C']:
+                    if upper_clean.endswith(sfx) and len(upper_clean) > len(sfx) + 1:
+                        base = upper_clean[:-len(sfx)]
+                        variants.extend([f"{base}m", base, f"{base}c", f"{base}.r"])
+                        break
 
             for var in variants:
                 s_info = mt5.symbol_info(var)
@@ -318,8 +320,12 @@ class MT5ExnessProvider:
             res_set = set(standard_list)
             for s in symbols:
                 name = s.name
-                # Strip Exness suffixes: standard 'm', raw 'c', micro '#', '.r'
-                clean = name.rstrip('m').rstrip('c').rstrip('#').rstrip('.r')
+                # Strip broker suffix safely (not via rstrip which strips any matching chars)
+                clean = name
+                for sfx in ['.r', '.R', '#', 'm', 'M', 'c', 'C']:
+                    if clean.endswith(sfx) and len(clean) > len(sfx) + 1:
+                        clean = clean[:-len(sfx)]
+                        break
                 if clean.endswith('USD') and len(clean) > 3:
                     res_set.add(f"{clean[:-3]}/USD")
                 elif clean.endswith('USDT') and len(clean) > 4:

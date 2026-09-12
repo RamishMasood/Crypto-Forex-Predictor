@@ -41,13 +41,18 @@ class FuturesFeedManager:
         return None
 
     def normalize_symbol(self, symbol: str) -> str:
-        """Convert 'BTC/USDT', 'BTC/USD', 'BTCUSDm' -> 'BTCUSDT'"""
+        """Convert 'BTC/USDT', 'BTC/USD', 'BTCUSDm' -> 'BTCUSDT', 'ETH/BTC' -> 'ETHBTC'"""
         clean = symbol.replace('/', '').replace('-', '').replace('_', '').upper()
-        # Strip broker suffixes: 'm', '.r', 'pro', 'raw', 'c'
-        for suf in ['M', '.R', 'PRO', 'RAW', 'C']:
-            if clean.endswith(suf) and len(clean) > len(suf) + 3:
+        # Strip broker suffixes: 'm', '.r', 'pro', 'raw', 'c' (only when attached to standard pair)
+        # Note: Do not strip 'C' if it's part of a 6-character currency pair like ETHBTC
+        for suf in ['PRO', 'RAW', '.R', 'M']:
+            if clean.endswith(suf) and len(clean) > len(suf) + 2:
                 clean = clean[:-len(suf)]
                 break
+        else:
+            if clean.endswith('C') and not clean.endswith('BTC') and len(clean) > 4:
+                clean = clean[:-1]
+
         if clean.endswith('USD') and not clean.endswith('USDT'):
             clean = clean + 'T'
         return clean
@@ -79,6 +84,35 @@ class FuturesFeedManager:
                 'bid': float(t.get('bid1Price', 0)),
                 'ask': float(t.get('ask1Price', 0)),
             }
+        # Fallback: Binance USD-M futures ticker
+        for base in BINANCE_FUTURES_ENDPOINTS:
+            try:
+                r1 = requests.get(f"{base}/fapi/v1/ticker/24hr", params={'symbol': clean}, timeout=5)
+                r2 = requests.get(f"{base}/fapi/v1/premiumIndex", params={'symbol': clean}, timeout=5)
+                if r1.status_code == 200:
+                    t1 = r1.json()
+                    t2 = r2.json() if r2.status_code == 200 else {}
+                    last_p = float(t1.get('lastPrice', 0))
+                    return {
+                        'exchange': 'binance_perp',
+                        'symbol': symbol,
+                        'last': last_p,
+                        'mark_price': float(t2.get('markPrice', last_p)),
+                        'index_price': float(t2.get('indexPrice', last_p)),
+                        'funding_rate': float(t2.get('lastFundingRate', 0)),
+                        'next_funding_time': t2.get('nextFundingTime'),
+                        'high_24h': float(t1.get('highPrice', 0)),
+                        'low_24h': float(t1.get('lowPrice', 0)),
+                        'volume_24h': float(t1.get('volume', 0)),
+                        'turnover_24h': float(t1.get('quoteVolume', 0)),
+                        'open_interest': 0.0,
+                        'open_interest_value': 0.0,
+                        'change_24h_pct': float(t1.get('priceChangePercent', 0)),
+                        'bid': last_p,
+                        'ask': last_p,
+                    }
+            except Exception:
+                continue
         return None
 
     def get_ohlcv(self, symbol: str = 'BTC/USDT', timeframe: str = '1h', limit: int = 150) -> pd.DataFrame:
