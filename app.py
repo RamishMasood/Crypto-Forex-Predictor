@@ -1034,7 +1034,7 @@ def render_mt5_closed_history_view(live_exec):
 @st.fragment(run_every=4)
 def render_mt5_autonomous_engine_view(live_exec):
         st.markdown("#### 🤖 Autonomous 5/5 Pillar Multi-Timeframe Scanner & AI Learning Engine")
-        from src.engine.autonomous_manager import get_engine, DEFAULT_TIMEFRAMES, DEFAULT_SYMBOLS
+        from src.engine.autonomous_manager import get_engine, AVAILABLE_TIMEFRAMES, DEFAULT_TIMEFRAMES, DEFAULT_SYMBOLS
         auto_engine = get_engine()
         settings = auto_engine.load_settings()
         state = auto_engine.load_state()
@@ -1143,11 +1143,11 @@ def render_mt5_autonomous_engine_view(live_exec):
 
         with p_col2:
             chosen_tfs = st.multiselect(
-                "⏱️ Active Scan Timeframes:",
-                options=DEFAULT_TIMEFRAMES,
+                "⏱️ Active Scan Timeframes (1m/3m Unchecked by Default to Eliminate Wicks):",
+                options=AVAILABLE_TIMEFRAMES,
                 default=settings.get('timeframes', DEFAULT_TIMEFRAMES),
                 key="auto_scanner_tf_multiselect",
-                help="Autonomous engine checks every selected timeframe for 5/5 Pillar setups."
+                help="Autonomous engine checks every selected timeframe for setups. 1m/3m are unchecked by default to eliminate noise wicks."
             )
 
         # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap, Batch Lot Size) ───
@@ -1986,6 +1986,88 @@ else:
         """),
         unsafe_allow_html=True
     )
+
+# ── THREE ADVANCED INSTITUTIONAL QUANT ENHANCEMENTS CARD ────────────────────
+cme_feed = res.get('cme_proxy_data')
+csm_feed = res.get('currency_strength')
+chop_gate = res.get('chop_gate', {})
+spread_g = res.get('spread_guard', {})
+
+cme_html = ""
+if cme_feed and cme_feed.get('available'):
+    cme_col = "#00c853" if "BULLISH" in cme_feed.get('institutional_bias', '') else ("#ff1744" if "BEARISH" in cme_feed.get('institutional_bias', '') else "#38bdf8")
+    cme_html = f"""
+    <div style='background:#1e293b;border:1px solid {cme_col};border-radius:8px;padding:8px 12px;font-size:.8rem;color:#cbd5e1;'>
+        <div style='display:flex;justify-content:space-between;align-items:center;'>
+            <b style='color:#f3f4f6;font-size:.82rem;'>🏛️ CME Futures Global Flow ({cme_feed.get('cme_symbol')})</b>
+            <span style='background:{cme_col};color:#000;font-weight:800;font-size:.68rem;padding:2px 6px;border-radius:6px;'>{cme_feed.get('institutional_bias')}</span>
+        </div>
+        <div style='margin-top:4px;font-size:.78rem;color:#e2e8f0;'>
+            Vol: <b>{cme_feed.get('cme_volume', 0):,}</b> ({cme_feed.get('volume_ratio', 1.0):.1f}x Avg) | Global OI: <b>{cme_feed.get('open_interest', 0):,}</b>
+        </div>
+        <div style='margin-top:2px;font-size:.73rem;color:#94a3b8;'>{cme_feed.get('flow_description', '')}</div>
+    </div>
+    """
+
+csm_html = ""
+if csm_feed and csm_feed.get('available'):
+    csm_col = "#00c853" if "ALIGNED" in csm_feed.get('alignment', '') else ("#ff1744" if "CONFLICT" in csm_feed.get('alignment', '') else "#38bdf8")
+    matrix_items = []
+    for item in csm_feed.get('csm_matrix', [])[:8]:
+        cc = item['currency']
+        st_v = item['strength']
+        is_bp = (cc == csm_feed.get('base_currency'))
+        is_qp = (cc == csm_feed.get('quote_currency'))
+        hl_style = "border:1px solid #38bdf8;font-weight:bold;" if (is_bp or is_qp) else ""
+        bar_c = "#10b981" if st_v >= 7.0 else ("#ef4444" if st_v <= 3.0 else "#eab308")
+        matrix_items.append(f"<span style='background:#0f172a;padding:2px 5px;border-radius:4px;font-size:.72rem;{hl_style}'>{cc}: <b style='color:{bar_c}'>{st_v:.1f}</b></span>")
+    matrix_str = " ".join(matrix_items)
+    csm_html = f"""
+    <div style='background:#1e293b;border:1px solid {csm_col};border-radius:8px;padding:8px 12px;font-size:.8rem;color:#cbd5e1;'>
+        <div style='display:flex;justify-content:space-between;align-items:center;'>
+            <b style='color:#f3f4f6;font-size:.82rem;'>💹 Currency Strength Meter (CSM)</b>
+            <span style='background:{csm_col};color:#000;font-weight:800;font-size:.68rem;padding:2px 6px;border-radius:6px;'>Diff: {csm_feed.get('differential', 0):+.1f}</span>
+        </div>
+        <div style='margin-top:5px;display:flex;flex-wrap:wrap;gap:3px;'>{matrix_str}</div>
+        <div style='margin-top:3px;font-size:.73rem;color:#94a3b8;'>{csm_feed.get('reason', '')}</div>
+    </div>
+    """
+
+chop_is_chop = bool(chop_gate.get('is_chop', False))
+chop_col = "#ef4444" if chop_is_chop else "#10b981"
+chop_title = "🛑 CHOP CONSOLIDATION DETECTED" if chop_is_chop else "🟢 HEALTHY TREND / EXPANSION OK"
+
+wick_applied = bool(setup.get('wick_filter_applied', False))
+wick_txt = f"🛡️ 1m/3m Wick Buffer Active (+{setup.get('wick_buffer_atr', 0):.4f} ATR)" if wick_applied else "⚖️ Standard Golden SL Geometry (1.80x ATR)"
+
+spread_pct = spread_g.get('spread_to_target_pct', 0.0) if spread_g else 0.0
+spread_cap = spread_g.get('max_allowed_pct', 25.0) if spread_g else 25.0
+spread_pass = spread_g.get('passed', True) if spread_g else True
+spread_badge_col = "#10b981" if spread_pass else "#ef4444"
+spread_txt = f"Spread: ${spread_g.get('spread_price', 0):.5f} ({spread_pct:.1f}% TP1, Cap: {spread_cap:.0f}%)" if (spread_g and spread_g.get('spread_price', 0) > 0) else "Spread: Low"
+
+st.markdown(
+    clean_html(f"""
+    <div style='background:#0f172a;border:1px solid #334155;border-radius:12px;padding:12px 16px;margin-bottom:14px;'>
+        <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;'>
+            <div style='display:flex;align-items:center;gap:8px;'>
+                <b style='color:#f8fafc;font-size:.88rem;'>⚡ ADVANCED QUANT GUARDS (WICKS • CME FLOW • CHOP GATE):</b>
+                <span style='background:{chop_col};color:#fff;font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:6px;'>{chop_title}</span>
+                <span style='background:{spread_badge_col};color:#000;font-size:.72rem;font-weight:800;padding:2px 8px;border-radius:6px;'>{spread_txt}</span>
+            </div>
+            <div style='color:#94a3b8;font-size:.78rem;'>{wick_txt}</div>
+        </div>
+        <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;'>
+            <div style='background:#1e293b;border-radius:8px;padding:8px 12px;font-size:.8rem;color:#cbd5e1;'>
+                <b>Chop Gate Metrics:</b> ADX(14): <code>{chop_gate.get('adx_14', 20.0)}</code> | Choppiness: <code>{chop_gate.get('choppiness', 50.0)}</code> | BB Squeeze: <code>{chop_gate.get('bb_squeeze', False)}</code>
+                <div style='font-size:.73rem;color:#94a3b8;margin-top:3px;'>{chop_gate.get('reason', '')}</div>
+            </div>
+            {cme_html if cme_html else csm_html}
+        </div>
+    </div>
+    """),
+    unsafe_allow_html=True
+)
 
 
 # ── TOP METRICS ─────────────────────────────────────────────────────────────

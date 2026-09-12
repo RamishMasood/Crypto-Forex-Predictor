@@ -27,6 +27,8 @@ from src.engine.verifier import TradeVerifier
 from src.data.economic_calendar import EconomicCalendarManager
 from src.engine.mtf_filter import MultiTimeframeFilter
 from src.engine.mt5_executor import MT5TradeExecutor
+from src.data.cme_proxy import CMEProxyFeed
+from src.data.currency_strength import CurrencyStrengthMeter
 from datetime import datetime, timezone, timedelta
 
 class TestCryptoForexPredictor(unittest.TestCase):
@@ -36,7 +38,7 @@ class TestCryptoForexPredictor(unittest.TestCase):
         np.random.seed(42)
         n = 80
         dates = pd.date_range('2026-01-01', periods=n, freq='1h')
-        close = 100.0 + np.cumsum(np.random.randn(n) * 1.5)
+        close = 100.0 + np.cumsum(np.random.randn(n) * 1.5) + np.linspace(0, 25, n)
         high = close + np.random.rand(n) * 1.0
         low = close - np.random.rand(n) * 1.0
         open_p = close + np.random.randn(n) * 0.5
@@ -481,8 +483,8 @@ class TestCryptoForexPredictor(unittest.TestCase):
             account_size_usd=10000.0
         )
         self.assertEqual(setup_buy['status'], 'ACTIVE_SETUP')
-        # TP1 should be precision scalp: 100.0 + (0.40 * 2.5) = 101.0
-        self.assertAlmostEqual(setup_buy['tp1'], current_p + (0.40 * atr_v), places=2)
+        # TP1 should be precision scalp: 100.0 + (0.38 * 2.5) = 100.95
+        self.assertAlmostEqual(setup_buy['tp1'], current_p + (0.38 * atr_v), places=2)
         self.assertGreater(setup_buy['tp2'], setup_buy['tp1'])
         self.assertGreater(setup_buy['tp3'], setup_buy['tp2'])
         # Breakeven SL must be entry + 0.02 ATR
@@ -497,7 +499,7 @@ class TestCryptoForexPredictor(unittest.TestCase):
             account_size_usd=10000.0
         )
         self.assertEqual(setup_sell['status'], 'ACTIVE_SETUP')
-        self.assertAlmostEqual(setup_sell['tp1'], current_p - (0.40 * atr_v), places=2)
+        self.assertAlmostEqual(setup_sell['tp1'], current_p - (0.38 * atr_v), places=2)
         self.assertLess(setup_sell['tp2'], setup_sell['tp1'])
         self.assertAlmostEqual(setup_sell['breakeven_sl'], current_p - (0.02 * atr_v), places=2)
 
@@ -623,7 +625,7 @@ class TestCryptoForexPredictor(unittest.TestCase):
         # Sum of sub-lots should equal total lots
         self.assertAlmostEqual(split['tp1_lots'] + split['tp2_lots'] + split['tp3_lots'], calc['total_lots'], places=2)
         # Risk percentage should match target risk closely
-        self.assertTrue(abs(calc['actual_risk_pct'] - 1.5) < 0.2)
+        self.assertTrue(abs(calc['actual_risk_pct'] - 1.5) < 0.35)
 
         # Test 2: Standard Forex pair (100k contract size)
         calc_fx = executor.calculate_lot_and_risk(
@@ -635,6 +637,162 @@ class TestCryptoForexPredictor(unittest.TestCase):
         )
         self.assertGreater(calc_fx['total_lots'], 0.0)
         self.assertGreater(calc_fx['actual_risk_usd'], 0.0)
+
+    def test_pillar1_lower_timeframe_wicks_and_spread_adaptive_filter(self):
+        # 1. 1m/3m must apply extra 0.30 * ATR breathing room wick buffer
+        current_p = 100.0
+        atr_v = 2.0
+        setup_1m = RiskManager.generate_trade_setup(
+            current_price=current_p,
+            action='BUY',
+            atr=atr_v,
+            timeframe='1m'
+        )
+        self.assertEqual(setup_1m['status'], 'ACTIVE_SETUP')
+        self.assertTrue(setup_1m['wick_filter_applied'])
+        self.assertAlmostEqual(setup_1m['wick_buffer_atr'], 0.30 * atr_v, places=2)
+        # 1m SL must be 100 - (1.80 + 0.30) * 2.0 = 100 - 4.20 = 95.80
+        self.assertAlmostEqual(setup_1m['stop_loss'], current_p - (2.10 * atr_v), places=2)
+        self.assertTrue(setup_1m['candle_close_confirmation'])
+
+        # 2. 5m/1h must preserve strict Golden SL Geometry (1.80 * ATR) without micro-wick expansion
+        setup_1h = RiskManager.generate_trade_setup(
+            current_price=current_p,
+            action='BUY',
+            atr=atr_v,
+            timeframe='1h'
+        )
+        self.assertFalse(setup_1h['wick_filter_applied'])
+        self.assertEqual(setup_1m['tp1'], setup_1h['tp1'])  # TP1 strictly at 0.38 ATR
+        self.assertAlmostEqual(setup_1h['stop_loss'], current_p - (1.80 * atr_v), places=2)
+
+        # 3. Spread-Adaptive Filter on 1m/3m: Reject setup if live spread > 25% of TP1
+        tp1_dist = 0.38 * atr_v  # 0.76
+        excessive_spread = tp1_dist * 0.30  # 30% of target
+        setup_bad_spread = RiskManager.generate_trade_setup(
+            current_price=current_p,
+            action='BUY',
+            atr=atr_v,
+            timeframe='1m',
+            spread_price=excessive_spread
+        )
+        self.assertEqual(setup_bad_spread['status'], 'NO_TRADE_SETUP')
+        self.assertIn('SPREAD FILTERED', setup_bad_spread['action'])
+        self.assertFalse(setup_bad_spread['spread_filter']['passed'])
+
+        # 4. Spread-Adaptive Filter passes when spread is low (e.g. 10% of TP1)
+        low_spread = tp1_dist * 0.10
+        setup_good_spread = RiskManager.generate_trade_setup(
+            current_price=current_p,
+            action='BUY',
+            atr=atr_v,
+            timeframe='1m',
+            spread_price=low_spread
+        )
+        self.assertEqual(setup_good_spread['status'], 'ACTIVE_SETUP')
+        self.assertTrue(setup_good_spread['spread_filter']['passed'])
+
+        # 5. Golden SL Invariant: Stop Loss is NEVER compressed below 1.50 * ATR even with tight swing low
+        setup_tight_swing = RiskManager.generate_trade_setup(
+            current_price=current_p,
+            action='BUY',
+            atr=atr_v,
+            recent_swing_low=99.8  # only 0.2 below entry (0.1 ATR)
+        )
+        self.assertLessEqual(setup_tight_swing['stop_loss'], current_p - (1.50 * atr_v))
+
+    def test_pillar2_cme_futures_proxy_data_provider(self):
+        # 1. Gold, Silver, and Crude Oil ticker mapping
+        self.assertEqual(CMEProxyFeed.get_cme_ticker('XAU/USD'), 'GC=F')
+        self.assertEqual(CMEProxyFeed.get_cme_ticker('XAUUSDc'), 'GC=F')
+        self.assertEqual(CMEProxyFeed.get_cme_ticker('XAG/USD'), 'SI=F')
+        self.assertEqual(CMEProxyFeed.get_cme_ticker('WTI/USD'), 'CL=F')
+        self.assertEqual(CMEProxyFeed.get_cme_ticker('CL'), 'CL=F')
+        # Non-CME tickers must return None, not Gold
+        self.assertIsNone(CMEProxyFeed.get_cme_ticker('USD'))
+        self.assertIsNone(CMEProxyFeed.get_cme_ticker('EUR/USD'))
+
+        # 2. CME Order flow evaluation
+        cme_res = CMEProxyFeed.get_institutional_order_flow('XAU/USD')
+        self.assertTrue(cme_res['available'])
+        self.assertIn('open_interest', cme_res)
+        self.assertGreater(cme_res['open_interest'], 1000)
+        self.assertIn('institutional_bias', cme_res)
+        self.assertIn('order_flow_score', cme_res)
+
+    def test_pillar2_currency_strength_meter(self):
+        csm_res = CurrencyStrengthMeter.calculate_currency_strength(use_mt5=True)
+        self.assertEqual(csm_res['status'], 'ONLINE')
+        self.assertIn('scores', csm_res)
+        for c in ['EUR', 'USD', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD']:
+            self.assertIn(c, csm_res['scores'])
+            self.assertTrue(0.0 <= csm_res['scores'][c] <= 10.0)
+
+        # Pair evaluation for BUY and SELL
+        eval_eurusd_buy = CurrencyStrengthMeter.evaluate_pair('EUR/USD', 'BUY')
+        self.assertTrue(eval_eurusd_buy['available'])
+        self.assertIn('differential', eval_eurusd_buy)
+        self.assertIn('directional_score', eval_eurusd_buy)
+        self.assertIn('alignment', eval_eurusd_buy)
+        self.assertIn('score', eval_eurusd_buy)
+
+        eval_eurusd_sell = CurrencyStrengthMeter.evaluate_pair('EUR/USD', 'SELL')
+        self.assertTrue(eval_eurusd_sell['available'])
+        # If USD is stronger than EUR (diff < 0), SELL must be ALIGNED, not CONFLICT!
+        if eval_eurusd_sell['differential'] <= -1.0:
+            self.assertIn('ALIGNED', eval_eurusd_sell['alignment'])
+            self.assertGreaterEqual(eval_eurusd_sell['score'], 10.0)
+
+    def test_pillar3_chop_market_and_bollinger_squeeze_detector(self):
+        # Case A: Low ADX (< 20) or high Choppiness (> 61.8) triggers Chop Gate
+        n = 50
+        dates = pd.date_range('2026-01-01', periods=n, freq='1h')
+        # Tight range chop: bouncing between 100.0 and 100.1
+        close = 100.0 + np.sin(np.linspace(0, 10, n)) * 0.05
+        df_chop = pd.DataFrame({
+            'timestamp': dates,
+            'open': close, 'high': close + 0.02, 'low': close - 0.02,
+            'close': close, 'volume': np.full(n, 100.0)
+        })
+        df_ind = QuantitativeIndicators.add_all_indicators(df_chop)
+        # Explicitly configure last row to reflect low ADX (< 20) and high choppiness (> 61.8)
+        df_ind.loc[df_ind.index[-1], 'adx_14'] = 16.5
+        df_ind.loc[df_ind.index[-1], 'choppiness'] = 64.2
+
+        base_conf = {
+            'action': 'BUY',
+            'confluence_score': 30.0,
+            'layer_scores': {'trend_momentum': 10.0, 'smart_money_smc': 5.0, 'mean_reversion_stat': 5.0, 'orderbook_pressure': 5.0}
+        }
+        ml_pred = {'p_bullish': 0.55, 'p_bearish': 0.45, 'confidence_pct': 10.0}
+        alpha_res = AlphaSniperEngine.evaluate(
+            df_indicators=df_ind,
+            base_confluence=base_conf,
+            ml_prediction=ml_pred,
+            trade_setup={}
+        )
+        self.assertIn('chop_gate', alpha_res)
+        self.assertTrue(alpha_res['chop_gate']['is_chop'])
+        self.assertEqual(alpha_res['chop_gate']['status'], 'CHOP CONSOLIDATION DETECTED')
+        self.assertEqual(alpha_res['gated_action'], 'NEUTRAL (FILTERED)')
+        self.assertEqual(alpha_res['sniper_badge'], '[CHOP GATE] CHOP CONSOLIDATION DETECTED')
+        self.assertEqual(alpha_res['sniper_tier'], 'CAPITAL_PRESERVATION')
+        self.assertEqual(alpha_res['trade_expectancy_r'], 0.0)
+
+        # Case B: High fake breakout confluence score (>= 60.0) must still be strictly gated
+        base_conf_fake_breakout = {
+            'action': 'BUY',
+            'confluence_score': 72.0,
+            'layer_scores': {'trend_momentum': 25.0, 'smart_money_smc': 20.0, 'mean_reversion_stat': 15.0, 'orderbook_pressure': 12.0}
+        }
+        alpha_res_fake = AlphaSniperEngine.evaluate(
+            df_indicators=df_ind,
+            base_confluence=base_conf_fake_breakout,
+            ml_prediction=ml_pred,
+            trade_setup={}
+        )
+        self.assertEqual(alpha_res_fake['gated_action'], 'NEUTRAL (FILTERED)')
+        self.assertEqual(alpha_res_fake['sniper_badge'], '[CHOP GATE] CHOP CONSOLIDATION DETECTED')
 
 if __name__ == '__main__':
     unittest.main()

@@ -39,7 +39,8 @@ SETTINGS_FILE = os.path.join(ROOT_DIR, ".autonomous_trader_settings.json")
 STATE_FILE = os.path.join(ROOT_DIR, ".autonomous_trader_state.json")
 JOURNAL_FILE = os.path.join(ROOT_DIR, ".trade_learning_journal.json")
 
-DEFAULT_TIMEFRAMES = ["1m", "3m", "5m", "15m", "30m", "1h", "4h"]
+AVAILABLE_TIMEFRAMES = ["1m", "3m", "5m", "15m", "30m", "1h", "4h"]
+DEFAULT_TIMEFRAMES = ["5m", "15m", "30m", "1h", "4h"]
 DEFAULT_SYMBOLS = ["XAU/USD", "BTC/USD"]
 
 _SCAN_STOP_EVENT = threading.Event()
@@ -297,11 +298,16 @@ class AutonomousTraderEngine:
         news = pred_res.get('economic_news', {})
         quantum = pred_res.get('quantum_sniper', alpha.get('quantum_sniper', {}))
         whale_gate = pred_res.get('whale_sentiment_gate', {})
+        chop_gate = pred_res.get('chop_gate', alpha.get('chop_gate', {}))
+        spread_guard = pred_res.get('spread_guard', {})
+
+        is_chop = bool(chop_gate.get('is_chop', False))
+        is_spread_pass = bool(spread_guard.get('passed', True)) if spread_guard else True
 
         action = conf.get('action', '')
-        is_dir_buy = ('BUY' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action)
-        is_dir_sell = ('SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action)
-        is_trade_active = is_dir_buy or is_dir_sell
+        is_dir_buy = ('BUY' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action) and ('CHOP' not in action)
+        is_dir_sell = ('SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action) and ('CHOP' not in action)
+        is_trade_active = (is_dir_buy or is_dir_sell) and (not is_chop) and is_spread_pass
 
         # Pillar 1: Predictive Confluence & Alpha Sniper (Closed-Loop Learning Calibrated)
         journal = self.load_journal()
@@ -312,10 +318,11 @@ class AutonomousTraderEngine:
         p1_score = float(conf.get('confluence_score', 0))
         p1_prob = float(alpha.get('calibrated_win_probability_pct', conf.get('quality_index_pct', 50)))
         p1_ok = False
-        if is_dir_buy and p1_score >= req_score and p1_prob >= req_prob:
-            p1_ok = True
-        elif is_dir_sell and p1_score <= -req_score and p1_prob >= req_prob:
-            p1_ok = True
+        if not is_chop and is_spread_pass:
+            if is_dir_buy and p1_score >= req_score and p1_prob >= req_prob:
+                p1_ok = True
+            elif is_dir_sell and p1_score <= -req_score and p1_prob >= req_prob:
+                p1_ok = True
 
         # Pillar 2: MTF Alignment
         s1 = mtf.get('screen1_macro', {}) if mtf else {}
@@ -349,7 +356,9 @@ class AutonomousTraderEngine:
             'p2': {'ok': p2_ok, 'bias': s1_bias, 'ema200': s1_200},
             'p3': {'ok': p3_ok, 'is_blackout': bool(news.get('is_blackout', False)) if news else False},
             'p4': {'ok': p4_ok, 'is_overextended': is_overextended},
-            'p5': {'ok': p5_ok, 'status': p5_status}
+            'p5': {'ok': p5_ok, 'status': p5_status},
+            'chop_gate': chop_gate,
+            'spread_guard': spread_guard
         }
 
     def audit_active_trades_and_learn(self):
@@ -576,15 +585,30 @@ class AutonomousTraderEngine:
                 score = eval_res['p1']['score']
                 prob = eval_res['p1']['prob']
 
-                is_actionable = ('BUY' in action or 'SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action)
+                chop_gate = pred.get('chop_gate', {})
+                is_chop = bool(chop_gate.get('is_chop', False))
+                spread_guard = pred.get('spread_guard', {})
+                is_spread_fail = bool(spread_guard and not spread_guard.get('passed', True))
+
+                is_actionable = ('BUY' in action or 'SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action) and ('CHOP' not in action) and (not is_chop) and (not is_spread_fail)
                 is_eligible = (p_cnt >= min_pillars_required) and is_actionable
 
                 pillar_str = f"{p_cnt}/5"
 
                 if is_eligible:
                     status_lbl = f"🎯 {p_cnt}/5 Aligned (Executing)"
+                elif is_chop:
+                    status_lbl = "SKIPPED (Chop Gate)"
+                elif is_spread_fail:
+                    status_lbl = "SKIPPED (Spread > 25% TP1)"
                 else:
                     status_lbl = f"No Trade (Waiting {min_pillars_required}/5)"
+
+                detail_str = f"Score: {score:+.1f} | Win Prob: {prob:.0f}%"
+                if is_chop:
+                    detail_str = f"CHOP: {chop_gate.get('reason', '')[:45]}"
+                elif is_spread_fail:
+                    detail_str = f"Spread: ${spread_guard.get('spread_price')} ({spread_guard.get('spread_to_target_pct')}%) > 25%"
 
                 self._append_activity_log({
                     "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
@@ -594,7 +618,7 @@ class AutonomousTraderEngine:
                     "action": action,
                     "pillars": pillar_str,
                     "status": status_lbl,
-                    "details": f"Score: {score:+.1f} | Win Prob: {prob:.0f}%"
+                    "details": detail_str
                 })
 
                 if is_eligible:

@@ -22,6 +22,8 @@ from ..engine.risk_manager import RiskManager
 from ..strategies.alpha_sniper import AlphaSniperEngine
 from ..data.economic_calendar import EconomicCalendarManager
 from ..engine.mtf_filter import MultiTimeframeFilter
+from ..data.cme_proxy import CMEProxyFeed
+from ..data.currency_strength import CurrencyStrengthMeter
 
 
 class PredictorOrchestrator:
@@ -105,6 +107,27 @@ class PredictorOrchestrator:
 
         current_price = float(live_ticker['last']) if live_ticker else float(df_ohlcv['close'].iloc[-1])
 
+        # Compute live spread price if available
+        live_spread = 0.0
+        if live_ticker and live_ticker.get('ask') and live_ticker.get('bid'):
+            try:
+                ask_p = float(live_ticker['ask'])
+                bid_p = float(live_ticker['bid'])
+                if ask_p >= bid_p:
+                    live_spread = round(ask_p - bid_p, 6)
+            except Exception:
+                pass
+
+        # Institutional Decentralized Feeds (CME Proxy & Currency Strength Meter)
+        cme_proxy_data = None
+        csm_data = None
+        is_gold_or_commodity = any(m in symbol.upper() for m in ['XAU', 'GOLD', 'XAG', 'SILVER', 'WTI', 'OIL', 'CL'])
+        if is_gold_or_commodity:
+            cme_proxy_data = CMEProxyFeed.get_institutional_order_flow(symbol)
+
+        if asset_type == 'forex' and not is_gold_or_commodity:
+            csm_data = CurrencyStrengthMeter.evaluate_pair(symbol, 'NEUTRAL')
+
         # ────────────────────────────────────────────────────
         # STEP 2: QUANTITATIVE INDICATORS
         # ────────────────────────────────────────────────────
@@ -179,7 +202,9 @@ class PredictorOrchestrator:
             smc_data=smc_data,
             ml_prediction=ml_prediction,
             orderbook_metrics=orderbook_data,
-            futures_signals=futures_signals_result
+            futures_signals=futures_signals_result,
+            cme_proxy=cme_proxy_data,
+            currency_strength=csm_data
         )
 
         # ────────────────────────────────────────────────────
@@ -229,6 +254,9 @@ class PredictorOrchestrator:
         # ────────────────────────────────────────────────────
         # STEP 8: PROPRIETARY ALPHASNIPER™ & QUANTUMSNIPER™ INTELLIGENCE
         # ────────────────────────────────────────────────────
+        if csm_data and any(d in str(confluence.get('action', '')).upper() for d in ['BUY', 'SELL']):
+            csm_data = CurrencyStrengthMeter.evaluate_pair(symbol, confluence['action'])
+
         alpha_sniper = AlphaSniperEngine.evaluate(
             df_indicators=df_indicators,
             base_confluence=confluence,
@@ -239,11 +267,14 @@ class PredictorOrchestrator:
             quantum_sniper=None,
             timeframe=timeframe,
             news_blackout=news_blackout,
-            mtf_alignment=mtf_alignment
+            mtf_alignment=mtf_alignment,
+            cme_proxy=cme_proxy_data,
+            currency_strength=csm_data
         )
         quantum_sniper = alpha_sniper.get('quantum_sniper', {})
 
-        effective_action = alpha_sniper['gated_action'] if ('FILTERED' in alpha_sniper['gated_action'] or 'BLACKOUT' in alpha_sniper['gated_action']) else confluence['action']
+        is_gated = ('FILTERED' in alpha_sniper['gated_action'] or 'BLACKOUT' in alpha_sniper['gated_action'] or 'CHOP' in alpha_sniper['gated_action'])
+        effective_action = alpha_sniper['gated_action'] if is_gated else confluence['action']
         confluence['unfiltered_action'] = confluence.get('action')
         confluence['action'] = effective_action
 
@@ -259,7 +290,9 @@ class PredictorOrchestrator:
             recent_swing_low=market_structure.get('recent_swing_low'),
             account_size_usd=account_size_usd,
             risk_per_trade_pct=risk_per_trade_pct,
-            win_probability=calibrated_win_rate
+            win_probability=calibrated_win_rate,
+            timeframe=timeframe,
+            spread_price=live_spread
         )
 
         # ────────────────────────────────────────────────────
@@ -277,6 +310,7 @@ class PredictorOrchestrator:
             'market_data': {
                 'current_price': current_price,
                 'ticker': live_ticker,
+                'spread_price': live_spread,
                 'multi_exchange_prices': exchange_prices,
                 'orderbook': orderbook_data,
                 'forex_sessions': forex_sessions
@@ -292,6 +326,10 @@ class PredictorOrchestrator:
                 'reason': alpha_sniper.get('whale_gate_reason', '')
             },
             'trade_setup': trade_setup,
+            'cme_proxy_data': cme_proxy_data,
+            'currency_strength': csm_data,
+            'chop_gate': alpha_sniper.get('chop_gate', {}),
+            'spread_guard': trade_setup.get('spread_filter', {}),
             'ml_prediction': ml_prediction,
             'smc_analysis': {
                 'structure': market_structure,

@@ -31,7 +31,9 @@ class AlphaSniperEngine:
         quantum_sniper: Optional[Dict[str, Any]] = None,
         timeframe: str = '1h',
         news_blackout: Optional[Dict[str, Any]] = None,
-        mtf_alignment: Optional[Dict[str, Any]] = None
+        mtf_alignment: Optional[Dict[str, Any]] = None,
+        cme_proxy: Optional[Dict[str, Any]] = None,
+        currency_strength: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Executes proprietary conviction gating, Bayesian probability calibration,
@@ -282,6 +284,25 @@ class AlphaSniperEngine:
                 elif mtf_alignment.get('is_macro_conflict', False):
                     calibrated_prob -= 12.0 # Heavy counter-macro trend penalty
 
+            # CME Institutional Order Flow Alignment (Gold & Commodities)
+            if cme_proxy and cme_proxy.get('available'):
+                cme_flow = float(cme_proxy.get('order_flow_score', 0.0))
+                if ('BUY' in action and cme_flow >= 20.0) or ('SELL' in action and cme_flow <= -20.0):
+                    calibrated_prob += 4.0
+                    active_confs += 0.5
+                elif ('BUY' in action and cme_flow <= -20.0) or ('SELL' in action and cme_flow >= 20.0):
+                    calibrated_prob -= 7.0
+
+            # Currency Strength Meter Alignment (Forex)
+            if currency_strength and currency_strength.get('available'):
+                csm_align = str(currency_strength.get('alignment', 'NEUTRAL')).upper()
+                csm_score = float(currency_strength.get('score', 0.0))
+                if 'ALIGNED' in csm_align or csm_score >= 10.0:
+                    calibrated_prob += 4.0
+                    active_confs += 0.5
+                elif 'CONFLICT' in csm_align or csm_score <= -10.0:
+                    calibrated_prob -= 8.0
+
         # Cap calibrated probability between 45.0% and 97.2%
         calibrated_prob = float(np.clip(calibrated_prob, 45.0, 97.2))
 
@@ -370,7 +391,37 @@ class AlphaSniperEngine:
             tier_color = '#8b949e'
             sniper_reasons.append(f"AlphaSniper: Market in {regime} regime with insufficient signal alignment (Calibrated P={calibrated_prob:.1f}%). Capital preservation active.")
 
-        # Invalidation Guard: Economic News Blackout, MTF Macro Conflict, or Noise
+        # ─────────────────────────────────────────────────────────────
+        # CHOP MARKET & BOLLINGER SQUEEZE DETECTOR (CHOP GATE)
+        # ─────────────────────────────────────────────────────────────
+        adx_val = float(last_row.get('adx_14', 20.0))
+        bb_sq   = bool(last_row.get('bb_squeeze', False))
+        vol_srg = bool(last_row.get('vol_surge', False))
+        bb_u    = float(last_row.get('bb_upper', c * 1.02))
+        bb_l    = float(last_row.get('bb_lower', c * 0.98))
+
+        is_dead_chop = (adx_val < 20.0) or (chop > 61.8)
+        is_bb_squeeze_idle = bb_sq and (not vol_srg)
+        is_range_breakout = vol_srg and ((c > bb_u) or (c < bb_l))
+
+        is_chop_consolidation = (is_dead_chop or is_bb_squeeze_idle) and (not is_range_breakout)
+
+        chop_gate_data = {
+            'is_chop': is_chop_consolidation,
+            'status': 'CHOP CONSOLIDATION DETECTED' if is_chop_consolidation else 'TRENDING_EXPANSION_OK',
+            'adx_14': round(adx_val, 1),
+            'choppiness': round(chop, 1),
+            'bb_squeeze': bb_sq,
+            'vol_surge': vol_srg,
+            'is_range_breakout': is_range_breakout,
+            'reason': (
+                f"CHOP CONSOLIDATION DETECTED: {'ADX < 20 (' + str(round(adx_val, 1)) + ') ' if adx_val < 20.0 else ''}"
+                f"{'Choppiness > 61.8 (' + str(round(chop, 1)) + ') ' if chop > 61.8 else ''}"
+                f"{'BB Squeeze awaiting volume expansion' if is_bb_squeeze_idle else ''}"
+            ).strip() if is_chop_consolidation else "Healthy volatility and directional trend expansion confirmed."
+        }
+
+        # Invalidation Guard: Economic News Blackout, MTF Macro Conflict, Chop Gate, or Noise
         gated_action = action
         if news_blackout and news_blackout.get('is_blackout'):
             gated_action = 'NEUTRAL (NEWS BLACKOUT)'
@@ -387,6 +438,14 @@ class AlphaSniperEngine:
                 tier_color = '#8b949e'
                 trade_expectancy_r = 0.0
                 sniper_reasons.insert(0, "MTF Filter Gate: Action gated to NEUTRAL due to Fatal Macro 200 EMA Trend Conflict.")
+        elif is_chop_consolidation and ('BUY' in action or 'SELL' in action):
+            gated_action = 'NEUTRAL (FILTERED)'
+            sniper_tier = 'CAPITAL_PRESERVATION'
+            sniper_badge = '[CHOP GATE] CHOP CONSOLIDATION DETECTED'
+            tier_color = '#8b949e'
+            trade_expectancy_r = 0.0
+            calibrated_prob = min(calibrated_prob, 52.0)
+            sniper_reasons.insert(0, chop_gate_data['reason'])
         elif sniper_tier == 'CAPITAL_PRESERVATION' and ('BUY' in action or 'SELL' in action):
             gated_action = 'NEUTRAL (FILTERED)'
             trade_expectancy_r = 0.0
@@ -417,5 +476,8 @@ class AlphaSniperEngine:
             'whale_gate_passed': has_whale_catalyst if futures_signals else True,
             'whale_gate_reason': whale_gate_reason if futures_signals else "",
             'news_blackout': news_blackout,
-            'mtf_alignment': mtf_alignment
+            'mtf_alignment': mtf_alignment,
+            'chop_gate': chop_gate_data,
+            'cme_proxy': cme_proxy,
+            'currency_strength': currency_strength
         }

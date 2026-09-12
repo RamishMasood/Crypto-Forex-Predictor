@@ -21,7 +21,9 @@ class ConfluenceEngine:
         smc_data: Dict[str, Any],
         ml_prediction: Dict[str, Any],
         orderbook_metrics: Dict[str, Any],
-        futures_signals: Optional[Dict[str, Any]] = None   # None = spot mode
+        futures_signals: Optional[Dict[str, Any]] = None,   # None = spot mode
+        cme_proxy: Optional[Dict[str, Any]] = None,
+        currency_strength: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Executes multi-strategy confluence scoring and signal generation.
@@ -269,6 +271,26 @@ class ConfluenceEngine:
             score += (f1_score + f2_score + f3_score + f4_score + f5_score + f6_score + f7_score + f8_score)
 
         # ==========================================
+        # CME INSTITUTIONAL ORDER FLOW (Gold & Commodities)
+        # ==========================================
+        cme_score = 0.0
+        if cme_proxy and cme_proxy.get('available'):
+            raw_cme = float(cme_proxy.get('order_flow_score', 0.0))
+            cme_score = round(raw_cme * 0.15, 1)
+            score += cme_score
+            reasons.append(f"CME Institutional Flow: {cme_proxy.get('flow_description', '')} ({cme_score:+.1f})")
+
+        # ==========================================
+        # CURRENCY STRENGTH METER (Forex pairs)
+        # ==========================================
+        csm_score = 0.0
+        if currency_strength and currency_strength.get('available'):
+            raw_csm = float(currency_strength.get('directional_score', currency_strength.get('score', 0.0)))
+            csm_score = round(raw_csm * 0.6, 1)
+            score += csm_score
+            reasons.append(f"Currency Strength Meter: {currency_strength.get('reason', '')} ({csm_score:+.1f})")
+
+        # ==========================================
         # FINAL SYNTHESIS
         # ==========================================
         score = max(-100.0, min(100.0, score))
@@ -300,6 +322,11 @@ class ConfluenceEngine:
             'machine_learning': round(ml_score, 1),
             'orderbook_pressure': round(ob_score, 1),
         }
+        if cme_proxy and cme_proxy.get('available'):
+            layer_scores['cme_institutional_order_flow'] = cme_score
+        if currency_strength and currency_strength.get('available'):
+            layer_scores['currency_strength_flow'] = csm_score
+
         if is_futures:
             layer_scores.update({
                 'f1_funding_rate': round(f1_score, 1),
