@@ -194,9 +194,18 @@ class MT5TradeExecutor:
             tp2_pct = round((lot2 / total_lots * 100.0), 1) if total_lots > 0 else 0.0
             tp3_pct = round((lot3 / total_lots * 100.0), 1) if total_lots > 0 else 0.0
         else:
+            auto_adjusted_min = False
             if total_volume_lots is not None and total_volume_lots > 0:
-                steps = round(total_volume_lots / vol_step)
-                total_lots = max(vol_min, min(vol_max, steps * vol_step))
+                if total_volume_lots < vol_min:
+                    auto_adjusted_min = True
+                    total_lots = vol_min
+                else:
+                    steps = round(total_volume_lots / vol_step)
+                    total_lots = max(vol_min, min(vol_max, steps * vol_step))
+                # Absolute safeguard: Total lots can never exceed the intended custom size unless clamped to vol_min
+                max_allowed = max(vol_min, float(total_volume_lots))
+                if total_lots > max_allowed + 1e-4:
+                    total_lots = max_allowed
                 total_lots = round(total_lots, 4)
             else:
                 raw_lots = target_risk_usd / risk_per_one_lot
@@ -268,6 +277,7 @@ class MT5TradeExecutor:
             'actual_risk_usd': round(actual_risk_usd, 2),
             'actual_risk_pct': round(actual_risk_pct, 2),
             'total_lots': total_lots,
+            'auto_adjusted_min': auto_adjusted_min if 'auto_adjusted_min' in locals() else False,
             'min_lot_risk_usd': round(min_lot_risk_usd, 2),
             'lot_split': {
                 'tp1_lots': lot1,

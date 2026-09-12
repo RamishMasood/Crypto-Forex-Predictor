@@ -621,6 +621,11 @@ class AutonomousTraderEngine:
 
             actual_risk_usd = float(lot_sizing.get('actual_risk_usd', 0.0))
             lot_split = lot_sizing.get('lot_split', {})
+            total_lots = lot_sizing.get('total_lots', 0.0)
+            is_auto_adjusted = lot_sizing.get('auto_adjusted_min', False)
+
+            if is_auto_adjusted:
+                logger.info(f"Auto-adjusted lot size for {symbol} ({broker_sym}) to broker minimum: {total_lots} lots (requested: {active_lot_size})")
 
             # 4. Check Dollar Risk Cap (Requirement 9)
             if max_dollar_risk > 0 and actual_risk_usd > max_dollar_risk:
@@ -638,7 +643,7 @@ class AutonomousTraderEngine:
                 })
                 return False
 
-            logger.info(f"EXECUTING AUTONOMOUS 5/5 TRADE: {action} {symbol} ({tf}) on {broker_sym}")
+            logger.info(f"EXECUTING AUTONOMOUS 5/5 TRADE: {action} {symbol} ({tf}) on {broker_sym} | Total Lots: {total_lots} {lot_split}")
             exec_res = self.executor.execute_multi_target_trade(
                 broker_symbol=broker_sym,
                 action=action,
@@ -689,6 +694,7 @@ class AutonomousTraderEngine:
                 self.save_state(state)
 
                 m_pil = setup_data.get('matched_pillars', 5)
+                adj_note = f" (Auto-clamped to Exness min {total_lots})" if is_auto_adjusted else ""
                 self._append_activity_log({
                     "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
                     "cycle": cycle,
@@ -697,7 +703,7 @@ class AutonomousTraderEngine:
                     "action": action,
                     "pillars": f"{m_pil}/5",
                     "status": f"EXECUTED (Batch #{batch_id})",
-                    "details": f"Entry: {entry_price} | SL: {sl_price} | BE: {breakeven_sl} | Lots: {lot_split.get('tp1_lots', 0)}/{lot_split.get('tp2_lots', 0)}/{lot_split.get('tp3_lots', 0)}"
+                    "details": f"Entry: {entry_price} | SL: {sl_price} | Lots: {lot_split.get('tp1_lots', 0)}/{lot_split.get('tp2_lots', 0)}/{lot_split.get('tp3_lots', 0)}{adj_note}"
                 })
                 return True
             else:

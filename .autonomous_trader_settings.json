@@ -1,12 +1,12 @@
 {
   "enabled": true,
   "selected_symbols": [
-    "XAU/USD",
     "BTC/USD",
     "ETH/USD",
     "BTC/XAU",
     "XAUUSD247",
-    "ETH/BTC"
+    "ETH/BTC",
+    "BTC/USDT"
   ],
   "timeframes": [
     "1m",
@@ -21,7 +21,7 @@
   "scan_interval_sec": 30,
   "target_trades_per_symbol": 100,
   "max_active_batches": 100,
-  "max_dollar_risk": 10.0,
+  "max_dollar_risk": 30.0,
   "min_pillars_required": 5,
   "batch_lot_size": 0.03
 }

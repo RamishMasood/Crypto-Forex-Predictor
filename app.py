@@ -1092,7 +1092,7 @@ def render_mt5_position_tracker():
                 step=0.01,
                 format="%.2f",
                 key="auto_cfg_batch_lot_size",
-                help="Total volume per trade batch. (0.03 = 0.01 each on TP1/TP2/TP3. >0.03 allocates 65% on TP1 to secure wins)."
+                help="Total volume per trade batch. (0.03 = 0.01 each on TP1/TP2/TP3. For pairs with higher broker minimum like ETH/USD (min 0.10), lot is automatically clamped to broker min without affecting other pairs)."
             )
 
         # Persist settings changes
