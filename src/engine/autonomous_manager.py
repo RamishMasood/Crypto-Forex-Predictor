@@ -68,7 +68,8 @@ class AutonomousTraderEngine:
             "max_active_batches": 1,            # 1 = wait until previous batch closes
             "max_dollar_risk": 10.0,            # Max dollar risk cap per batch ($ USD)
             "min_pillars_required": 5,          # Customizable required pillars: 5, 4, 3, or 2
-            "batch_lot_size": 0.03              # Customizable batch lot size (e.g. 0.03 -> 0.01, 0.01, 0.01)
+            "batch_lot_size": 0.03,             # Customizable batch lot size (e.g. 0.03 -> 0.01, 0.01, 0.01)
+            "allow_same_tf_trades": True        # Customizable switch: Allow multiple trades on same timeframe
         }
         with _STATE_LOCK:
             if os.path.exists(SETTINGS_FILE):
@@ -867,16 +868,18 @@ class AutonomousTraderEngine:
                 logger.info(f"Stop signal detected. Aborting scan on {symbol}.")
                 return None
 
-            # Prevent duplicate position stacking: if a batch is already running on (symbol, tf), advance to next tf
-            active_batch_id = None
-            for bid, binfo in open_batches.items():
-                if binfo.get('symbol') == symbol and binfo.get('timeframe') == tf:
-                    active_batch_id = bid
-                    break
+            # Check duplicate position stacking on same (symbol, tf) unless allow_same_tf_trades is enabled
+            allow_same_tf = bool(self.load_settings().get('allow_same_tf_trades', True))
+            if not allow_same_tf:
+                active_batch_id = None
+                for bid, binfo in open_batches.items():
+                    if binfo.get('symbol') == symbol and binfo.get('timeframe') == tf:
+                        active_batch_id = bid
+                        break
 
-            if active_batch_id:
-                logger.info(f"Active batch #{active_batch_id} already running on {symbol} ({tf}). Advancing to prevent duplicate stacking.")
-                continue
+                if active_batch_id:
+                    logger.info(f"Active batch #{active_batch_id} already running on {symbol} ({tf}). Advancing to next timeframe (same-TF stacking off).")
+                    continue
 
             try:
                 # Update current scanning pointer

@@ -26,5 +26,11 @@
     "tp1_lots": 0.01,
     "tp2_lots": 0.0,
     "tp3_lots": 0.0
+  },
+  "ETHUSDm": {
+    "direct_total": 0.1,
+    "tp1_lots": 0.1,
+    "tp2_lots": 0.0,
+    "tp3_lots": 0.0
   }
 }

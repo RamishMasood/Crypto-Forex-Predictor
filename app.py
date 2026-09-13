@@ -1150,9 +1150,9 @@ def render_mt5_autonomous_engine_view(live_exec):
                 help="Autonomous engine checks every selected timeframe for setups. 1m/3m are unchecked by default to eliminate noise wicks."
             )
 
-        # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap, Batch Lot Size) ───
+        # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap, Batch Lot Size, Same-TF Toggle) ───
         st.markdown("##### 🎛️ Engine Strategy & Risk Controls:")
-        cfg_c1, cfg_c2, cfg_c3, cfg_c4, cfg_c5, cfg_c6 = st.columns([1.1, 1.3, 1.1, 1.1, 1.1, 1.1])
+        cfg_c1, cfg_c2, cfg_c3, cfg_c4, cfg_c5, cfg_c6, cfg_c7 = st.columns([1.1, 1.3, 1.0, 1.0, 1.0, 1.0, 1.2])
         
         with cfg_c1:
             target_trades = st.number_input(
@@ -1224,6 +1224,16 @@ def render_mt5_autonomous_engine_view(live_exec):
                 help="Total volume per trade batch. (0.03 = 0.01 each on TP1/TP2/TP3. For pairs with higher broker minimum like ETH/USD (min 0.10), lot is automatically clamped to broker min without affecting other pairs)."
             )
 
+        with cfg_c7:
+            st.write("")
+            st.write("")
+            allow_same_tf_cfg = st.toggle(
+                "🔁 Multi-Trades / Same TF",
+                value=bool(settings.get('allow_same_tf_trades', True)),
+                key="auto_cfg_allow_same_tf_trades",
+                help="ON: Allows opening multiple concurrent trades on the same timeframe (e.g. multiple 4h setups). OFF: Restricts to max 1 active batch per timeframe."
+            )
+
         # Persist settings changes
         new_interval_sec = int(scan_delay_mins * 60)
         settings_changed = (
@@ -1235,6 +1245,7 @@ def render_mt5_autonomous_engine_view(live_exec):
             or max_batches_cfg != settings.get('max_active_batches')
             or max_risk_usd_cfg != settings.get('max_dollar_risk')
             or abs(batch_lot_size_cfg - float(settings.get('batch_lot_size', 0.03))) > 1e-4
+            or allow_same_tf_cfg != settings.get('allow_same_tf_trades', True)
         )
         if settings_changed:
             settings['selected_symbols'] = chosen_symbols
@@ -1245,6 +1256,7 @@ def render_mt5_autonomous_engine_view(live_exec):
             settings['max_active_batches'] = max_batches_cfg
             settings['max_dollar_risk'] = max_risk_usd_cfg
             settings['batch_lot_size'] = round(batch_lot_size_cfg, 2)
+            settings['allow_same_tf_trades'] = allow_same_tf_cfg
             auto_engine.save_settings(settings)
             st.toast("⚙️ Engine Strategy & Risk Settings Updated!", icon="✅")
 
