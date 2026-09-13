@@ -3747,9 +3747,9 @@
   "cycle_count": 524,
   "current_scan": {
     "cycle": 524,
-    "symbol": "USD/JPY",
+    "symbol": "CAD/JPY",
     "timeframe": "1h",
-    "time": "17:33:17 UTC"
+    "time": "17:33:18 UTC"
   },
   "scan_activity_log": [
     {
