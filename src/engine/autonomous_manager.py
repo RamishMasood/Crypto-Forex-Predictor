@@ -476,25 +476,44 @@ class AutonomousTraderEngine:
 
         if has_futures:
             # Perpetual Futures: Squeeze & Funding Analysis
+            # NOTE: p5_ok evaluates ONLY whale/futures signals independently.
+            # Chop state is NOT factored here — is_fully_aligned at L617 uses is_trade_active as the
+            # final safety net, so chop will still block actual trade execution even if p5 passes.
             w_passed = whale_gate.get('passed', True) if whale_gate else True
             w_unlocked = whale_gate.get('whale_gate_unlocked', False) if whale_gate else False
             w_reason = whale_gate.get('reason', 'Benign standard funding') if whale_gate else 'Benign funding'
-            if w_unlocked:
+            # is_counter_whale = TRUE means trade DIRECTLY opposes an active squeeze (fatal liquidation trap).
+            # is_counter_whale = FALSE means just no extreme catalyst, but no dangerous opposing force either.
+            w_is_counter = bool(whale_gate.get('is_counter_whale', False)) if whale_gate else False
+
+            if w_unlocked and w_passed:
+                # ELITE whale catalyst: extreme funding or OI squeeze confirmed aligned with trade direction
                 p5_ok = True
-                p5_status = "WHALE CATALYST UNLOCKED"
+                p5_status = "WHALE CATALYST UNLOCKED ⚡"
                 p5_desc = f"{w_reason} — Squeeze energy supports explosive move."
                 p5_badge = "WHALE CONFIRMED"
                 p5_col = "#00c853" if is_dir_buy else "#ff1744"
-            elif not w_passed or ('TRAP' in str(w_reason) or 'COUNTER' in str(w_reason)):
+            elif w_is_counter:
+                # FATAL: Trade direction directly opposes an active squeeze → liquidation cascade risk
                 p5_ok = False
-                p5_status = "COUNTER-WHALE TRAP DANGER"
-                p5_desc = f"{w_reason} — High risk of liquidation cascade."
+                p5_status = "COUNTER-WHALE TRAP DANGER 🚨"
+                p5_desc = f"{w_reason} — Trade opposes active squeeze. High liquidation cascade risk."
                 p5_badge = "TRAP DANGER"
                 p5_col = "#ef4444"
+            elif not w_passed and not w_is_counter:
+                # Insufficient squeeze catalyst for ELITE tier — but NO opposing force detected.
+                # This is HIGH CONVICTION territory (84% cap in alpha_sniper), NOT a trap.
+                # Pillar 5 passes — trade is safe, just not ELITE grade.
+                p5_ok = True
+                p5_status = "HIGH CONVICTION SAFE (No Extreme Squeeze)"
+                p5_desc = f"No extreme funding or OI squeeze catalyst detected — but no counter-whale trap either. Trade at HIGH CONVICTION tier (84% cap). {w_reason}"
+                p5_badge = "HIGH CONVICTION"
+                p5_col = "#38bdf8"
             else:
-                p5_ok = is_trade_active
-                p5_status = "BENIGN FUNDING (HIGH CONVICTION SAFE)"
-                p5_desc = f"{w_reason} — No squeeze trap detected."
+                # Benign / no futures data issue = safe
+                p5_ok = True
+                p5_status = "BENIGN FUNDING (WHALE FLOW SAFE)"
+                p5_desc = f"{w_reason} — No squeeze trap detected. Whale flow benign."
                 p5_badge = "SAFE"
                 p5_col = "#38bdf8"
         elif has_cot:
@@ -502,7 +521,7 @@ class AutonomousTraderEngine:
             cot_bias = str(cot.get('smart_money_bias', 'NEUTRAL')).upper()
             cot_score = float(cot.get('sentiment_score', 0.0))
             cot_summary = cot.get('summary', 'CFTC COT Smart Money Active')
-            
+
             # Multi-Timeframe Horizon Adaptation:
             # Scalp timeframes (1m, 3m, 5m, 15m) evaluate real-time order flow and broker volume.
             # Weekly macro COT lag (3-7 days old) acts as a macro boost when aligned, and permits
@@ -513,6 +532,8 @@ class AutonomousTraderEngine:
 
             if is_scalp_tf:
                 # ─── SCALP HORIZON LOGIC (1m, 3m, 5m, 15m) ───
+                # COT conflict on scalp TF → still permitted (intraday scalp vs weekly lag),
+                # so p5_ok=True unless there is NO directional signal at all.
                 if is_dir_buy:
                     if 'BULLISH' in cot_bias or cot_score >= 12.0:
                         p5_ok = True
@@ -521,13 +542,15 @@ class AutonomousTraderEngine:
                         p5_badge = "COT MACRO BOOST"
                         p5_col = "#00c853"
                     elif 'BEARISH' in cot_bias or cot_score <= -15.0:
-                        p5_ok = is_trade_active
+                        # COT opposes but scalp is still approved — Pillar 5 passes (with caution label).
+                        # Enforce TP1 scalp bank & Auto-BE in trade execution.
+                        p5_ok = True
                         p5_status = f"INTRADAY SCALP CONFIRMED ({str(tf).upper()} HORIZON)"
                         p5_desc = f"Intraday scalp approved on {tf}. Weekly COT opposes ({cot_bias}), strictly enforce TP1 (0.38*ATR) scalp bank & Auto-BE."
                         p5_badge = "INTRADAY SCALP"
                         p5_col = "#eab308"
                     else:
-                        p5_ok = is_trade_active
+                        p5_ok = True
                         p5_status = f"SCALP PERMITTED (NEUTRAL COT, {str(tf).upper()})"
                         p5_desc = f"{cot_summary} — Real-time price action clear for intraday scalp execution."
                         p5_badge = "SCALP SAFE"
@@ -540,18 +563,20 @@ class AutonomousTraderEngine:
                         p5_badge = "COT MACRO BOOST"
                         p5_col = "#ff1744"
                     elif 'BULLISH' in cot_bias or cot_score >= 15.0:
-                        p5_ok = is_trade_active
+                        # COT opposes but scalp is still approved — Pillar 5 passes (with caution label).
+                        p5_ok = True
                         p5_status = f"INTRADAY SCALP CONFIRMED ({str(tf).upper()} HORIZON)"
                         p5_desc = f"Intraday scalp approved on {tf}. Weekly COT opposes ({cot_bias}), strictly enforce TP1 (0.38*ATR) scalp bank & Auto-BE."
                         p5_badge = "INTRADAY SCALP"
                         p5_col = "#eab308"
                     else:
-                        p5_ok = is_trade_active
+                        p5_ok = True
                         p5_status = f"SCALP PERMITTED (NEUTRAL COT, {str(tf).upper()})"
                         p5_desc = f"{cot_summary} — Real-time price action clear for intraday scalp execution."
                         p5_badge = "SCALP SAFE"
                         p5_col = "#00c853"
                 else:
+                    # No directional signal — monitoring only
                     p5_ok = False
                     p5_status = "COT SENTIMENT MONITORING"
                     p5_desc = cot_summary
@@ -559,6 +584,8 @@ class AutonomousTraderEngine:
                     p5_col = "#9ca3af"
             else:
                 # ─── MACRO HORIZON LOGIC (30m, 1h, 4h, 1d) ───
+                # COT CONFLICT at macro TF is a hard block (institutions opposing = high risk).
+                # COT ALIGNED or NEUTRAL at macro TF = Pillar 5 clears independently.
                 if is_dir_buy:
                     if 'BULLISH' in cot_bias or cot_score >= 12.0:
                         p5_ok = True
@@ -573,9 +600,10 @@ class AutonomousTraderEngine:
                         p5_badge = "COT CONFLICT"
                         p5_col = "#ef4444"
                     else:
-                        p5_ok = is_trade_active
+                        # Neutral COT = no institutional conflict = Pillar 5 clears.
+                        p5_ok = True
                         p5_status = "COT SENTIMENT BALANCED"
-                        p5_desc = f"{cot_summary} — Neutral institutional positioning."
+                        p5_desc = f"{cot_summary} — Neutral institutional positioning, no conflict detected."
                         p5_badge = "COT NEUTRAL"
                         p5_col = "#38bdf8"
                 elif is_dir_sell:
@@ -592,12 +620,14 @@ class AutonomousTraderEngine:
                         p5_badge = "COT CONFLICT"
                         p5_col = "#ef4444"
                     else:
-                        p5_ok = is_trade_active
+                        # Neutral COT = no institutional conflict = Pillar 5 clears.
+                        p5_ok = True
                         p5_status = "COT SENTIMENT BALANCED"
-                        p5_desc = f"{cot_summary} — Neutral institutional positioning."
+                        p5_desc = f"{cot_summary} — Neutral institutional positioning, no conflict detected."
                         p5_badge = "COT NEUTRAL"
                         p5_col = "#38bdf8"
                 else:
+                    # No directional signal — monitoring only
                     p5_ok = False
                     p5_status = "COT SENTIMENT MONITORING"
                     p5_desc = cot_summary

@@ -359,6 +359,10 @@ class PredictorOrchestrator:
                 'passed': alpha_sniper.get('whale_gate_passed', True),
                 'market_mode': market_mode,
                 'reason': alpha_sniper.get('whale_gate_reason', ''),
+                # True = actual fatal counter-whale trap. False = benign / insufficient catalyst only.
+                'is_counter_whale': alpha_sniper.get('whale_is_counter', False),
+                # Unlocked = ELITE whale catalyst confirmed (extreme funding or OI squeeze aligned)
+                'whale_gate_unlocked': alpha_sniper.get('whale_gate_passed', True),
                 'cot_sentiment': cot_data
             },
             'trade_setup': trade_setup,

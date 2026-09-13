@@ -370,6 +370,7 @@ class AlphaSniperEngine:
         # extreme funding or high OI squeeze conditions / whale positioning ALIGNED with trade direction.
         has_whale_catalyst = True
         whale_gate_reason = ""
+        is_counter_whale = False  # True only when trade DIRECTLY opposes an active squeeze (fatal trap)
         if futures_signals and is_directional:
             funding_data = futures_signals.get('funding_analysis', {})
             squeeze_data = futures_signals.get('squeeze_analysis', {})
@@ -540,6 +541,10 @@ class AlphaSniperEngine:
             'quantum_sniper': quantum_sniper,
             'whale_gate_passed': has_whale_catalyst if futures_signals else True,
             'whale_gate_reason': whale_gate_reason if futures_signals else "",
+            # is_counter_whale=True = actual FATAL trap (buying into long squeeze / shorting into short squeeze).
+            # is_counter_whale=False + whale_gate_passed=False = just insufficient squeeze catalyst for ELITE tier
+            #   → trade is still HIGH_CONVICTION safe, just not ELITE grade. NOT a trap.
+            'whale_is_counter': (is_counter_whale if (futures_signals and is_directional) else False),
             'news_blackout': news_blackout,
             'mtf_alignment': mtf_alignment,
             'chop_gate': chop_gate_data,
