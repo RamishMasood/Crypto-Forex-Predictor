@@ -3,7 +3,11 @@
   "selected_symbols": [
     "ETH/USD",
     "BTC/USD",
-    "XAUUSD247"
+    "XAU/USD",
+    "XAG/USD",
+    "GBP/USD",
+    "USD/JPY",
+    "CAD/JPY"
   ],
   "timeframes": [
     "5m",
@@ -18,8 +22,8 @@
   "scan_interval_sec": 15,
   "target_trades_per_symbol": 100,
   "max_active_batches": 100,
-  "max_dollar_risk": 7.5,
+  "max_dollar_risk": 50.0,
   "min_pillars_required": 5,
-  "batch_lot_size": 0.1,
+  "batch_lot_size": 0.5,
   "allow_same_tf_trades": true
 }
