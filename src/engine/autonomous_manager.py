@@ -133,9 +133,23 @@ class AutonomousTraderEngine:
                 tmp_file = STATE_FILE + ".tmp"
                 with open(tmp_file, 'w', encoding='utf-8') as f:
                     json.dump(state, f, indent=2)
+                # Clean up old target first to avoid Windows file locking issues
+                try:
+                    if os.path.exists(STATE_FILE):
+                        os.remove(STATE_FILE)
+                except OSError:
+                    pass
                 os.replace(tmp_file, STATE_FILE)
             except Exception as e:
                 logger.error(f"Error saving state: {e}")
+            finally:
+                # Clean up any leftover temp file
+                try:
+                    tmp_file = STATE_FILE + ".tmp"
+                    if os.path.exists(tmp_file):
+                        os.remove(tmp_file)
+                except OSError:
+                    pass
 
     def has_active_batches(self) -> bool:
         try:
