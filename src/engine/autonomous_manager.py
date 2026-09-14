@@ -130,26 +130,31 @@ class AutonomousTraderEngine:
     def save_state(state: Dict[str, Any]):
         with _STATE_LOCK:
             try:
+                # Write to temp file first
                 tmp_file = STATE_FILE + ".tmp"
                 with open(tmp_file, 'w', encoding='utf-8') as f:
                     json.dump(state, f, indent=2)
-                # Clean up old target first to avoid Windows file locking issues
-                try:
-                    if os.path.exists(STATE_FILE):
-                        os.remove(STATE_FILE)
-                except OSError:
-                    pass
-                os.replace(tmp_file, STATE_FILE)
+                # On Windows, os.replace can fail if target file is opened by another thread.
+                # Retry replace up to 5 times.
+                replaced = False
+                for _ in range(5):
+                    try:
+                        os.replace(tmp_file, STATE_FILE)
+                        replaced = True
+                        break
+                    except OSError:
+                        time.sleep(0.05)
+                if not replaced:
+                    # Fallback: direct write
+                    with open(STATE_FILE, 'w', encoding='utf-8') as f:
+                        json.dump(state, f, indent=2)
+                    if os.path.exists(tmp_file):
+                        try:
+                            os.remove(tmp_file)
+                        except OSError:
+                            pass
             except Exception as e:
                 logger.error(f"Error saving state: {e}")
-            finally:
-                # Clean up any leftover temp file
-                try:
-                    tmp_file = STATE_FILE + ".tmp"
-                    if os.path.exists(tmp_file):
-                        os.remove(tmp_file)
-                except OSError:
-                    pass
 
     def has_active_batches(self) -> bool:
         try:
@@ -713,12 +718,44 @@ class AutonomousTraderEngine:
                 active_in_batch = batch_tickets.intersection(open_tickets)
                 if not active_in_batch and deals:
                     total_batch_profit = 0.0
-                    for d in deals:
-                        if (d.order in batch_tickets or getattr(d, 'position_id', None) in batch_tickets) and d.entry == 1:
-                            total_batch_profit += float(d.profit)
+                    matched_deal_ids = set()
+                    broker_sym = str(trade.get('broker_sym', '')).lower()
+                    batch_str_id = str(batch_id)
 
-                    outcome = 'WIN' if total_batch_profit > 0.5 else ('BREAKEVEN' if abs(total_batch_profit) <= 0.5 else 'LOSS')
-                    logger.info(f"Batch #{batch_id} ({trade['symbol']}) Completed: {outcome} | PnL: ${total_batch_profit:+.2f}")
+                    for d in deals:
+                        if d.entry != 1:  # MT5 entry==1 indicates position exit/close deal
+                            continue
+                        deal_id = int(getattr(d, 'ticket', 0) or 0)
+                        if deal_id in matched_deal_ids:
+                            continue
+
+                        deal_order = int(getattr(d, 'order', 0) or 0)
+                        deal_pos_id = int(getattr(d, 'position_id', 0) or 0)
+                        deal_comment = str(getattr(d, 'comment', ''))
+
+                        # 1. Primary match: order ticket or position_id matches stored tickets (works for 1, 2, or 3 tickets)
+                        direct_match = bool((deal_order and deal_order in batch_tickets) or (deal_pos_id and deal_pos_id in batch_tickets))
+                        # 2. Comment tag match fallback: comment contains batch_id (e.g. QS_<batch_id>_)
+                        comment_match = bool(f"_{batch_str_id}_" in deal_comment or f"QS_{batch_str_id}" in deal_comment)
+
+                        if direct_match or comment_match:
+                            # Full PnL accounting: profit + swap + commission
+                            pnl_contrib = float(d.profit) + float(getattr(d, 'swap', 0.0) or 0.0) + float(getattr(d, 'commission', 0.0) or 0.0)
+                            total_batch_profit += pnl_contrib
+                            matched_deal_ids.add(deal_id)
+
+                    # Dynamic outcome classification:
+                    # Clear profit (> +$0.15) = WIN
+                    # Clear loss (< -$0.15) = LOSS
+                    # Minimal dust/scratch (within +/- $0.15) = BREAKEVEN
+                    if total_batch_profit > 0.15:
+                        outcome = 'WIN'
+                    elif total_batch_profit < -0.15:
+                        outcome = 'LOSS'
+                    else:
+                        outcome = 'BREAKEVEN'
+
+                    logger.info(f"Batch #{batch_id} ({trade['symbol']}) Completed: {outcome} | PnL: ${total_batch_profit:+.2f} ({len(matched_deal_ids)} deals matched)")
 
                     # Global stats & Active Reinforcement Learning Loop
                     if outcome == 'WIN':
@@ -817,41 +854,8 @@ class AutonomousTraderEngine:
                         "details": f"PnL: ${total_batch_profit:+.2f} | Tickets: {trade.get('tickets')}"
                     })
 
-            # Populate initial historical stats ONLY if never reset and no closed_batches exist
-            if reset_at is None and not state.get('closed_batches') and not state.get('open_batches') and deals:
-                if state.get('wins', 0) == 0 and state.get('losses', 0) == 0 and state.get('breakevens', 0) == 0:
-                    pos_pnl = {}
-                    sym_map = {}
-                    for d in deals:
-                        if d.entry == 1:
-                            pid = getattr(d, 'position_id', d.order)
-                            pos_pnl[pid] = pos_pnl.get(pid, 0.0) + float(d.profit)
-                            sym_map[pid] = d.symbol
-
-                    if pos_pnl:
-                        state['wins'] = sum(1 for pnl in pos_pnl.values() if pnl > 0.5)
-                        state['breakevens'] = sum(1 for pnl in pos_pnl.values() if abs(pnl) <= 0.5)
-                        state['losses'] = sum(1 for pnl in pos_pnl.values() if pnl < -0.5)
-
-                        # Breakdown per symbol
-                        if 'symbol_stats' not in state:
-                            state['symbol_stats'] = {}
-                        for pid, pnl in pos_pnl.items():
-                            bsym = sym_map.get(pid, '')
-                            csym = self.normalize_symbol(bsym)
-                            if csym not in state['symbol_stats']:
-                                state['symbol_stats'][csym] = {'wins': 0, 'losses': 0, 'breakevens': 0, 'completed': 0, 'total_profit': 0.0}
-                            s = state['symbol_stats'][csym]
-                            s['completed'] += 1
-                            s['total_profit'] = round(s['total_profit'] + pnl, 2)
-                            if pnl > 0.5:
-                                s['wins'] += 1
-                            elif abs(pnl) <= 0.5:
-                                s['breakevens'] += 1
-                            else:
-                                s['losses'] += 1
-
-                        state_changed = True
+            # Historical deals are never injected into current live session stats.
+            # Live session counters (wins/losses/symbol_stats) strictly reflect trades executed during this session.
 
             if state_changed:
                 self.save_state(state)
