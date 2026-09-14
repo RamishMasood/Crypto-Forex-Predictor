@@ -10,7 +10,8 @@
     "CAD/JPY",
     "AUD/USD",
     "USOIL",
-    "US30"
+    "US30",
+    "EUR/USD"
   ],
   "timeframes": [
     "5m",
@@ -22,7 +23,7 @@
     "3m"
   ],
   "risk_pct": 1.0,
-  "scan_interval_sec": 300,
+  "scan_interval_sec": 60,
   "target_trades_per_symbol": 200,
   "max_active_batches": 4,
   "max_dollar_risk": 25.0,
