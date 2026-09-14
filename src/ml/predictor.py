@@ -6,6 +6,7 @@ Supports model persistence/caching (.joblib) and MT5 2,000-5,000 candle walk-for
 """
 
 import os
+import sys
 import time
 import logging
 from typing import Dict, Any, Tuple, Optional, List
@@ -19,7 +20,33 @@ from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import accuracy_score
 from .features import FeatureEngineer
 
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+class _SafeStreamHandler(logging.StreamHandler):
+    """Stream handler that never crashes on non-encodable characters (Windows consoles)."""
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            self.stream.write(msg.encode('ascii', 'backslashreplace').decode('ascii') + self.terminator)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
+
 logger = logging.getLogger("MachineLearningPredictor")
+if not logger.handlers:
+    # Mirror the AutonomousManager logging setup so INFO lines (e.g. "Persistent model
+    # saved to ...") are actually emitted. Without handlers, Python's lastResort fallback
+    # only shows WARNING+ messages as bare, unformatted lines and swallows all INFO logs.
+    logger.setLevel(logging.INFO)
+    _sh = _SafeStreamHandler(sys.stdout)
+    _fh = logging.FileHandler(os.path.join(_ROOT_DIR, "ml_predictor.log"), encoding="utf-8")
+    _fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+    _sh.setFormatter(_fmt)
+    _fh.setFormatter(_fmt)
+    logger.addHandler(_sh)
+    logger.addHandler(_fh)
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
 try:
@@ -37,10 +64,11 @@ class MachineLearningPredictor:
     Supports persistent disk caching to avoid retraining on small 50-100 bar noisy samples.
     """
 
-    def __init__(self, n_estimators: int = 60, random_state: int = 42, cache_ttl_hours: float = 8.0):
+    def __init__(self, n_estimators: int = 60, random_state: int = 42, cache_ttl_hours: float = 8.0, enable_sl_prox_target: bool = False):
         self.n_estimators = n_estimators
         self.random_state = random_state
         self.cache_ttl_hours = cache_ttl_hours
+        self.enable_sl_prox_target = enable_sl_prox_target
 
         self.rf = RandomForestClassifier(
             n_estimators=n_estimators,
@@ -68,6 +96,8 @@ class MachineLearningPredictor:
             learning_rate=0.05,
             random_state=random_state
         )
+        # Optional SL-proxy regressor (predicts normalized SL distance in ATR units)
+        self.reg_sl: Optional[GradientBoostingRegressor] = None
 
         self.calibrated_rf: Optional[Any] = None
         self.calibrated_et: Optional[Any] = None
@@ -90,10 +120,11 @@ class MachineLearningPredictor:
         return s
 
     @classmethod
-    def get_model_path(cls, symbol: str, timeframe: str) -> str:
+    def get_model_path(cls, symbol: str, timeframe: str, include_sl_prox: bool = False) -> str:
         clean_s = cls._clean_symbol(symbol)
         clean_tf = str(timeframe).lower().strip()
-        filename = f"{clean_s}_{clean_tf}_model.joblib"
+        suffix = "_slprox" if include_sl_prox else ""
+        filename = f"{clean_s}_{clean_tf}_model{suffix}.joblib"
         return os.path.join(MODELS_DIR, filename)
 
     @classmethod
@@ -104,23 +135,38 @@ class MachineLearningPredictor:
         try:
             mtime = os.path.getmtime(path)
             age_hours = (time.time() - mtime) / 3600.0
-            return age_hours < max_age_hours
+            if age_hours >= max_age_hours:
+                return False
+            # Schema-aware freshness: a cache trained with a different (e.g. legacy)
+            # feature set is treated as not-cached so the caller retrains instead of
+            # hitting sklearn feature-name mismatch errors during inference.
+            probe = joblib.load(path)
+            cached_cols = probe.get('feature_columns') if isinstance(probe, dict) else None
+            if cached_cols is None or list(cached_cols) != list(FeatureEngineer.FEATURE_COLUMNS):
+                logger.warning(
+                    f"Cached model {path} has outdated/legacy feature schema; treating as not-cached (will retrain)."
+                )
+                return False
+            return True
         except Exception:
             return False
 
-    def save_model(self, symbol: str, timeframe: str, n_samples: int = 0) -> str:
-        path = self.get_model_path(symbol, timeframe)
+    def save_model(self, symbol: str, timeframe: str, n_samples: int = 0, include_sl_prox: bool = False) -> str:
+        path = self.get_model_path(symbol, timeframe, include_sl_prox=include_sl_prox)
         payload = {
+            'feature_columns': list(FeatureEngineer.FEATURE_COLUMNS),
             'calibrated_rf': self.calibrated_rf or self.rf,
             'calibrated_et': self.calibrated_et or self.et,
             'calibrated_gbc': self.calibrated_gbc or self.gbc,
             'reg': self.reg,
+            'reg_sl': self.reg_sl,
             'cv_accuracy': self.cv_accuracy,
             'top_features': self.top_features,
             'trained_at': time.time(),
             'n_samples': n_samples or self.training_samples_count,
             'symbol': symbol,
-            'timeframe': timeframe
+            'timeframe': timeframe,
+            'include_sl_prox': include_sl_prox
         }
         try:
             joblib.dump(payload, path, compress=3)
@@ -130,16 +176,28 @@ class MachineLearningPredictor:
             logger.warning(f"Failed to save model to {path}: {e}")
             return ""
 
-    def load_model(self, symbol: str, timeframe: str) -> bool:
-        path = self.get_model_path(symbol, timeframe)
+    def load_model(self, symbol: str, timeframe: str, include_sl_prox: bool = False) -> bool:
+        path = self.get_model_path(symbol, timeframe, include_sl_prox=include_sl_prox)
         if not os.path.exists(path):
             return False
         try:
             payload = joblib.load(path)
+
+            # Feature-schema guard: reject caches trained with a different/legacy feature set.
+            # Prevents sklearn "feature names should match those passed during fit" errors and
+            # makes the app self-heal via the fit_and_predict fallback (which re-tags on save).
+            cached_cols = payload.get('feature_columns')
+            if cached_cols is None or list(cached_cols) != list(FeatureEngineer.FEATURE_COLUMNS):
+                logger.warning(
+                    f"Cached model {path} has outdated/legacy feature schema; rejecting cache to retrain."
+                )
+                return False
+
             self.calibrated_rf = payload.get('calibrated_rf')
             self.calibrated_et = payload.get('calibrated_et')
             self.calibrated_gbc = payload.get('calibrated_gbc')
             self.reg = payload.get('reg')
+            self.reg_sl = payload.get('reg_sl')
             self.cv_accuracy = float(payload.get('cv_accuracy', 55.0))
             self.top_features = payload.get('top_features', [])
             self.last_trained_timestamp = float(payload.get('trained_at', 0.0))
@@ -156,16 +214,27 @@ class MachineLearningPredictor:
         without retraining on small noisy live windows.
         """
         if not self.is_trained:
-            loaded = self.load_model(symbol, timeframe)
+            loaded = self.load_model(symbol, timeframe, include_sl_prox=self.enable_sl_prox_target)
             if not loaded:
-                return self.fit_and_predict(df_with_indicators, symbol=symbol, timeframe=timeframe)
+                return self.fit_and_predict(df_with_indicators, symbol=symbol, timeframe=timeframe,
+                                            use_sl_prox_label=self.enable_sl_prox_target)
 
         if len(df_with_indicators) < 5:
-            return self._empty_result('INSUFFICIENT_DATA')
+            return self._empty_result('INSUFFICIENT_DATA', include_sl_prox=self.enable_sl_prox_target)
 
         try:
             all_features = FeatureEngineer.extract_features(df_with_indicators)
             latest_X = all_features.iloc[[-1]]
+
+            # Belt-and-braces schema check: if a loaded model still expects a different
+            # feature count, fail fast into the retraining fallback instead of letting
+            # sklearn raise a confusing feature-name mismatch mid-inference.
+            rf_check = self.calibrated_rf or self.rf
+            n_expected = getattr(rf_check, 'n_features_in_', None)
+            if n_expected is not None and n_expected != latest_X.shape[1]:
+                raise ValueError(
+                    f"Loaded model expects {n_expected} features but extract_features produced {latest_X.shape[1]}"
+                )
 
             rf_model = self.calibrated_rf or self.rf
             et_model = self.calibrated_et or self.et
@@ -233,7 +302,7 @@ class MachineLearningPredictor:
             expected_value_r = round((p_win * avg_reward_r) - (p_loss * avg_risk_r), 2)
             is_ev_positive = bool(expected_value_r >= 0.15)
 
-            return {
+            res = {
                 'status': 'SUCCESS',
                 'p_bullish': round(p_bullish, 4),
                 'p_bearish': round(p_bearish, 4),
@@ -251,12 +320,24 @@ class MachineLearningPredictor:
                 'is_cached_model': True,
                 'training_samples': self.training_samples_count
             }
+
+            # Optional SL-proxy regression output (opt-in only to avoid breaking callers)
+            if self.enable_sl_prox_target:
+                try:
+                    sl_prox_pred = float(self.reg_sl.predict(latest_X)[0]) if self.reg_sl else 0.0
+                    res['sl_prox_atr_distance_lower_bound'] = round(max(1.0, sl_prox_pred), 3)
+                    res['training_samples'] = self.training_samples_count
+                except Exception:
+                    pass
+
+            return res
         except Exception as e:
             logger.warning(f"Error in predict_live, falling back to fit_and_predict: {e}")
-            return self.fit_and_predict(df_with_indicators, symbol=symbol, timeframe=timeframe)
+            return self.fit_and_predict(df_with_indicators, symbol=symbol, timeframe=timeframe,
+                                        use_sl_prox_label=self.enable_sl_prox_target)
 
-    def _empty_result(self, status: str) -> Dict[str, Any]:
-        return {
+    def _empty_result(self, status: str, include_sl_prox: bool = False) -> Dict[str, Any]:
+        res = {
             'status': status,
             'p_bullish': 0.33,
             'p_bearish': 0.33,
@@ -273,6 +354,9 @@ class MachineLearningPredictor:
             'p_calibrated_win_pct': None,   # None → lets app.py fallback to AlphaSniper Bayesian prob
             'is_cached_model': False
         }
+        if include_sl_prox:
+            res['sl_prox_atr_distance_lower_bound'] = 1.0
+        return res
 
     def fit_and_predict(
         self,
@@ -281,25 +365,34 @@ class MachineLearningPredictor:
         threshold_pct: float = 0.25,
         symbol: Optional[str] = None,
         timeframe: Optional[str] = None,
-        save_cache: bool = True
+        save_cache: bool = True,
+        use_sl_prox_label: bool = False,
+        min_sl_lookahead: int = 12
     ) -> Dict[str, Any]:
         """
         Trains multi-model ensemble on historical candles with time-decay sample weighting,
         applies Scikit-Learn CalibratedClassifierCV (Platt Scaling) for realistic directional
         probabilities (52%-68%), computes mathematical Expected Value (EV), and saves model.
+
+        Optional:
+        - use_sl_prox_label: use TP/SL-aware ternary labels when horizon >= min_sl_lookahead.
+        - min_sl_lookahead: minimum bars required before attempting SL-proxy labeling.
         """
+        sl_prox_active = self.enable_sl_prox_target and use_sl_prox_label
+
         if len(df_with_indicators) < 35:
-            return self._empty_result('INSUFFICIENT_DATA')
+            return self._empty_result('INSUFFICIENT_DATA', include_sl_prox=sl_prox_active)
 
         X, y_class, y_reg = FeatureEngineer.create_training_dataset(
-            df_with_indicators, horizon=horizon, threshold_pct=threshold_pct
+            df_with_indicators, horizon=horizon, threshold_pct=threshold_pct,
+            use_sl_prox_label=sl_prox_active, min_sl_lookahead=min_sl_lookahead
         )
 
         if len(X) < 25:
-            return self._empty_result('INSUFFICIENT_DATA')
+            return self._empty_result('INSUFFICIENT_DATA', include_sl_prox=sl_prox_active)
 
         if len(np.unique(y_class)) < 2:
-            res = self._empty_result('INSUFFICIENT_VARIANCE')
+            res = self._empty_result('INSUFFICIENT_VARIANCE', include_sl_prox=sl_prox_active)
             res['cv_accuracy_pct'] = 50.0
             return res
 
@@ -334,7 +427,7 @@ class MachineLearningPredictor:
             self.rf.fit(X, y_class, sample_weight=sample_weights)
             self.et.fit(X, y_class, sample_weight=sample_weights)
         except Exception:
-            return self._empty_result('FIT_ERROR_FALLBACK')
+            return self._empty_result('FIT_ERROR_FALLBACK', include_sl_prox=sl_prox_active)
 
         # Calibrate Random Forest
         if use_cv_splits >= 2:
@@ -376,6 +469,17 @@ class MachineLearningPredictor:
             self.reg.fit(X, y_reg, sample_weight=sample_weights)
         except Exception:
             pass
+
+        # Optional SL-proxy regressor: predict normalized SL distance (ATR units) for risk-awareness
+        self.reg_sl = None
+        if sl_prox_active:
+            try:
+                self.reg_sl = GradientBoostingRegressor(
+                    n_estimators=40, max_depth=3, learning_rate=0.05, random_state=self.random_state
+                )
+                self.reg_sl.fit(X, y_reg, sample_weight=sample_weights)
+            except Exception:
+                self.reg_sl = None
 
         self.is_trained = True
 
@@ -460,9 +564,9 @@ class MachineLearningPredictor:
 
         # Save to disk cache if symbol and timeframe are provided
         if symbol and timeframe and save_cache:
-            self.save_model(symbol, timeframe, n_samples=n_samples)
+            self.save_model(symbol, timeframe, n_samples=n_samples, include_sl_prox=sl_prox_active)
 
-        return {
+        result = {
             'status': 'SUCCESS',
             'p_bullish': round(p_bullish, 4),
             'p_bearish': round(p_bearish, 4),
@@ -480,6 +584,16 @@ class MachineLearningPredictor:
             'is_cached_model': False,
             'training_samples': n_samples
         }
+
+        # Optional SL-proxy inference output (only present when the flag is enabled)
+        if sl_prox_active:
+            try:
+                sl_prox_pred = float(self.reg_sl.predict(latest_X)[0]) if self.reg_sl else 1.0
+                result['sl_prox_atr_distance_lower_bound'] = round(float(np.clip(sl_prox_pred, 1.0, 8.0)), 3)
+            except Exception:
+                result['sl_prox_atr_distance_lower_bound'] = 1.0
+
+        return result
 
     def train_on_mt5_history(self, symbol: str, timeframe: str = '1h', n_bars: int = 3000) -> bool:
         """

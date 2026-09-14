@@ -32,7 +32,9 @@
     "On ETH/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On USOIL (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On USD/JPY (1h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On USD/JPY (1h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On USD/JPY (1h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On USD/JPY (1h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAG/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
@@ -123,6 +125,26 @@
       "entry": 154.138,
       "sl": 154.53024,
       "loss_usd": 51.13,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-14T08:30:28.760046+00:00",
+      "symbol": "USD/JPY",
+      "timeframe": "1h",
+      "action": "SELL",
+      "entry": 154.193,
+      "sl": 154.54154,
+      "loss_usd": 44.91,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-14T09:42:06.767801+00:00",
+      "symbol": "XAG/USD",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 62.572,
+      "sl": 63.00799,
+      "loss_usd": 6.8,
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     }
   ],

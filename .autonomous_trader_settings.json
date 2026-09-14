@@ -23,11 +23,11 @@
     "3m"
   ],
   "risk_pct": 1.0,
-  "scan_interval_sec": 600,
+  "scan_interval_sec": 300,
   "target_trades_per_symbol": 200,
   "max_active_batches": 1000,
   "max_dollar_risk": 100.0,
   "min_pillars_required": 5,
-  "batch_lot_size": 0.2,
+  "batch_lot_size": 0.01,
   "allow_same_tf_trades": true
 }
