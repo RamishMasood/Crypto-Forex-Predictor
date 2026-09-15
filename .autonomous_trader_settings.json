@@ -2,14 +2,13 @@
   "enabled": true,
   "selected_symbols": [
     "ETH/USD",
-    "BTC/USD",
     "XAU/USD",
     "XAG/USD",
     "GBP/USD",
-    "USD/JPY",
-    "CAD/JPY",
     "AUD/USD",
-    "EUR/USD"
+    "EUR/USD",
+    "USD/JPY",
+    "EUR/GBP"
   ],
   "timeframes": [
     "5m",
