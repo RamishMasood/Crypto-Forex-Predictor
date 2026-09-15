@@ -34,7 +34,9 @@
     "On USD/JPY (1h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On USD/JPY (1h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On USD/JPY (1h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On XAG/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On XAG/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAU/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAU/USD (3m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
@@ -146,6 +148,26 @@
       "sl": 63.00799,
       "loss_usd": 6.8,
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-15T10:58:43.846813+00:00",
+      "symbol": "XAU/USD",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 4263.025,
+      "sl": 4278.33811,
+      "loss_usd": 28.49,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-15T10:58:43.890009+00:00",
+      "symbol": "XAU/USD",
+      "timeframe": "3m",
+      "action": "SELL",
+      "entry": 4270.397,
+      "sl": 4281.92707,
+      "loss_usd": 23.58,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     }
   ],
   "optimal_adjustments": {
@@ -153,6 +175,6 @@
     "swing_buffer_atr": 0.45,
     "tp1_atr_multiplier": 0.38,
     "min_confluence_score": 35.0,
-    "min_calibrated_prob": 83.5
+    "min_calibrated_prob": 84.5
   }
 }
