@@ -85,6 +85,11 @@ class EconomicCalendarManager:
         if not force_refresh:
             cached = self._load_cache()
             if cached is not None:
+                # Ensure static fallback events are included in case cache is from older week
+                all_td = {(e.get('title'), e.get('date')) for e in cached}
+                for fb in FALLBACK_2026_EVENTS:
+                    if (fb.get('title'), fb.get('date')) not in all_td:
+                        cached.append(fb)
                 self._cached_events = cached
                 return cached
 
@@ -106,6 +111,11 @@ class EconomicCalendarManager:
                         'source': 'forexfactory_live_json'
                     })
                 if parsed:
+                    # Merge static fallback events to ensure major macro schedule is always preserved
+                    all_titles_dates = {(e.get('title'), e.get('date')) for e in parsed}
+                    for fb in FALLBACK_2026_EVENTS:
+                        if (fb.get('title'), fb.get('date')) not in all_titles_dates:
+                            parsed.append(fb)
                     self._save_cache(parsed)
                     self._cached_events = parsed
                     return parsed

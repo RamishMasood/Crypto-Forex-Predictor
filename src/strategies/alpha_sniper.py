@@ -335,7 +335,9 @@ class AlphaSniperEngine:
         # ─────────────────────────────────────────────────────────────
         # 6. EXPECTANCY & SNIPER GRADE CLASSIFICATION
         # ─────────────────────────────────────────────────────────────
-        avg_reward_r = 2.0
+        # Dynamic Realized R: Derived from actual trade geometry when trade_setup is provided
+        # (blending scalp TP1 and runner TP2/TP3 targets). Falls back to 1.50 baseline.
+        avg_reward_r = 1.50
         avg_risk_r = 1.0
         if trade_setup and isinstance(trade_setup, dict):
             entry_p = float(trade_setup.get('recommended_entry', trade_setup.get('current_price', 0.0)) or 0.0)
@@ -348,7 +350,7 @@ class AlphaSniperEngine:
                 r1 = abs(tp1_p - entry_p) / risk_dist
                 r2 = abs(tp2_p - entry_p) / risk_dist
                 r3 = abs(tp3_p - entry_p) / risk_dist if tp3_p > 0 else r2
-                avg_reward_r = round((r1 + r2 + r3) / 3.0, 2)
+                avg_reward_r = round((0.35 * r1) + (0.35 * r2) + (0.30 * r3), 2)
 
         win_rate_dec = calibrated_prob / 100.0
         if ml_prediction and isinstance(ml_prediction, dict) and is_directional:

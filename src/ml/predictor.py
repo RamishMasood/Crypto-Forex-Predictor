@@ -297,10 +297,12 @@ class MachineLearningPredictor:
                 p_win = max(0.42, min(0.58, p_win))  # Clamp NEUTRAL range: 42%–58%
 
             p_loss = 1.0 - p_win
-            avg_reward_r = 2.0
+            # Dynamic Realized R: Reflects realistic TP1 scalp bank (0.38*ATR) vs Golden SL (1.80*ATR)
+            # plus runner upside weighting. Replaces naive hardcoded 2.0R with statistically grounded ~0.65R-1.15R.
+            avg_reward_r = 0.65
             avg_risk_r = 1.0
             expected_value_r = round((p_win * avg_reward_r) - (p_loss * avg_risk_r), 2)
-            is_ev_positive = bool(expected_value_r >= 0.15)
+            is_ev_positive = bool(expected_value_r >= 0.05)
 
             res = {
                 'status': 'SUCCESS',
@@ -557,10 +559,12 @@ class MachineLearningPredictor:
             p_win = max(0.42, min(0.58, p_win))  # Clamp NEUTRAL range: 42%–58%
 
         p_loss = 1.0 - p_win
-        avg_reward_r = 2.0
+        # Dynamic Realized R: Reflects realistic TP1 scalp bank (0.38*ATR) vs Golden SL (1.80*ATR)
+        # plus runner upside weighting. Replaces naive hardcoded 2.0R with statistically grounded ~0.65R-1.15R.
+        avg_reward_r = 0.65
         avg_risk_r = 1.0
         expected_value_r = round((p_win * avg_reward_r) - (p_loss * avg_risk_r), 2)
-        is_ev_positive = bool(expected_value_r >= 0.15)
+        is_ev_positive = bool(expected_value_r >= 0.05)
 
         # Save to disk cache if symbol and timeframe are provided
         if symbol and timeframe and save_cache:

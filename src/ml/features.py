@@ -135,12 +135,13 @@ class FeatureEngineer:
         """
         X = cls.extract_features(df)
 
-        if use_sl_prox_label and horizon >= min_sl_lookahead and 'high' in df.columns and 'low' in df.columns:
-            # --- SL/TP-aware labeling path (proxy only; does not touch RiskManager SL geometry) ---
+        # --- Triple Barrier Method (TBM) Path-Dependent Labeling ---
+        # Checks whether price hit TP or SL first within forward horizon bars,
+        # perfectly matching MT5 trade execution geometry instead of naive price change.
+        if 'high' in df.columns and 'low' in df.columns and len(df) >= 35:
             atr = df['atr_14'].replace(0, 1e-8) if 'atr_14' in df.columns else \
                 (df['high'] - df['low']).rolling(14, min_periods=1).mean().replace(0, 1e-8)
 
-            # Swing buffer proxy (ATR units), default 0.2; min distance to recent swing low/high
             swing_buffer = pd.Series(0.2, index=df.index)
             if 'recent_swing_low' in df.columns and 'recent_swing_high' in df.columns:
                 dist_to_low = (df['close'] - df['recent_swing_low']).abs()
@@ -148,47 +149,81 @@ class FeatureEngineer:
                 swing_buffer = pd.concat([dist_to_low, dist_to_high], axis=1).min(axis=1) / atr
                 swing_buffer = swing_buffer.clip(lower=0.2).fillna(0.2)
 
-            sl_price = df['close'] - (1.80 + swing_buffer) * atr
-            tp_price = df['close'] + 0.38 * atr  # TP1 scalp
-
             highs = df['high'].values
             lows = df['low'].values
-            sl_vals = sl_price.values
-            tp_vals = tp_price.values
+            closes = df['close'].values
+            atr_vals = atr.values
+            swing_vals = swing_buffer.values
+
+            # Horizon window: minimum 6 bars to allow trade setup barriers to resolve
+            tbm_horizon = max(6, horizon)
+            n_rows = len(df)
 
             y_class_list = []
             y_reg_list = []
-            for i in range(len(df)):
-                if i + horizon >= len(df):
+
+            for i in range(n_rows):
+                if i + tbm_horizon >= n_rows:
                     y_class_list.append(0)
                     y_reg_list.append(np.nan)
                     continue
-                fh = highs[i + 1:i + 1 + horizon]
-                fl = lows[i + 1:i + 1 + horizon]
-                tp_hit = bool(np.any(fh >= tp_vals[i]))
-                sl_hit = bool(np.any(fl <= sl_vals[i]))
-                if tp_hit and not sl_hit:
+
+                curr_c = closes[i]
+                curr_atr = atr_vals[i]
+                curr_swing = swing_vals[i]
+
+                # Golden SL and TP barriers (matching RiskManager geometry)
+                sl_dist = (1.80 + curr_swing) * curr_atr
+                tp_dist = 0.38 * curr_atr  # TP1 scalp target
+
+                fh = highs[i + 1:i + 1 + tbm_horizon]
+                fl = lows[i + 1:i + 1 + tbm_horizon]
+
+                # 1. Evaluate Long Setup: TP = c + tp_dist, SL = c - sl_dist
+                long_tp_bar = np.where(fh >= curr_c + tp_dist)[0]
+                long_sl_bar = np.where(fl <= curr_c - sl_dist)[0]
+                first_long_tp = long_tp_bar[0] if len(long_tp_bar) > 0 else 9999
+                first_long_sl = long_sl_bar[0] if len(long_sl_bar) > 0 else 9999
+
+                # 2. Evaluate Short Setup: TP = c - tp_dist, SL = c + sl_dist
+                short_tp_bar = np.where(fl <= curr_c - tp_dist)[0]
+                short_sl_bar = np.where(fh >= curr_c + sl_dist)[0]
+                first_short_tp = short_tp_bar[0] if len(short_tp_bar) > 0 else 9999
+                first_short_sl = short_sl_bar[0] if len(short_sl_bar) > 0 else 9999
+
+                # Class determination: which directional setup resolved favorably first?
+                long_won = (first_long_tp < first_long_sl) and (first_long_tp < 9999)
+                short_won = (first_short_tp < first_short_sl) and (first_short_tp < 9999)
+
+                if long_won and not short_won:
                     y_class_list.append(1)
-                elif sl_hit and not tp_hit:
+                elif short_won and not long_won:
                     y_class_list.append(-1)
+                elif long_won and short_won:
+                    # Both reached targets, pick the one that triggered earlier
+                    y_class_list.append(1 if first_long_tp <= first_short_tp else -1)
                 else:
                     y_class_list.append(0)
-                y_reg_list.append(float(np.clip(1.80 + swing_buffer.iloc[i], 1.0, 8.0)))
+
+                # Forward return for regression
+                fwd_ret = ((closes[min(i + horizon, n_rows - 1)] - curr_c) / curr_c) * 100.0
+                y_reg_list.append(fwd_ret)
 
             y_class = pd.Series(y_class_list, index=df.index)
             y_reg = pd.Series(y_reg_list, index=df.index)
             valid_mask = ~y_reg.isna()
-            return X[valid_mask], y_class[valid_mask], y_reg[valid_mask]
 
-        # --- Original forward-return labeling path (default, fully backward compatible) ---
+            # Ensure minimum variance in training labels
+            if len(np.unique(y_class[valid_mask])) >= 2:
+                return X[valid_mask], y_class[valid_mask], y_reg[valid_mask]
+
+        # --- Fallback: Standard forward-return labeling ---
         forward_close = df['close'].shift(-horizon)
         forward_return = ((forward_close - df['close']) / df['close']) * 100.0
 
-        # Adaptive threshold based on historical volatility
         ret_std = float(df['close'].pct_change().std() * 100.0) if len(df) > 5 else threshold_pct
         adaptive_thresh = max(0.03, min(threshold_pct, ret_std * 0.45))
 
-        # Class labels: 1 = Bullish, -1 = Bearish, 0 = Neutral
         y_class = pd.Series(0, index=df.index)
         y_class[forward_return > adaptive_thresh] = 1
         y_class[forward_return < -adaptive_thresh] = -1
@@ -196,7 +231,6 @@ class FeatureEngineer:
         valid_mask = ~forward_return.isna()
         valid_ret = forward_return[valid_mask]
 
-        # If low volatility or flat prices resulted in < 2 unique classes, apply quantile ternary split
         if len(valid_ret) >= 15:
             classes_in_valid = np.unique(y_class[valid_mask])
             if len(classes_in_valid) < 2:

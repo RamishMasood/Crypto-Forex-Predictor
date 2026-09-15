@@ -351,7 +351,7 @@ class AutonomousTraderEngine:
         elif not is_spread_pass:
             p1_ok = False
             p1_status = "SPREAD FILTER EXCEEDED"
-            p1_desc = f"Spread eats {spread_guard.get('spread_to_target_pct', 0):.1f}% of TP1 target (> 25%)"
+            p1_desc = f"Spread eats {spread_guard.get('spread_to_target_pct', 0):.1f}% of TP1 target (> {spread_guard.get('max_allowed_pct', 18):.0f}%)"
             p1_badge = "SPREAD BLOCKED"
             p1_col = "#ef4444"
         elif (is_dir_buy or is_dir_sell) and p1_ev < 0.15:
@@ -487,12 +487,14 @@ class AutonomousTraderEngine:
             p4_badge = "WAIT"
             p4_col = "#9ca3af"
 
-        # Pillar 5: Whale Sentiment & Smart Money Gate (Crypto Futures, Forex & Gold, Honest Labeling)
+        # Pillar 5: Whale Sentiment & Smart Money Gate (Crypto Futures, Forex & Gold, CME Proxy, Honest Labeling)
         cot = pred_res.get('cot_sentiment') or whale_gate.get('cot_sentiment')
         fut_signals = pred_res.get('futures_signals')
+        cme = pred_res.get('cme_proxy_data') or {}
         has_futures = bool(fut_signals and fut_signals.get('funding_analysis'))
         has_cot = bool(cot and cot.get('available'))
-        p5_available = has_futures or has_cot
+        has_cme = bool(cme and cme.get('available'))
+        p5_available = has_futures or has_cot or has_cme
 
         if has_futures:
             # Perpetual Futures: Squeeze & Funding Analysis
@@ -653,8 +655,58 @@ class AutonomousTraderEngine:
                     p5_desc = cot_summary
                     p5_badge = "MONITORING"
                     p5_col = "#9ca3af"
+        elif has_cme:
+            # CME Institutional Order Flow Proxy (Gold GC Futures & Commodities)
+            cme_flow = float(cme.get('order_flow_score', 0.0))
+            cme_bias = str(cme.get('bias', 'NEUTRAL')).upper()
+            cme_summary = str(cme.get('summary', 'CME Gold Institutional Feed'))
+
+            if is_dir_buy:
+                if 'BULLISH' in cme_bias or cme_flow >= 15.0:
+                    p5_ok = True
+                    p5_status = "CME GOLD INSTITUTIONAL BUY ALIGNED"
+                    p5_desc = f"{cme_summary} — CME Gold Futures institutional volume supports Buy."
+                    p5_badge = "CME ALIGNED"
+                    p5_col = "#00c853"
+                elif 'BEARISH' in cme_bias or cme_flow <= -18.0:
+                    p5_ok = False
+                    p5_status = "CME GOLD INSTITUTIONAL CONFLICT"
+                    p5_desc = f"{cme_summary} — CME Futures institutional selling opposes Buy."
+                    p5_badge = "CME CONFLICT"
+                    p5_col = "#ef4444"
+                else:
+                    p5_ok = True
+                    p5_status = "CME GOLD NEUTRAL"
+                    p5_desc = f"{cme_summary} — CME order flow neutral, no institutional conflict."
+                    p5_badge = "CME NEUTRAL"
+                    p5_col = "#38bdf8"
+            elif is_dir_sell:
+                if 'BEARISH' in cme_bias or cme_flow <= -15.0:
+                    p5_ok = True
+                    p5_status = "CME GOLD INSTITUTIONAL SELL ALIGNED"
+                    p5_desc = f"{cme_summary} — CME Gold Futures institutional volume supports Sell."
+                    p5_badge = "CME ALIGNED"
+                    p5_col = "#ff1744"
+                elif 'BULLISH' in cme_bias or cme_flow >= 18.0:
+                    p5_ok = False
+                    p5_status = "CME GOLD INSTITUTIONAL CONFLICT"
+                    p5_desc = f"{cme_summary} — CME Futures institutional buying opposes Sell."
+                    p5_badge = "CME CONFLICT"
+                    p5_col = "#ef4444"
+                else:
+                    p5_ok = True
+                    p5_status = "CME GOLD NEUTRAL"
+                    p5_desc = f"{cme_summary} — CME order flow neutral, no institutional conflict."
+                    p5_badge = "CME NEUTRAL"
+                    p5_col = "#38bdf8"
+            else:
+                p5_ok = False
+                p5_status = "CME MONITORING"
+                p5_desc = cme_summary
+                p5_badge = "MONITORING"
+                p5_col = "#9ca3af"
         else:
-            # Honest Labeling: Neither Futures nor COT available for this asset (Spot Altcoin)
+            # Honest Labeling: Neither Futures, COT, nor CME available for this asset (Spot Altcoin)
             p5_available = False
             p5_ok = False
             p5_status = "WHALE FLOW N/A"
@@ -930,24 +982,56 @@ class AutonomousTraderEngine:
 
                 total_req = eval_res.get('total_applicable', 5)
                 is_actionable = ('BUY' in action or 'SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action) and ('CHOP' not in action) and (not is_chop) and (not is_spread_fail)
+
+                # Micro Scalp (1m/3m/5m) Institutional Execution Gate:
+                # 1. Macro Confirmation: Micro scalp must never contradict higher-timeframe 200 EMA bias (Pillar 2).
+                # 2. Institutional Trigger on 1m/3m: Raw 1m/3m indicator entries are noise-dominated;
+                #    require ICT Liquidity Sweep or FVG tap confirmation to prevent random walk entries.
+                macro_conflict_scalp = False
+                micro_noise_scalp = False
+                if str(tf).lower() in ['1m', '3m', '5m']:
+                    p2_info = eval_res.get('p2', {})
+                    if not p2_info.get('ok', True) and 'CONFLICT' in str(p2_info.get('status', '')).upper():
+                        macro_conflict_scalp = True
+                        is_actionable = False
+
+                    if str(tf).lower() in ['1m', '3m']:
+                        quantum_data = pred.get('quantum_sniper', pred.get('alpha_sniper', {}).get('quantum_sniper', {}))
+                        swp = quantum_data.get('liquidity_sweep', {})
+                        swp_type = swp.get('sweep_type', 'NONE')
+                        active_fvgs = pred.get('market_structure', {}).get('active_fvgs', []) or []
+                        curr_p = float(pred.get('market_structure', {}).get('current_price', 0.0) or 0.0)
+                        has_fvg_tap = any(float(f.get('bottom', 0)) <= curr_p <= float(f.get('top', 0)) for f in active_fvgs)
+                        if swp_type == 'NONE' and not has_fvg_tap:
+                            micro_noise_scalp = True
+                            is_actionable = False
+
                 is_eligible = (p_cnt >= min(min_pillars_required, total_req)) and is_actionable
 
                 pillar_str = f"{p_cnt}/{total_req}"
 
                 if is_eligible:
                     status_lbl = f"🎯 {p_cnt}/{total_req} Aligned (Executing)"
+                elif macro_conflict_scalp:
+                    status_lbl = "SKIPPED (Macro 200 EMA Conflict)"
+                elif micro_noise_scalp:
+                    status_lbl = "SKIPPED (No ICT Sweep / FVG)"
                 elif is_chop:
                     status_lbl = "SKIPPED (Chop Gate)"
                 elif is_spread_fail:
-                    status_lbl = "SKIPPED (Spread > 25% TP1)"
+                    status_lbl = f"SKIPPED (Spread > {spread_guard.get('max_allowed_pct', 18):.0f}% TP1)"
                 else:
                     status_lbl = f"No Trade (Waiting {min_pillars_required}/5)"
 
                 detail_str = f"Score: {score:+.1f} | Win Prob: {prob:.0f}%"
-                if is_chop:
+                if macro_conflict_scalp:
+                    detail_str = f"MACRO CONFLICT: Scalp opposes 200 EMA trend"
+                elif micro_noise_scalp:
+                    detail_str = f"MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+                elif is_chop:
                     detail_str = f"CHOP: {chop_gate.get('reason', '')[:45]}"
                 elif is_spread_fail:
-                    detail_str = f"Spread: ${spread_guard.get('spread_price')} ({spread_guard.get('spread_to_target_pct')}%) > 25%"
+                    detail_str = f"Spread: ${spread_guard.get('spread_price')} ({spread_guard.get('spread_to_target_pct')}%) > {spread_guard.get('max_allowed_pct', 18):.0f}%"
 
                 self._append_activity_log({
                     "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),

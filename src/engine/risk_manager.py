@@ -12,15 +12,15 @@ class RiskManager:
     """
 
     @staticmethod
-    def evaluate_spread_guard(spread_price: float, atr: float, timeframe: str = '1h', max_ratio: float = 0.25) -> Dict[str, Any]:
+    def evaluate_spread_guard(spread_price: float, atr: float, timeframe: str = '1h', max_ratio: float = 0.18) -> Dict[str, Any]:
         """
         Spread-Adaptive Minimum SL & Target Filter:
-        On micro timeframes (1m/3m), broker spread must not exceed 25% of the TP1 scalp target.
+        On micro/scalp timeframes (1m/3m/5m), broker spread must not exceed 18% of the TP1 scalp target.
         """
         tp1_dist = 0.38 * atr
         ratio = (spread_price / tp1_dist) if tp1_dist > 0 else 0.0
-        is_micro = str(timeframe).lower() in ['1m', '3m']
-        allowed_cap = max_ratio if is_micro else 0.45
+        is_micro = str(timeframe).lower() in ['1m', '3m', '5m']
+        allowed_cap = max_ratio if is_micro else 0.30
         passed = (ratio <= allowed_cap) if spread_price > 0 else True
         return {
             'passed': passed,
@@ -187,7 +187,12 @@ class RiskManager:
         position_size_usd = units * entry_price
 
         # Half-Kelly sizing: f = (p * b - q) / b
-        b = 2.0 # Payoff ratio
+        # Realistic dynamic payoff ratio b: weighted average of TP1 scalp (0.38 ATR / risk)
+        # and TP2/TP3 runners (1.15R / 2.20R), reflecting actual trade geometry (~0.85R - 1.15R)
+        r1 = (tp1_dist / risk_per_unit) if risk_per_unit > 0 else 0.25
+        r2 = 1.15
+        r3 = 2.20
+        b = round((0.50 * r1) + (0.30 * r2) + (0.20 * r3), 2)  # realistic blended realized payoff
         p = max(0.40, min(0.97, win_probability))
         q = 1.0 - p
         full_kelly = max(0.0, (p * b - q) / b)

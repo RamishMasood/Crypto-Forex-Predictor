@@ -178,25 +178,37 @@ class QuantumSniperEngine:
         level = 0.0
         desc = "No liquidity manipulation detected."
 
-        # Bearish Sweep: wicked above swing_high, closed back inside
-        if c_high > swing_high and c_close < swing_high:
-            upper_wick = c_high - max(c_open, c_close)
-            candle_body = abs(c_close - c_open)
-            if upper_wick > candle_body * 0.8:
-                sweep_type = 'BEARISH_LIQUIDITY_PURGE'
-                sweep_score = -80.0
-                level = swing_high
-                desc = f"Bearish Judas Swing: Purged buy-side liquidity above ${swing_high:,.4f} and aggressively rejected back below."
+        # Scan recent 3 bars for institutional liquidity sweeps with rejection/MSS
+        # (Handles current bar or immediate 1-2 bar follow-through reversal)
+        for offset in range(1, min(4, len(df))):
+            bar = df.iloc[-offset]
+            b_open = float(bar['open'])
+            b_high = float(bar['high'])
+            b_low = float(bar['low'])
+            b_close = float(bar['close'])
+            b_body = abs(b_close - b_open)
 
-        # Bullish Sweep: wicked below swing_low, closed back inside
-        elif c_low < swing_low and c_close > swing_low:
-            lower_wick = min(c_open, c_close) - c_low
-            candle_body = abs(c_close - c_open)
-            if lower_wick > candle_body * 0.8:
-                sweep_type = 'BULLISH_LIQUIDITY_PURGE'
-                sweep_score = 80.0
-                level = swing_low
-                desc = f"Bullish Judas Swing: Purged sell-side liquidity below ${swing_low:,.4f} and aggressively rejected back above."
+            # Bearish Sweep: price wicked above swing_high, rejected firmly back below
+            if b_high > swing_high and b_close < swing_high:
+                upper_wick = b_high - max(b_open, b_close)
+                # Confirm current price is also trading below swing_high (MSS confirmation)
+                if upper_wick > b_body * 0.6 and c_close <= swing_high:
+                    sweep_type = 'BEARISH_LIQUIDITY_PURGE'
+                    sweep_score = -85.0 if offset == 1 else -75.0
+                    level = swing_high
+                    desc = f"Bearish Liquidity Sweep & MSS: Purged buy-side stops above ${swing_high:,.4f} with sharp rejection back into range."
+                    break
+
+            # Bullish Sweep: price wicked below swing_low, rejected firmly back above
+            elif b_low < swing_low and b_close > swing_low:
+                lower_wick = min(b_open, b_close) - b_low
+                # Confirm current price is also trading above swing_low (MSS confirmation)
+                if lower_wick > b_body * 0.6 and c_close >= swing_low:
+                    sweep_type = 'BULLISH_LIQUIDITY_PURGE'
+                    sweep_score = 85.0 if offset == 1 else 75.0
+                    level = swing_low
+                    desc = f"Bullish Liquidity Sweep & MSS: Purged sell-side stops below ${swing_low:,.4f} with sharp rejection back into range."
+                    break
 
         return {
             'sweep_type': sweep_type,
@@ -257,15 +269,26 @@ class QuantumSniperEngine:
             quantum_score += sweeps['sweep_score'] * 0.35
             reasons.append(sweeps['description'])
 
-        # 4. Golden Pocket OTE Confluence
+        # 4. Golden Pocket OTE & Fair Value Gap (FVG) Confluence
         in_bull_ote = bool(market_structure.get('in_bull_ote', False))
         in_bear_ote = bool(market_structure.get('in_bear_ote', False))
+        active_fvgs = market_structure.get('active_fvgs', []) or []
+        bull_fvg_tap = any(f.get('type') == 'BULLISH' and float(f.get('bottom', 0)) <= curr_price <= float(f.get('top', 0)) for f in active_fvgs)
+        bear_fvg_tap = any(f.get('type') == 'BEARISH' and float(f.get('bottom', 0)) <= curr_price <= float(f.get('top', 0)) for f in active_fvgs)
+
         if in_bull_ote:
             quantum_score += 20.0
             reasons.append("Fibonacci Matrix: Inside 61.8% - 78.6% Bullish Golden Pocket OTE.")
         elif in_bear_ote:
             quantum_score -= 20.0
             reasons.append("Fibonacci Matrix: Inside 61.8% - 78.6% Bearish Golden Pocket OTE.")
+
+        if bull_fvg_tap:
+            quantum_score += 15.0
+            reasons.append("ICT Microstructure: Active Bullish Fair Value Gap (FVG) retest/equilibrium filled.")
+        elif bear_fvg_tap:
+            quantum_score -= 15.0
+            reasons.append("ICT Microstructure: Active Bearish Fair Value Gap (FVG) retest/equilibrium filled.")
 
         # 5. Overextension & Anti-Chasing Safeguard
         ema20 = float(df_indicators['ema_20'].iloc[-1]) if 'ema_20' in df_indicators.columns else curr_price
