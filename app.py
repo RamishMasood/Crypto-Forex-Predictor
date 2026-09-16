@@ -1266,9 +1266,10 @@ def render_mt5_autonomous_engine_view(live_exec):
             st.write("")
             allow_same_tf_cfg = st.toggle(
                 "🔁 Multi-Trades / Same TF",
-                value=bool(settings.get('allow_same_tf_trades', True)),
+                value=False if rec_toggle else bool(settings.get('allow_same_tf_trades', True)),
                 key="auto_cfg_allow_same_tf_trades",
-                help="ON: Allows opening multiple concurrent trades on the same timeframe (e.g. multiple 4h setups). OFF: Restricts to max 1 active batch per timeframe."
+                disabled=rec_toggle,
+                help="ON: Allows opening multiple concurrent trades on the same timeframe. OFF: Restricts to max 1 active batch per timeframe. (Locked OFF in Recommended Mode to prevent duplicate position stacking)."
             )
 
         with cfg_c8:

@@ -67,6 +67,16 @@ RECOMMENDED_SYMBOL_PROFILES: Dict[str, Dict[str, Any]] = {
         "active_sessions": ["London Session", "New York Session"],
         "min_pillars": 5,
         "description": "Major Forex pair. Asian chop strictly excluded; trades only during London/NY bank hours on Tight BE."
+    },
+    "XAG/USD": {
+        "canonical_name": "XAG/USD",
+        "broker_aliases": ["XAGUSD", "XAGUSDm", "SILVER", "SILVERm", "XAG/USD"],
+        "asset_type": "metals",
+        "timeframes": ["15m", "1h"],
+        "breakeven_mode": "tight",
+        "active_sessions": ["London Session", "New York Session"],
+        "min_pillars": 5,
+        "description": "High-beta precious metal runner. Trades liquid London/NY sessions on Tight BE to bank high-conviction scalps and eliminate deep pullback risk."
     }
 }
 

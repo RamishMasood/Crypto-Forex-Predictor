@@ -295,10 +295,16 @@ class QuantumSniperEngine:
         atr_raw = float(df_indicators['atr_14'].iloc[-1]) if 'atr_14' in df_indicators.columns else 0.0
         atr = max(atr_raw, curr_price * 0.001, 1e-5)
         dist_ema20 = curr_price - ema20
-        if dist_ema20 > (atr * 2.2):
+        is_overextended = (dist_ema20 > (atr * 1.8)) or (dist_ema20 < -(atr * 1.8))
+        overext_info = {
+            'is_overextended': is_overextended,
+            'dist_atr': round(dist_ema20 / atr, 2),
+            'direction': 'BULL_EXHAUSTION' if dist_ema20 > 0 else ('BEAR_EXHAUSTION' if dist_ema20 < 0 else 'BALANCED')
+        }
+        if dist_ema20 > (atr * 1.8):
             quantum_score -= 30.0
             reasons.append(f"Overextension Guard: Price extended +{dist_ema20/atr:.1f} ATR above EMA 20 — Bull exhaustion risk.")
-        elif dist_ema20 < -(atr * 2.2):
+        elif dist_ema20 < -(atr * 1.8):
             quantum_score += 30.0
             reasons.append(f"Overextension Guard: Price extended {dist_ema20/atr:.1f} ATR below EMA 20 — Bear exhaustion bounce setup.")
 
@@ -344,6 +350,7 @@ class QuantumSniperEngine:
             'vp_bias': vp_bias,
             'cvd_divergence': cvd_div,
             'liquidity_sweep': sweeps,
+            'overextension': overext_info,
             'in_golden_pocket': in_bull_ote or in_bear_ote,
             'reasons': reasons
         }

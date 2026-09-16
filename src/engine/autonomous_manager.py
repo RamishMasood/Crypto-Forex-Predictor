@@ -454,11 +454,21 @@ class AutonomousTraderEngine:
         q_swp_type = q_swp.get('sweep_type', 'NONE')
         q_overext = quantum.get('overextension', {}) if quantum else {}
         is_overextended = bool(q_overext.get('is_overextended', False))
-        p4_ok = False
+        overext_dir = q_overext.get('direction', 'BALANCED')
+        dist_atr = float(q_overext.get('dist_atr', 0.0))
+
+        chase_blocked = False
         if is_overextended:
+            if is_dir_buy and (overext_dir == 'BULL_EXHAUSTION' or dist_atr > 0):
+                chase_blocked = True
+            elif is_dir_sell and (overext_dir == 'BEAR_EXHAUSTION' or dist_atr < 0):
+                chase_blocked = True
+
+        p4_ok = False
+        if chase_blocked:
             p4_ok = False
             p4_status = "OVEREXTENDED (ANTI-CHASE ACTIVE)"
-            p4_desc = "Price extended >2.2 ATR from EMA 20. High mean-reversion exhaustion risk."
+            p4_desc = f"Price extended {abs(dist_atr):.1f} ATR from EMA 20 ({overext_dir}). High mean-reversion exhaustion risk."
             p4_badge = "CHASE BLOCKED"
             p4_col = "#ef4444"
         elif is_dir_buy:
@@ -956,6 +966,20 @@ class AutonomousTraderEngine:
         found_setup = None
         open_batches = state.get('open_batches', {})
 
+        # Recommended Auto-Pilot Strict Rule: Max 1 active batch per symbol across all timeframes
+        if is_rec_mode:
+            clean_sym = symbol.replace("/", "").replace("m", "").replace("M", "").upper()
+            active_sym_batch = None
+            for bid, binfo in open_batches.items():
+                b_sym = binfo.get('symbol', '').replace("/", "").replace("m", "").replace("M", "").upper()
+                b_broker = binfo.get('broker_sym', '').replace("/", "").replace("m", "").replace("M", "").upper()
+                if b_sym == clean_sym or b_broker == clean_sym:
+                    active_sym_batch = bid
+                    break
+            if active_sym_batch:
+                logger.info(f"Recommended Auto-Pilot: Symbol {symbol} already has active batch #{active_sym_batch}. Skipping scan to prevent duplicate risk.")
+                return None
+
         for tf in ordered_tfs:
             if is_rec_mode and rec_profile:
                 # Silently skip timeframes that do not belong to this symbol's recommended profile
@@ -967,7 +991,7 @@ class AutonomousTraderEngine:
                 return None
 
             # Check duplicate position stacking on same (symbol, tf) unless allow_same_tf_trades is enabled
-            allow_same_tf = bool(self.load_settings().get('allow_same_tf_trades', True))
+            allow_same_tf = False if is_rec_mode else bool(self.load_settings().get('allow_same_tf_trades', True))
             if not allow_same_tf:
                 active_batch_id = None
                 for bid, binfo in open_batches.items():
@@ -978,6 +1002,21 @@ class AutonomousTraderEngine:
                 if active_batch_id:
                     logger.info(f"Active batch #{active_batch_id} already running on {symbol} ({tf}). Advancing to next timeframe (same-TF stacking off).")
                     continue
+
+            # Same-candle / execution cooldown guard (prevents rapid spam on the exact same candle)
+            last_trade_times = state.get('last_trade_timestamps', {})
+            last_t_iso = last_trade_times.get(f"{symbol}_{tf}")
+            if last_t_iso:
+                try:
+                    last_t = datetime.fromisoformat(last_t_iso)
+                    elapsed_sec = (datetime.now(timezone.utc) - last_t).total_seconds()
+                    tf_sec_map = {'1m': 60, '3m': 180, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400}
+                    min_cooldown = tf_sec_map.get(str(tf).lower(), 300)
+                    if elapsed_sec < min_cooldown:
+                        logger.info(f"Same-candle cooldown active for {symbol} ({tf}): {elapsed_sec:.0f}s elapsed < {min_cooldown}s required. Skipping.")
+                        continue
+                except Exception:
+                    pass
 
             try:
                 # Update current scanning pointer
@@ -1057,6 +1096,27 @@ class AutonomousTraderEngine:
                             micro_noise_scalp = True
                             is_actionable = False
 
+                # 4. Exhaustion & Anti-Falling-Knife Gate:
+                # Do not SELL into deep oversold exhaustion (bear trap), do not BUY into blowoff tops (bull trap).
+                ind_sum = pred.get('indicators_summary', {})
+                rsi_val = float(ind_sum.get('rsi_14', 50.0))
+                q_overext = pred.get('quantum_sniper', {}).get('overextension', {})
+                is_q_over = bool(q_overext.get('is_overextended', False))
+                q_dist_atr = float(q_overext.get('dist_atr', 0.0))
+
+                exhaustion_conflict = False
+                exhaustion_detail = ""
+                if 'SELL' in action:
+                    if rsi_val <= 30.0 and (is_q_over and q_dist_atr < -1.8):
+                        exhaustion_conflict = True
+                        exhaustion_detail = f"RSI oversold ({rsi_val:.1f}) & price {abs(q_dist_atr):.1f} ATR below EMA20 (Falling Knife / Bear Exhaustion)"
+                        is_actionable = False
+                elif 'BUY' in action:
+                    if rsi_val >= 70.0 and (is_q_over and q_dist_atr > 1.8):
+                        exhaustion_conflict = True
+                        exhaustion_detail = f"RSI overbought ({rsi_val:.1f}) & price {q_dist_atr:.1f} ATR above EMA20 (Blowoff Top / Bull Exhaustion)"
+                        is_actionable = False
+
                 active_min_pillars = rec_profile.get('min_pillars', min_pillars_required) if (is_rec_mode and rec_profile) else min_pillars_required
                 is_eligible = (p_cnt >= min(active_min_pillars, total_req)) and is_actionable
 
@@ -1072,6 +1132,8 @@ class AutonomousTraderEngine:
                     status_lbl = "SKIPPED (Macro 200 EMA Conflict)"
                 elif micro_noise_scalp:
                     status_lbl = "SKIPPED (No ICT Sweep / FVG)"
+                elif exhaustion_conflict:
+                    status_lbl = "SKIPPED (Exhaustion / Anti-Falling-Knife Gate)"
                 elif is_chop:
                     status_lbl = "SKIPPED (Chop Gate)"
                 elif is_spread_fail:
@@ -1088,6 +1150,8 @@ class AutonomousTraderEngine:
                     detail_str = f"MACRO CONFLICT: Scalp opposes 200 EMA trend"
                 elif micro_noise_scalp:
                     detail_str = f"MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+                elif exhaustion_conflict:
+                    detail_str = f"EXHAUSTION GATE: {exhaustion_detail}"
                 elif is_chop:
                     detail_str = f"CHOP: {chop_gate.get('reason', '')[:45]}"
                 elif is_spread_fail:
@@ -1254,6 +1318,10 @@ class AutonomousTraderEngine:
 
                 if 'open_batches' not in state:
                     state['open_batches'] = {}
+
+                if 'last_trade_timestamps' not in state:
+                    state['last_trade_timestamps'] = {}
+                state['last_trade_timestamps'][f"{symbol}_{tf}"] = datetime.now(timezone.utc).isoformat()
 
                 rec_profile = setup_data.get('recommended_profile')
                 active_be_mode = rec_profile.get('breakeven_mode') if rec_profile else self.load_settings().get('breakeven_mode', 'tight')

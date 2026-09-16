@@ -75,7 +75,7 @@ class HTFConfluenceChecker:
                 import MetaTrader5 as mt5
                 htf_enum = cls.MT5_TF_ENUMS.get(htf_tf)
                 if htf_enum is not None:
-                    rates = mt5.copy_rates_from_pos(symbol, htf_enum, 0, 40)
+                    rates = mt5.copy_rates_from_pos(symbol, htf_enum, 0, 100)
                     if rates is not None and len(rates) >= 20:
                         df_htf = pd.DataFrame(rates)
             except Exception:
@@ -96,12 +96,17 @@ class HTFConfluenceChecker:
         # Calculate EMA20 & EMA50
         series = pd.Series(closes)
         ema20 = float(series.ewm(span=20, adjust=False).mean().iloc[-1])
-        ema50 = float(series.ewm(span=50, adjust=False).mean().iloc[-1]) if len(series) >= 50 else ema20
+        has_ema50 = len(series) >= 50
+        ema50 = float(series.ewm(span=50, adjust=False).mean().iloc[-1]) if has_ema50 else ema20
 
-        # Bullish HTF condition: price > EMA20 or EMA20 > EMA50
-        # Bearish HTF condition: price < EMA20 or EMA20 < EMA50
-        is_bullish = (last_close >= ema20) or (ema20 >= ema50)
-        is_bearish = (last_close <= ema20) or (ema20 <= ema50)
+        # Bullish HTF condition: price must be >= EMA20, and if EMA50 available, EMA20 >= EMA50
+        # Bearish HTF condition: price must be <= EMA20, and if EMA50 available, EMA20 <= EMA50
+        if has_ema50:
+            is_bullish = (last_close >= ema20) and (ema20 >= ema50)
+            is_bearish = (last_close <= ema20) and (ema20 <= ema50)
+        else:
+            is_bullish = (last_close >= ema20)
+            is_bearish = (last_close <= ema20)
 
         details = {
             "htf": htf_tf,
@@ -113,14 +118,16 @@ class HTFConfluenceChecker:
         }
 
         if clean_dir == "BUY":
-            if is_bullish:
-                return True, f"HTF ({htf_tf}) Trend Confirmed: Price ({last_close:.4f}) >= EMA20 ({ema20:.4f})", details
-            else:
-                return False, f"HTF ({htf_tf}) Conflict: Price ({last_close:.4f}) below EMA20 ({ema20:.4f}) in Bearish Structure", details
+            if last_close < ema20:
+                return False, f"HTF ({htf_tf}) Conflict: Price ({last_close:.4f}) below EMA20 ({ema20:.4f})", details
+            if not is_bullish:
+                return False, f"HTF ({htf_tf}) Conflict: EMA20 ({ema20:.4f}) below EMA50 ({ema50:.4f}) in Bearish Structure", details
+            return True, f"HTF ({htf_tf}) Trend Confirmed: Price ({last_close:.4f}) >= EMA20 ({ema20:.4f}) & EMA20 >= EMA50", details
         elif clean_dir == "SELL":
-            if is_bearish:
-                return True, f"HTF ({htf_tf}) Trend Confirmed: Price ({last_close:.4f}) <= EMA20 ({ema20:.4f})", details
-            else:
+            if last_close > ema20:
                 return False, f"HTF ({htf_tf}) Conflict: Price ({last_close:.4f}) above EMA20 ({ema20:.4f}) in Bullish Structure", details
+            if not is_bearish:
+                return False, f"HTF ({htf_tf}) Conflict: EMA20 ({ema20:.4f}) above EMA50 ({ema50:.4f}) in Bullish Structure", details
+            return True, f"HTF ({htf_tf}) Trend Confirmed: Price ({last_close:.4f}) <= EMA20 ({ema20:.4f}) & EMA20 <= EMA50", details
         else:
             return True, "Neutral direction", details

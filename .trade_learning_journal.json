@@ -39,7 +39,14 @@
     "On XAU/USD (3m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On BTC/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On BTC/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On XAU/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On XAU/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
@@ -200,6 +207,76 @@
       "entry": 4275.934,
       "sl": 4287.50878,
       "loss_usd": 22.76,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-16T14:38:53.203513+00:00",
+      "symbol": "XAUUSD247",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 4325.225,
+      "sl": 4342.30893,
+      "loss_usd": 34.83,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-16T14:39:12.915295+00:00",
+      "symbol": "XAUUSD247",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 4325.788,
+      "sl": 4342.87193,
+      "loss_usd": 34.62,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-16T14:41:04.908051+00:00",
+      "symbol": "XAUUSD247",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 4326.991,
+      "sl": 4343.82499,
+      "loss_usd": 34.5,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-16T14:41:04.927939+00:00",
+      "symbol": "XAUUSD247",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 4325.937,
+      "sl": 4343.02093,
+      "loss_usd": 34.65,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-16T14:44:45.312457+00:00",
+      "symbol": "XAUUSD247",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 4328.924,
+      "sl": 4346.00793,
+      "loss_usd": 33.1,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-16T14:45:08.918844+00:00",
+      "symbol": "XAUUSD247",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 4329.626,
+      "sl": 4346.70993,
+      "loss_usd": 33.61,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-16T14:45:08.929139+00:00",
+      "symbol": "XAUUSD247",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 4329.438,
+      "sl": 4346.52193,
+      "loss_usd": 31.19,
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     }
   ],

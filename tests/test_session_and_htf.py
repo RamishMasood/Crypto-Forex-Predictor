@@ -109,6 +109,20 @@ class TestSessionAndHTF(unittest.TestCase):
         self.assertFalse(ok_buy)
         self.assertIn("Conflict", reason_buy)
 
+    def test_htf_confluence_short_history_no_bypass(self):
+        # 40 bars in an uptrend (len < 50) must NOT allow SELL
+        closes = np.linspace(100.0, 150.0, 40)
+        df_htf = pd.DataFrame({"close": closes})
+
+        ok_sell, reason_sell, details = HTFConfluenceChecker.check_alignment(
+            symbol="XAUUSD",
+            current_tf="15m",
+            direction="SELL",
+            df_htf=df_htf
+        )
+        self.assertFalse(ok_sell)
+        self.assertIn("Conflict", reason_sell)
+
     def test_autonomous_settings_session_and_htf(self):
         settings = AutonomousTraderEngine.load_settings()
         self.assertIn("active_sessions", settings)

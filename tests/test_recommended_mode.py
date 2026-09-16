@@ -17,6 +17,15 @@ class TestRecommendedMode(unittest.TestCase):
         self.assertIn("XAUUSD247", symbols)
         self.assertIn("BTC/USD", symbols)
         self.assertIn("EUR/USD", symbols)
+        self.assertIn("XAG/USD", symbols)
+
+    def test_xagusd_profile_tight_be(self):
+        profile = RecommendedPresetsManager.get_profile_for_symbol("XAGUSDm")
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile["breakeven_mode"], "tight")
+        self.assertEqual(profile["timeframes"], ["15m", "1h"])
+        self.assertIn("London Session", profile["active_sessions"])
+        self.assertIn("New York Session", profile["active_sessions"])
 
     def test_cadjpy_profile_loose_runners(self):
         profile = RecommendedPresetsManager.get_profile_for_symbol("CADJPYm")
