@@ -1150,9 +1150,9 @@ def render_mt5_autonomous_engine_view(live_exec):
                 help="Autonomous engine checks every selected timeframe for setups. 1m/3m are unchecked by default to eliminate noise wicks."
             )
 
-        # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap, Batch Lot Size, Same-TF Toggle) ───
+        # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap, Batch Lot Size, Same-TF Toggle, Breakeven Mode Toggle) ───
         st.markdown("##### 🎛️ Engine Strategy & Risk Controls:")
-        cfg_c1, cfg_c2, cfg_c3, cfg_c4, cfg_c5, cfg_c6, cfg_c7 = st.columns([1.1, 1.3, 1.0, 1.0, 1.0, 1.0, 1.2])
+        cfg_c1, cfg_c2, cfg_c3, cfg_c4, cfg_c5, cfg_c6, cfg_c7, cfg_c8 = st.columns([1.1, 1.2, 1.0, 1.0, 1.0, 1.0, 1.1, 1.2])
         
         with cfg_c1:
             target_trades = st.number_input(
@@ -1234,6 +1234,24 @@ def render_mt5_autonomous_engine_view(live_exec):
                 help="ON: Allows opening multiple concurrent trades on the same timeframe (e.g. multiple 4h setups). OFF: Restricts to max 1 active batch per timeframe."
             )
 
+        with cfg_c8:
+            st.write("")
+            st.write("")
+            current_be_mode = str(settings.get('breakeven_mode', 'tight')).lower().strip()
+            loose_be_cfg = st.toggle(
+                "🕊️ Loose Breakeven",
+                value=(current_be_mode == 'loose'),
+                key="auto_cfg_loose_breakeven",
+                help="ON: Loose Breakeven Mode (2-Stage Breathing Room: Keeps 0.45 ATR cushion on TP1, locks full BE at 0.85 ATR expansion so TP2 runners can develop). OFF: Tight Breakeven Mode (Locks BE immediately at 0.38 ATR scalp)."
+            )
+            be_mode_cfg = 'loose' if loose_be_cfg else 'tight'
+
+        # Informative active Breakeven mode feedback caption
+        if be_mode_cfg == 'loose':
+            st.caption("🕊️ **Active Mode: LOOSE BREAKEVEN (TP2 Runner Protection)** — At TP1 hit, SL shifts to soft buffer (0.45 ATR cushion below entry) so pullbacks don't choke the trade. Full Hard Breakeven locks once price expands $\ge 0.85$ ATR.")
+        else:
+            st.caption("🔒 **Active Mode: TIGHT BREAKEVEN (Immediate Scalp Lock)** — At TP1 hit (0.38 ATR), SL shifts immediately to Entry Price (+0.02 ATR buffer). Protects initial scalp gains, but pullbacks may exit runners at $0.00.")
+
         # Persist settings changes
         new_interval_sec = int(scan_delay_mins * 60)
         settings_changed = (
@@ -1246,6 +1264,7 @@ def render_mt5_autonomous_engine_view(live_exec):
             or max_risk_usd_cfg != settings.get('max_dollar_risk')
             or abs(batch_lot_size_cfg - float(settings.get('batch_lot_size', 0.03))) > 1e-4
             or allow_same_tf_cfg != settings.get('allow_same_tf_trades', True)
+            or be_mode_cfg != settings.get('breakeven_mode', 'tight')
         )
         if settings_changed:
             settings['selected_symbols'] = chosen_symbols
@@ -1257,8 +1276,9 @@ def render_mt5_autonomous_engine_view(live_exec):
             settings['max_dollar_risk'] = max_risk_usd_cfg
             settings['batch_lot_size'] = round(batch_lot_size_cfg, 2)
             settings['allow_same_tf_trades'] = allow_same_tf_cfg
+            settings['breakeven_mode'] = be_mode_cfg
             auto_engine.save_settings(settings)
-            st.toast("⚙️ Engine Strategy & Risk Settings Updated!", icon="✅")
+            st.toast(f"⚙️ Settings Updated: Breakeven Mode is {be_mode_cfg.upper()}!", icon="✅")
 
         # ── 4. Dynamic Pair Metrics & Independent Win Rate Calculation ────────────
         st.markdown("##### 📊 Target Progress & Independent Pair Win Rates:")

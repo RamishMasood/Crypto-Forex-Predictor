@@ -69,7 +69,8 @@ class AutonomousTraderEngine:
             "max_dollar_risk": 10.0,            # Max dollar risk cap per batch ($ USD)
             "min_pillars_required": 5,          # Customizable required pillars: 5, 4, 3, or 2
             "batch_lot_size": 0.03,             # Customizable batch lot size (e.g. 0.03 -> 0.01, 0.01, 0.01)
-            "allow_same_tf_trades": True        # Customizable switch: Allow multiple trades on same timeframe
+            "allow_same_tf_trades": True,       # Customizable switch: Allow multiple trades on same timeframe
+            "breakeven_mode": "tight"           # "tight" (immediate 0.38 ATR lock) | "loose" (2-stage runner breathing room)
         }
         with _STATE_LOCK:
             if os.path.exists(SETTINGS_FILE):
@@ -746,16 +747,24 @@ class AutonomousTraderEngine:
             state_changed = False
             reset_at = state.get('reset_at')
 
-            # Auto breakeven check with institutional breakeven SL map
+            # Auto breakeven check with institutional breakeven SL map & mode
+            current_settings = self.load_settings()
+            be_mode = current_settings.get('breakeven_mode', 'tight')
             be_map = {
                 str(bid): float(binfo['breakeven_sl'])
                 for bid, binfo in open_batches.items()
                 if binfo.get('breakeven_sl')
             }
-            be_results = self.executor.check_and_apply_auto_breakeven(batch_breakeven_sl_map=be_map)
+            be_results = self.executor.check_and_apply_auto_breakeven(
+                batch_breakeven_sl_map=be_map,
+                batch_info_map=open_batches,
+                breakeven_mode=be_mode
+            )
             if be_results:
                 for b in be_results:
-                    logger.info(f"AUTO-BREAKEVEN: Position #{b['ticket']} SL shifted to Institutional BE Mark: {b['new_sl']}")
+                    b_status = b.get('status', 'MOVED_TO_BREAKEVEN')
+                    b_mode = b.get('mode', be_mode).upper()
+                    logger.info(f"AUTO-BREAKEVEN ({b_mode}): Position #{b['ticket']} status: {b_status} -> New SL: {b['new_sl']}")
 
             import MetaTrader5 as mt5
             self.executor._ensure_connection()
@@ -1109,6 +1118,15 @@ class AutonomousTraderEngine:
                     breakeven_sl = max(entry_price * 0.001, entry_price - (0.02 * atr))
             breakeven_sl = round(breakeven_sl, 5)
 
+            soft_breakeven_sl = float(setup.get('soft_breakeven_sl') or 0.0)
+            if soft_breakeven_sl <= 0:
+                atr = float(pred.get('market_data', {}).get('atr') or (abs(entry_price - sl_price) / 1.8))
+                if action == 'BUY':
+                    soft_breakeven_sl = entry_price - (0.45 * atr)
+                else:
+                    soft_breakeven_sl = entry_price + (0.45 * atr)
+            soft_breakeven_sl = round(soft_breakeven_sl, 5)
+
             # 1. Resolve Exness broker symbol
             from src.data.forex_feeds import MT5ExnessProvider
             ex_p = MT5ExnessProvider()
@@ -1194,6 +1212,8 @@ class AutonomousTraderEngine:
                     'entry_price': entry_price,
                     'sl_price': sl_price,
                     'breakeven_sl': breakeven_sl,
+                    'soft_breakeven_sl': soft_breakeven_sl,
+                    'breakeven_mode': self.load_settings().get('breakeven_mode', 'tight'),
                     'tp1_price': tp1_price,
                     'tp2_price': tp2_price,
                     'tp3_price': tp3_price,

@@ -76,6 +76,9 @@ class RiskManager:
                 'tp3': round(current_price, 5),
                 'tp3_gain_pct': 0.0,
                 'breakeven_sl': round(current_price, 5),
+                'soft_breakeven_sl': round(current_price, 5),
+                'loose_be_trigger': round(current_price, 5),
+                'loose_be_trigger_dist': 0.0,
                 'breakeven_rule': 'NONE',
                 'risk_reward_ratio': '0:0',
                 'risk_amount_usd': 0.0,
@@ -118,6 +121,9 @@ class RiskManager:
                 'tp3': round(current_price, 5),
                 'tp3_gain_pct': 0.0,
                 'breakeven_sl': round(current_price, 5),
+                'soft_breakeven_sl': round(current_price, 5),
+                'loose_be_trigger': round(current_price, 5),
+                'loose_be_trigger_dist': 0.0,
                 'breakeven_rule': 'NONE',
                 'risk_reward_ratio': '0:0',
                 'risk_amount_usd': 0.0,
@@ -163,7 +169,13 @@ class RiskManager:
             tp2 = entry_price + (1.15 * risk_per_unit)
             # TP3: Macro expansion runner (2.20R)
             tp3 = entry_price + (2.20 * risk_per_unit)
+            # Precision Breakeven:
             breakeven_sl = entry_price + (0.02 * atr)
+            # Loose Breakeven protocol:
+            # Stage 1: Soft risk reduction buffer (entry - 0.45 * atr) gives 0.45 ATR breathing room below entry for normal retests
+            soft_breakeven_sl = entry_price - (0.45 * atr)
+            # Stage 2: Hard BE trigger at 0.85 ATR expansion
+            loose_be_trigger = entry_price + (0.85 * atr)
         else:
             # Structural swing check with institutional buffer (never compressed below 1.50 ATR floor)
             if recent_swing_high and (recent_swing_high > entry_price) and ((recent_swing_high - entry_price) < (2.5 * atr + wick_buffer)):
@@ -180,6 +192,8 @@ class RiskManager:
             # TP3: Macro expansion runner (2.20R)
             tp3 = max(entry_price * 0.001, entry_price - (2.20 * risk_per_unit))
             breakeven_sl = max(entry_price * 0.001, entry_price - (0.02 * atr))
+            soft_breakeven_sl = entry_price + (0.45 * atr)
+            loose_be_trigger = max(entry_price * 0.001, entry_price - (0.85 * atr))
 
         # Position Sizing
         risk_capital_usd = account_size_usd * (risk_per_trade_pct / 100.0)
@@ -223,7 +237,10 @@ class RiskManager:
             'tp3_type': 'MACRO_EXPANSION_RUNNER (2.20R - 1:2+ R:R)',
             'tp3_gain_pct': round((abs(tp3 - entry_price) / entry_price) * 100.0, 2),
             'breakeven_sl': round(breakeven_sl, 5),
-            'breakeven_rule': 'IMMEDIATE_AT_TP1 (Move SL to Breakeven once TP1 is reached)',
+            'soft_breakeven_sl': round(soft_breakeven_sl, 5),
+            'loose_be_trigger': round(loose_be_trigger, 5),
+            'loose_be_trigger_dist': round(0.85 * atr, 5),
+            'breakeven_rule': 'TIGHT: IMMEDIATE_AT_TP1 (0.38 ATR) | LOOSE: 2-STAGE (SOFT BUFFER @ TP1, HARD BE @ 0.85 ATR)',
             'risk_reward_ratio': '1 : 1.15 (Target TP2)',
             'risk_amount_usd': round(risk_capital_usd, 2),
             'suggested_position_usd': round(position_size_usd, 2),

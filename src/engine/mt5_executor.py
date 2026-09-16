@@ -639,34 +639,50 @@ class MT5TradeExecutor:
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    def check_and_apply_auto_breakeven(self, broker_symbol: Optional[str] = None, batch_breakeven_sl_map: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
+    def check_and_apply_auto_breakeven(
+        self,
+        broker_symbol: Optional[str] = None,
+        batch_breakeven_sl_map: Optional[Dict[str, float]] = None,
+        batch_info_map: Optional[Dict[str, Any]] = None,
+        breakeven_mode: str = 'tight'
+    ) -> List[Dict[str, Any]]:
         """
         Auto-Breakeven Monitor:
         Finds open Quant Terminal child orders (magic == 999888).
-        Triggers Breakeven if:
-          1. Any TP1 child deal has closed in profit (TP1 hit confirmation in broker history), OR
-          2. Open position is in profit (return_pct >= 0.08% or price reached TP1).
-        Automatically modifies remaining open positions to the exact Institutional Breakeven Mark!
+
+        Modes supported:
+        - 'tight': Immediate Breakeven Lock at TP1 (0.38 ATR). Snaps SL to entry immediately.
+        - 'loose': 2-Stage Runner Breathing Room.
+            Stage 1 (TP1 hit): Moves SL to soft risk-reduction buffer (0.45 ATR cushion below entry)
+                               so retest pullbacks don't choke the trade.
+            Stage 2 (0.85 ATR expansion): Advances SL to True Hard Breakeven once the breakout is proven.
         """
         if not self._ensure_connection():
             return []
 
         import MetaTrader5 as mt5
 
-        # Auto-load batch breakeven SL map if not explicitly passed
-        if batch_breakeven_sl_map is None:
+        # Auto-load batch info and breakeven SL map if not explicitly passed
+        if batch_info_map is None or batch_breakeven_sl_map is None:
             try:
                 state_file = Path(".autonomous_trader_state.json")
                 if state_file.exists():
                     with open(state_file, 'r', encoding='utf-8') as f:
                         st_data = json.load(f)
-                    batch_breakeven_sl_map = {
-                        str(bid): float(binfo['breakeven_sl'])
-                        for bid, binfo in st_data.get('open_batches', {}).items()
-                        if binfo.get('breakeven_sl')
-                    }
+                    if batch_info_map is None:
+                        batch_info_map = st_data.get('open_batches', {})
+                    if batch_breakeven_sl_map is None:
+                        batch_breakeven_sl_map = {
+                            str(bid): float(binfo['breakeven_sl'])
+                            for bid, binfo in st_data.get('open_batches', {}).items()
+                            if binfo.get('breakeven_sl')
+                        }
             except Exception:
-                batch_breakeven_sl_map = {}
+                if batch_info_map is None:
+                    batch_info_map = {}
+                if batch_breakeven_sl_map is None:
+                    batch_breakeven_sl_map = {}
+        batch_info_map = batch_info_map or {}
 
         # Find all closed TP1 deals in recent history (past 24h) and record their batch_ids / symbols
         closed_tp1_batches = set()
@@ -712,24 +728,102 @@ class MT5TradeExecutor:
                 if len(parts) >= 2:
                     pos_batch = parts[1]
 
+            b_info = batch_info_map.get(str(pos_batch), {}) if pos_batch else {}
+            entry_p = float(b_info.get('entry_price') or open_p)
+            init_sl = float(b_info.get('sl_price') or 0.0)
+            tp1_p = float(b_info.get('tp1_price') or 0.0)
+            tp2_p = float(b_info.get('tp2_price') or 0.0)
+
+            # Target Hard Breakeven SL
+            target_be_sl = None
+            if batch_breakeven_sl_map and pos_batch and str(pos_batch) in batch_breakeven_sl_map:
+                target_be_sl = batch_breakeven_sl_map[str(pos_batch)]
+            elif b_info.get('breakeven_sl'):
+                target_be_sl = float(b_info['breakeven_sl'])
+
+            # Soft Breakeven SL (for Loose Mode Stage 1)
+            target_soft_sl = None
+            if b_info.get('soft_breakeven_sl'):
+                target_soft_sl = float(b_info['soft_breakeven_sl'])
+            elif init_sl > 0:
+                # Dynamic fallback: halfway between entry and initial stop loss
+                if pos_type == 'BUY':
+                    target_soft_sl = round(open_p - (0.45 * abs(open_p - init_sl) / 1.8), 5)
+                else:
+                    target_soft_sl = round(open_p + (0.45 * abs(init_sl - open_p) / 1.8), 5)
+
             batch_tp1_hit = (pos_batch is not None and pos_batch in closed_tp1_batches)
             symbol_tp1_hit = (pos_sym in closed_tp1_symbols and is_profitable and pos['return_pct'] >= 0.05)
-            high_profit_hit = (is_profitable and pos['return_pct'] >= 0.15)
 
-            should_be = is_profitable and (batch_tp1_hit or symbol_tp1_hit or high_profit_hit)
+            mode_lower = str(breakeven_mode).lower().strip()
 
-            if should_be and not sl_at_be:
-                target_be_sl = None
-                if batch_breakeven_sl_map and pos_batch and str(pos_batch) in batch_breakeven_sl_map:
-                    target_be_sl = batch_breakeven_sl_map[str(pos_batch)]
+            if mode_lower == 'loose':
+                # ── LOOSE BREAKEVEN MODE (2-Stage Runner Breathing Room) ───────────
+                # Stage 2 Check: Has price expanded >= 0.85 ATR (or 50% to TP2)?
+                is_expansion_reached = False
+                if pos_type == 'BUY':
+                    profit_dist = curr_p - open_p
+                    if tp2_p > open_p and profit_dist >= 0.48 * (tp2_p - open_p):
+                        is_expansion_reached = True
+                    elif tp1_p > open_p and profit_dist >= 2.1 * (tp1_p - open_p):
+                        is_expansion_reached = True
+                    elif pos['return_pct'] >= 0.30:
+                        is_expansion_reached = True
+                else:
+                    profit_dist = open_p - curr_p
+                    if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.48 * (open_p - tp2_p):
+                        is_expansion_reached = True
+                    elif tp1_p > 0 and tp1_p < open_p and profit_dist >= 2.1 * (open_p - tp1_p):
+                        is_expansion_reached = True
+                    elif pos['return_pct'] >= 0.30:
+                        is_expansion_reached = True
 
-                res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
-                if res.get('success'):
-                    results.append({
-                        'ticket': pos['ticket'],
-                        'status': 'MOVED_TO_BREAKEVEN',
-                        'new_sl': res['new_sl']
-                    })
+                # Stage 2 Action: Move to Full Hard Breakeven once 0.85 ATR expansion is proven
+                if is_profitable and is_expansion_reached and not sl_at_be:
+                    res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
+                    if res.get('success'):
+                        results.append({
+                            'ticket': pos['ticket'],
+                            'status': 'MOVED_TO_HARD_BREAKEVEN',
+                            'mode': 'LOOSE_STAGE_2',
+                            'new_sl': res['new_sl']
+                        })
+                # Stage 1 Action: Move to Soft Buffer on TP1 Hit (leaves 0.45 ATR breathing room below entry)
+                elif is_profitable and (batch_tp1_hit or symbol_tp1_hit) and target_soft_sl:
+                    # Check if SL is currently wider than soft buffer (i.e. still at wide initial SL)
+                    is_sl_wider_than_soft = False
+                    if pos_type == 'BUY':
+                        is_sl_wider_than_soft = (current_sl < target_soft_sl)
+                    else:
+                        is_sl_wider_than_soft = (current_sl > target_soft_sl or current_sl <= 0)
+
+                    if is_sl_wider_than_soft and not sl_at_be:
+                        res = self.move_to_breakeven(pos['ticket'], target_sl=target_soft_sl)
+                        if res.get('success'):
+                            results.append({
+                                'ticket': pos['ticket'],
+                                'status': 'MOVED_TO_SOFT_BUFFER',
+                                'mode': 'LOOSE_STAGE_1',
+                                'new_sl': res['new_sl']
+                            })
+            else:
+                # ── TIGHT BREAKEVEN MODE (Existing Immediate Lock at 0.38 ATR) ────
+                high_profit_hit = (is_profitable and pos['return_pct'] >= 0.15)
+                should_be = is_profitable and (batch_tp1_hit or symbol_tp1_hit or high_profit_hit)
+
+                if should_be and not sl_at_be:
+                    target_be_sl_tight = target_be_sl
+                    if not target_be_sl_tight and batch_breakeven_sl_map and pos_batch and str(pos_batch) in batch_breakeven_sl_map:
+                        target_be_sl_tight = batch_breakeven_sl_map[str(pos_batch)]
+
+                    res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl_tight)
+                    if res.get('success'):
+                        results.append({
+                            'ticket': pos['ticket'],
+                            'status': 'MOVED_TO_BREAKEVEN',
+                            'mode': 'TIGHT',
+                            'new_sl': res['new_sl']
+                        })
 
         return results
 

@@ -27,5 +27,6 @@
   "max_dollar_risk": 50.0,
   "min_pillars_required": 5,
   "batch_lot_size": 0.02,
-  "allow_same_tf_trades": true
+  "allow_same_tf_trades": true,
+  "breakeven_mode": "tight"
 }
