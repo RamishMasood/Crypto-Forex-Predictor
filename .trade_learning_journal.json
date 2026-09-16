@@ -36,7 +36,10 @@
     "On USD/JPY (1h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On XAG/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On XAU/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On XAU/USD (3m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On XAU/USD (3m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAU/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
@@ -168,6 +171,36 @@
       "sl": 4281.92707,
       "loss_usd": 23.58,
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-15T20:03:07.464456+00:00",
+      "symbol": "BTC/USD",
+      "timeframe": "30m",
+      "action": "BUY",
+      "entry": 76059.53,
+      "sl": 75140.08036,
+      "loss_usd": 0.44,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-15T20:03:07.602375+00:00",
+      "symbol": "BTC/USD",
+      "timeframe": "30m",
+      "action": "BUY",
+      "entry": 76070.42,
+      "sl": 75150.97036,
+      "loss_usd": 0.46,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-16T01:14:42.872362+00:00",
+      "symbol": "XAU/USD",
+      "timeframe": "5m",
+      "action": "SELL",
+      "entry": 4275.934,
+      "sl": 4287.50878,
+      "loss_usd": 22.76,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     }
   ],
   "optimal_adjustments": {
@@ -175,6 +208,6 @@
     "swing_buffer_atr": 0.45,
     "tp1_atr_multiplier": 0.38,
     "min_confluence_score": 35.0,
-    "min_calibrated_prob": 84.0
+    "min_calibrated_prob": 82.5
   }
 }
