@@ -1,24 +1,18 @@
 {
   "enabled": true,
   "selected_symbols": [
+    "CADJPY",
     "ETH/USD",
     "XAU/USD",
-    "XAG/USD",
-    "GBP/USD",
-    "AUD/USD",
-    "EUR/USD",
-    "USD/JPY",
-    "EUR/GBP",
-    "BTC/USD"
+    "XAUUSD247",
+    "BTC/USD",
+    "EUR/USD"
   ],
   "timeframes": [
-    "5m",
     "15m",
     "30m",
     "1h",
-    "4h",
-    "1m",
-    "3m"
+    "4h"
   ],
   "risk_pct": 1.0,
   "scan_interval_sec": 15,
@@ -32,5 +26,6 @@
   "active_sessions": [
     "24/7 (Any Session)"
   ],
-  "htf_filter_enabled": true
+  "htf_filter_enabled": true,
+  "recommended_mode": true
 }

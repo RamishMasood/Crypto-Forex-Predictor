@@ -16,6 +16,7 @@ from src.engine.orchestrator import PredictorOrchestrator
 from src.engine.mt5_executor import MT5TradeExecutor
 from src.engine.session_manager import SessionManager
 from src.engine.htf_confluence import HTFConfluenceChecker
+from src.engine.recommended_presets import RecommendedPresetsManager, RECOMMENDED_SYMBOL_PROFILES
 
 class SafeStreamHandler(logging.StreamHandler):
     def emit(self, record):
@@ -74,7 +75,8 @@ class AutonomousTraderEngine:
             "allow_same_tf_trades": True,       # Customizable switch: Allow multiple trades on same timeframe
             "breakeven_mode": "tight",          # "tight" (immediate 0.38 ATR lock) | "loose" (2-stage runner breathing room)
             "active_sessions": ["London Session", "New York Session"], # Allowed trading sessions
-            "htf_filter_enabled": True          # Higher Timeframe Trend Confluence filter
+            "htf_filter_enabled": True,         # Higher Timeframe Trend Confluence filter
+            "recommended_mode": False           # Institutional Recommended Auto-Pilot (per-pair backtested optimum)
         }
         with _STATE_LOCK:
             if os.path.exists(SETTINGS_FILE):
@@ -943,10 +945,23 @@ class AutonomousTraderEngine:
         ordered_tfs = timeframes[start_idx:] + timeframes[:start_idx]
         logger.info(f"Scanning {symbol} across timeframes: {ordered_tfs} (Rotated Start: {timeframes[start_idx]}, Min Pillars: {min_pillars_required}/5)")
 
+        # Check Institutional Recommended Auto-Pilot Mode
+        curr_settings = self.load_settings()
+        is_rec_mode = bool(curr_settings.get('recommended_mode', False))
+        rec_profile = RecommendedPresetsManager.get_profile_for_symbol(symbol) if is_rec_mode else None
+        if is_rec_mode and not rec_profile:
+            logger.info(f"Recommended Auto-Pilot: {symbol} is not in elite portfolio. Skipping scan.")
+            return None
+
         found_setup = None
         open_batches = state.get('open_batches', {})
 
         for tf in ordered_tfs:
+            if is_rec_mode and rec_profile:
+                # Silently skip timeframes that do not belong to this symbol's recommended profile
+                if tf not in rec_profile.get('timeframes', []):
+                    continue
+
             if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
                 logger.info(f"Stop signal detected. Aborting scan on {symbol}.")
                 return None
@@ -998,7 +1013,10 @@ class AutonomousTraderEngine:
 
                 # 1. Market Session Filter (London / New York / Asian / 24-7)
                 curr_settings = self.load_settings()
-                active_sessions = curr_settings.get('active_sessions', ["London Session", "New York Session"])
+                if is_rec_mode and rec_profile:
+                    active_sessions = rec_profile.get('active_sessions', ["London Session", "New York Session"])
+                else:
+                    active_sessions = curr_settings.get('active_sessions', ["London Session", "New York Session"])
                 is_session_ok, session_desc = SessionManager.is_session_allowed(active_sessions)
                 session_blocked = not is_session_ok
                 if session_blocked:
@@ -1039,7 +1057,8 @@ class AutonomousTraderEngine:
                             micro_noise_scalp = True
                             is_actionable = False
 
-                is_eligible = (p_cnt >= min(min_pillars_required, total_req)) and is_actionable
+                active_min_pillars = rec_profile.get('min_pillars', min_pillars_required) if (is_rec_mode and rec_profile) else min_pillars_required
+                is_eligible = (p_cnt >= min(active_min_pillars, total_req)) and is_actionable
 
                 pillar_str = f"{p_cnt}/{total_req}"
 
@@ -1103,7 +1122,8 @@ class AutonomousTraderEngine:
                         'prediction': pred,
                         'evaluation': eval_res,
                         'cycle': cycle,
-                        'matched_pillars': p_cnt
+                        'matched_pillars': p_cnt,
+                        'recommended_profile': rec_profile if (is_rec_mode and rec_profile) else None
                     }
                     break
 
@@ -1235,6 +1255,10 @@ class AutonomousTraderEngine:
                 if 'open_batches' not in state:
                     state['open_batches'] = {}
 
+                rec_profile = setup_data.get('recommended_profile')
+                active_be_mode = rec_profile.get('breakeven_mode') if rec_profile else self.load_settings().get('breakeven_mode', 'tight')
+                active_sess_used = rec_profile.get('active_sessions') if rec_profile else self.load_settings().get('active_sessions', ["London Session", "New York Session"])
+
                 state['open_batches'][str(batch_id)] = {
                     'batch_id': batch_id,
                     'symbol': symbol,
@@ -1245,8 +1269,9 @@ class AutonomousTraderEngine:
                     'sl_price': sl_price,
                     'breakeven_sl': breakeven_sl,
                     'soft_breakeven_sl': soft_breakeven_sl,
-                    'breakeven_mode': self.load_settings().get('breakeven_mode', 'tight'),
-                    'active_sessions': self.load_settings().get('active_sessions', ["London Session", "New York Session"]),
+                    'breakeven_mode': active_be_mode,
+                    'recommended_mode': bool(rec_profile is not None),
+                    'active_sessions': active_sess_used,
                     'htf_confluence': bool(self.load_settings().get('htf_filter_enabled', True)),
                     'tp1_price': tp1_price,
                     'tp2_price': tp2_price,

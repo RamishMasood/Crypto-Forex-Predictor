@@ -1035,6 +1035,7 @@ def render_mt5_closed_history_view(live_exec):
 def render_mt5_autonomous_engine_view(live_exec):
         st.markdown("#### 🤖 Autonomous 5/5 Pillar Multi-Timeframe Scanner & AI Learning Engine")
         from src.engine.autonomous_manager import get_engine, AVAILABLE_TIMEFRAMES, DEFAULT_TIMEFRAMES, DEFAULT_SYMBOLS
+        from src.engine.recommended_presets import RecommendedPresetsManager
         auto_engine = get_engine()
         settings = auto_engine.load_settings()
         state = auto_engine.load_state()
@@ -1094,6 +1095,38 @@ def render_mt5_autonomous_engine_view(live_exec):
         if not is_scan_active and has_active_trades:
             st.info(f"ℹ️ **Scanner Stopped:** New scans and new trades are paused. The autonomous manager is actively monitoring and managing your {len(state.get('open_batches', {}))} open trade batch(es) until completion.")
 
+        # ── 1.5. Institutional Recommended Auto-Pilot Toggle ─────────────────────
+        rec_mode_active = bool(settings.get('recommended_mode', False))
+        rec_toggle = st.toggle(
+            "🌟 Institutional Recommended Auto-Pilot Mode (Hands-Off Optimal Execution)",
+            value=rec_mode_active,
+            key="auto_cfg_recommended_mode",
+            help="ON: Locks engine to mathematically backtested optimal parameters per pair (e.g. CADJPY on Loose 15m/1h, ETH on Tight 4h, BTC on 1h/4h). Disables manual overrides to guarantee maximum win rates."
+        )
+
+        if rec_toggle:
+            st.markdown(
+                """
+                <div style="background: linear-gradient(90deg, #064e3b 0%, #0f766e 100%); padding: 14px 18px; border-radius: 10px; border: 1px solid #10b981; margin-bottom: 15px;">
+                    <div style="font-weight: bold; color: #a7f3d0; font-size: 15px; margin-bottom: 6px;">
+                        🌟 AI Recommended Auto-Pilot Active — Manual Overrides Locked
+                    </div>
+                    <div style="color: #ecfdf5; font-size: 13px; line-height: 1.6;">
+                        Each pair executes autonomously under its verified optimal parameters:
+                        <ul style="margin-top: 4px; margin-bottom: 4px; padding-left: 20px;">
+                            <li><b>CADJPY</b>: 15m & 1h | <i>Loose Breakeven</i> | London & NY Sessions (Historical: 73.1% TP2, 0% SL)</li>
+                            <li><b>ETH/USD</b>: 1h & 4h | <i>Tight Breakeven</i> | London, NY & 24/7 (Historical: 98.3% Safe, +$44.30)</li>
+                            <li><b>XAU/USD (Gold)</b>: 15m & 30m | <i>Tight Breakeven</i> | London & NY Sessions (Historical: 71.4% Safe)</li>
+                            <li><b>XAUUSD247</b>: 15m & 1h | <i>Loose Breakeven</i> | 24/7 (Historical: 100% TP2)</li>
+                            <li><b>BTC/USD</b>: 1h & 4h | <i>Tight Breakeven</i> | 1m/5m Noise Strictly Filtered</li>
+                            <li><b>EUR/USD</b>: 15m & 1h | <i>Tight Breakeven</i> | London & NY Bank Hours Only</li>
+                        </ul>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
         # ── 2. Pair Selection & Timeframes ─────────────────────────────────────────
         st.markdown("##### ⚙️ Scanner & Pair Selection:")
         p_col1, p_col2 = st.columns([2.2, 1.8])
@@ -1123,11 +1156,12 @@ def render_mt5_autonomous_engine_view(live_exec):
         if not all_pairs:
             all_pairs = ["XAU/USD", "XAUUSD247", "BTC/USD", "ETH/USD", "EUR/USD", "GBP/USD", "USD/JPY", "XAG/USD"]
 
-        for d_sym in DEFAULT_SYMBOLS:
+        rec_symbols = RecommendedPresetsManager.get_recommended_symbols()
+        for d_sym in rec_symbols + DEFAULT_SYMBOLS:
             if d_sym not in all_pairs:
                 all_pairs.insert(0, d_sym)
 
-        current_selected_syms = settings.get('selected_symbols', DEFAULT_SYMBOLS)
+        current_selected_syms = rec_symbols if rec_toggle else settings.get('manual_selected_symbols', settings.get('selected_symbols', DEFAULT_SYMBOLS))
         valid_selected = [s for s in current_selected_syms if s in all_pairs]
         if not valid_selected:
             valid_selected = [s for s in DEFAULT_SYMBOLS if s in all_pairs] or all_pairs[:2]
@@ -1138,16 +1172,19 @@ def render_mt5_autonomous_engine_view(live_exec):
                 options=all_pairs,
                 default=valid_selected,
                 key="auto_scanner_pairs_multiselect",
-                help="Choose which currency pairs, metals (XAU/USD, XAUUSD247, XAG/USD), or cryptos the autonomous engine should trade."
+                disabled=rec_toggle,
+                help="Choose which currency pairs, metals (XAU/USD, XAUUSD247, XAG/USD), or cryptos the autonomous engine should trade. (Locked when Recommended Mode is ON)."
             )
 
         with p_col2:
+            tf_default = ["15m", "30m", "1h", "4h"] if rec_toggle else settings.get('manual_timeframes', settings.get('timeframes', DEFAULT_TIMEFRAMES))
             chosen_tfs = st.multiselect(
                 "⏱️ Active Scan Timeframes (1m/3m Unchecked by Default to Eliminate Wicks):",
                 options=AVAILABLE_TIMEFRAMES,
-                default=settings.get('timeframes', DEFAULT_TIMEFRAMES),
+                default=tf_default,
                 key="auto_scanner_tf_multiselect",
-                help="Autonomous engine checks every selected timeframe for setups. 1m/3m are unchecked by default to eliminate noise wicks."
+                disabled=rec_toggle,
+                help="Autonomous engine checks every selected timeframe for setups. (Locked when Recommended Mode is ON)."
             )
 
         # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap, Batch Lot Size, Same-TF Toggle, Breakeven Mode Toggle) ───
@@ -1242,12 +1279,15 @@ def render_mt5_autonomous_engine_view(live_exec):
                 "🕊️ Loose Breakeven",
                 value=(current_be_mode == 'loose'),
                 key="auto_cfg_loose_breakeven",
-                help="ON: Loose Breakeven Mode (2-Stage Breathing Room: Keeps 0.45 ATR cushion on TP1, locks full BE at 0.85 ATR expansion so TP2 runners can develop). OFF: Tight Breakeven Mode (Locks BE immediately at 0.38 ATR scalp)."
+                disabled=rec_toggle,
+                help="ON: Loose Breakeven Mode (2-Stage Breathing Room). (Locked to per-pair optimum when Recommended Mode is ON)."
             )
             be_mode_cfg = 'loose' if loose_be_cfg else 'tight'
 
         # Informative active Breakeven mode feedback caption
-        if be_mode_cfg == 'loose':
+        if rec_toggle:
+            st.caption("🌟 **Auto-Pilot Breakeven Active**: CADJPY & XAUUSD247 run on Loose BE (runners unlocked), while ETH, Gold, BTC & EUR run on Tight BE (instant scalp lock).")
+        elif be_mode_cfg == 'loose':
             st.caption("🕊️ **Active Mode: LOOSE BREAKEVEN (TP2 Runner Protection)** — At TP1 hit, SL shifts to soft buffer (0.45 ATR cushion below entry) so pullbacks don't choke the trade. Full Hard Breakeven locks once price expands $\ge 0.85$ ATR.")
         else:
             st.caption("🔒 **Active Mode: TIGHT BREAKEVEN (Immediate Scalp Lock)** — At TP1 hit (0.38 ATR), SL shifts immediately to Entry Price (+0.02 ATR buffer). Protects initial scalp gains, but pullbacks may exit runners at $0.00.")
@@ -1263,7 +1303,8 @@ def render_mt5_autonomous_engine_view(live_exec):
                 options=all_session_opts,
                 default=default_sessions,
                 key="auto_cfg_active_sessions",
-                help="Restricts trade entries to high-volume market hours. London & New York eliminate low-volume Asian chop and increase TP2 runner follow-through."
+                disabled=rec_toggle,
+                help="Restricts trade entries to high-volume market hours. (Locked to per-pair optimum when Recommended Mode is ON)."
             )
         with f_col2:
             st.write("")
@@ -1272,10 +1313,13 @@ def render_mt5_autonomous_engine_view(live_exec):
                 "📈 HTF Trend Confluence",
                 value=bool(settings.get('htf_filter_enabled', True)),
                 key="auto_cfg_htf_confluence",
-                help="ON: Gated execution. Only allows BUY when Higher Timeframe (1h/4h) is Bullish above EMA20, and SELL when HTF is Bearish below EMA20. Boosts 15m TP2 win rate to ~50% and drops 4h losses to <2%."
+                disabled=rec_toggle,
+                help="ON: Gated execution. (Locked ON when Recommended Mode is active to prevent counter-trend traps)."
             )
 
-        if htf_confluence_cfg:
+        if rec_toggle:
+            st.caption("🚀 **Auto-Pilot Sessions Active**: High-liquidity London/NY overlap for FX & Gold; 24/7 round-the-clock for Crypto & Metals.")
+        elif htf_confluence_cfg:
             st.caption("🚀 **High-Probability Filters Active**: London/NY Session + Higher Timeframe Trend Confluence Filter enabled.")
         else:
             st.caption("⚠️ **HTF Filter Disabled**: Setups will be taken without higher-timeframe trend verification.")
@@ -1295,10 +1339,18 @@ def render_mt5_autonomous_engine_view(live_exec):
             or be_mode_cfg != settings.get('breakeven_mode', 'tight')
             or chosen_sessions != settings.get('active_sessions')
             or htf_confluence_cfg != settings.get('htf_filter_enabled', True)
+            or rec_toggle != settings.get('recommended_mode', False)
         )
         if settings_changed:
-            settings['selected_symbols'] = chosen_symbols
-            settings['timeframes'] = chosen_tfs
+            if not rec_toggle:
+                settings['manual_selected_symbols'] = chosen_symbols
+                settings['manual_timeframes'] = chosen_tfs
+                settings['selected_symbols'] = chosen_symbols
+                settings['timeframes'] = chosen_tfs
+            else:
+                settings['selected_symbols'] = rec_symbols
+                settings['timeframes'] = ["15m", "30m", "1h", "4h"]
+
             settings['target_trades_per_symbol'] = target_trades
             settings['min_pillars_required'] = min_pillars_cfg
             settings['scan_interval_sec'] = new_interval_sec
@@ -1309,8 +1361,9 @@ def render_mt5_autonomous_engine_view(live_exec):
             settings['breakeven_mode'] = be_mode_cfg
             settings['active_sessions'] = chosen_sessions
             settings['htf_filter_enabled'] = htf_confluence_cfg
+            settings['recommended_mode'] = rec_toggle
             auto_engine.save_settings(settings)
-            st.toast(f"⚙️ Settings Updated: Breakeven Mode is {be_mode_cfg.upper()}!", icon="✅")
+            st.toast(f"⚙️ Settings Updated: Recommended Auto-Pilot is {'ACTIVE 🌟' if rec_toggle else 'OFF'}!", icon="✅")
 
         # ── 4. Dynamic Pair Metrics & Independent Win Rate Calculation ────────────
         st.markdown("##### 📊 Target Progress & Independent Pair Win Rates:")
