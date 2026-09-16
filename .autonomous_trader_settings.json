@@ -28,5 +28,9 @@
   "min_pillars_required": 5,
   "batch_lot_size": 0.02,
   "allow_same_tf_trades": true,
-  "breakeven_mode": "tight"
+  "breakeven_mode": "tight",
+  "active_sessions": [
+    "24/7 (Any Session)"
+  ],
+  "htf_filter_enabled": true
 }

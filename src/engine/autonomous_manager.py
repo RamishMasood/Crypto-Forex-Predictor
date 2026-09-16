@@ -14,6 +14,8 @@ if ROOT_DIR not in sys.path:
 
 from src.engine.orchestrator import PredictorOrchestrator
 from src.engine.mt5_executor import MT5TradeExecutor
+from src.engine.session_manager import SessionManager
+from src.engine.htf_confluence import HTFConfluenceChecker
 
 class SafeStreamHandler(logging.StreamHandler):
     def emit(self, record):
@@ -70,7 +72,9 @@ class AutonomousTraderEngine:
             "min_pillars_required": 5,          # Customizable required pillars: 5, 4, 3, or 2
             "batch_lot_size": 0.03,             # Customizable batch lot size (e.g. 0.03 -> 0.01, 0.01, 0.01)
             "allow_same_tf_trades": True,       # Customizable switch: Allow multiple trades on same timeframe
-            "breakeven_mode": "tight"           # "tight" (immediate 0.38 ATR lock) | "loose" (2-stage runner breathing room)
+            "breakeven_mode": "tight",          # "tight" (immediate 0.38 ATR lock) | "loose" (2-stage runner breathing room)
+            "active_sessions": ["London Session", "New York Session"], # Allowed trading sessions
+            "htf_filter_enabled": True          # Higher Timeframe Trend Confluence filter
         }
         with _STATE_LOCK:
             if os.path.exists(SETTINGS_FILE):
@@ -992,6 +996,26 @@ class AutonomousTraderEngine:
                 total_req = eval_res.get('total_applicable', 5)
                 is_actionable = ('BUY' in action or 'SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action) and ('CHOP' not in action) and (not is_chop) and (not is_spread_fail)
 
+                # 1. Market Session Filter (London / New York / Asian / 24-7)
+                curr_settings = self.load_settings()
+                active_sessions = curr_settings.get('active_sessions', ["London Session", "New York Session"])
+                is_session_ok, session_desc = SessionManager.is_session_allowed(active_sessions)
+                session_blocked = not is_session_ok
+                if session_blocked:
+                    is_actionable = False
+
+                # 2. Higher Timeframe (HTF) Trend Confluence Filter
+                htf_filter_enabled = bool(curr_settings.get('htf_filter_enabled', True))
+                htf_conflict = False
+                htf_detail = ""
+                if htf_filter_enabled and is_actionable:
+                    clean_dir = 'BUY' if 'BUY' in action else ('SELL' if 'SELL' in action else '')
+                    if clean_dir:
+                        is_htf_ok, htf_detail, _ = HTFConfluenceChecker.check_alignment(symbol, tf, clean_dir)
+                        if not is_htf_ok:
+                            htf_conflict = True
+                            is_actionable = False
+
                 # Micro Scalp (1m/3m/5m) Institutional Execution Gate:
                 # 1. Macro Confirmation: Micro scalp must never contradict higher-timeframe 200 EMA bias (Pillar 2).
                 # 2. Institutional Trigger on 1m/3m: Raw 1m/3m indicator entries are noise-dominated;
@@ -1021,6 +1045,10 @@ class AutonomousTraderEngine:
 
                 if is_eligible:
                     status_lbl = f"🎯 {p_cnt}/{total_req} Aligned (Executing)"
+                elif session_blocked:
+                    status_lbl = "SKIPPED (Outside Trading Session)"
+                elif htf_conflict:
+                    status_lbl = "SKIPPED (HTF Trend Conflict)"
                 elif macro_conflict_scalp:
                     status_lbl = "SKIPPED (Macro 200 EMA Conflict)"
                 elif micro_noise_scalp:
@@ -1033,7 +1061,11 @@ class AutonomousTraderEngine:
                     status_lbl = f"No Trade (Waiting {min_pillars_required}/5)"
 
                 detail_str = f"Score: {score:+.1f} | Win Prob: {prob:.0f}%"
-                if macro_conflict_scalp:
+                if session_blocked:
+                    detail_str = f"SESSION FILTER: {session_desc}"
+                elif htf_conflict:
+                    detail_str = f"HTF FILTER: {htf_detail}"
+                elif macro_conflict_scalp:
                     detail_str = f"MACRO CONFLICT: Scalp opposes 200 EMA trend"
                 elif micro_noise_scalp:
                     detail_str = f"MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
@@ -1214,6 +1246,8 @@ class AutonomousTraderEngine:
                     'breakeven_sl': breakeven_sl,
                     'soft_breakeven_sl': soft_breakeven_sl,
                     'breakeven_mode': self.load_settings().get('breakeven_mode', 'tight'),
+                    'active_sessions': self.load_settings().get('active_sessions', ["London Session", "New York Session"]),
+                    'htf_confluence': bool(self.load_settings().get('htf_filter_enabled', True)),
                     'tp1_price': tp1_price,
                     'tp2_price': tp2_price,
                     'tp3_price': tp3_price,
