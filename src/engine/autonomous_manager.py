@@ -109,6 +109,7 @@ class AutonomousTraderEngine:
             "min_pillars_required": 5,          # Customizable required pillars: 5, 4, 3, or 2
             "batch_lot_size": 0.03,             # Customizable batch lot size (e.g. 0.03 -> 0.01, 0.01, 0.01)
             "allow_same_tf_trades": True,       # Customizable switch: Allow multiple trades on same timeframe
+            "allow_diff_strat_same_tf": False,  # Allow multi-trades on same TF ONLY from DIFFERENT strategies (same strategy cannot duplicate)
             "breakeven_mode": "tight",          # "tight" (immediate 0.38 ATR lock) | "loose" (2-stage runner breathing room)
             "active_sessions": ["London Session", "New York Session"], # Allowed trading sessions
             "htf_filter_enabled": True,         # Higher Timeframe Trend Confluence filter
@@ -233,6 +234,21 @@ class AutonomousTraderEngine:
 
         closed_batches = state.get('closed_batches', [])
         open_batches = list(state.get('open_batches', {}).values())
+
+        reset_at_str = state.get('reset_at')
+        if reset_at_str:
+            try:
+                reset_dt = datetime.fromisoformat(reset_at_str)
+                closed_batches = [
+                    b for b in closed_batches
+                    if b.get('executed_at') and datetime.fromisoformat(b.get('executed_at')) >= reset_dt
+                ]
+                open_batches = [
+                    b for b in open_batches
+                    if b.get('executed_at') and datetime.fromisoformat(b.get('executed_at')) >= reset_dt
+                ]
+            except Exception:
+                pass
 
         # Strategy Playbook Native Profiles (from Complete Rule-Based Playbook PDF)
         playbook_profiles = {
@@ -640,6 +656,10 @@ class AutonomousTraderEngine:
         state["current_scan"] = {}
         state["xau_trades_taken"] = 0
         state["btc_trades_taken"] = 0
+        state["eth_trades_taken"] = 0
+        for k in list(state.keys()):
+            if k.endswith('_trades_taken'):
+                state[k] = 0
         state["last_scan_time"] = None
         state["last_scanned_symbol"] = None
         state["next_scan_time"] = None
@@ -1137,9 +1157,19 @@ class AutonomousTraderEngine:
             open_pos = mt5.positions_get()
             open_tickets = {p.ticket for p in open_pos} if open_pos else set()
 
+            reset_at_ts = None
+            if reset_at:
+                try:
+                    reset_at_ts = datetime.fromisoformat(reset_at).timestamp()
+                except Exception:
+                    pass
+
             # Self-healing: Adopt any unlinked MT5 positions into open_batches so they are never orphaned
             if open_pos:
                 for p in open_pos:
+                    # Ignore positions opened before the latest system reset
+                    if reset_at_ts is not None and getattr(p, 'time', 0) < reset_at_ts:
+                        continue
                     if getattr(p, 'magic', 0) == self.executor.MAGIC_NUMBER or 'QS_' in str(getattr(p, 'comment', '')):
                         cmt = str(getattr(p, 'comment', ''))
                         pos_batch = None
@@ -1419,20 +1449,24 @@ class AutonomousTraderEngine:
                 logger.info(f"Stop signal detected. Aborting scan on {symbol}.")
                 return None
 
-            # Check duplicate position stacking on same (symbol, tf) unless allow_same_tf_trades is enabled
-            allow_same_tf = bool(self.load_settings().get('allow_same_tf_trades', True))
-            if not allow_same_tf:
-                active_batch_id = None
-                norm_sym = self.normalize_symbol(symbol)
-                for bid, binfo in open_batches.items():
-                    b_sym = self.normalize_symbol(binfo.get('symbol', ''))
-                    b_tf = str(binfo.get('timeframe', '')).lower()
-                    if (b_sym == norm_sym or norm_sym.replace('/', '') in str(binfo.get('broker_sym', '')).replace('/', '')) and b_tf == str(tf).lower():
-                        active_batch_id = bid
-                        break
+            # Check duplicate position stacking on same (symbol, tf)
+            allow_same_tf = bool(curr_settings.get('allow_same_tf_trades', True))
+            allow_diff_strat = bool(curr_settings.get('allow_diff_strat_same_tf', False))
 
-                if active_batch_id:
-                    logger.info(f"Active batch #{active_batch_id} already running on {symbol} ({tf}). Advancing to next timeframe (same-TF stacking off).")
+            norm_sym = self.normalize_symbol(symbol)
+            running_strats_on_tf = set()
+            active_batch_ids_on_tf = []
+            for bid, binfo in open_batches.items():
+                b_sym = self.normalize_symbol(binfo.get('symbol', ''))
+                b_tf = str(binfo.get('timeframe', '')).lower()
+                if (b_sym == norm_sym or norm_sym.replace('/', '') in str(binfo.get('broker_sym', '')).replace('/', '')) and b_tf == str(tf).lower():
+                    running_strats_on_tf.add(binfo.get('strategy_used', 'DEFAULT'))
+                    active_batch_ids_on_tf.append(bid)
+
+            # If multi-trades on same TF are completely disabled (both allow_same_tf and allow_diff_strat are False)
+            if not allow_same_tf and not allow_diff_strat:
+                if active_batch_ids_on_tf:
+                    logger.info(f"Active batch #{active_batch_ids_on_tf[0]} already running on {symbol} ({tf}). Advancing to next timeframe (same-TF trades disabled).")
                     self._append_activity_log({
                         "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
                         "cycle": cycle,
@@ -1441,7 +1475,7 @@ class AutonomousTraderEngine:
                         "action": "HOLD",
                         "pillars": "-",
                         "status": "SKIPPED (Active Batch on TF)",
-                        "details": f"Batch #{active_batch_id} already open on {symbol} ({tf}) (Same-TF Stacking OFF)"
+                        "details": f"Batch #{active_batch_ids_on_tf[0]} already open on {symbol} ({tf}) (Same-TF trades disabled)"
                     })
                     continue
 
@@ -1619,6 +1653,25 @@ class AutonomousTraderEngine:
                                 'breakeven_mode': st_res.get('breakeven_mode', 'FIXED_RR_TARGET'),
                                 'session_used': st_session_desc
                             })
+
+                # If allow_diff_strat_same_tf is enabled, disallow duplicate trades from the SAME strategy on the same timeframe
+                if allow_diff_strat and running_strats_on_tf and candidates:
+                    orig_candidates = list(candidates)
+                    candidates = [c for c in candidates if c['strategy_key'] not in running_strats_on_tf]
+                    if not candidates and orig_candidates:
+                        blocked_names = ", ".join([c['strategy_key'] for c in orig_candidates])
+                        logger.info(f"All candidate strategies ({blocked_names}) already active on {symbol} ({tf}). Disallowing same-strategy duplicate on same TF.")
+                        self._append_activity_log({
+                            "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                            "cycle": cycle,
+                            "symbol": symbol,
+                            "timeframe": tf,
+                            "action": "HOLD",
+                            "pillars": "-",
+                            "status": "SKIPPED (Same Strat Active on TF)",
+                            "details": f"Strategy {blocked_names} already active on {symbol} ({tf}). (Diff Strats Only Mode)"
+                        })
+                        continue
 
                 # Selection: Rank eligible candidates by confidence & choose the best
                 chosen_strategy_key = None

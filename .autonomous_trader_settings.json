@@ -1,7 +1,6 @@
 {
-  "enabled": false,
+  "enabled": true,
   "selected_symbols": [
-    "XAUUSD247",
     "ETH/USD",
     "BTC/USD"
   ],
@@ -22,13 +21,14 @@
   "min_pillars_required": 5,
   "batch_lot_size": 0.04,
   "allow_same_tf_trades": false,
+  "allow_diff_strat_same_tf": true,
   "breakeven_mode": "tight",
   "active_sessions": [
     "24/7 (Any Session)"
   ],
   "htf_filter_enabled": true,
   "recommended_mode": false,
-  "active_strategy_mode": "ALL_STRATEGIES",
+  "active_strategy_mode": "DEFAULT",
   "active_strategies": [
     "DEFAULT",
     "STEVEN_HART",
@@ -45,7 +45,6 @@
     "TRADE_PRO"
   ],
   "manual_selected_symbols": [
-    "XAUUSD247",
     "ETH/USD",
     "BTC/USD"
   ],

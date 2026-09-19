@@ -1233,9 +1233,9 @@ def render_mt5_autonomous_engine_view(live_exec):
         chips_html = "".join([f"<span style='background:#0f172a;border:1px solid #3b82f6;color:#93c5fd;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;margin:2px 4px 2px 0;display:inline-block;'>{AVAILABLE_STRATEGIES.get(k, k)}</span>" for k in chosen_strats])
         render_html(f"<div style='margin-top:4px;margin-bottom:8px;'>{chips_html}</div>")
 
-        # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap, Batch Lot Size, Same-TF Toggle, Breakeven Mode Toggle) ───
+        # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap, Batch Lot Size, Same-TF Toggle, Diff Strats Toggle, Breakeven Mode Toggle) ───
         st.markdown("##### 🎛️ Engine Strategy & Risk Controls:")
-        cfg_c1, cfg_c2, cfg_c3, cfg_c4, cfg_c5, cfg_c6, cfg_c7, cfg_c8 = st.columns([1.1, 1.2, 1.0, 1.0, 1.0, 1.0, 1.1, 1.2])
+        cfg_c1, cfg_c2, cfg_c3, cfg_c4, cfg_c5, cfg_c6 = st.columns([1.2, 1.2, 1.1, 1.1, 1.1, 1.1])
         
         with cfg_c1:
             target_trades = st.number_input(
@@ -1307,9 +1307,8 @@ def render_mt5_autonomous_engine_view(live_exec):
                 help="Total volume per trade batch. (0.03 = 0.01 each on TP1/TP2/TP3. For pairs with higher broker minimum like ETH/USD (min 0.10), lot is automatically clamped to broker min without affecting other pairs)."
             )
 
-        with cfg_c7:
-            st.write("")
-            st.write("")
+        cfg_t1, cfg_t2, cfg_t3 = st.columns([1.2, 1.4, 1.2])
+        with cfg_t1:
             allow_same_tf_cfg = st.toggle(
                 "🔁 Multi-Trades / Same TF",
                 value=bool(settings.get('allow_same_tf_trades', True)),
@@ -1317,9 +1316,15 @@ def render_mt5_autonomous_engine_view(live_exec):
                 help="ON: Allows opening multiple concurrent trades on the same timeframe (e.g. multiple 4h setups). OFF: Restricts to max 1 active batch per timeframe."
             )
 
-        with cfg_c8:
-            st.write("")
-            st.write("")
+        with cfg_t2:
+            allow_diff_strat_cfg = st.toggle(
+                "🔀 Diff Strats / Same TF",
+                value=bool(settings.get('allow_diff_strat_same_tf', False)),
+                key="auto_cfg_allow_diff_strat_same_tf",
+                help="ON: Allows multiple concurrent trades on the same timeframe ONLY if they are from different strategies (e.g. ICT + Vivek Yadav on 15m). The SAME strategy cannot take duplicate trades on the same timeframe. OFF: Allows same-strategy stacking if Multi-Trades is ON."
+            )
+
+        with cfg_t3:
             current_be_mode = str(settings.get('breakeven_mode', 'tight')).lower().strip()
             loose_be_cfg = st.toggle(
                 "🕊️ Loose Breakeven",
@@ -1329,6 +1334,9 @@ def render_mt5_autonomous_engine_view(live_exec):
                 help="ON: Loose Breakeven Mode (2-Stage Breathing Room). (Locked to per-pair optimum when Recommended Mode is ON)."
             )
             be_mode_cfg = 'loose' if loose_be_cfg else 'tight'
+
+        if allow_diff_strat_cfg:
+            st.caption("🔀 **Strategy Diversification Active**: Different strategies are allowed to trade on the same timeframe concurrently, but duplicate trades by the same strategy on that timeframe are strictly blocked.")
 
         # Informative active Breakeven mode feedback caption
         if rec_toggle:
@@ -1382,6 +1390,7 @@ def render_mt5_autonomous_engine_view(live_exec):
             or max_risk_usd_cfg != settings.get('max_dollar_risk')
             or abs(batch_lot_size_cfg - float(settings.get('batch_lot_size', 0.03))) > 1e-4
             or allow_same_tf_cfg != settings.get('allow_same_tf_trades', True)
+            or allow_diff_strat_cfg != settings.get('allow_diff_strat_same_tf', False)
             or be_mode_cfg != settings.get('breakeven_mode', 'tight')
             or chosen_sessions != settings.get('active_sessions')
             or htf_confluence_cfg != settings.get('htf_filter_enabled', True)
@@ -1405,6 +1414,7 @@ def render_mt5_autonomous_engine_view(live_exec):
             settings['max_dollar_risk'] = max_risk_usd_cfg
             settings['batch_lot_size'] = round(batch_lot_size_cfg, 2)
             settings['allow_same_tf_trades'] = allow_same_tf_cfg
+            settings['allow_diff_strat_same_tf'] = allow_diff_strat_cfg
             settings['breakeven_mode'] = be_mode_cfg
             settings['active_sessions'] = chosen_sessions
             settings['htf_filter_enabled'] = htf_confluence_cfg
@@ -1421,6 +1431,19 @@ def render_mt5_autonomous_engine_view(live_exec):
         open_batches = state.get('open_batches', {})
         closed_batches = state.get('closed_batches', [])
         all_recorded_batches = list(open_batches.values()) + closed_batches
+
+        # Exclude historical batches executed prior to latest system reset
+        reset_at_str = state.get('reset_at')
+        if reset_at_str:
+            try:
+                from datetime import datetime as _dt
+                reset_dt = _dt.fromisoformat(reset_at_str)
+                all_recorded_batches = [
+                    b for b in all_recorded_batches
+                    if b.get('executed_at') and _dt.fromisoformat(b.get('executed_at')) >= reset_dt
+                ]
+            except Exception:
+                pass
 
         active_symbols = chosen_symbols if chosen_symbols else DEFAULT_SYMBOLS
         
