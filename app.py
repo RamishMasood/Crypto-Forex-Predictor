@@ -1187,6 +1187,52 @@ def render_mt5_autonomous_engine_view(live_exec):
                 help="Autonomous engine checks every selected timeframe for setups. (Locked when Recommended Mode is ON)."
             )
 
+        # ── 2.5 Autonomous Multi-Strategy Selector (13 Strategies: Institutional Core + 12 Streamers) ──
+        from src.engine.autonomous_manager import AVAILABLE_STRATEGIES
+        st.markdown("##### 🧠 Autonomous Trading Strategy Selection (Multi-Select Supported):")
+        
+        strat_preset_col1, strat_preset_col2, strat_preset_col3, strat_preset_col4 = st.columns(4)
+        with strat_preset_col1:
+            if st.button("🌟 Select All 13 Strategies", key="btn_strat_all_auto", use_container_width=True):
+                settings['active_strategies'] = list(AVAILABLE_STRATEGIES.keys())
+                auto_engine.save_settings(settings)
+                st.rerun()
+        with strat_preset_col2:
+            if st.button("🏛️ Default Core Only", key="btn_strat_def_auto", use_container_width=True):
+                settings['active_strategies'] = ["DEFAULT"]
+                auto_engine.save_settings(settings)
+                st.rerun()
+        with strat_preset_col3:
+            if st.button("💎 Top 3 SMC (Vivek, ICT, Bernd)", key="btn_strat_smc_auto", use_container_width=True):
+                settings['active_strategies'] = ["DEFAULT", "VIVEK_YADAV", "BERND_SKORUPINSKI", "ICT"]
+                auto_engine.save_settings(settings)
+                st.rerun()
+        with strat_preset_col4:
+            if st.button("🌊 Trend (Rayner, Adam, Oliver)", key="btn_strat_trend_auto", use_container_width=True):
+                settings['active_strategies'] = ["RAYNER_TEO", "ADAM_KHOO", "OLIVER_VELEZ", "TRADE_PRO"]
+                auto_engine.save_settings(settings)
+                st.rerun()
+
+        saved_active_strats = settings.get('active_strategies', ['DEFAULT'])
+        if not saved_active_strats:
+            saved_active_strats = ['DEFAULT']
+
+        chosen_strats = st.multiselect(
+            "Select which strategies the Autonomous Engine scans and executes simultaneously:",
+            options=list(AVAILABLE_STRATEGIES.keys()),
+            default=saved_active_strats,
+            format_func=lambda x: AVAILABLE_STRATEGIES.get(x, x),
+            key="auto_cfg_active_strategies_ms",
+            help="Multi-select any combination of the 12 master streamer strategies + institutional default core. The engine will evaluate all selected strategies on each scan and execute the highest-conviction setup."
+        )
+
+        if not chosen_strats:
+            st.warning("⚠️ No strategy selected! Please select at least one strategy.")
+            chosen_strats = ['DEFAULT']
+
+        chips_html = "".join([f"<span style='background:#0f172a;border:1px solid #3b82f6;color:#93c5fd;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;margin:2px 4px 2px 0;display:inline-block;'>{AVAILABLE_STRATEGIES.get(k, k)}</span>" for k in chosen_strats])
+        render_html(f"<div style='margin-top:4px;margin-bottom:8px;'>{chips_html}</div>")
+
         # ── 3. Strategy & Risk Configuration Controls (Custom Target, Min Pillars, Delay, Max Batches, Max Risk Cap, Batch Lot Size, Same-TF Toggle, Breakeven Mode Toggle) ───
         st.markdown("##### 🎛️ Engine Strategy & Risk Controls:")
         cfg_c1, cfg_c2, cfg_c3, cfg_c4, cfg_c5, cfg_c6, cfg_c7, cfg_c8 = st.columns([1.1, 1.2, 1.0, 1.0, 1.0, 1.0, 1.1, 1.2])
@@ -1288,7 +1334,7 @@ def render_mt5_autonomous_engine_view(live_exec):
         if rec_toggle:
             st.caption("🌟 **Auto-Pilot Breakeven Active**: CADJPY & XAUUSD247 run on Loose BE (runners unlocked), while ETH, Gold, BTC & EUR run on Tight BE (instant scalp lock).")
         elif be_mode_cfg == 'loose':
-            st.caption("🕊️ **Active Mode: LOOSE BREAKEVEN (TP2 Runner Protection)** — At TP1 hit, SL shifts to soft buffer (0.45 ATR cushion below entry) so pullbacks don't choke the trade. Full Hard Breakeven locks once price expands $\ge 0.85$ ATR.")
+            st.caption("🕊️ **Active Mode: LOOSE BREAKEVEN (TP2 Runner Protection)** — At TP1 hit, SL shifts to soft buffer (0.45 ATR cushion below entry) so pullbacks don't choke the trade. Full Hard Breakeven locks once price expands >= 0.85 ATR.")
         else:
             st.caption("🔒 **Active Mode: TIGHT BREAKEVEN (Immediate Scalp Lock)** — At TP1 hit (0.38 ATR), SL shifts immediately to Entry Price (+0.02 ATR buffer). Protects initial scalp gains, but pullbacks may exit runners at $0.00.")
 
@@ -1304,7 +1350,7 @@ def render_mt5_autonomous_engine_view(live_exec):
                 default=default_sessions,
                 key="auto_cfg_active_sessions",
                 disabled=rec_toggle,
-                help="Restricts trade entries to high-volume market hours. (Locked to per-pair optimum when Recommended Mode is ON)."
+                help="Restricts trade entries to high-volume market hours. Note: Streamers with designated author killzones in the Playbook (ICT, Vivek Yadav, Ross Cameron, etc.) automatically enforce their exact author hours."
             )
         with f_col2:
             st.write("")
@@ -1318,9 +1364,9 @@ def render_mt5_autonomous_engine_view(live_exec):
             )
 
         if rec_toggle:
-            st.caption("🚀 **Auto-Pilot Sessions Active**: High-liquidity London/NY overlap for FX & Gold; 24/7 round-the-clock for Crypto & Metals.")
+            st.caption("🚀 **Auto-Pilot Sessions Active**: High-liquidity London/NY overlap for FX & Gold; 24/7 round-the-clock for Crypto & Metals. *(Note: Strategies with dedicated author killzones in the Playbook automatically enforce their exact trading windows)*")
         elif htf_confluence_cfg:
-            st.caption("🚀 **High-Probability Filters Active**: London/NY Session + Higher Timeframe Trend Confluence Filter enabled.")
+            st.caption("🚀 **High-Probability Filters Active**: London/NY Session + Higher Timeframe Trend Confluence Filter enabled. *(Note: Playbook author killzones are strictly enforced for specified strategies)*")
         else:
             st.caption("⚠️ **HTF Filter Disabled**: Setups will be taken without higher-timeframe trend verification.")
 
@@ -1340,6 +1386,7 @@ def render_mt5_autonomous_engine_view(live_exec):
             or chosen_sessions != settings.get('active_sessions')
             or htf_confluence_cfg != settings.get('htf_filter_enabled', True)
             or rec_toggle != settings.get('recommended_mode', False)
+            or chosen_strats != settings.get('active_strategies', ['DEFAULT'])
         )
         if settings_changed:
             if not rec_toggle:
@@ -1362,8 +1409,10 @@ def render_mt5_autonomous_engine_view(live_exec):
             settings['active_sessions'] = chosen_sessions
             settings['htf_filter_enabled'] = htf_confluence_cfg
             settings['recommended_mode'] = rec_toggle
+            settings['active_strategies'] = chosen_strats
+            settings['active_strategy_mode'] = chosen_strats[0] if chosen_strats else 'DEFAULT'
             auto_engine.save_settings(settings)
-            st.toast(f"⚙️ Settings Updated: Recommended Auto-Pilot is {'ACTIVE 🌟' if rec_toggle else 'OFF'}!", icon="✅")
+            st.toast(f"⚙️ Settings Updated: {len(chosen_strats)} Active Strategies Selected!", icon="✅")
 
         # ── 4. Dynamic Pair Metrics & Independent Win Rate Calculation ────────────
         st.markdown("##### 📊 Target Progress & Independent Pair Win Rates:")
@@ -1387,14 +1436,41 @@ def render_mt5_autonomous_engine_view(live_exec):
             sym_cols = []
 
         for idx, sym in enumerate(active_symbols):
-            c_taken = by_sym.get(sym, 0)
-            if c_taken == 0:
-                if 'XAU' in sym and state.get('xau_trades_taken', 0) > 0 and state.get('reset_at') is None:
-                    c_taken = state.get('xau_trades_taken', 0)
-                elif 'BTC' in sym and state.get('btc_trades_taken', 0) > 0 and state.get('reset_at') is None:
-                    c_taken = state.get('btc_trades_taken', 0)
+            norm_target = sym.replace('/', '').replace('m', '').upper()
 
+            # 1. Match all batches belonging to this symbol (open or closed)
+            sym_all_b = [
+                b for b in all_recorded_batches
+                if (b.get('symbol', '').replace('/', '').replace('m', '').upper() == norm_target
+                    or b.get('broker_sym', '').replace('/', '').replace('m', '').upper().startswith(norm_target)
+                    or norm_target in b.get('broker_sym', '').replace('/', '').replace('m', '').upper())
+            ]
+
+            # 2. Compute dynamic trades taken count
+            batch_count = len(sym_all_b)
+            dict_count = by_sym.get(sym, 0)
+            for k, v in by_sym.items():
+                if k.replace('/', '').replace('m', '').upper() == norm_target or norm_target in k.replace('/', '').replace('m', '').upper():
+                    dict_count = max(dict_count, v)
+
+            legacy_count = 0
+            if 'XAU' in norm_target:
+                legacy_count = state.get('xau_trades_taken', 0)
+            elif 'BTC' in norm_target:
+                legacy_count = state.get('btc_trades_taken', 0)
+            elif 'ETH' in norm_target:
+                legacy_count = state.get('eth_trades_taken', 0)
+
+            c_taken = max(batch_count, dict_count, legacy_count)
+
+            # 3. Match symbol stats with normalized symbol fallback
             s_info = sym_stats.get(sym, {})
+            if not s_info:
+                for k, v in sym_stats.items():
+                    if k.replace('/', '').replace('m', '').upper() == norm_target or norm_target in k.replace('/', '').replace('m', '').upper():
+                        s_info = v
+                        break
+
             w = s_info.get('wins', 0)
             be = s_info.get('breakevens', 0)
             l = s_info.get('losses', 0)
@@ -1403,7 +1479,6 @@ def render_mt5_autonomous_engine_view(live_exec):
             wr = (w / comp * 100.0) if comp > 0 else 0.0
 
             # Calculate symbol dollar risk
-            sym_all_b = [b for b in all_recorded_batches if b.get('symbol') == sym]
             sym_risks = [auto_engine.compute_batch_risk(b) for b in sym_all_b if auto_engine.compute_batch_risk(b) > 0]
             avg_risk_sym = (sum(sym_risks) / len(sym_risks)) if sym_risks else 0.0
 
@@ -1565,26 +1640,31 @@ def render_mt5_autonomous_engine_view(live_exec):
                     pil_badge = f"<span style='background:#065f46;color:#34d399;padding:1px 6px;border-radius:4px;font-weight:800;font-size:0.72rem;border:1px solid #10b981;'>🎯 5/5</span>"
                 elif '4/5' in pil:
                     pil_badge = f"<span style='background:#1e3a8a;color:#93c5fd;padding:1px 6px;border-radius:4px;font-weight:700;font-size:0.72rem;border:1px solid #3b82f6;'>4/5</span>"
+                elif 'STRAT' in pil or 'STREAMER' in pil:
+                    pil_badge = f"<span style='background:#3b0764;color:#c084fc;padding:1px 6px;border-radius:4px;font-weight:700;font-size:0.72rem;border:1px solid #a855f7;'>⚡ STRAT</span>"
                 elif any(x in pil for x in ['1/5', '2/5', '3/5']):
                     pil_badge = f"<span style='background:#1e293b;color:#94a3b8;padding:1px 6px;border-radius:4px;font-size:0.72rem;'>{pil}</span>"
                 else:
                     pil_badge = f"<span style='color:#64748b;'>-</span>"
 
                 # 2. Dedicated Trade Decision / Execution Status Column
-                if 'EXECUTED' in raw_stt:
+                up_stt = raw_stt.upper()
+                if 'EXECUT' in up_stt:
                     stt_html = f"<b style='color:#34d399;'>🚀 {raw_stt}</b>"
-                elif 'SKIPPED' in raw_stt or 'FAILED' in raw_stt or 'ERROR' in raw_stt:
+                elif 'SKIPPED' in up_stt or 'FAILED' in up_stt or 'ERROR' in up_stt:
                     stt_html = f"<b style='color:#fbbf24;'>⚠️ {raw_stt}</b>"
-                elif 'Closed' in raw_stt:
+                elif 'CLOSED' in up_stt:
                     stt_html = f"<b style='color:#38bdf8;'>🏁 {raw_stt}</b>"
-                elif 'Reset' in raw_stt:
+                elif 'RESET' in up_stt:
                     stt_html = f"<span style='color:#38bdf8;'>🔁 {raw_stt}</span>"
-                elif 'Active Batches' in raw_stt or 'WAIT' in act or ('Waiting' in raw_stt and 'Active' in raw_stt):
+                elif 'ACTIVE BATCHES' in up_stt or 'WAIT' in act or ('WAITING' in up_stt and 'ACTIVE' in up_stt):
                     stt_html = f"<span style='color:#f59e0b;'>⏳ {raw_stt}</span>"
                 elif '5/5' in pil:
                     stt_html = f"<b style='color:#34d399;'>🎯 5/5 Aligned</b>"
+                elif 'WAITING' in up_stt or 'MONITOR' in up_stt or 'NO TRADE' in up_stt:
+                    stt_html = f"<span style='color:#64748b;'>⚪ {raw_stt}</span>"
                 else:
-                    stt_html = f"<span style='color:#64748b;'>⚪ No Trade (Waiting 5/5)</span>"
+                    stt_html = f"<span style='color:#64748b;'>⚪ {raw_stt if raw_stt else 'Scanning'}</span>"
 
                 rows_html.append(
                     f"<tr style='border-bottom:1px solid #1e293b;font-family:monospace;font-size:0.78rem;'>"
@@ -1651,11 +1731,13 @@ def render_mt5_autonomous_engine_view(live_exec):
                     act_col = "#00c853" if 'BUY' in b_data.get('action', '') else "#ff1744"
                     be_display = f"{float(b_data['breakeven_sl']):,.4f}" if b_data.get('breakeven_sl') else "-"
                     b_risk = auto_engine.compute_batch_risk(b_data)
+                    strat_lbl = b_data.get('strategy_name') or b_data.get('strategy_used', 'DEFAULT')
                     batch_cards_html.append(f"""
                     <div style='background:#0f172a;border-left:4px solid {act_col};border-radius:8px;padding:12px 16px;margin:8px 0;'>
                         <b style='color:#38bdf8;'>Batch #{b_id}</b> &nbsp;|&nbsp; 
                         <span style='background:{act_col};color:#fff;padding:2px 8px;border-radius:4px;font-weight:700;font-size:.78rem;'>{b_data.get('action')}</span>
                         &nbsp;<b>{b_data.get('symbol')}</b> ({b_data.get('timeframe')}) &nbsp;|&nbsp;
+                        <span style='background:#312e81;color:#c7d2fe;padding:2px 6px;border-radius:4px;font-size:.75rem;font-weight:700;'>{strat_lbl}</span> &nbsp;|&nbsp;
                         Entry: <b>{b_data.get('entry_price')}</b> &nbsp;|&nbsp;
                         🛡️ BE Mark: <b style='color:#38bdf8;'>{be_display}</b> &nbsp;|&nbsp;
                         SL: <b style='color:#f87171;'>{b_data.get('sl_price')}</b> &nbsp;|&nbsp;
@@ -1676,7 +1758,11 @@ def render_mt5_autonomous_engine_view(live_exec):
                     if 'risk_usd' not in b_item or not b_item['risk_usd']:
                         b_item['risk_usd'] = auto_engine.compute_batch_risk(b_item)
                 c_df = pd.DataFrame(closed_batches)
-                show_cols = [c for c in ['executed_at', 'batch_id', 'symbol', 'action', 'timeframe', 'entry_price', 'breakeven_sl', 'sl_price', 'risk_usd', 'tp1_price', 'tp2_price', 'tp3_price', 'profit', 'status', 'tickets'] if c in c_df.columns]
+                if 'strategy_name' not in c_df.columns and 'strategy_used' in c_df.columns:
+                    c_df['strategy_name'] = c_df['strategy_used']
+                elif 'strategy_name' in c_df.columns and 'strategy_used' in c_df.columns:
+                    c_df['strategy_name'] = c_df['strategy_name'].fillna(c_df['strategy_used'])
+                show_cols = [c for c in ['executed_at', 'batch_id', 'symbol', 'strategy_name', 'action', 'timeframe', 'entry_price', 'breakeven_sl', 'sl_price', 'risk_usd', 'tp1_price', 'tp2_price', 'tp3_price', 'profit', 'status', 'tickets'] if c in c_df.columns]
                 
                 if 'executed_at' in c_df.columns:
                     c_df['executed_at'] = c_df['executed_at'].astype(str).str.slice(0, 19).str.replace('T', ' ')
@@ -1684,6 +1770,7 @@ def render_mt5_autonomous_engine_view(live_exec):
                 st.dataframe(
                     c_df[show_cols].rename(columns={
                         'executed_at': 'Executed Time', 'batch_id': 'Batch #', 'symbol': 'Symbol',
+                        'strategy_name': 'Strategy',
                         'action': 'Type', 'timeframe': 'TF', 'entry_price': 'Entry', 'breakeven_sl': 'BE Mark',
                         'sl_price': 'SL', 'risk_usd': 'Risk ($)', 'tp1_price': 'TP1', 'tp2_price': 'TP2', 'tp3_price': 'TP3',
                         'profit': 'PnL ($)', 'status': 'Result', 'tickets': 'MT5 Tickets'
@@ -1710,6 +1797,158 @@ def render_mt5_autonomous_engine_view(live_exec):
             render_html("".join(lesson_cards))
         else:
             st.success("✅ **Zero SL Violations Detected:** All 5/5 Pillar setups have respected structural invalidation boundaries.")
+
+        # ── 8. Strategy Performance Leaderboard & Dynamic Ranking System ───────
+        st.divider()
+        st.markdown("##### 🏆 Streamer Strategies Performance Leaderboard & Dynamic Ranking")
+        st.caption("Live statistical ranking of all 13 trading strategies evaluated from autonomous trading history and active positions.")
+
+        lb_sort_col1, lb_sort_col2 = st.columns([3, 2])
+        with lb_sort_col1:
+            sort_label_map = {
+                "🏆 Most Profitable (Net PnL $)": "profit",
+                "🟢 Most Wins": "wins",
+                "🔴 Most Losses": "losses",
+                "⚖️ Most Breakevens": "breakevens",
+                "🎯 Highest Win Rate (%)": "win_rate",
+                "📈 Most Active (Total Trades)": "total_trades"
+            }
+            selected_sort_label = st.selectbox(
+                "Sort Leaderboard By:",
+                options=list(sort_label_map.keys()),
+                index=0,
+                key="auto_leaderboard_sort_mode"
+            )
+            selected_sort_key = sort_label_map[selected_sort_label]
+
+        leaderboard_data = auto_engine.compute_strategy_leaderboard(state=state, sort_by=selected_sort_key)
+
+        # Build clean atomic HTML leaderboard table block
+        lb_rows_html = []
+        for item in leaderboard_data:
+            rank_num = item['rank']
+            rank_disp = item['rank_display']
+            s_name = item['strategy_name']
+            t_trades = item['total_trades']
+            w = item['wins']
+            l = item['losses']
+            be = item['breakevens']
+            wr = item['win_rate']
+            pnl = item['net_pnl']
+            pf = item['profit_factor']
+            act = item['active_trades']
+            badge = item['status_badge']
+            btf = item.get('best_timeframes', '-')
+            bpr = item.get('best_pairs', '-')
+
+            # Rank badge styling
+            if rank_num == 1:
+                rank_style = "background:linear-gradient(135deg,#eab308,#ca8a04);color:#000;font-weight:900;padding:3px 10px;border-radius:14px;"
+                row_bg = "background:rgba(234,179,8,0.06);border-left:3px solid #eab308;"
+            elif rank_num == 2:
+                rank_style = "background:linear-gradient(135deg,#94a3b8,#64748b);color:#000;font-weight:900;padding:3px 10px;border-radius:14px;"
+                row_bg = "background:rgba(148,163,184,0.05);border-left:3px solid #94a3b8;"
+            elif rank_num == 3:
+                rank_style = "background:linear-gradient(135deg,#d97706,#b45309);color:#fff;font-weight:900;padding:3px 10px;border-radius:14px;"
+                row_bg = "background:rgba(217,119,6,0.05);border-left:3px solid #d97706;"
+            else:
+                rank_style = "background:#1e293b;color:#94a3b8;font-weight:700;padding:2px 8px;border-radius:10px;"
+                row_bg = "background:#090d16;border-left:1px solid #1e293b;"
+
+            # PnL color
+            if pnl > 0:
+                pnl_html = f"<span style='color:#10b981;font-weight:700;'>+${pnl:,.2f}</span>"
+            elif pnl < 0:
+                pnl_html = f"<span style='color:#ef4444;font-weight:700;'>-${abs(pnl):,.2f}</span>"
+            else:
+                pnl_html = "<span style='color:#94a3b8;'>$0.00</span>"
+
+            # Win Rate bar
+            wr_col = "#10b981" if wr >= 65 else ("#f59e0b" if wr >= 40 else "#64748b")
+            wr_html = f"""
+            <div style='display:flex;align-items:center;gap:6px;'>
+                <div style='flex:1;background:#1e293b;height:6px;border-radius:3px;overflow:hidden;min-width:45px;'>
+                    <div style='width:{min(100.0, wr)}%;background:{wr_col};height:100%;'></div>
+                </div>
+                <span style='font-size:0.75rem;font-weight:700;color:{wr_col};min-width:38px;'>{wr:.0f}%</span>
+            </div>
+            """
+
+            # Active badge
+            act_html = f"<span style='background:#0284c7;color:#fff;padding:2px 6px;border-radius:8px;font-size:0.7rem;font-weight:700;'>{act} Open</span>" if act > 0 else "<span style='color:#475569;font-size:0.75rem;'>-</span>"
+
+            # Best TF and Pairs HTML badges
+            btf_html = f"<span style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.72rem;font-weight:600;'>{btf}</span>"
+            bpr_html = f"<span style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;'>{bpr}</span>"
+
+            lb_rows_html.append(f"""
+            <tr style='{row_bg}border-bottom:1px solid #1e293b;'>
+                <td style='padding:8px 10px;text-align:center;'><span style='{rank_style}'>{rank_disp}</span></td>
+                <td style='padding:8px 10px;font-size:0.83rem;color:#f8fafc;font-weight:600;'>{s_name}</td>
+                <td style='padding:8px 10px;text-align:center;font-size:0.82rem;color:#cbd5e1;font-weight:700;'>{t_trades}</td>
+                <td style='padding:8px 10px;text-align:center;font-size:0.78rem;'>
+                    <span style='color:#10b981;font-weight:700;'>{w}W</span> / 
+                    <span style='color:#ef4444;font-weight:700;'>{l}L</span> / 
+                    <span style='color:#f59e0b;font-weight:700;'>{be}BE</span>
+                </td>
+                <td style='padding:8px 10px;'>{wr_html}</td>
+                <td style='padding:8px 10px;text-align:right;font-size:0.85rem;'>{pnl_html}</td>
+                <td style='padding:8px 10px;text-align:center;font-size:0.8rem;color:#94a3b8;'>{pf:.2f}</td>
+                <td style='padding:8px 8px;text-align:center;'>{btf_html}</td>
+                <td style='padding:8px 8px;text-align:center;'>{bpr_html}</td>
+                <td style='padding:8px 10px;text-align:center;'>{act_html}</td>
+                <td style='padding:8px 10px;text-align:center;font-size:0.76rem;'><span style='background:#18181b;border:1px solid #27272a;padding:3px 8px;border-radius:8px;color:#e2e8f0;'>{badge}</span></td>
+            </tr>
+            """)
+
+        lb_table_html = f"""
+        <div style='margin-top:10px;border:1px solid #1e293b;border-radius:10px;overflow:hidden;background:#0b0f19;'>
+            <table style='width:100%;border-collapse:collapse;font-family:sans-serif;'>
+                <thead>
+                    <tr style='background:#0f172a;border-bottom:2px solid #334155;color:#94a3b8;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;'>
+                        <th style='padding:10px;text-align:center;width:55px;'>Rank</th>
+                        <th style='padding:10px;text-align:left;'>Strategy & Channel</th>
+                        <th style='padding:10px;text-align:center;width:55px;'>Trades</th>
+                        <th style='padding:10px;text-align:center;width:105px;'>W / L / BE</th>
+                        <th style='padding:10px;text-align:left;width:100px;'>Win Rate</th>
+                        <th style='padding:10px;text-align:right;width:85px;'>Net PnL</th>
+                        <th style='padding:10px;text-align:center;width:50px;'>PF</th>
+                        <th style='padding:10px;text-align:center;width:125px;'>Best Timeframes</th>
+                        <th style='padding:10px;text-align:center;width:140px;'>Best Trading Pairs</th>
+                        <th style='padding:10px;text-align:center;width:65px;'>Active</th>
+                        <th style='padding:10px;text-align:center;width:115px;'>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(lb_rows_html)}
+                </tbody>
+            </table>
+        </div>
+        """
+        render_html(lb_table_html)
+
+        # Leaderboard CSV export
+        lb_df = pd.DataFrame(leaderboard_data)[[
+            'rank', 'strategy_name', 'total_trades', 'wins', 'losses', 'breakevens',
+            'win_rate', 'net_pnl', 'profit_factor', 'best_timeframes', 'best_pairs', 'active_trades', 'status_badge'
+        ]].rename(columns={
+            'rank': 'Rank', 'strategy_name': 'Strategy', 'total_trades': 'Trades',
+            'wins': 'Wins', 'losses': 'Losses', 'breakevens': 'Breakevens',
+            'win_rate': 'Win Rate (%)', 'net_pnl': 'Net PnL ($)', 'profit_factor': 'Profit Factor',
+            'best_timeframes': 'Best Timeframes', 'best_pairs': 'Best Trading Pairs',
+            'active_trades': 'Active Trades', 'status_badge': 'Performance Status'
+        })
+
+        with lb_sort_col2:
+            st.write("")
+            st.write("")
+            st.download_button(
+                label="📥 Export Leaderboard (CSV)",
+                data=lb_df.to_csv(index=False).encode('utf-8'),
+                file_name="strategy_performance_leaderboard.csv",
+                mime="text/csv",
+                key="dl_auto_leaderboard_csv"
+            )
 
 def render_mt5_position_tracker():
     st.divider()
@@ -2205,6 +2444,164 @@ if quantum:
         f"</div>",
         unsafe_allow_html=True
     )
+
+# ── TRADE FOR PROFIT (SMC LIQUIDATION HEATMAP & TRAP RADAR) ─────────────────
+tfp = res.get('trade_for_profit', {})
+if tfp:
+    tfp_grade = tfp.get('setup_grade', 'SCANNING_POOLS')
+    tfp_conf = tfp.get('confidence', 45.0)
+    tfp_act = tfp.get('action', 'HOLD')
+    tfp_trap = tfp.get('trap_details', {})
+    tfp_heat = tfp.get('heatmap', {})
+    tfp_setup = tfp.get('trade_setup', {})
+
+    is_trap = tfp_trap.get('trap_detected', False)
+    trap_col = '#00c853' if tfp_act == 'BUY' else ('#ff5252' if tfp_act == 'SELL' else '#818cf8')
+    grade_col = '#10b981' if 'A+' in tfp_grade else ('#38bdf8' if 'A_' in tfp_grade else ('#f59e0b' if 'B_' in tfp_grade else '#64748b'))
+
+    near_up = tfp_heat.get('nearest_upper')
+    near_dn = tfp_heat.get('nearest_lower')
+    up_txt = f"${near_up['price']:,.2f} (+{near_up['distance_pct']:.2f}%) [{near_up.get('source', 'Pool')}]" if near_up else "None nearby"
+    dn_txt = f"${near_dn['price']:,.2f} (-{near_dn['distance_pct']:.2f}%) [{near_dn.get('source', 'Pool')}]" if near_dn else "None nearby"
+    magnet_txt = tfp.get('dominant_magnet', 'NONE').replace('_', ' ')
+
+    trap_status_txt = tfp_trap.get('description', 'Monitoring nearest liquidation clusters for sweep & trap...')
+    wick_ratio_pct = tfp_trap.get('rejection_wick_ratio', 0.0) * 100.0
+    vol_exp = tfp_trap.get('volume_expansion_factor', 1.0)
+
+    st.markdown(
+        f"<div style='background:linear-gradient(135deg,#070b14,#171738);border:1px solid #6366f1;border-radius:12px;padding:14px 18px;margin:12px 0;'>"
+        f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;'>"
+        f"<div style='display:flex;align-items:center;gap:8px;'>"
+        f"<span style='background:#6366f1;color:#fff;padding:4px 12px;border-radius:20px;font-weight:900;font-size:.82rem;'>"
+        f"TRADE FOR PROFIT: {tfp_act}</span>"
+        f"<span style='background:{grade_col};color:#000;padding:3px 10px;border-radius:12px;font-weight:800;font-size:.74rem;'>"
+        f"{tfp_grade}</span>"
+        f"&nbsp;<span style='color:#cbd5e1;font-weight:700;font-size:1.02rem;'>SMC Liquidation Heatmap & Trap Radar</span>"
+        f"</div>"
+        f"<div style='color:#a5b4fc;font-size:.9rem;font-weight:600;'>"
+        f"Dominant Magnet: <b style='color:#fff;'>{magnet_txt}</b> | Conviction: <b style='color:#38bdf8;'>{tfp_conf:.0f}%</b>"
+        f"</div>"
+        f"</div>"
+        f"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;font-size:.82rem;color:#94a3b8;margin-top:6px;'>"
+        f"<div><b>Upper Liq Cluster (BSL):</b> <span style='color:#f43f5e;'>{up_txt}</span></div>"
+        f"<div><b>Lower Liq Cluster (SSL):</b> <span style='color:#10b981;'>{dn_txt}</span></div>"
+        f"<div><b>Absorption Rejection Wick:</b> <span style='color:#38bdf8;'>{wick_ratio_pct:.1f}%</span></div>"
+        f"<div><b>Volume Surge Factor:</b> <span style='color:#c084fc;'>{vol_exp:.2f}x</span></div>"
+        f"</div>"
+        f"<div style='margin-top:8px;padding-top:8px;border-top:1px solid #312e81;font-size:.8rem;color:#cbd5e1;'>"
+        f"<b>Trap Status:</b> <span style='color:{trap_col};font-weight:600;'>{trap_status_txt}</span>"
+        f"</div>"
+        f"</div>",
+        unsafe_allow_html=True
+    )
+
+# ── MASTER STREAMER PLAYBOOK RADAR (TOP 12 GLOBAL TRADERS) ─────────────────
+pb = res.get('streamer_playbook', {})
+if pb and pb.get('all_strategies'):
+    pb_strats = pb['all_strategies']
+    active_cnt = pb.get('active_count', 0)
+    best_setup = pb.get('best_setup')
+    
+    badge_col = "#10b981" if active_cnt > 0 else "#64748b"
+    header_status = f"{active_cnt}/12 CONFIRMED SIGNALS" if active_cnt > 0 else "0/12 ACTIVE (MONITORING)"
+    best_txt = f"⭐ <b>Top Confirmed Setup:</b> <span style='color:#38bdf8;'>{best_setup.get('strategy_name', '')}</span> — <b style='color:{'#00c853' if best_setup.get('action')=='BUY' else '#ff1744'};'>{best_setup.get('action')}</b> ({best_setup.get('confidence', 0):.0f}% Conviction)" if best_setup else "🔍 All 12 strategies currently monitoring price structure for valid trigger conditions."
+
+    st.markdown(
+        clean_html(f"""
+        <div style='background:linear-gradient(135deg,#070b14,#111827);border:1px solid #0284c7;border-radius:12px;padding:14px 18px;margin:12px 0;'>
+            <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px;'>
+                <div style='display:flex;align-items:center;gap:8px;'>
+                    <span style='background:#0284c7;color:#fff;padding:4px 12px;border-radius:20px;font-weight:900;font-size:.82rem;'>STREAMER PLAYBOOK</span>
+                    <span style='background:{badge_col};color:#000;padding:3px 10px;border-radius:12px;font-weight:800;font-size:.74rem;'>{header_status}</span>
+                    &nbsp;<b style='color:#f8fafc;font-size:1.0rem;'>Master Strategy Playbook of Top Global Traders</b>
+                </div>
+                <div style='color:#94a3b8;font-size:.82rem;'>
+                    Symbol: <b style='color:#f8fafc;'>{symbol}</b> &nbsp;|&nbsp; TF: <code>{timeframe}</code>
+                </div>
+            </div>
+            <div style='font-size:.82rem;color:#cbd5e1;'>
+                {best_txt}
+            </div>
+        </div>
+        """),
+        unsafe_allow_html=True
+    )
+
+    with st.expander(f"🎬 View Live Details & Rule Checks for All 12 Streamers ({active_cnt} Active)", expanded=(active_cnt > 0)):
+        import importlib
+        import src.engine.session_manager
+        if not hasattr(src.engine.session_manager.SessionManager, 'is_strategy_session_allowed'):
+            importlib.reload(src.engine.session_manager)
+        from src.engine.session_manager import SessionManager
+        strat_asset_type = 'crypto' if any(c in str(symbol).upper() for c in ['BTC', 'ETH', 'SOL']) else 'forex'
+        grid_items = []
+        for strat_key, strat_val in pb_strats.items():
+            s_name = strat_val.get('strategy_name', strat_key)
+            s_act = strat_val.get('action', 'WAIT')
+            s_stat = strat_val.get('status', 'SCANNING')
+            s_conf = float(strat_val.get('confidence', 50.0))
+            s_be = strat_val.get('breakeven_mode', 'FIXED_RR_TARGET')
+            s_setup = strat_val.get('trade_setup') or {}
+            s_reasons = strat_val.get('reasons', [])
+
+            # Live Killzone / Session check from Sessions Playbook (Hot-Reload Safe)
+            if hasattr(SessionManager, 'is_strategy_session_allowed'):
+                is_sess_ok, sess_desc = SessionManager.is_strategy_session_allowed(strat_key, asset_type=strat_asset_type)
+            else:
+                is_sess_ok, sess_desc = True, "Active Session"
+            sess_icon = "🟢" if is_sess_ok else "⏳"
+            sess_col = "#34d399" if is_sess_ok else "#f59e0b"
+
+            is_active = s_act in ['BUY', 'SELL']
+            border_col = "#00c853" if s_act == 'BUY' else ("#ff1744" if s_act == 'SELL' else "#1e293b")
+            act_badge_col = "#00c853" if s_act == 'BUY' else ("#ff1744" if s_act == 'SELL' else "#334155")
+            act_badge_txt = s_act if is_active else "MONITORING"
+
+            setup_line = ""
+            if is_active and s_setup:
+                ent = float(s_setup.get('recommended_entry', curr_p))
+                sl_v = float(s_setup.get('stop_loss', 0.0))
+                tp1_v = float(s_setup.get('tp1', 0.0))
+                tp2_v = float(s_setup.get('tp2', 0.0))
+                rr = s_setup.get('risk_reward_ratio', '1:2+')
+                setup_line = f"""
+                <div style='margin-top:6px;padding:4px 8px;background:#0d1527;border-radius:6px;font-size:0.75rem;color:#e2e8f0;font-family:monospace;'>
+                    <b>Entry:</b> ${ent:,.4f} | <b>SL:</b> ${sl_v:,.4f} | <b>TP1:</b> ${tp1_v:,.4f} | <b>TP2:</b> ${tp2_v:,.4f} (R:R {rr})
+                </div>
+                """
+
+            reasons_html = "".join([f"<li style='margin-bottom:2px;'>{r}</li>" for r in s_reasons[:3]])
+
+            grid_items.append(f"""
+            <div style='background:#0b0f19;border:1px solid {border_col};border-radius:8px;padding:10px 12px;margin-bottom:8px;'>
+                <div style='display:flex;justify-content:space-between;align-items:center;'>
+                    <b style='color:#f8fafc;font-size:0.84rem;'>{s_name}</b>
+                    <span style='background:{act_badge_col};color:#fff;font-weight:800;font-size:0.7rem;padding:2px 8px;border-radius:8px;'>{act_badge_txt}</span>
+                </div>
+                <div style='display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:0.75rem;'>
+                    <span style='color:#94a3b8;'>Status: <b style='color:{'#34d399' if is_active else '#94a3b8'};'>{s_stat}</b></span>
+                    <span style='color:#38bdf8;'>Conviction: <b>{s_conf:.0f}%</b></span>
+                </div>
+                <div style='margin-top:4px;font-size:0.73rem;color:#64748b;'>
+                    🛡️ Native Breakeven: <code>{s_be}</code>
+                </div>
+                <div style='margin-top:3px;font-size:0.73rem;color:#94a3b8;'>
+                    ⏱️ Session: <span style='color:{sess_col};font-weight:600;'>{sess_icon} {sess_desc}</span>
+                </div>
+                {setup_line}
+                <ul style='margin:6px 0 0 16px;padding:0;font-size:0.73rem;color:#94a3b8;'>
+                    {reasons_html}
+                </ul>
+            </div>
+            """)
+
+        all_grid_html = f"""
+        <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px;margin-top:8px;'>
+            {''.join(grid_items)}
+        </div>
+        """
+        render_html(all_grid_html)
 
 if mkt.get('forex_sessions'):
     sess = mkt['forex_sessions']

@@ -19,6 +19,9 @@ from ..strategies.futures_signals import FuturesSignalEngine
 from ..ml.predictor import MachineLearningPredictor
 from ..engine.confluence import ConfluenceEngine
 from ..engine.risk_manager import RiskManager
+from ..strategies.trade_for_profit_trap import TradeForProfitEngine
+from ..strategies.vivek_yadav_sd import VivekYadavSupplyDemandEngine
+from ..strategies.streamer_playbook import MasterStreamerPlaybook
 from ..strategies.alpha_sniper import AlphaSniperEngine
 from ..data.economic_calendar import EconomicCalendarManager
 from ..engine.mtf_filter import MultiTimeframeFilter
@@ -229,6 +232,37 @@ class PredictorOrchestrator:
             }
 
         # ────────────────────────────────────────────────────
+        # STEP 5.5: TRADE FOR PROFIT (SMC Liquidation Heatmap Trap Module)
+        # ────────────────────────────────────────────────────
+        trade_for_profit = TradeForProfitEngine.evaluate(
+            df=df_indicators,
+            atr=atr_val,
+            futures_data=futures_raw_data,
+            timeframe=timeframe,
+            account_size_usd=account_size_usd,
+            risk_per_trade_pct=risk_per_trade_pct
+        )
+
+        # ────────────────────────────────────────────────────
+        # STEP 5.6: VIVEK YADAV SUPPLY & DEMAND MASTERCLASS ENGINE
+        # ────────────────────────────────────────────────────
+        vivek_yadav_sd = VivekYadavSupplyDemandEngine.evaluate(
+            df=df_indicators,
+            atr=atr_val,
+            timeframe=timeframe
+        )
+
+        # ────────────────────────────────────────────────────
+        # STEP 5.7: MASTER STREAMER PLAYBOOK (12 GLOBAL TRADER STRATEGIES)
+        # ────────────────────────────────────────────────────
+        streamer_playbook = MasterStreamerPlaybook.evaluate_all(
+            df=df_indicators,
+            atr=atr_val,
+            timeframe=timeframe,
+            cot_data=cot_data
+        )
+
+        # ────────────────────────────────────────────────────
         # STEP 6: CONFLUENCE ENGINE
         # ────────────────────────────────────────────────────
         confluence = ConfluenceEngine.evaluate(
@@ -238,7 +272,8 @@ class PredictorOrchestrator:
             orderbook_metrics=orderbook_data,
             futures_signals=futures_signals_result,
             cme_proxy=cme_proxy_data,
-            currency_strength=csm_data
+            currency_strength=csm_data,
+            trade_for_profit=trade_for_profit
         )
 
         # ────────────────────────────────────────────────────
@@ -353,6 +388,9 @@ class PredictorOrchestrator:
             'confluence': confluence,
             'alpha_sniper': alpha_sniper,
             'quantum_sniper': quantum_sniper,
+            'trade_for_profit': trade_for_profit,
+            'vivek_yadav_sd': vivek_yadav_sd,
+            'streamer_playbook': streamer_playbook,
             'mtf_alignment': mtf_alignment,
             'economic_news': news_blackout,
             'whale_sentiment_gate': {

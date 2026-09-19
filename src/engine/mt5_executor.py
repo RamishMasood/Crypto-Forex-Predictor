@@ -320,7 +320,9 @@ class MT5TradeExecutor:
         tp2_price: float,
         tp3_price: float,
         lot_split: Dict[str, float],
-        deviation_points: int = 20
+        deviation_points: int = 20,
+        timeframe: str = '15m',
+        strategy_tag: str = 'DEFAULT'
     ) -> Dict[str, Any]:
         """
         Executes multi-target orders on Exness MT5:
@@ -430,7 +432,7 @@ class MT5TradeExecutor:
                     'tp': tp_target,
                     'deviation': deviation_points,
                     'magic': self.MAGIC_NUMBER,
-                    'comment': f'QS_{batch_id}_{label}',
+                    'comment': f'QS_{batch_id}_{str(timeframe).lower()[:4]}_{label}',
                     'type_time': mt5.ORDER_TIME_GTC,
                     'type_filling': type_filling,
                 }
@@ -684,6 +686,16 @@ class MT5TradeExecutor:
                     batch_breakeven_sl_map = {}
         batch_info_map = batch_info_map or {}
 
+        # Map known TP1 tickets from batch_info_map to batch_ids
+        tp1_ticket_map: Dict[int, str] = {}
+        for bid, binfo in batch_info_map.items():
+            tkts = binfo.get('tickets', [])
+            if tkts:
+                try:
+                    tp1_ticket_map[int(tkts[0])] = str(bid)
+                except (ValueError, TypeError):
+                    pass
+
         # Find all closed TP1 deals in recent history (past 24h) and record their batch_ids / symbols
         closed_tp1_batches = set()
         closed_tp1_symbols = set()
@@ -692,16 +704,38 @@ class MT5TradeExecutor:
             deals = mt5.history_deals_get(now_utc - timedelta(hours=24), now_utc)
             if deals:
                 for d in deals:
-                    if d.profit > 0 and d.entry == 1:
-                        cmt = str(d.comment)
+                    cmt = str(getattr(d, 'comment', ''))
+                    is_tp_close = (d.profit > 0 or 'tp' in cmt.lower()) and d.entry == 1
+                    if is_tp_close:
                         deal_sym = getattr(d, 'symbol', '')
-                        if 'QS_' in cmt:
-                            # format QS_<batch_id>_<TP>
+                        pos_id = int(getattr(d, 'position_id', 0) or 0)
+                        order_id = int(getattr(d, 'order', 0) or 0)
+
+                        matched_bid = None
+                        # 1. Direct ticket lookup from batch_info_map
+                        if pos_id in tp1_ticket_map:
+                            matched_bid = tp1_ticket_map[pos_id]
+                        elif order_id in tp1_ticket_map:
+                            matched_bid = tp1_ticket_map[order_id]
+                        # 2. Broker comment match if preserved (QS_<batch_id>_TP1)
+                        elif 'QS_' in cmt:
                             parts = cmt.split('_')
                             if len(parts) >= 3 and parts[2].startswith('TP1'):
-                                closed_tp1_batches.add(parts[1])
-                                closed_tp1_symbols.add(deal_sym)
-                        elif 'tp' in cmt.lower() or d.magic == self.MAGIC_NUMBER:
+                                matched_bid = parts[1]
+                        # 3. History order lookup for original order comment
+                        elif pos_id > 0:
+                            h_orders = mt5.history_orders_get(ticket=pos_id)
+                            if h_orders:
+                                ord_cmt = str(getattr(h_orders[0], 'comment', ''))
+                                if 'QS_' in ord_cmt:
+                                    parts = ord_cmt.split('_')
+                                    if len(parts) >= 3 and parts[2].startswith('TP1'):
+                                        matched_bid = parts[1]
+
+                        if matched_bid:
+                            closed_tp1_batches.add(str(matched_bid))
+                            closed_tp1_symbols.add(deal_sym)
+                        elif 'tp' in cmt.lower() or getattr(d, 'magic', 0) == self.MAGIC_NUMBER:
                             closed_tp1_symbols.add(deal_sym)
         except Exception:
             pass
@@ -709,6 +743,22 @@ class MT5TradeExecutor:
         open_pos = self.get_open_positions(broker_symbol)
         quant_orders = [p for p in open_pos if p['magic'] == self.MAGIC_NUMBER]
         results = []
+
+        # Batch runner invariant: if TP1 is no longer open in MT5, but runners (TP2/TP3) are still open, mark TP1 as hit
+        if batch_info_map and quant_orders:
+            open_ticket_set = {p['ticket'] for p in quant_orders}
+            for bid, binfo in batch_info_map.items():
+                tkts = binfo.get('tickets', [])
+                if len(tkts) >= 2:
+                    try:
+                        tp1_tkt = int(tkts[0])
+                        runner_tkts = [int(t) for t in tkts[1:]]
+                        if tp1_tkt not in open_ticket_set and any(rt in open_ticket_set for rt in runner_tkts):
+                            closed_tp1_batches.add(str(bid))
+                            if binfo.get('broker_sym'):
+                                closed_tp1_symbols.add(str(binfo['broker_sym']))
+                    except (ValueError, TypeError):
+                        pass
 
         for pos in quant_orders:
             open_p = pos['price_open']
@@ -752,13 +802,48 @@ class MT5TradeExecutor:
                 else:
                     target_soft_sl = round(open_p + (0.45 * abs(init_sl - open_p) / 1.8), 5)
 
-            batch_tp1_hit = (pos_batch is not None and pos_batch in closed_tp1_batches)
-            symbol_tp1_hit = (pos_sym in closed_tp1_symbols and is_profitable and pos['return_pct'] >= 0.05)
+            batch_tp1_hit = (pos_batch is not None and str(pos_batch) in closed_tp1_batches)
+            symbol_tp1_hit = (pos_sym in closed_tp1_symbols and is_profitable and pos['return_pct'] >= 0.01)
 
-            mode_lower = str(breakeven_mode).lower().strip()
+            active_be_mode = str(b_info.get('breakeven_mode') or breakeven_mode).lower().strip()
 
-            if mode_lower == 'loose':
-                # ── LOOSE BREAKEVEN MODE (2-Stage Runner Breathing Room) ───────────
+            # ── 1. STRATEGY-SPECIFIC FIXED R:R TARGET (NO PREMATURE BREAKEVEN) ──
+            # Strategies like Steven Hart, Bernd Skorupinski, Ariel Zwecher, Trade Pro
+            # require letting the trade breathe without early BE choking.
+            if active_be_mode in ['fixed_rr_target', 'none', 'hold_target']:
+                continue
+
+            # ── 2. STRATEGY-SPECIFIC MOVING AVERAGE TRAILING MODES ──────────────
+            # Rayner Teo & Adam Khoo (20 EMA) / Oliver Velez (20 SMA):
+            # Only locks to Breakeven once price expands at least 1.0 ATR (or 50% to TP2)
+            if active_be_mode in ['trailing_20_ema', 'trailing_20_sma']:
+                is_expansion_reached = False
+                if pos_type == 'BUY':
+                    profit_dist = curr_p - open_p
+                    if tp2_p > open_p and profit_dist >= 0.50 * (tp2_p - open_p):
+                        is_expansion_reached = True
+                    elif tp1_p > open_p and profit_dist >= 2.0 * (tp1_p - open_p):
+                        is_expansion_reached = True
+                else:
+                    profit_dist = open_p - curr_p
+                    if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.50 * (open_p - tp2_p):
+                        is_expansion_reached = True
+                    elif tp1_p > 0 and tp1_p < open_p and profit_dist >= 2.0 * (open_p - tp1_p):
+                        is_expansion_reached = True
+
+                if is_profitable and is_expansion_reached and not sl_at_be:
+                    res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
+                    if res.get('success'):
+                        results.append({
+                            'ticket': pos['ticket'],
+                            'status': 'MOVED_TO_MA_TRAILING_BE',
+                            'mode': active_be_mode.upper(),
+                            'new_sl': res['new_sl']
+                        })
+                continue
+
+            # ── 3. GENERIC LOOSE BREAKEVEN MODE (2-Stage Runner Breathing Room) ──
+            if active_be_mode == 'loose':
                 # Stage 2 Check: Has price expanded >= 0.85 ATR (or 50% to TP2)?
                 is_expansion_reached = False
                 if pos_type == 'BUY':
@@ -807,7 +892,7 @@ class MT5TradeExecutor:
                                 'new_sl': res['new_sl']
                             })
             else:
-                # ── TIGHT BREAKEVEN MODE (Existing Immediate Lock at 0.38 ATR) ────
+                # ── 4. TIGHT BREAKEVEN MODE / SMC PARTIAL BE ────────────────────────
                 high_profit_hit = (is_profitable and pos['return_pct'] >= 0.15)
                 should_be = is_profitable and (batch_tp1_hit or symbol_tp1_hit or high_profit_hit)
 

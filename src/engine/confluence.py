@@ -23,7 +23,8 @@ class ConfluenceEngine:
         orderbook_metrics: Dict[str, Any],
         futures_signals: Optional[Dict[str, Any]] = None,   # None = spot mode
         cme_proxy: Optional[Dict[str, Any]] = None,
-        currency_strength: Optional[Dict[str, Any]] = None
+        currency_strength: Optional[Dict[str, Any]] = None,
+        trade_for_profit: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Executes multi-strategy confluence scoring and signal generation.
@@ -291,6 +292,26 @@ class ConfluenceEngine:
             reasons.append(f"Currency Strength Meter: {currency_strength.get('reason', '')} ({csm_score:+.1f})")
 
         # ==========================================
+        # TRADE FOR PROFIT (SMC Liquidation Trap & Sweep Layer)
+        # ==========================================
+        tfp_score = 0.0
+        if trade_for_profit and trade_for_profit.get('trap_details', {}).get('trap_detected'):
+            trap = trade_for_profit['trap_details']
+            grade = trade_for_profit.get('setup_grade', 'B_DEVELOPING')
+            pool_info = trap.get('swept_pool', {})
+            pool_src = pool_info.get('source', 'Liquidity Pool') if pool_info else 'Liquidity Pool'
+            multiplier = 1.30 if grade == 'A+_SUPER_CONFLUENCE' else (1.15 if grade == 'A_HIGH_CONVICTION' else 1.0)
+
+            if trap.get('bias') == 'BUY':
+                tfp_score = round(12.0 * multiplier, 1)
+                score += tfp_score
+                reasons.append(f"Trade For Profit: Bullish Bear Trap Confirmed at {pool_src} ({grade}) (+{tfp_score:.1f})")
+            elif trap.get('bias') == 'SELL':
+                tfp_score = -round(12.0 * multiplier, 1)
+                score += tfp_score
+                reasons.append(f"Trade For Profit: Bearish Bull Trap Confirmed at {pool_src} ({grade}) ({tfp_score:.1f})")
+
+        # ==========================================
         # FINAL SYNTHESIS
         # ==========================================
         score = max(-100.0, min(100.0, score))
@@ -326,6 +347,8 @@ class ConfluenceEngine:
             layer_scores['cme_institutional_order_flow'] = cme_score
         if currency_strength and currency_strength.get('available'):
             layer_scores['currency_strength_flow'] = csm_score
+        if trade_for_profit:
+            layer_scores['trade_for_profit_trap'] = round(tfp_score, 1)
 
         if is_futures:
             layer_scores.update({

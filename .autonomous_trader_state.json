@@ -1,637 +1,577 @@
 {
-  "total_trades_taken": 0,
-  "trades_by_symbol": {},
-  "symbol_stats": {},
-  "open_batches": {},
-  "closed_batches": [],
-  "wins": 0,
-  "losses": 0,
-  "breakevens": 0,
-  "last_scan_time": "2026-09-16T09:01:50.761054+00:00",
-  "last_scanned_symbol": null,
-  "engine_status": "RUNNING",
-  "cycle_count": 30,
-  "current_scan": {
-    "cycle": 30,
-    "symbol": "BTC/USD",
-    "timeframe": "1m",
-    "time": "09:03:35 UTC"
+  "open_batches": {
+    "745205": {
+      "batch_id": "745205",
+      "symbol": "GBP/NZD",
+      "broker_sym": "GBPNZDm",
+      "timeframe": "15m",
+      "action": "BUY",
+      "entry_price": 2.34183,
+      "sl_price": 2.33681,
+      "breakeven_sl": 2.34183,
+      "soft_breakeven_sl": 2.33681,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 2.34274,
+      "tp2_price": 2.34274,
+      "tp3_price": 2.34274,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1912062190,
+        1912062209,
+        1912062225
+      ],
+      "executed_at": "2026-09-19T17:37:59.983700+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "761394": {
+      "batch_id": "761394",
+      "symbol": "XAG/USD",
+      "broker_sym": "XAGUSDm",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry_price": 66.241,
+      "sl_price": 66.539,
+      "breakeven_sl": 66.241,
+      "soft_breakeven_sl": 66.539,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 66.205,
+      "tp2_price": 66.205,
+      "tp3_price": 66.205,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1913364961,
+        1913364970,
+        1913364980
+      ],
+      "executed_at": "2026-09-19T17:37:59.983743+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "837479": {
+      "batch_id": "837479",
+      "symbol": "XAU/USD",
+      "broker_sym": "XAUUSD247m",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry_price": 4375.015,
+      "sl_price": 4381.578,
+      "breakeven_sl": 4375.015,
+      "soft_breakeven_sl": 4381.578,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 4371.535,
+      "tp2_price": 4371.535,
+      "tp3_price": 4371.535,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914451598,
+        1914451602,
+        1914451608
+      ],
+      "executed_at": "2026-09-19T17:37:59.983764+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "837540": {
+      "batch_id": "837540",
+      "symbol": "XAU/USD",
+      "broker_sym": "XAUUSD247m",
+      "timeframe": "1m",
+      "action": "SELL",
+      "entry_price": 4374.955,
+      "sl_price": 4381.517,
+      "breakeven_sl": 4374.955,
+      "soft_breakeven_sl": 4381.517,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 4371.475,
+      "tp2_price": 4371.475,
+      "tp3_price": 4371.475,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914452381,
+        1914452388,
+        1914452392
+      ],
+      "executed_at": "2026-09-19T17:37:59.983783+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "837762": {
+      "batch_id": "837762",
+      "symbol": "XAU/USD",
+      "broker_sym": "XAUUSD247m",
+      "timeframe": "5m",
+      "action": "BUY",
+      "entry_price": 4378.115,
+      "sl_price": 4367.34,
+      "breakeven_sl": 4378.115,
+      "soft_breakeven_sl": 4367.34,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 4381.595,
+      "tp2_price": 4381.595,
+      "tp3_price": 4381.595,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914455879,
+        1914455882,
+        1914455885
+      ],
+      "executed_at": "2026-09-19T17:37:59.983800+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "837823": {
+      "batch_id": "837823",
+      "symbol": "XAU/USD",
+      "broker_sym": "XAUUSD247m",
+      "timeframe": "1h",
+      "action": "BUY",
+      "entry_price": 4378.115,
+      "sl_price": 4367.34,
+      "breakeven_sl": 4378.115,
+      "soft_breakeven_sl": 4367.34,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 4381.595,
+      "tp2_price": 4381.595,
+      "tp3_price": 4381.595,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914457040,
+        1914457045,
+        1914457051
+      ],
+      "executed_at": "2026-09-19T17:37:59.983817+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "837893": {
+      "batch_id": "837893",
+      "symbol": "XAU/USD",
+      "broker_sym": "XAUUSD247m",
+      "timeframe": "3m",
+      "action": "BUY",
+      "entry_price": 4378.175,
+      "sl_price": 4367.4,
+      "breakeven_sl": 4378.175,
+      "soft_breakeven_sl": 4367.4,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 4381.655,
+      "tp2_price": 4381.655,
+      "tp3_price": 4381.655,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914457800,
+        1914457804,
+        1914457808
+      ],
+      "executed_at": "2026-09-19T17:37:59.983834+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "838456": {
+      "batch_id": "838456",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "1m",
+      "action": "SELL",
+      "entry_price": 81617.59,
+      "sl_price": 81617.54,
+      "breakeven_sl": 81617.59,
+      "soft_breakeven_sl": 81617.54,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 81396.35,
+      "tp2_price": 81396.35,
+      "tp3_price": 81396.35,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.01
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914472569,
+        1914472583
+      ],
+      "executed_at": "2026-09-19T17:37:59.983851+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "838496": {
+      "batch_id": "838496",
+      "symbol": "ETH/USD",
+      "broker_sym": "ETHUSDm",
+      "timeframe": "30m",
+      "action": "BUY",
+      "entry_price": 2658.2400000000002,
+      "sl_price": 2640.32,
+      "breakeven_sl": 2658.2400000000002,
+      "soft_breakeven_sl": 2640.32,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 2659.64,
+      "tp2_price": 2659.64,
+      "tp3_price": 2659.64,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.1
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914474061
+      ],
+      "executed_at": "2026-09-19T17:37:59.983866+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "838550": {
+      "batch_id": "838550",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "5m",
+      "action": "SELL",
+      "entry_price": 81627.63,
+      "sl_price": 81627.58,
+      "breakeven_sl": 81627.63,
+      "soft_breakeven_sl": 81627.58,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 81408.73,
+      "tp2_price": 81408.73,
+      "tp3_price": 81408.73,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.01
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914475430,
+        1914475436
+      ],
+      "executed_at": "2026-09-19T17:37:59.983878+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "838572": {
+      "batch_id": "838572",
+      "symbol": "ETH/USD",
+      "broker_sym": "ETHUSDm",
+      "timeframe": "15m",
+      "action": "BUY",
+      "entry_price": 2652.28,
+      "sl_price": 2639.27,
+      "breakeven_sl": 2652.28,
+      "soft_breakeven_sl": 2639.27,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 2655.27,
+      "tp2_price": 2655.27,
+      "tp3_price": 2655.27,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.1
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914476095
+      ],
+      "executed_at": "2026-09-19T17:37:59.983893+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "839051": {
+      "batch_id": "839051",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "15m",
+      "action": "BUY",
+      "entry_price": 81568.99,
+      "sl_price": 81205.43,
+      "breakeven_sl": 81568.99,
+      "soft_breakeven_sl": 81205.43,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 81653.56,
+      "tp2_price": 81653.56,
+      "tp3_price": 81653.56,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914492494,
+        1914492496,
+        1914492525
+      ],
+      "executed_at": "2026-09-19T17:37:59.983905+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "839229": {
+      "batch_id": "839229",
+      "symbol": "ETH/USD",
+      "broker_sym": "ETHUSDm",
+      "timeframe": "5m",
+      "action": "BUY",
+      "entry_price": 2648.02,
+      "sl_price": 2637.2,
+      "breakeven_sl": 2648.02,
+      "soft_breakeven_sl": 2637.2,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 2649.44,
+      "tp2_price": 2649.44,
+      "tp3_price": 2649.44,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.1
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914495936
+      ],
+      "executed_at": "2026-09-19T17:37:59.983923+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "839378": {
+      "batch_id": "839378",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "3m",
+      "action": "SELL",
+      "entry_price": 81485.92,
+      "sl_price": 81485.87,
+      "breakeven_sl": 81485.92,
+      "soft_breakeven_sl": 81485.87,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 81441.02,
+      "tp2_price": 81441.02,
+      "tp3_price": 81441.02,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1914498701,
+        1914498705,
+        1914498711
+      ],
+      "executed_at": "2026-09-19T17:37:59.983935+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    }
   },
   "scan_activity_log": [
     {
-      "timestamp": "09:03:35 UTC",
-      "cycle": 30,
-      "symbol": "BTC/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -6.3 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "09:03:29 UTC",
-      "cycle": 30,
-      "symbol": "BTC/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "09:03:26 UTC",
-      "cycle": 30,
-      "symbol": "EUR/GBP",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "1/4",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:03:25 UTC",
-      "cycle": 30,
-      "symbol": "USD/JPY",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -5.2 | Win Prob: 48%"
-    },
-    {
-      "timestamp": "09:03:23 UTC",
-      "cycle": 30,
-      "symbol": "ETH/USD",
-      "timeframe": "3m",
-      "action": "BUY",
-      "pillars": "3/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:03:23 UTC",
-      "cycle": 30,
-      "symbol": "EUR/GBP",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/4",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:03:21 UTC",
-      "cycle": 30,
-      "symbol": "USD/JPY",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:03:18 UTC",
-      "cycle": 30,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (14.1) "
-    },
-    {
-      "timestamp": "09:03:17 UTC",
-      "cycle": 30,
-      "symbol": "EUR/GBP",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/4",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "09:03:16 UTC",
-      "cycle": 30,
-      "symbol": "USD/JPY",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:03:14 UTC",
-      "cycle": 30,
-      "symbol": "EUR/GBP",
-      "timeframe": "1h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/4",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +24.9 | Win Prob: 56%"
-    },
-    {
-      "timestamp": "09:03:13 UTC",
-      "cycle": 30,
-      "symbol": "ETH/USD",
-      "timeframe": "1m",
-      "action": "STRONG BUY",
-      "pillars": "3/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:03:10 UTC",
-      "cycle": 30,
-      "symbol": "USD/JPY",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +12.0 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "09:03:08 UTC",
-      "cycle": 30,
-      "symbol": "EUR/GBP",
-      "timeframe": "30m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/4",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (19.0)"
-    },
-    {
-      "timestamp": "09:03:07 UTC",
-      "cycle": 30,
-      "symbol": "BTC/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -6.0 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "09:03:05 UTC",
-      "cycle": 30,
-      "symbol": "USD/JPY",
-      "timeframe": "1h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "09:03:01 UTC",
-      "cycle": 30,
-      "symbol": "EUR/GBP",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/4",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +40.0 | Win Prob: 68%"
-    },
-    {
-      "timestamp": "09:02:59 UTC",
-      "cycle": 30,
-      "symbol": "ETH/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (19.4)"
-    },
-    {
-      "timestamp": "09:02:58 UTC",
-      "cycle": 30,
-      "symbol": "USD/JPY",
-      "timeframe": "30m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +22.0 | Win Prob: 45%"
-    },
-    {
-      "timestamp": "09:02:56 UTC",
-      "cycle": 30,
-      "symbol": "GBP/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.2) "
-    },
-    {
-      "timestamp": "09:02:55 UTC",
-      "cycle": 30,
-      "symbol": "EUR/USD",
-      "timeframe": "3m",
-      "action": "SELL",
-      "pillars": "4/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:02:54 UTC",
-      "cycle": 30,
-      "symbol": "AUD/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -7.6 | Win Prob: 48%"
-    },
-    {
-      "timestamp": "09:02:51 UTC",
-      "cycle": 30,
-      "symbol": "USD/JPY",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +22.0 | Win Prob: 56%"
-    },
-    {
-      "timestamp": "09:02:48 UTC",
-      "cycle": 30,
-      "symbol": "AUD/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:02:46 UTC",
-      "cycle": 30,
-      "symbol": "GBP/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.4)"
-    },
-    {
-      "timestamp": "09:02:45 UTC",
-      "cycle": 30,
-      "symbol": "EUR/USD",
-      "timeframe": "1m",
-      "action": "STRONG SELL",
-      "pillars": "4/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:02:44 UTC",
-      "cycle": 30,
-      "symbol": "XAU/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "09:02:43 UTC",
-      "cycle": 30,
-      "symbol": "XAG/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:02:41 UTC",
-      "cycle": 30,
-      "symbol": "AUD/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:02:36 UTC",
-      "cycle": 30,
-      "symbol": "XAG/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.3)"
-    },
-    {
-      "timestamp": "09:02:34 UTC",
-      "cycle": 30,
-      "symbol": "XAU/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (19.1)"
-    },
-    {
-      "timestamp": "09:02:34 UTC",
-      "cycle": 30,
-      "symbol": "GBP/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -25.7 | Win Prob: 90%"
-    },
-    {
-      "timestamp": "09:02:33 UTC",
-      "cycle": 30,
-      "symbol": "EUR/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "09:02:31 UTC",
-      "cycle": 30,
-      "symbol": "AUD/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +9.1 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "09:02:30 UTC",
-      "cycle": 30,
-      "symbol": "XAG/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +26.1 | Win Prob: 67%"
-    },
-    {
-      "timestamp": "09:02:28 UTC",
-      "cycle": 30,
-      "symbol": "ETH/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (15.5) "
-    },
-    {
-      "timestamp": "09:02:26 UTC",
-      "cycle": 30,
-      "symbol": "XAU/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:02:25 UTC",
-      "cycle": 30,
-      "symbol": "EUR/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (14.8) "
-    },
-    {
-      "timestamp": "09:02:24 UTC",
-      "cycle": 30,
-      "symbol": "AUD/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "09:02:23 UTC",
-      "cycle": 30,
-      "symbol": "GBP/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "09:02:21 UTC",
-      "cycle": 30,
-      "symbol": "XAG/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +0.2 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "09:02:20 UTC",
-      "cycle": 30,
-      "symbol": "EUR/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +3.5 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "09:02:17 UTC",
-      "cycle": 30,
-      "symbol": "XAU/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:02:16 UTC",
-      "cycle": 30,
-      "symbol": "GBP/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:02:14 UTC",
-      "cycle": 30,
-      "symbol": "AUD/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.8)"
-    },
-    {
-      "timestamp": "09:02:13 UTC",
-      "cycle": 30,
-      "symbol": "XAG/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (19.1)"
-    },
-    {
-      "timestamp": "09:02:11 UTC",
-      "cycle": 30,
-      "symbol": "ETH/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (15.6)"
-    },
-    {
-      "timestamp": "09:02:11 UTC",
-      "cycle": 30,
-      "symbol": "XAU/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (11.7) "
-    },
-    {
-      "timestamp": "09:02:11 UTC",
-      "cycle": 30,
-      "symbol": "EUR/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -21.8 | Win Prob: 55%"
-    },
-    {
-      "timestamp": "09:02:09 UTC",
-      "cycle": 30,
-      "symbol": "GBP/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:02:06 UTC",
-      "cycle": 30,
-      "symbol": "AUD/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -7.1 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "09:02:05 UTC",
-      "cycle": 30,
-      "symbol": "XAG/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "09:02:04 UTC",
-      "cycle": 30,
-      "symbol": "XAU/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +6.8 | Win Prob: 52%"
-    },
-    {
-      "timestamp": "09:02:03 UTC",
-      "cycle": 30,
-      "symbol": "EUR/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -13.8 | Win Prob: 48%"
-    },
-    {
-      "timestamp": "09:02:01 UTC",
-      "cycle": 30,
-      "symbol": "ETH/USD",
-      "timeframe": "5m",
-      "action": "BUY",
-      "pillars": "3/5",
-      "status": "SKIPPED (Spread > 18% TP1)",
-      "details": "Spread: $1.0 (61.5%) > 18%"
-    },
-    {
-      "timestamp": "09:01:58 UTC",
-      "cycle": 30,
-      "symbol": "XAU/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: +3.4 | Win Prob: 50%"
-    },
-    {
-      "timestamp": "09:01:57 UTC",
-      "cycle": 30,
-      "symbol": "XAG/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:01:33 UTC",
-      "cycle": 29,
-      "symbol": "BTC/USD",
-      "timeframe": "3m",
-      "action": "BUY",
-      "pillars": "3/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:01:27 UTC",
-      "cycle": 29,
-      "symbol": "BTC/USD",
-      "timeframe": "1m",
-      "action": "STRONG BUY",
-      "pillars": "3/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "09:01:21 UTC",
-      "cycle": 29,
-      "symbol": "BTC/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting 5/5)",
-      "details": "Score: -6.3 | Win Prob: 52%"
+      "timestamp": "17:37:58 UTC",
+      "cycle": 0,
+      "symbol": "SYSTEM",
+      "timeframe": "-",
+      "action": "RESET",
+      "status": "Target Progress Reset",
+      "details": "All trade targets & symbol win rates reset to 0."
     }
   ],
-  "next_scan_time": "00:01 remaining",
-  "reset_at": "2026-09-16T08:16:51.493649+00:00",
-  "tf_rotation_indices": {
-    "XAU/USD": 2,
-    "XAG/USD": 0,
-    "GBP/USD": 5,
-    "AUD/USD": 2,
-    "EUR/USD": 0,
-    "USD/JPY": 2,
-    "EUR/GBP": 1,
-    "ETH/USD": 0,
-    "BTC/USD": 1
+  "tf_rotation_indices": {},
+  "total_trades_taken": 15,
+  "trades_by_symbol": {
+    "GBP/NZD": 1,
+    "GBPNZDm": 1,
+    "XAG/USD": 1,
+    "XAGUSDm": 1,
+    "XAU/USD": 5,
+    "XAUUSD247m": 5,
+    "BTC/USD": 4,
+    "BTCUSDm": 4,
+    "ETH/USD": 4,
+    "ETHUSDm": 4
   },
+  "symbol_stats": {
+    "ETH/USD": {
+      "wins": 0,
+      "losses": 0,
+      "breakevens": 1,
+      "completed": 1,
+      "total_profit": -0.01
+    }
+  },
+  "closed_batches": [
+    {
+      "batch_id": "839434",
+      "symbol": "ETH/USD",
+      "broker_sym": "ETHUSDm",
+      "timeframe": "3m",
+      "action": "SELL",
+      "entry_price": 2642.78,
+      "sl_price": 2650.5,
+      "breakeven_sl": 2642.78,
+      "matched_pillars": 5,
+      "tp1_price": 2640.85,
+      "tp2_price": 2640.85,
+      "tp3_price": 2640.85,
+      "lot_split": {
+        "tp1_lots": 0.1
+      },
+      "tickets": [
+        1914499657
+      ],
+      "executed_at": "2026-09-19T17:37:59.983951+00:00",
+      "closed_at": "2026-09-19T17:38:19.197856+00:00",
+      "profit": -0.01,
+      "risk_usd": 0.77,
+      "status": "BREAKEVEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    }
+  ],
+  "wins": 0,
+  "losses": 0,
+  "breakevens": 1,
+  "last_scan_time": null,
+  "last_scanned_symbol": null,
+  "engine_status": "MANAGING_ACTIVE",
+  "cycle_count": 0,
+  "current_scan": {},
+  "next_scan_time": null,
+  "reset_at": "2026-09-19T17:37:58.632145+00:00",
   "xau_trades_taken": 0,
   "btc_trades_taken": 0
 }

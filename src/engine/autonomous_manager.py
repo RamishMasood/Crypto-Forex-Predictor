@@ -46,6 +46,22 @@ AVAILABLE_TIMEFRAMES = ["1m", "3m", "5m", "15m", "30m", "1h", "4h"]
 DEFAULT_TIMEFRAMES = ["5m", "15m", "30m", "1h", "4h"]
 DEFAULT_SYMBOLS = ["XAU/USD", "BTC/USD"]
 
+AVAILABLE_STRATEGIES = {
+    "DEFAULT": "🏛️ Institutional Core (5-Pillars Confluence & AlphaSniper)",
+    "VIVEK_YADAV": "🎯 Vivek Yadav (Trade For Profit - S&D + Liquidation)",
+    "BERND_SKORUPINSKI": "🏆 Bernd Skorupinski (FTMO #1 - Multi-Timeframe S&D)",
+    "ICT": "⚡ Michael J. Huddleston (ICT - Liquidity Sweep + MSS + FVG/OTE)",
+    "STEVEN_HART": "📐 Steven Hart (The Trading Channel - 4H Break & 15M Retest)",
+    "RAYNER_TEO": "🌊 Rayner Teo (Trend Following 20/50 EMA Envelope + 20 EMA Trailing)",
+    "CRYPTO_CRED": "📊 Crypto Cred (Key Levels S/R + 20/50 EMA + RSI Divergence)",
+    "NDEMAZEAH_GODLOVE": "🎯 Ndemazeah Godlove (GU MVR - 10/23 EMA Cross + Fib 50-61.8%)",
+    "ROSS_CAMERON": "🚀 Ross Cameron (Warrior Trading Momentum & VWAP)",
+    "ADAM_KHOO": "📈 Adam Khoo (Triple EMA Trend Breakout & 20 EMA Trailing)",
+    "ARIEL_ZWECHER": "⏰ Ariel Zwecher (RealSimpleAriel - 15M ORB & Prop Math)",
+    "OLIVER_VELEZ": "🐘 Oliver Velez (Elephant/Tail Bar + 20 SMA Location + 200 SMA Baseline)",
+    "TRADE_PRO": "🤖 Trade Pro (Mechanical Donchian 20 Channel + 200 SMA Slope + ATR 1:2)"
+}
+
 _SCAN_STOP_EVENT = threading.Event()
 _FORCE_STOP_EVENT = threading.Event()
 _STATE_LOCK = threading.Lock()
@@ -58,6 +74,26 @@ class AutonomousTraderEngine:
         self._thread: Optional[threading.Thread] = None
         self._stop_requested = _SCAN_STOP_EVENT
         self._is_running = False
+
+    @staticmethod
+    def _is_strat_session_allowed(strategy_key: str, generic_allowed_sessions: Optional[List[str]] = None, asset_type: str = 'forex'):
+        global SessionManager
+        if not hasattr(SessionManager, 'is_strategy_session_allowed'):
+            try:
+                import importlib
+                import src.engine.session_manager
+                importlib.reload(src.engine.session_manager)
+                from src.engine.session_manager import SessionManager as _SM
+                SessionManager = _SM
+            except Exception:
+                pass
+        if hasattr(SessionManager, 'is_strategy_session_allowed'):
+            return SessionManager.is_strategy_session_allowed(
+                strategy_key=strategy_key,
+                generic_allowed_sessions=generic_allowed_sessions,
+                asset_type=asset_type
+            )
+        return SessionManager.is_session_allowed(generic_allowed_sessions or ["24/7 (Any Session)"])
 
     @staticmethod
     def load_settings() -> Dict[str, Any]:
@@ -76,13 +112,24 @@ class AutonomousTraderEngine:
             "breakeven_mode": "tight",          # "tight" (immediate 0.38 ATR lock) | "loose" (2-stage runner breathing room)
             "active_sessions": ["London Session", "New York Session"], # Allowed trading sessions
             "htf_filter_enabled": True,         # Higher Timeframe Trend Confluence filter
-            "recommended_mode": False           # Institutional Recommended Auto-Pilot (per-pair backtested optimum)
+            "recommended_mode": False,          # Institutional Recommended Auto-Pilot (per-pair backtested optimum)
+            "active_strategy_mode": "DEFAULT",  # Legacy single-choice fallback
+            "active_strategies": ["DEFAULT"]    # Multi-Select Strategy List
         }
         with _STATE_LOCK:
             if os.path.exists(SETTINGS_FILE):
                 try:
                     with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
                         data = json.load(f)
+                        # Migrate legacy active_strategy_mode if active_strategies not set
+                        if 'active_strategies' not in data or not data['active_strategies']:
+                            old_m = str(data.get('active_strategy_mode', 'DEFAULT')).upper().strip()
+                            if old_m in ['TFP_LIQUIDATION_TRAP', 'VIVEK_YADAV_SD', 'BOTH_TFP']:
+                                data['active_strategies'] = ['VIVEK_YADAV']
+                            elif old_m == 'ALL_STRATEGIES':
+                                data['active_strategies'] = list(AVAILABLE_STRATEGIES.keys())
+                            else:
+                                data['active_strategies'] = ['DEFAULT']
                         default_settings.update(data)
                 except Exception as e:
                     logger.error(f"Error loading settings: {e}")
@@ -162,6 +209,317 @@ class AutonomousTraderEngine:
                             pass
             except Exception as e:
                 logger.error(f"Error saving state: {e}")
+
+    @classmethod
+    def compute_strategy_leaderboard(
+        cls,
+        state: Optional[Dict[str, Any]] = None,
+        sort_by: str = 'profit'
+    ) -> List[Dict[str, Any]]:
+        """
+        Computes performance metrics and dynamic ranking for all 13 strategies
+        (Institutional Core DEFAULT + 12 Streamers) across closed and open batches.
+
+        sort_by options:
+        - 'profit' / 'pnl': Net PnL ($) descending
+        - 'wins': Total wins descending
+        - 'losses': Total losses descending
+        - 'breakevens': Total breakevens descending
+        - 'win_rate': Win Rate (%) descending
+        - 'total_trades': Total volume (trades taken) descending
+        """
+        if state is None:
+            state = cls.load_state()
+
+        closed_batches = state.get('closed_batches', [])
+        open_batches = list(state.get('open_batches', {}).values())
+
+        # Strategy Playbook Native Profiles (from Complete Rule-Based Playbook PDF)
+        playbook_profiles = {
+            'DEFAULT': {'default_tfs': '15m, 30m, 1h', 'default_pairs': 'XAU/USD, BTC/USD'},
+            'VIVEK_YADAV': {'default_tfs': '15m, 5m, 1m', 'default_pairs': 'BTC/USD, ETH/USD, Gold'},
+            'BERND_SKORUPINSKI': {'default_tfs': '4h, 1h, 15m', 'default_pairs': 'EUR/USD, GBP/USD, Gold'},
+            'ICT': {'default_tfs': '15m, 5m, 1m', 'default_pairs': 'NQ, ES, EUR/USD, BTC'},
+            'STEVEN_HART': {'default_tfs': '15m, 1h, 4h', 'default_pairs': 'EUR/USD, GBP/USD, Gold'},
+            'RAYNER_TEO': {'default_tfs': '4h, 1h, Daily', 'default_pairs': 'Forex, Gold, Indices'},
+            'CRYPTO_CRED': {'default_tfs': '1h, 4h, 15m', 'default_pairs': 'BTC/USD, ETH/USD'},
+            'NDEMAZEAH_GODLOVE': {'default_tfs': '15m, 5m', 'default_pairs': 'GBP/USD, NQ, ES'},
+            'ROSS_CAMERON': {'default_tfs': '1m, 5m', 'default_pairs': 'BTC/USD, High-Beta'},
+            'ADAM_KHOO': {'default_tfs': '1h, 4h, 15m', 'default_pairs': 'BTC/USD, Forex, Equities'},
+            'ARIEL_ZWECHER': {'default_tfs': '15m, 5m', 'default_pairs': 'BTC/USD, CME Futures'},
+            'OLIVER_VELEZ': {'default_tfs': '2m, 5m, 15m', 'default_pairs': 'Crypto, Futures, Equities'},
+            'TRADE_PRO': {'default_tfs': '1h, 4h, 15m', 'default_pairs': 'Forex Majors, Crypto'}
+        }
+
+        # Initialize stats bucket for each of the 13 strategies
+        stats_map: Dict[str, Dict[str, Any]] = {}
+        strat_tfs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in AVAILABLE_STRATEGIES}
+        strat_pairs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in AVAILABLE_STRATEGIES}
+
+        for strat_key, strat_full_name in AVAILABLE_STRATEGIES.items():
+            stats_map[strat_key] = {
+                'strategy_key': strat_key,
+                'strategy_name': strat_full_name,
+                'name': strat_full_name,
+                'total_trades': 0,
+                'closed_trades': 0,
+                'active_trades': 0,
+                'wins': 0,
+                'losses': 0,
+                'breakevens': 0,
+                'win_rate': 0.0,
+                'net_pnl': 0.0,
+                'gross_profit': 0.0,
+                'gross_loss': 0.0,
+                'profit_factor': 0.0,
+                'status_badge': '💤 NO TRADES',
+                'best_timeframes': playbook_profiles.get(strat_key, {}).get('default_tfs', '15m, 1h'),
+                'best_pairs': playbook_profiles.get(strat_key, {}).get('default_pairs', 'BTC/USD, Gold')
+            }
+
+        # Build batch-to-strategy lookup from scan_activity_log for recovered sync batches
+        log_strategy_map = {}
+        for entry in state.get('scan_activity_log', []):
+            det = str(entry.get('details', ''))
+            stt = str(entry.get('status', ''))
+            if 'Batch #' in stt:
+                try:
+                    bid = str(stt.split('Batch #')[1].split(')')[0].strip())
+                    for k, fname in AVAILABLE_STRATEGIES.items():
+                        clean_fn = fname.split('(')[0].replace('🏛️', '').replace('🎯', '').replace('🏆', '').replace('⚡', '').replace('📐', '').replace('🌊', '').replace('📊', '').replace('🚀', '').replace('📈', '').replace('⏰', '').replace('🐘', '').replace('🤖', '').strip().upper()
+                        if k in det.upper() or (len(clean_fn) > 3 and clean_fn in det.upper()):
+                            log_strategy_map[bid] = k
+                            break
+                except Exception:
+                    pass
+
+        def match_strategy_key(batch: Dict[str, Any]) -> str:
+            bid = str(batch.get('batch_id', '')).strip()
+            if bid in log_strategy_map:
+                return log_strategy_map[bid]
+
+            raw_k = str(batch.get('strategy_used', '')).upper()
+            raw_n = str(batch.get('strategy_name', '')).upper()
+
+            # Exact match on key
+            if raw_k in stats_map:
+                return raw_k
+
+            # Heuristics for name or aliases
+            for k in AVAILABLE_STRATEGIES:
+                if k in raw_k or k in raw_n:
+                    return k
+
+            if 'VIVEK' in raw_k or 'VIVEK' in raw_n or 'TFP' in raw_k or 'TFP' in raw_n:
+                return 'VIVEK_YADAV'
+            if 'BERND' in raw_k or 'BERND' in raw_n or 'FTMO' in raw_n:
+                return 'BERND_SKORUPINSKI'
+            if 'HUDDLESTON' in raw_n or 'ICT' in raw_k or 'ICT' in raw_n:
+                return 'ICT'
+            if 'STEVEN' in raw_k or 'STEVEN' in raw_n:
+                return 'STEVEN_HART'
+            if 'RAYNER' in raw_k or 'RAYNER' in raw_n:
+                return 'RAYNER_TEO'
+            if 'CRED' in raw_k or 'CRED' in raw_n:
+                return 'CRYPTO_CRED'
+            if 'NDEMAZEAH' in raw_k or 'NDEMAZEAH' in raw_n or 'MVR' in raw_n:
+                return 'NDEMAZEAH_GODLOVE'
+            if 'ROSS' in raw_k or 'ROSS' in raw_n or 'WARRIOR' in raw_n:
+                return 'ROSS_CAMERON'
+            if 'ADAM' in raw_k or 'ADAM' in raw_n or 'KHOO' in raw_n:
+                return 'ADAM_KHOO'
+            if 'ARIEL' in raw_k or 'ARIEL' in raw_n or 'ORB' in raw_n:
+                return 'ARIEL_ZWECHER'
+            if 'VELEZ' in raw_k or 'VELEZ' in raw_n:
+                return 'OLIVER_VELEZ'
+            if 'PRO' in raw_k or 'PRO' in raw_n or 'DONCHIAN' in raw_n:
+                return 'TRADE_PRO'
+            
+            return 'DEFAULT'
+
+        # Helper to normalize symbol string
+        def normalize_sym_str(s: str) -> str:
+            raw = str(s or '').strip()
+            if not raw or raw in ['-', 'none', 'None']:
+                return ''
+            if '/' in raw:
+                return raw
+            if raw.endswith('m') and len(raw) in [7, 8]:
+                raw = raw[:-1]
+            if len(raw) == 6:
+                return f"{raw[:3]}/{raw[3:]}"
+            return raw
+
+        # Process Closed Batches
+        for b in closed_batches:
+            k = match_strategy_key(b)
+            pnl = float(b.get('profit', 0.0))
+            status = str(b.get('status', '')).upper()
+            tf = str(b.get('timeframe', '')).strip().lower()
+            sym = normalize_sym_str(b.get('symbol', ''))
+
+            stats_map[k]['total_trades'] += 1
+            stats_map[k]['closed_trades'] += 1
+            stats_map[k]['net_pnl'] += pnl
+
+            # Prioritize BREAKEVEN check: status marked BREAKEVEN, 'BE', or minor commission/spread slip
+            is_be = (
+                'BREAKEVEN' in status or 
+                status == 'BE' or 
+                b.get('is_breakeven', False) or 
+                (abs(pnl) <= 0.15 and status not in ['WIN', 'LOSS'])
+            )
+
+            if is_be:
+                stats_map[k]['breakevens'] += 1
+                if pnl > 0:
+                    stats_map[k]['gross_profit'] += pnl
+                elif pnl < 0:
+                    stats_map[k]['gross_loss'] += abs(pnl)
+            elif status == 'WIN' or pnl > 0.15:
+                stats_map[k]['wins'] += 1
+                stats_map[k]['gross_profit'] += pnl
+            elif status == 'LOSS' or pnl < -0.15:
+                stats_map[k]['losses'] += 1
+                stats_map[k]['gross_loss'] += abs(pnl)
+            else:
+                stats_map[k]['breakevens'] += 1
+
+            # Track per-timeframe metrics
+            if tf and tf not in ['-', 'live', 'none']:
+                if tf not in strat_tfs[k]:
+                    strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
+                strat_tfs[k][tf]['trades'] += 1
+                strat_tfs[k][tf]['pnl'] += pnl
+                if status == 'WIN' or pnl > 0.15:
+                    strat_tfs[k][tf]['wins'] += 1
+
+            # Track per-symbol metrics
+            if sym:
+                if sym not in strat_pairs[k]:
+                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
+                strat_pairs[k][sym]['trades'] += 1
+                strat_pairs[k][sym]['pnl'] += pnl
+                if status == 'WIN' or pnl > 0.15:
+                    strat_pairs[k][sym]['wins'] += 1
+
+        # Process Open Batches
+        for b in open_batches:
+            k = match_strategy_key(b)
+            tf = str(b.get('timeframe', '')).strip().lower()
+            sym = normalize_sym_str(b.get('symbol', ''))
+
+            stats_map[k]['total_trades'] += 1
+            stats_map[k]['active_trades'] += 1
+
+            if tf and tf not in ['-', 'live', 'none']:
+                if tf not in strat_tfs[k]:
+                    strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
+                strat_tfs[k][tf]['trades'] += 1
+
+            if sym:
+                if sym not in strat_pairs[k]:
+                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
+                strat_pairs[k][sym]['trades'] += 1
+
+        # Calculate Derived Metrics & Health Status
+        leaderboard = []
+        for k, item in stats_map.items():
+            wins = item['wins']
+            losses = item['losses']
+            bes = item['breakevens']
+            closed = item['closed_trades']
+            net_pnl = round(item['net_pnl'], 2)
+            item['net_pnl'] = net_pnl
+
+            # Win Rate Calculation (decisive trades + capital protection)
+            decisive_trades = wins + losses
+            if decisive_trades > 0:
+                item['win_rate'] = round((wins / decisive_trades) * 100.0, 1)
+            elif closed > 0 and bes > 0:
+                item['win_rate'] = 50.0  # 100% Breakeven capital preserved
+            else:
+                item['win_rate'] = 0.0
+
+            # Profit Factor Calculation
+            gross_loss = item['gross_loss']
+            if gross_loss > 0:
+                item['profit_factor'] = round(item['gross_profit'] / gross_loss, 2)
+            elif item['gross_profit'] > 0:
+                item['profit_factor'] = 99.9  # Undefeated infinite PF
+            else:
+                item['profit_factor'] = 0.0
+
+            # Synthesize Best Timeframes
+            pb_entry = playbook_profiles.get(k, {})
+            t_items = sorted(
+                strat_tfs[k].items(),
+                key=lambda x: (x[1]['wins'], x[1]['pnl'], x[1]['trades']),
+                reverse=True
+            )
+            if t_items:
+                top_tfs = [t[0] for t in t_items[:2]]
+                item['best_timeframes'] = ', '.join(top_tfs)
+            else:
+                item['best_timeframes'] = pb_entry.get('default_tfs', '15m, 1h')
+
+            # Synthesize Best Trading Pairs
+            p_items = sorted(
+                strat_pairs[k].items(),
+                key=lambda x: (x[1]['wins'], x[1]['pnl'], x[1]['trades']),
+                reverse=True
+            )
+            if p_items:
+                top_pairs = [p[0] for p in p_items[:2]]
+                item['best_pairs'] = ', '.join(top_pairs)
+            else:
+                item['best_pairs'] = pb_entry.get('default_pairs', 'BTC/USD, Gold')
+
+            # Dynamic Status Badge
+            if item['total_trades'] == 0:
+                item['status_badge'] = '💤 Awaiting Fills'
+            elif net_pnl > 0 and item['win_rate'] >= 75.0:
+                item['status_badge'] = '🔥 Elite Performer'
+            elif net_pnl > 0:
+                item['status_badge'] = '🟢 Profitable'
+            elif bes > 0 and losses == 0:
+                item['status_badge'] = f'🛡️ Capital Guard ({bes} BE)'
+            elif net_pnl < 0:
+                item['status_badge'] = '🔴 Drawdown'
+            else:
+                item['status_badge'] = '⚖️ Neutral'
+
+            leaderboard.append(item)
+
+        # Sorting Logic
+        sort_key = str(sort_by).lower().strip()
+        if sort_key in ['wins', 'most_wins']:
+            leaderboard.sort(key=lambda x: (x['wins'], x['win_rate'], x['net_pnl']), reverse=True)
+        elif sort_key in ['losses', 'most_losses']:
+            leaderboard.sort(key=lambda x: (x['losses'], -x['win_rate']), reverse=True)
+        elif sort_key in ['breakevens', 'most_breakevens', 'be']:
+            leaderboard.sort(key=lambda x: (x['breakevens'], x['total_trades']), reverse=True)
+        elif sort_key in ['win_rate', 'highest_win_rate', 'winrate']:
+            leaderboard.sort(key=lambda x: (x['win_rate'], x['wins'], x['net_pnl']), reverse=True)
+        elif sort_key in ['total_trades', 'most_active', 'volume']:
+            leaderboard.sort(key=lambda x: (x['total_trades'], x['net_pnl']), reverse=True)
+        else: # Default: 'profit' / Most Profitable
+            leaderboard.sort(key=lambda x: (x['net_pnl'], x['win_rate'], x['wins']), reverse=True)
+
+        # Assign Dynamic Ranks 1 to 13
+        for idx, item in enumerate(leaderboard, start=1):
+            item['rank'] = idx
+            if idx == 1:
+                item['rank_display'] = '🥇 1'
+            elif idx == 2:
+                item['rank_display'] = '🥈 2'
+            elif idx == 3:
+                item['rank_display'] = '🥉 3'
+            else:
+                item['rank_display'] = f'#{idx}'
+
+        return leaderboard
+
 
     def has_active_batches(self) -> bool:
         try:
@@ -779,6 +1137,98 @@ class AutonomousTraderEngine:
             open_pos = mt5.positions_get()
             open_tickets = {p.ticket for p in open_pos} if open_pos else set()
 
+            # Self-healing: Adopt any unlinked MT5 positions into open_batches so they are never orphaned
+            if open_pos:
+                for p in open_pos:
+                    if getattr(p, 'magic', 0) == self.executor.MAGIC_NUMBER or 'QS_' in str(getattr(p, 'comment', '')):
+                        cmt = str(getattr(p, 'comment', ''))
+                        pos_batch = None
+                        pos_tf = None
+                        pos_strat_code = None
+
+                        if 'QS_' in cmt:
+                            parts = cmt.split('_')
+                            if len(parts) >= 2:
+                                pos_batch = parts[1]
+                            if len(parts) >= 3 and any(t in parts[2].lower() for t in ['m', 'h', 'd']):
+                                pos_tf = parts[2].lower()
+
+                        if not pos_batch:
+                            pos_batch = str(p.ticket)
+
+                        if str(pos_batch) not in open_batches:
+                            p_type = 'BUY' if p.type == 0 else 'SELL'
+                            norm_s = self.normalize_symbol(p.symbol)
+
+                            # Recover timeframe from recent activity feed if not in comment
+                            if not pos_tf:
+                                for entry in state.get('scan_activity_log', []):
+                                    e_sym = self.normalize_symbol(entry.get('symbol', ''))
+                                    e_tf = entry.get('timeframe')
+                                    if e_sym == norm_s and e_tf and e_tf not in ['-', 'Live']:
+                                        pos_tf = e_tf
+                                        break
+                            if not pos_tf:
+                                pos_tf = "15m"  # Standard default execution timeframe
+
+                            # Recover strategy name from activity feed
+                            resolved_strat_name = "Streamer Strategy (MT5 Sync)"
+                            resolved_strat_key = "STREAMER"
+                            for entry in state.get('scan_activity_log', []):
+                                e_sym = self.normalize_symbol(entry.get('symbol', ''))
+                                det = str(entry.get('details', ''))
+                                if e_sym == norm_s and 'Strategy:' in det:
+                                    try:
+                                        resolved_strat_name = det.split('Strategy:')[1].split('|')[0].strip()
+                                        resolved_strat_key = entry.get('status', '').replace('🎯 Executing (', '').replace(')', '').strip() or 'STREAMER'
+                                        break
+                                    except Exception:
+                                        pass
+
+                            open_batches[str(pos_batch)] = {
+                                'batch_id': pos_batch,
+                                'symbol': norm_s,
+                                'broker_sym': p.symbol,
+                                'timeframe': pos_tf,
+                                'action': p_type,
+                                'entry_price': float(p.price_open),
+                                'sl_price': float(p.sl),
+                                'breakeven_sl': float(p.price_open),
+                                'soft_breakeven_sl': float(p.sl),
+                                'breakeven_mode': be_mode,
+                                'recommended_mode': False,
+                                'active_sessions': current_settings.get('active_sessions', []),
+                                'htf_confluence': True,
+                                'tp1_price': float(p.tp),
+                                'tp2_price': float(p.tp),
+                                'tp3_price': float(p.tp),
+                                'matched_pillars': 5,
+                                'lot_split': {'tp1_lots': float(p.volume)},
+                                'risk_usd': 0.0,
+                                'tickets': [int(p.ticket)],
+                                'executed_at': datetime.now(timezone.utc).isoformat(),
+                                'status': 'OPEN',
+                                'p1_score': 0.0,
+                                'p1_prob': 85.0,
+                                'strategy_used': resolved_strat_key,
+                                'strategy_name': resolved_strat_name
+                            }
+
+                            # Update symbol trade counts
+                            if 'trades_by_symbol' not in state:
+                                state['trades_by_symbol'] = {}
+                            state['trades_by_symbol'][norm_s] = state['trades_by_symbol'].get(norm_s, 0) + 1
+                            if p.symbol != norm_s:
+                                state['trades_by_symbol'][p.symbol] = state['trades_by_symbol'].get(p.symbol, 0) + 1
+                            state['total_trades_taken'] = state.get('total_trades_taken', 0) + 1
+                            state_changed = True
+                        else:
+                            tkts = open_batches[str(pos_batch)].get('tickets', [])
+                            if int(p.ticket) not in tkts:
+                                tkts.append(int(p.ticket))
+                                open_batches[str(pos_batch)]['tickets'] = tkts
+                                state_changed = True
+
             # Check open batches for completion
             for batch_id, trade in list(open_batches.items()):
                 batch_tickets = set(trade.get('tickets', []))
@@ -899,7 +1349,9 @@ class AutonomousTraderEngine:
                         'risk_usd': round(self.compute_batch_risk(trade), 2),
                         'status': outcome,
                         'p1_score': trade.get('p1_score'),
-                        'p1_prob': trade.get('p1_prob')
+                        'p1_prob': trade.get('p1_prob'),
+                        'strategy_used': trade.get('strategy_used', 'DEFAULT_CONFLUENCE'),
+                        'strategy_name': trade.get('strategy_name', 'Default Confluence (5-Pillars)')
                     }
                     if 'closed_batches' not in state:
                         state['closed_batches'] = []
@@ -925,6 +1377,7 @@ class AutonomousTraderEngine:
             # Live session counters (wins/losses/symbol_stats) strictly reflect trades executed during this session.
 
             if state_changed:
+                state['open_batches'] = open_batches
                 self.save_state(state)
 
         except Exception as e:
@@ -970,13 +1423,26 @@ class AutonomousTraderEngine:
             allow_same_tf = bool(self.load_settings().get('allow_same_tf_trades', True))
             if not allow_same_tf:
                 active_batch_id = None
+                norm_sym = self.normalize_symbol(symbol)
                 for bid, binfo in open_batches.items():
-                    if binfo.get('symbol') == symbol and binfo.get('timeframe') == tf:
+                    b_sym = self.normalize_symbol(binfo.get('symbol', ''))
+                    b_tf = str(binfo.get('timeframe', '')).lower()
+                    if (b_sym == norm_sym or norm_sym.replace('/', '') in str(binfo.get('broker_sym', '')).replace('/', '')) and b_tf == str(tf).lower():
                         active_batch_id = bid
                         break
 
                 if active_batch_id:
                     logger.info(f"Active batch #{active_batch_id} already running on {symbol} ({tf}). Advancing to next timeframe (same-TF stacking off).")
+                    self._append_activity_log({
+                        "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
+                        "cycle": cycle,
+                        "symbol": symbol,
+                        "timeframe": tf,
+                        "action": "HOLD",
+                        "pillars": "-",
+                        "status": "SKIPPED (Active Batch on TF)",
+                        "details": f"Batch #{active_batch_id} already open on {symbol} ({tf}) (Same-TF Stacking OFF)"
+                    })
                     continue
 
             try:
@@ -1013,6 +1479,17 @@ class AutonomousTraderEngine:
 
                 # 1. Market Session Filter (London / New York / Asian / 24-7)
                 curr_settings = self.load_settings()
+                # Resolve active strategies list (multi-select)
+                active_strats = curr_settings.get('active_strategies')
+                if not active_strats:
+                    old_m = str(curr_settings.get('active_strategy_mode', 'DEFAULT')).upper().strip()
+                    if old_m in ['TFP_LIQUIDATION_TRAP', 'VIVEK_YADAV_SD', 'BOTH_TFP']:
+                        active_strats = ['VIVEK_YADAV']
+                    elif old_m == 'ALL_STRATEGIES':
+                        active_strats = list(AVAILABLE_STRATEGIES.keys())
+                    else:
+                        active_strats = ['DEFAULT']
+
                 if is_rec_mode and rec_profile:
                     active_sessions = rec_profile.get('active_sessions', ["London Session", "New York Session"])
                 else:
@@ -1022,11 +1499,11 @@ class AutonomousTraderEngine:
                 if session_blocked:
                     is_actionable = False
 
-                # 2. Higher Timeframe (HTF) Trend Confluence Filter
+                # 2. Higher Timeframe (HTF) Trend Confluence Filter (Applied ONLY to Institutional Core 5-Pillars DEFAULT)
                 htf_filter_enabled = bool(curr_settings.get('htf_filter_enabled', True))
                 htf_conflict = False
                 htf_detail = ""
-                if htf_filter_enabled and is_actionable:
+                if htf_filter_enabled and ('DEFAULT' in active_strats) and is_actionable:
                     clean_dir = 'BUY' if 'BUY' in action else ('SELL' if 'SELL' in action else '')
                     if clean_dir:
                         is_htf_ok, htf_detail, _ = HTFConfluenceChecker.check_alignment(symbol, tf, clean_dir)
@@ -1034,13 +1511,10 @@ class AutonomousTraderEngine:
                             htf_conflict = True
                             is_actionable = False
 
-                # Micro Scalp (1m/3m/5m) Institutional Execution Gate:
-                # 1. Macro Confirmation: Micro scalp must never contradict higher-timeframe 200 EMA bias (Pillar 2).
-                # 2. Institutional Trigger on 1m/3m: Raw 1m/3m indicator entries are noise-dominated;
-                #    require ICT Liquidity Sweep or FVG tap confirmation to prevent random walk entries.
+                # Micro Scalp (1m/3m/5m) Institutional Execution Gate (Strictly for DEFAULT):
                 macro_conflict_scalp = False
                 micro_noise_scalp = False
-                if str(tf).lower() in ['1m', '3m', '5m']:
+                if ('DEFAULT' in active_strats) and str(tf).lower() in ['1m', '3m', '5m']:
                     p2_info = eval_res.get('p2', {})
                     if not p2_info.get('ok', True) and 'CONFLICT' in str(p2_info.get('status', '')).upper():
                         macro_conflict_scalp = True
@@ -1058,54 +1532,157 @@ class AutonomousTraderEngine:
                             is_actionable = False
 
                 active_min_pillars = rec_profile.get('min_pillars', min_pillars_required) if (is_rec_mode and rec_profile) else min_pillars_required
-                is_eligible = (p_cnt >= min(active_min_pillars, total_req)) and is_actionable
+                is_default_eligible = (p_cnt >= min(active_min_pillars, total_req)) and is_actionable
 
-                pillar_str = f"{p_cnt}/{total_req}"
+                # ─────────────────────────────────────────────────────────────
+                # MULTI-STRATEGY EVALUATION (13 STRATEGIES: DEFAULT + 12 STREAMERS)
+                # ─────────────────────────────────────────────────────────────
+                news_info = eval_res.get('p3', {})
+                is_news_blackout = bool(news_info.get('is_blackout', False))
+                playbook = pred.get('streamer_playbook', {})
+                all_pb = playbook.get('all_strategies', {})
+
+                candidates = []
+                session_blocked_strategies = []
+
+                # 1. Evaluate DEFAULT (5-Pillars Core) if selected
+                is_default_session_ok, default_session_desc = self._is_strat_session_allowed(
+                    strategy_key='DEFAULT',
+                    generic_allowed_sessions=active_sessions,
+                    asset_type=asset_type
+                )
+                if 'DEFAULT' in active_strats and is_default_eligible:
+                    if is_default_session_ok:
+                        candidates.append({
+                            'strategy_key': 'DEFAULT',
+                            'strategy_name': 'Institutional Core (5-Pillars)',
+                            'action': action,
+                            'confidence': float(prob),
+                            'trade_setup': pred.get('trade_setup') or {},
+                            'breakeven_mode': curr_settings.get('breakeven_mode', 'tight'),
+                            'session_used': default_session_desc
+                        })
+                    else:
+                        session_blocked_strategies.append(('DEFAULT', default_session_desc))
+
+                # 2. Evaluate Selected Streamer Strategies
+                for strat_key in active_strats:
+                    if strat_key == 'DEFAULT':
+                        continue
+
+                    # Strategy evaluation from MasterStreamerPlaybook
+                    st_res = all_pb.get(strat_key)
+                    if not st_res:
+                        # Fallback for VIVEK_YADAV to check TFP Liquidation Heatmap Trap directly
+                        if strat_key == 'VIVEK_YADAV':
+                            tfp_trap_data = pred.get('trade_for_profit', {})
+                            tfp_trap_grade = str(tfp_trap_data.get('setup_grade', ''))
+                            tfp_trap_act = str(tfp_trap_data.get('action', ''))
+                            if (tfp_trap_grade in ['A+_SUPER_CONFLUENCE', 'A_HIGH_CONVICTION', 'B_DEVELOPING']
+                                and tfp_trap_act in ['BUY', 'SELL']):
+                                st_res = {
+                                    'strategy_key': 'VIVEK_YADAV',
+                                    'strategy_name': 'Vivek Yadav (TFP Liquidation Trap)',
+                                    'action': tfp_trap_act,
+                                    'confidence': float(tfp_trap_data.get('confidence', 75.0)),
+                                    'trade_setup': tfp_trap_data.get('trade_setup') or {},
+                                    'breakeven_mode': 'SMC_PARTIAL_BE'
+                                }
+
+                    if not st_res:
+                        continue
+
+                    st_act = str(st_res.get('action', '')).upper()
+                    st_setup = st_res.get('trade_setup') or {}
+                    st_conf = float(st_res.get('confidence', 70.0))
+
+                    if st_act in ['BUY', 'SELL']:
+                        # Enforce Strategy-Specific Execution Window from Sessions & Killzones Playbook
+                        is_st_session_ok, st_session_desc = self._is_strat_session_allowed(
+                            strategy_key=strat_key,
+                            generic_allowed_sessions=active_sessions,
+                            asset_type=asset_type
+                        )
+
+                        if not is_st_session_ok:
+                            session_blocked_strategies.append((strat_key, st_session_desc))
+                            continue
+
+                        # Standard execution safety guards (news spikes, high spread)
+                        if not is_spread_fail and not is_news_blackout:
+                            candidates.append({
+                                'strategy_key': strat_key,
+                                'strategy_name': st_res.get('strategy_name', AVAILABLE_STRATEGIES.get(strat_key, strat_key)),
+                                'action': st_act,
+                                'confidence': st_conf,
+                                'trade_setup': st_setup,
+                                'breakeven_mode': st_res.get('breakeven_mode', 'FIXED_RR_TARGET'),
+                                'session_used': st_session_desc
+                            })
+
+                # Selection: Rank eligible candidates by confidence & choose the best
+                chosen_strategy_key = None
+                chosen_strategy_name = None
+                chosen_trade_setup = None
+                chosen_action = None
+
+                if candidates:
+                    candidates.sort(key=lambda c: c['confidence'], reverse=True)
+                    best = candidates[0]
+                    chosen_strategy_key = best['strategy_key']
+                    chosen_strategy_name = best['strategy_name']
+                    chosen_action = best['action']
+                    chosen_trade_setup = best['trade_setup']
+
+                is_eligible = (chosen_strategy_key is not None)
+                pillar_str = "5/5" if chosen_strategy_key == 'DEFAULT' else ("STRAT" if chosen_strategy_key else f"{p_cnt}/{total_req}")
 
                 if is_eligible:
-                    status_lbl = f"🎯 {p_cnt}/{total_req} Aligned (Executing)"
-                elif session_blocked:
+                    status_lbl = f"EXECUTING ({chosen_strategy_key})"
+                    detail_str = f"Strategy: {chosen_strategy_name} | Action: {chosen_action}"
+                elif session_blocked_strategies:
+                    first_b_key, first_b_desc = session_blocked_strategies[0]
+                    status_lbl = f"SKIPPED (Outside {first_b_key} Session)"
+                    detail_str = first_b_desc
+                elif session_blocked and ('DEFAULT' in active_strats):
                     status_lbl = "SKIPPED (Outside Trading Session)"
-                elif htf_conflict:
-                    status_lbl = "SKIPPED (HTF Trend Conflict)"
-                elif macro_conflict_scalp:
-                    status_lbl = "SKIPPED (Macro 200 EMA Conflict)"
-                elif micro_noise_scalp:
-                    status_lbl = "SKIPPED (No ICT Sweep / FVG)"
-                elif is_chop:
-                    status_lbl = "SKIPPED (Chop Gate)"
-                elif is_spread_fail:
-                    status_lbl = f"SKIPPED (Spread > {spread_guard.get('max_allowed_pct', 18):.0f}% TP1)"
-                else:
-                    status_lbl = f"No Trade (Waiting {min_pillars_required}/5)"
-
-                detail_str = f"Score: {score:+.1f} | Win Prob: {prob:.0f}%"
-                if session_blocked:
                     detail_str = f"SESSION FILTER: {session_desc}"
-                elif htf_conflict:
+                elif is_news_blackout:
+                    status_lbl = "SKIPPED (Economic News Blackout)"
+                    detail_str = f"NEWS FILTER: {news_info.get('desc', 'High-impact economic event')}"
+                elif htf_conflict and ('DEFAULT' in active_strats):
+                    status_lbl = "SKIPPED (HTF Trend Conflict)"
                     detail_str = f"HTF FILTER: {htf_detail}"
-                elif macro_conflict_scalp:
+                elif macro_conflict_scalp and ('DEFAULT' in active_strats):
+                    status_lbl = "SKIPPED (Macro 200 EMA Conflict)"
                     detail_str = f"MACRO CONFLICT: Scalp opposes 200 EMA trend"
-                elif micro_noise_scalp:
+                elif micro_noise_scalp and ('DEFAULT' in active_strats):
+                    status_lbl = "SKIPPED (No ICT Sweep / FVG)"
                     detail_str = f"MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
                 elif is_chop:
+                    status_lbl = "SKIPPED (Chop Gate)"
                     detail_str = f"CHOP: {chop_gate.get('reason', '')[:45]}"
                 elif is_spread_fail:
+                    status_lbl = f"SKIPPED (Spread > {spread_guard.get('max_allowed_pct', 18):.0f}% TP1)"
                     detail_str = f"Spread: ${spread_guard.get('spread_price')} ({spread_guard.get('spread_to_target_pct')}%) > {spread_guard.get('max_allowed_pct', 18):.0f}%"
+                else:
+                    active_lbls = ", ".join(active_strats[:3]) + (f" +{len(active_strats)-3} more" if len(active_strats) > 3 else "")
+                    status_lbl = "No Trade (Waiting Setup)"
+                    detail_str = f"Active: [{active_lbls}] | Monitoring price action for valid trigger"
 
                 self._append_activity_log({
                     "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
                     "cycle": cycle,
                     "symbol": symbol,
                     "timeframe": tf,
-                    "action": action,
+                    "action": chosen_action or action,
                     "pillars": pillar_str,
                     "status": status_lbl,
                     "details": detail_str
                 })
 
                 if is_eligible:
-                    logger.info(f"TARGET {p_cnt}/5 PILLARS ALIGNED (Req: {min_pillars_required})! {symbol} on {tf}!")
+                    logger.info(f"TARGET SETUP CONFIRMED ({chosen_strategy_key}: {chosen_strategy_name})! {symbol} on {tf} ({chosen_action})!")
                     
                     # Advance the rotation pointer to the NEXT timeframe after this one
                     next_idx = (timeframes.index(tf) + 1) % len(timeframes)
@@ -1123,7 +1700,11 @@ class AutonomousTraderEngine:
                         'evaluation': eval_res,
                         'cycle': cycle,
                         'matched_pillars': p_cnt,
-                        'recommended_profile': rec_profile if (is_rec_mode and rec_profile) else None
+                        'recommended_profile': rec_profile if (is_rec_mode and rec_profile) else None,
+                        'strategy_used': chosen_strategy_key,
+                        'strategy_name': chosen_strategy_name or chosen_strategy_key,
+                        'trade_setup': chosen_trade_setup,
+                        'action': chosen_action
                     }
                     break
 
@@ -1147,17 +1728,19 @@ class AutonomousTraderEngine:
             symbol = setup_data['symbol']
             tf = setup_data['timeframe']
             pred = setup_data['prediction']
-            eval_res = setup_data['evaluation']
-            setup = pred.get('trade_setup') or pred.get('recommended_setup') or {}
+            eval_res = setup_data.get('evaluation') or {}
+            setup = setup_data.get('trade_setup') or pred.get('trade_setup') or pred.get('recommended_setup') or {}
             conf = pred.get('confluence', {})
             cycle = setup_data.get('cycle', 0)
+            strategy_used = setup_data.get('strategy_used', 'DEFAULT')
+            strategy_name = setup_data.get('strategy_name') or setup.get('strategy_name', strategy_used)
 
             entry_price = float(setup.get('recommended_entry') or pred.get('market_data', {}).get('current_price', 0.0))
             sl_price = float(setup.get('stop_loss', 0.0))
             tp1_price = float(setup.get('tp1', 0.0))
             tp2_price = float(setup.get('tp2', 0.0))
             tp3_price = float(setup.get('tp3', 0.0))
-            raw_action = str(setup.get('action') or conf.get('action', 'BUY')).upper()
+            raw_action = str(setup_data.get('action') or setup.get('action') or conf.get('action', 'BUY')).upper()
             action = 'BUY' if 'BUY' in raw_action else 'SELL'
 
             # Institutional Breakeven Mark (with ATR fee/spread buffer to avoid fee deductions)
@@ -1228,7 +1811,7 @@ class AutonomousTraderEngine:
                 })
                 return False
 
-            logger.info(f"EXECUTING AUTONOMOUS 5/5 TRADE: {action} {symbol} ({tf}) on {broker_sym} | Total Lots: {total_lots} {lot_split}")
+            logger.info(f"EXECUTING AUTONOMOUS TRADE ({strategy_name}): {action} {symbol} ({tf}) on {broker_sym} | Total Lots: {total_lots} {lot_split}")
             exec_res = self.executor.execute_multi_target_trade(
                 broker_symbol=broker_sym,
                 action=action,
@@ -1236,7 +1819,9 @@ class AutonomousTraderEngine:
                 tp1_price=tp1_price,
                 tp2_price=tp2_price,
                 tp3_price=tp3_price,
-                lot_split=lot_split
+                lot_split=lot_split,
+                timeframe=tf,
+                strategy_tag=strategy_used
             )
 
             if exec_res.get('success'):
@@ -1250,13 +1835,19 @@ class AutonomousTraderEngine:
                 
                 by_sym = state.get('trades_by_symbol', {})
                 by_sym[symbol] = by_sym.get(symbol, 0) + 1
+                if broker_sym != symbol:
+                    by_sym[broker_sym] = by_sym.get(broker_sym, 0) + 1
+                norm_s = self.normalize_symbol(symbol)
+                if norm_s not in [symbol, broker_sym]:
+                    by_sym[norm_s] = by_sym.get(norm_s, 0) + 1
                 state['trades_by_symbol'] = by_sym
 
                 if 'open_batches' not in state:
                     state['open_batches'] = {}
 
                 rec_profile = setup_data.get('recommended_profile')
-                active_be_mode = rec_profile.get('breakeven_mode') if rec_profile else self.load_settings().get('breakeven_mode', 'tight')
+                strategy_be_mode = setup.get('breakeven_mode')
+                active_be_mode = strategy_be_mode or (rec_profile.get('breakeven_mode') if rec_profile else self.load_settings().get('breakeven_mode', 'tight'))
                 active_sess_used = rec_profile.get('active_sessions') if rec_profile else self.load_settings().get('active_sessions', ["London Session", "New York Session"])
 
                 state['open_batches'][str(batch_id)] = {
@@ -1282,8 +1873,10 @@ class AutonomousTraderEngine:
                     'tickets': ticket_ids,
                     'executed_at': datetime.now(timezone.utc).isoformat(),
                     'status': 'OPEN',
-                    'p1_score': eval_res.get('p1', {}).get('score', 0.0),
-                    'p1_prob': eval_res.get('p1', {}).get('prob', 0.0)
+                    'p1_score': (eval_res.get('p1', {}).get('score', 0.0) if isinstance(eval_res, dict) else 0.0),
+                    'p1_prob': (eval_res.get('p1', {}).get('prob', 0.0) if isinstance(eval_res, dict) else 0.0),
+                    'strategy_used': strategy_used,
+                    'strategy_name': strategy_name
                 }
                 self.save_state(state)
 
@@ -1295,9 +1888,9 @@ class AutonomousTraderEngine:
                     "symbol": symbol,
                     "timeframe": tf,
                     "action": action,
-                    "pillars": f"{m_pil}/5",
+                    "pillars": "5/5" if strategy_used == 'DEFAULT' else "STRAT",
                     "status": f"EXECUTED (Batch #{batch_id})",
-                    "details": f"Entry: {entry_price} | SL: {sl_price} | Lots: {lot_split.get('tp1_lots', 0)}/{lot_split.get('tp2_lots', 0)}/{lot_split.get('tp3_lots', 0)}{adj_note}"
+                    "details": f"[{strategy_name}] Entry: {entry_price} | SL: {sl_price} | Lots: {lot_split.get('tp1_lots', 0)}/{lot_split.get('tp2_lots', 0)}/{lot_split.get('tp3_lots', 0)}{adj_note}"
                 })
                 return True
             else:

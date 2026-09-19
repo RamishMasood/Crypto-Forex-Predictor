@@ -144,5 +144,83 @@ class TestBreakevenModes(unittest.TestCase):
                     self.assertEqual(res_loose_stage2[0]['mode'], 'LOOSE_STAGE_2')
                     mock_move.assert_called_with(111, target_sl=2600.2)
 
+    def test_broker_deal_comment_overwrite_tight_and_loose(self):
+        """
+        Tests the real-world scenario where MT5 / Exness broker overwrites deal comment
+        with '[tp 1.14575]' (stripping 'QS_...'), but ticket map & position_id correctly
+        identify TP1 hit and trigger immediate breakeven in Tight mode, and soft buffer in Loose mode.
+        """
+        executor = MT5TradeExecutor()
+        with patch.object(executor, '_ensure_connection', return_value=True), \
+             patch.object(executor, 'move_to_breakeven') as mock_move:
+
+            mock_move.return_value = {'success': True, 'new_sl': 1.14605}
+
+            simulated_pos = [{
+                'ticket': 1909954115,
+                'symbol': 'EURUSDm',
+                'type': 'SELL',
+                'price_open': 1.14595,
+                'price_current': 1.14580,  # in profit on SELL
+                'sl': 1.14756,  # original SL
+                'tp': 1.14435,
+                'magic': executor.MAGIC_NUMBER,
+                'comment': 'QS_731600_TP2',
+                'return_pct': 0.013  # Forex scalp micro percentage
+            }]
+
+            batch_info_map = {
+                '731600': {
+                    'entry_price': 1.14595,
+                    'sl_price': 1.14756,
+                    'tp1_price': 1.14575,
+                    'tp2_price': 1.14435,
+                    'breakeven_sl': 1.14605,
+                    'soft_breakeven_sl': 1.14644,
+                    'breakeven_mode': 'tight',
+                    'tickets': [1909954107, 1909954115, 1909954119]
+                }
+            }
+
+            with patch.object(executor, 'get_open_positions', return_value=simulated_pos):
+                import MetaTrader5 as mt5
+                # Broker deal where comment has NO 'QS_' and is overwritten with '[tp 1.14575]'
+                mock_deal = MagicMock()
+                mock_deal.profit = 0.40
+                mock_deal.entry = 1
+                mock_deal.comment = '[tp 1.14575]'
+                mock_deal.position_id = 1909954107  # matches TP1 ticket
+                mock_deal.order = 0
+                mock_deal.symbol = 'EURUSDm'
+                mock_deal.magic = executor.MAGIC_NUMBER
+
+                with patch.object(mt5, 'history_deals_get', return_value=[mock_deal]), \
+                     patch.object(mt5, 'history_orders_get', return_value=[]):
+                    # Tight mode check: Must detect TP1 via position_id map and snap to BE!
+                    res_tight = executor.check_and_apply_auto_breakeven(
+                        batch_breakeven_sl_map={'731600': 1.14605},
+                        batch_info_map=batch_info_map,
+                        breakeven_mode='tight'
+                    )
+                    self.assertEqual(len(res_tight), 1)
+                    self.assertEqual(res_tight[0]['mode'], 'TIGHT')
+                    self.assertEqual(res_tight[0]['new_sl'], 1.14605)
+                    mock_move.assert_called_with(1909954115, target_sl=1.14605)
+
+                    # Loose mode check on batch override
+                    batch_info_map['731600']['breakeven_mode'] = 'loose'
+                    mock_move.reset_mock()
+                    mock_move.return_value = {'success': True, 'new_sl': 1.14644}
+                    res_loose = executor.check_and_apply_auto_breakeven(
+                        batch_breakeven_sl_map={'731600': 1.14605},
+                        batch_info_map=batch_info_map,
+                        breakeven_mode='loose'
+                    )
+                    self.assertEqual(len(res_loose), 1)
+                    self.assertEqual(res_loose[0]['mode'], 'LOOSE_STAGE_1')
+                    self.assertEqual(res_loose[0]['new_sl'], 1.14644)
+                    mock_move.assert_called_with(1909954115, target_sl=1.14644)
+
 if __name__ == '__main__':
     unittest.main()
+
