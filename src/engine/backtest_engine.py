@@ -780,8 +780,8 @@ class MT5BacktestEngine:
                             except Exception:
                                 pass
                         elif s_k == 'DEFAULT':
-                            # Asset & Timeframe Guard: Institutional Core 5-Pillar is calibrated for 1h, 4h, Daily (avoiding Gold noise and 15m whipsaws)
-                            if (cur_close > 2000.0 and cur_close < 10000.0) or (str(tf).lower() in ['1m', '3m', '5m', '15m']):
+                            # Asset & Timeframe Guard: Institutional Core 5-Pillar is calibrated for Crypto (avoiding Forex noise, Gold wicks, and micro timeframes)
+                            if (cur_close < 5000.0) or (str(tf).lower() in ['1m', '3m', '5m', '15m']):
                                 continue
 
                             # Institutional Core 5-Pillar Confluence (Trend, Pullback/Breakout, Candle, RSI, ATR)
@@ -823,12 +823,16 @@ class MT5BacktestEngine:
 
                                 if is_buy_trend and is_buy_trigger and is_buy_candle and is_buy_rsi:
                                     cand_act = 'BUY'
+                                elif is_sell_trend and is_sell_trigger and is_sell_candle and is_sell_rsi:
+                                    cand_act = 'SELL'
 
                                 # Higher Timeframe Confluence Check if enabled
                                 if cand_act and htf_filter_enabled and len(historical_slice) >= 40:
                                     htf_span = min(200, len(historical_slice))
                                     ema_htf = float(c_s.ewm(span=htf_span, adjust=False).mean().iloc[-1])
                                     if cand_act == 'BUY' and (cur_close < ema_htf or cur_close < sma200):
+                                        cand_act = None
+                                    elif cand_act == 'SELL' and (cur_close > ema_htf or cur_close > sma200):
                                         cand_act = None
 
                                 if cand_act == 'BUY':

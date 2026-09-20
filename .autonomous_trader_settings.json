@@ -1,5 +1,5 @@
 {
-  "enabled": false,
+  "enabled": true,
   "selected_symbols": [
     "ETH/USD",
     "BTC/USD"

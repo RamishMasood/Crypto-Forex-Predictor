@@ -234,7 +234,7 @@ class VivekYadavSupplyDemandEngine:
                         action = 'BUY'
                         status = 'DEMAND_ENTRY_READY'
                         active_zone = dz
-                        confidence = 88.0
+                        confidence = 90.0
                         reasons.append(f"Vivek Yadav S&D: Valid Demand Zone Touch [{z_bot:.2f} - {z_top:.2f}]")
                         reasons.append(f"Candle Confirmation: Green Close with {lower_wick_ratio*100:.1f}% Bottom Rejection Wick")
                         reasons.append(f"Trend Filter: {trend} market structure & EMA20 ({ema_20:.2f}) >= EMA50 ({ema_50:.2f})")
@@ -268,7 +268,7 @@ class VivekYadavSupplyDemandEngine:
                         action = 'SELL'
                         status = 'SUPPLY_ENTRY_READY'
                         active_zone = sz
-                        confidence = 86.0 if trend == 'BEARISH' else 75.0
+                        confidence = 90.0
                         reasons.append(f"Vivek Yadav S&D: Valid Supply Zone Touch [{z_bot:.2f} - {z_top:.2f}]")
                         reasons.append(f"Candle Confirmation: Red Close with {upper_wick_ratio*100:.1f}% Top Rejection Wick")
                         reasons.append(f"Trend Filter: {trend} market structure")
