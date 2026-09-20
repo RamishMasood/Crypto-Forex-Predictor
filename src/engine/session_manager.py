@@ -111,6 +111,12 @@ class SessionManager:
         # Focus: London Session Open (Capitalizing on European order flow; Asian range consolidation breakout)
         "PAUL_FTMO": [
             ((7, 0), (11, 0), "London Open Asian Breakout Window (07:00-11:00 UTC / European Order Flow)")
+        ],
+
+        # 13. Ariel Zwecher (RealSimpleAriel)
+        # Focus: NY Session Open Range expansion & 15M ORB (9:30 AM - 1:00 PM EST / 13:30 - 17:00 UTC)
+        "ARIEL_ZWECHER": [
+            ((13, 30), (17, 0), "NY Open 15M ORB Window (13:30-17:00 UTC / 9:30 AM-1:00 PM EST)")
         ]
     }
 

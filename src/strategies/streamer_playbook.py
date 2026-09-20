@@ -120,11 +120,11 @@ class BerndSkorupinskiStrategy:
             reasons.append(f"Bernd S&D: Price at Discount Demand Zone [{near_demand:.2f}] inside HTF Range")
             reasons.append(f"COT Sentiment: {cot_bias} smart money positioning")
             entry_price = current_price
-            sl_distance = max(entry_price - (near_demand - 0.20 * safe_atr), 1.50 * safe_atr)
+            sl_distance = max(entry_price - (near_demand - 0.05 * safe_atr), safe_atr * 0.4)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + (2.50 * sl_distance)  # 1:2.5 R:R
-            tp3 = entry_price + (3.50 * sl_distance)  # 1:3.5 R:R
+            tp1 = entry_price + (2.00 * sl_distance)  # Minimum 1:2 R:R from PDF
+            tp2 = entry_price + (3.00 * sl_distance)  # 1:3 R:R
+            tp3 = entry_price + (4.00 * sl_distance)  # 1:4 R:R (1:2 to 1:4 range from PDF)
 
         # Test Supply Zone Entry
         elif is_premium and ('BULLISH' not in cot_bias) and (near_supply - current_price <= safe_atr * 0.5):
@@ -134,11 +134,11 @@ class BerndSkorupinskiStrategy:
             reasons.append(f"Bernd S&D: Price at Premium Supply Zone [{near_supply:.2f}] inside HTF Range")
             reasons.append(f"COT Sentiment: {cot_bias} smart money positioning")
             entry_price = current_price
-            sl_distance = max((near_supply + 0.20 * safe_atr) - entry_price, 1.50 * safe_atr)
+            sl_distance = max((near_supply + 0.05 * safe_atr) - entry_price, safe_atr * 0.4)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - (2.50 * sl_distance)
-            tp3 = entry_price - (3.50 * sl_distance)
+            tp1 = entry_price - (2.00 * sl_distance)  # Minimum 1:2 R:R from PDF
+            tp2 = entry_price - (3.00 * sl_distance)  # 1:3 R:R
+            tp3 = entry_price - (4.00 * sl_distance)  # 1:4 R:R (1:2 to 1:4 range from PDF)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -333,10 +333,10 @@ class StevenHartStrategy:
             reasons.append(f"Steven Hart: Broken Resistance [{prior_res:.2f}] successfully retested as Support")
             reasons.append("Reversal Candlestick: Bullish Pin Bar / Absorption Wick Confirmed")
             entry_price = current_price
-            sl_distance = max(entry_price - (last_l - 0.15 * safe_atr), 1.50 * safe_atr)
+            sl_distance = max(entry_price - (last_l - 0.05 * safe_atr), safe_atr * 0.4)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + (2.0 * sl_distance)  # Fixed 1:2 R:R
+            tp1 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF
+            tp2 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
             tp3 = entry_price + (3.0 * sl_distance)
 
         # Break & Retest Short: Price broke prior support, now pulls back to retest it as resistance
@@ -347,10 +347,10 @@ class StevenHartStrategy:
             reasons.append(f"Steven Hart: Broken Support [{prior_sup:.2f}] successfully retested as Resistance")
             reasons.append("Reversal Candlestick: Bearish Pin Bar / Absorption Wick Confirmed")
             entry_price = current_price
-            sl_distance = max((last_h + 0.15 * safe_atr) - entry_price, 1.50 * safe_atr)
+            sl_distance = max((last_h + 0.05 * safe_atr) - entry_price, safe_atr * 0.4)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - (2.0 * sl_distance)  # Fixed 1:2 R:R
+            tp1 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF
+            tp2 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
             tp3 = entry_price - (3.0 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
@@ -645,6 +645,10 @@ class NdemazeahGodloveStrategy:
         confidence = 50.0
         reasons = []
 
+        # 50 pips / points beyond Fib structure from PDF
+        pip_unit = 0.0001 if current_price < 10.0 else (0.01 if current_price < 500 else 1.0)
+        pip_50 = 50.0 * pip_unit
+
         # Long: 10 EMA > 23 EMA and price pulls back into 38.2% - 61.8% Fib pocket
         if is_bull_crossover and (fib_618_bull <= current_price <= fib_382_bull) and (df['close'].iloc[-1] > df['open'].iloc[-1]):
             action = 'BUY'
@@ -653,10 +657,10 @@ class NdemazeahGodloveStrategy:
             reasons.append("GU MVR: 10 EMA crossed above 23 EMA confirms Bullish Intraday Momentum")
             reasons.append("Fib Retracement: Price pulled back cleanly into 38.2% - 61.8% Golden Pocket")
             entry_price = current_price
-            sl_distance = max(entry_price - (fib_618_bull - 0.20 * safe_atr), 1.50 * safe_atr)
+            sl_distance = max(entry_price - (fib_618_bull - pip_50), safe_atr * 0.5)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + (2.0 * sl_distance)  # Fixed 1:2 R:R
+            tp1 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF
+            tp2 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
             tp3 = entry_price + (2.5 * sl_distance)
 
         # Short: 10 EMA < 23 EMA and price pulls back into 38.2% - 61.8% Fib pocket
@@ -667,10 +671,10 @@ class NdemazeahGodloveStrategy:
             reasons.append("GU MVR: 10 EMA crossed below 23 EMA confirms Bearish Intraday Momentum")
             reasons.append("Fib Retracement: Price pulled back cleanly into 38.2% - 61.8% Golden Pocket")
             entry_price = current_price
-            sl_distance = max((fib_618_bear + 0.20 * safe_atr) - entry_price, 1.50 * safe_atr)
+            sl_distance = max((fib_618_bear + pip_50) - entry_price, safe_atr * 0.5)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - (2.0 * sl_distance)
+            tp1 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF
+            tp2 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
             tp3 = entry_price - (2.5 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
@@ -961,6 +965,8 @@ class ArielZwecherStrategy:
         confidence = 50.0
         reasons = []
 
+        pts_8 = 8.0 * (0.01 if current_price < 500 else 1.0)
+
         # Breakout above ORB High
         if (closes[-1] > orb_high) and (df['close'].iloc[-1] > df['open'].iloc[-1]):
             action = 'BUY'
@@ -968,10 +974,10 @@ class ArielZwecherStrategy:
             confidence = 85.0
             reasons.append(f"Ariel Zwecher: Clean 15M Opening Range Breakout above {orb_high:.2f}")
             entry_price = current_price
-            sl_distance = max(entry_price - (orb_high - 0.25 * safe_atr), 1.50 * safe_atr)
+            sl_distance = max(entry_price - orb_low, pts_8)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + (2.0 * sl_distance)  # Fixed 1:2 R:R
+            tp1 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF ($320-$400)
+            tp2 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
             tp3 = entry_price + (2.5 * sl_distance)
 
         # Breakdown below ORB Low
@@ -981,10 +987,10 @@ class ArielZwecherStrategy:
             confidence = 85.0
             reasons.append(f"Ariel Zwecher: Clean 15M Opening Range Breakdown below {orb_low:.2f}")
             entry_price = current_price
-            sl_distance = max((orb_low + 0.25 * safe_atr) - entry_price, 1.50 * safe_atr)
+            sl_distance = max(orb_high - entry_price, pts_8)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - (2.0 * sl_distance)
+            tp1 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF ($320-$400)
+            tp2 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
             tp3 = entry_price - (2.5 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
@@ -1345,11 +1351,13 @@ class KristjanQullamaggieStrategy:
 
         if action == 'BUY':
             entry_price = current_price
-            sl_distance = max(entry_price - (lod - 0.20 * safe_atr), 1.50 * safe_atr)
+            raw_lod_dist = entry_price - lod
+            # Stop loss placed at Low of the Day (LOD) or maximum 1x ATR distance from PDF
+            sl_distance = min(raw_lod_dist, 1.0 * safe_atr) if raw_lod_dist > 0 else 1.0 * safe_atr
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + (2.00 * sl_distance)  # 1:2+ R:R runner
-            tp3 = entry_price + (4.00 * sl_distance) # Macro expansion runner
+            tp1 = entry_price + (1.50 * sl_distance)  # Sell 1/3 to 1/2 of position after 3-5 days
+            tp2 = entry_price + (3.00 * sl_distance)  # Trail remaining core along 10/20 EMA
+            tp3 = entry_price + (6.00 * sl_distance)  # Macro expansion runner (5:1 to 20:1+)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -1610,16 +1618,18 @@ class WaqarZakaStrategy:
 
         if action == 'BUY':
             entry_price = current_price
-            sl_distance = max(entry_price - (swing_low - 0.20 * safe_atr), 1.80 * safe_atr)
+            # Calculated ATR Stop Loss Method from PDF: Entry Price minus ATR Value
+            sl_distance = 1.0 * safe_atr
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
+            tp1 = entry_price + (1.50 * sl_distance)
             tp2 = entry_price + (2.00 * sl_distance)
             tp3 = entry_price + (3.50 * sl_distance)
         elif action == 'SELL':
             entry_price = current_price
-            sl_distance = max((swing_high + 0.20 * safe_atr) - entry_price, 1.80 * safe_atr)
+            # Calculated ATR Stop Loss Method from PDF: Entry Price plus ATR Value
+            sl_distance = 1.0 * safe_atr
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (1.50 * sl_distance)
             tp2 = entry_price - (2.00 * sl_distance)
             tp3 = entry_price - (3.50 * sl_distance)
         else:
@@ -1755,20 +1765,21 @@ class WaqarAsimStrategy:
         # Pip-based Ultra-Tight SL calculation (3 to 7 pips from PDF, or flat ~5 pips)
         pip_size = 0.00010 if current_price < 10.0 else (0.01 if current_price < 500 else 1.0)
         tight_sl_pips = 5.0 * pip_size
-        sl_distance = max(tight_sl_pips, 1.80 * safe_atr)
+        # Flat 5 pips stop loss strictly from PDF
+        sl_distance = tight_sl_pips
 
         if action == 'BUY':
             entry_price = current_price
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)     # Precision Scalp Bank
-            tp2 = entry_price + (2.00 * sl_distance)  # 1:2+ R:R runner
-            tp3 = entry_price + (5.00 * sl_distance)
+            tp1 = entry_price + (3.00 * sl_distance)   # 50% at 3R from PDF
+            tp2 = entry_price + (10.00 * sl_distance)  # 50% at 10R from PDF
+            tp3 = entry_price + (10.00 * sl_distance)
         elif action == 'SELL':
             entry_price = current_price
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - (2.00 * sl_distance)
-            tp3 = entry_price - (5.00 * sl_distance)
+            tp1 = entry_price - (3.00 * sl_distance)   # 50% at 3R from PDF
+            tp2 = entry_price - (10.00 * sl_distance)  # 50% at 10R from PDF
+            tp3 = entry_price - (10.00 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0

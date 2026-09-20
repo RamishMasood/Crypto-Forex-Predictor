@@ -1,0 +1,56 @@
+{
+  "selected_symbols": [
+    "BTC/USD",
+    "EUR/USD",
+    "XAU/USD",
+    "ETH/USD"
+  ],
+  "timeframes": [
+    "15m",
+    "1h",
+    "4h",
+    "1m",
+    "3m",
+    "5m",
+    "30m"
+  ],
+  "active_strategies": [
+    "DEFAULT",
+    "VIVEK_YADAV",
+    "BERND_SKORUPINSKI",
+    "ICT",
+    "STEVEN_HART",
+    "RAYNER_TEO",
+    "CRYPTO_CRED",
+    "NDEMAZEAH_GODLOVE",
+    "ROSS_CAMERON",
+    "ADAM_KHOO",
+    "ARIEL_ZWECHER",
+    "OLIVER_VELEZ",
+    "TRADE_PRO",
+    "KRISTJAN_QULLAMAGGIE",
+    "GCR",
+    "WAQAR_ZAKA",
+    "WAQAR_ASIM",
+    "EUGENE_NG_AH_SIO",
+    "PAUL_FTMO"
+  ],
+  "date_from": "2026-09-01",
+  "date_to": "2026-09-18",
+  "initial_balance": 10000.0,
+  "batch_lot_size": 0.04,
+  "max_active_batches": 100,
+  "max_dollar_risk": 50.0,
+  "min_pillars_required": 5,
+  "allow_same_tf_trades": false,
+  "allow_diff_strat_same_tf": true,
+  "breakeven_mode": "tight",
+  "active_sessions": [
+    "London Session",
+    "New York Session",
+    "24/7 (Any Session)"
+  ],
+  "htf_filter_enabled": true,
+  "spread_model": "broker",
+  "slippage_pips": 0.0
+}

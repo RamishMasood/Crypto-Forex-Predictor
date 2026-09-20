@@ -1858,18 +1858,21 @@ def render_mt5_autonomous_engine_view(live_exec):
         # ── 8. Strategy Performance Leaderboard & Dynamic Ranking System ───────
         st.divider()
         st.markdown("##### 🏆 Streamer Strategies Performance Leaderboard & Dynamic Ranking")
-        st.caption("Live statistical ranking of all 13 trading strategies evaluated from autonomous trading history and active positions.")
+        st.caption("Live statistical ranking of all 19 trading strategies evaluated from autonomous trading history and active positions.")
+
+        sort_label_map = {
+            "🏆 Most Profitable (Net PnL $)": "profit",
+            "🟢 Most Wins": "wins",
+            "🔴 Most Losses": "losses",
+            "⚖️ Most Breakevens": "breakevens",
+            "🎯 Highest Win Rate (%)": "win_rate",
+            "📉 Biggest SL Hit ($)": "biggest_sl_loss",
+            "🛑 Most SL Hits": "sl_hits",
+            "📈 Most Active (Total Trades)": "total_trades"
+        }
 
         lb_sort_col1, lb_sort_col2 = st.columns([3, 2])
         with lb_sort_col1:
-            sort_label_map = {
-                "🏆 Most Profitable (Net PnL $)": "profit",
-                "🟢 Most Wins": "wins",
-                "🔴 Most Losses": "losses",
-                "⚖️ Most Breakevens": "breakevens",
-                "🎯 Highest Win Rate (%)": "win_rate",
-                "📈 Most Active (Total Trades)": "total_trades"
-            }
             selected_sort_label = st.selectbox(
                 "Sort Leaderboard By:",
                 options=list(sort_label_map.keys()),
@@ -1879,6 +1882,31 @@ def render_mt5_autonomous_engine_view(live_exec):
             selected_sort_key = sort_label_map[selected_sort_label]
 
         leaderboard_data = auto_engine.compute_strategy_leaderboard(state=state, sort_by=selected_sort_key)
+
+        # Leaderboard CSV export button inside col2 before rendering table
+        lb_df = pd.DataFrame(leaderboard_data)[[
+            'rank', 'strategy_name', 'total_trades', 'wins', 'losses', 'breakevens',
+            'win_rate', 'net_pnl', 'profit_factor', 'biggest_sl_loss', 'sl_hits',
+            'best_timeframes', 'best_pairs', 'active_trades', 'status_badge'
+        ]].rename(columns={
+            'rank': 'Rank', 'strategy_name': 'Strategy', 'total_trades': 'Trades',
+            'wins': 'Wins', 'losses': 'Losses', 'breakevens': 'Breakevens',
+            'win_rate': 'Win Rate (%)', 'net_pnl': 'Net PnL ($)', 'profit_factor': 'Profit Factor',
+            'biggest_sl_loss': 'Biggest SL Hit ($)', 'sl_hits': 'SL Hits',
+            'best_timeframes': 'Best Timeframes', 'best_pairs': 'Best Trading Pairs',
+            'active_trades': 'Active Trades', 'status_badge': 'Performance Status'
+        })
+
+        with lb_sort_col2:
+            st.write("")
+            st.write("")
+            st.download_button(
+                label="📥 Export Leaderboard (CSV)",
+                data=lb_df.to_csv(index=False).encode('utf-8'),
+                file_name="strategy_performance_leaderboard.csv",
+                mime="text/csv",
+                key="dl_auto_leaderboard_csv"
+            )
 
         # Build clean atomic HTML leaderboard table block
         lb_rows_html = []
@@ -1893,6 +1921,8 @@ def render_mt5_autonomous_engine_view(live_exec):
             wr = item['win_rate']
             pnl = item['net_pnl']
             pf = item['profit_factor']
+            bsl = float(item.get('biggest_sl_loss', 0.0))
+            sl_h = int(item.get('sl_hits', 0))
             act = item['active_trades']
             badge = item['status_badge']
             btf = item.get('best_timeframes', '-')
@@ -1931,6 +1961,10 @@ def render_mt5_autonomous_engine_view(live_exec):
             </div>
             """
 
+            # Biggest SL and SL hits styling
+            bsl_html = f"<span style='color:#f87171;font-weight:700;'>-${bsl:,.2f}</span>" if bsl > 0 else "<span style='color:#64748b;'>$0.00</span>"
+            sl_h_html = f"<span style='color:#f87171;font-weight:600;'>{sl_h}</span>" if sl_h > 0 else "<span style='color:#64748b;'>0</span>"
+
             # Active badge
             act_html = f"<span style='background:#0284c7;color:#fff;padding:2px 6px;border-radius:8px;font-size:0.7rem;font-weight:700;'>{act} Open</span>" if act > 0 else "<span style='color:#475569;font-size:0.75rem;'>-</span>"
 
@@ -1951,6 +1985,8 @@ def render_mt5_autonomous_engine_view(live_exec):
                 <td style='padding:8px 10px;'>{wr_html}</td>
                 <td style='padding:8px 10px;text-align:right;font-size:0.85rem;'>{pnl_html}</td>
                 <td style='padding:8px 10px;text-align:center;font-size:0.8rem;color:#94a3b8;'>{pf:.2f}</td>
+                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{bsl_html}</td>
+                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{sl_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;'>{btf_html}</td>
                 <td style='padding:8px 8px;text-align:center;'>{bpr_html}</td>
                 <td style='padding:8px 10px;text-align:center;'>{act_html}</td>
@@ -1970,6 +2006,8 @@ def render_mt5_autonomous_engine_view(live_exec):
                         <th style='padding:10px;text-align:left;width:100px;'>Win Rate</th>
                         <th style='padding:10px;text-align:right;width:85px;'>Net PnL</th>
                         <th style='padding:10px;text-align:center;width:50px;'>PF</th>
+                        <th style='padding:10px;text-align:center;width:95px;'>Biggest SL</th>
+                        <th style='padding:10px;text-align:center;width:60px;'>SL Hits</th>
                         <th style='padding:10px;text-align:center;width:125px;'>Best Timeframes</th>
                         <th style='padding:10px;text-align:center;width:140px;'>Best Trading Pairs</th>
                         <th style='padding:10px;text-align:center;width:65px;'>Active</th>
@@ -1982,29 +2020,781 @@ def render_mt5_autonomous_engine_view(live_exec):
             </table>
         </div>
         """
-        render_html(lb_table_html)
+        # Dedicated empty placeholder container guarantees atomic replacement on every rerun, preventing duplicates
+        lb_table_container = st.empty()
+        with lb_table_container:
+            render_html(lb_table_html)
 
-        # Leaderboard CSV export
-        lb_df = pd.DataFrame(leaderboard_data)[[
-            'rank', 'strategy_name', 'total_trades', 'wins', 'losses', 'breakevens',
-            'win_rate', 'net_pnl', 'profit_factor', 'best_timeframes', 'best_pairs', 'active_trades', 'status_badge'
-        ]].rename(columns={
-            'rank': 'Rank', 'strategy_name': 'Strategy', 'total_trades': 'Trades',
-            'wins': 'Wins', 'losses': 'Losses', 'breakevens': 'Breakevens',
-            'win_rate': 'Win Rate (%)', 'net_pnl': 'Net PnL ($)', 'profit_factor': 'Profit Factor',
-            'best_timeframes': 'Best Timeframes', 'best_pairs': 'Best Trading Pairs',
-            'active_trades': 'Active Trades', 'status_badge': 'Performance Status'
-        })
+        # ── 9. Dedicated MT5 Multi-Timeframe Historical Backtesting Engine ─────────
+        render_mt5_backtest_engine_view()
 
-        with lb_sort_col2:
-            st.write("")
-            st.write("")
+def render_live_backtest_dashboard(live_monitor, stats: dict):
+    if not stats:
+        return
+
+    cur_bar = stats.get('current_bar', 0)
+    tot_bars = stats.get('total_bars', 1)
+    cur_time = stats.get('cur_time', '')
+    date_from = stats.get('date_from', '')
+    date_to = stats.get('date_to', '')
+    prog_pct = float(stats.get('progress_pct', 0.0)) * 100.0
+    balance = float(stats.get('balance', 10000.0))
+    equity = float(stats.get('equity', 10000.0))
+    net_pnl = float(stats.get('net_pnl', 0.0))
+    roi_pct = float(stats.get('roi_pct', 0.0))
+    tot_trades = int(stats.get('total_trades', 0))
+    comp_trades = int(stats.get('completed_trades', 0))
+    open_trades = int(stats.get('open_trades', 0))
+    wins = int(stats.get('wins', 0))
+    losses = int(stats.get('losses', 0))
+    be = int(stats.get('breakevens', 0))
+    wr = float(stats.get('win_rate', 0.0))
+    strat_counts = stats.get('strategy_counts', {})
+    open_prev = stats.get('open_preview', [])
+    recent_closed = stats.get('recent_closed', [])
+
+    pnl_color = "#34d399" if net_pnl >= 0 else "#f87171"
+    pnl_sign = "+" if net_pnl >= 0 else ""
+
+    # Strategy breakdown pills
+    strat_pills = []
+    if strat_counts:
+        for sk, count in sorted(strat_counts.items(), key=lambda x: x[1], reverse=True):
+            if count > 0:
+                short_k = sk.replace("_STRATEGY", "").replace("_", " ")
+                strat_pills.append(
+                    f"<span style='background:#1e293b;border:1px solid #334155;border-radius:6px;padding:2px 7px;font-size:0.72rem;color:#e2e8f0;white-space:nowrap;'>"
+                    f"<b style='color:#38bdf8;'>{short_k}:</b> {count}</span>"
+                )
+    strat_pills_html = f"<div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center;'><span style='color:#94a3b8;font-size:0.70rem;text-transform:uppercase;font-weight:700;'>Trades by Strategy:</span> {' '.join(strat_pills) if strat_pills else '<span style=\"color:#64748b;font-size:0.72rem;\">Scanning 19 strategies bar-by-bar...</span>'}</div>"
+
+    # Open positions rows
+    open_rows = []
+    if open_prev:
+        for op in open_prev:
+            act_color = "#34d399" if op.get('action') == 'BUY' else "#f87171"
+            act_bg = "#064e3b" if op.get('action') == 'BUY' else "#4c0519"
+            flt = float(op.get('floating_pnl', 0.0))
+            flt_color = "#34d399" if flt >= 0 else "#f87171"
+            flt_sign = "+" if flt >= 0 else ""
+            strat_name = str(op.get('strategy_name', 'DEFAULT'))
+            if len(strat_name) > 22:
+                strat_name = strat_name[:20] + "..."
+
+            open_rows.append(
+                f"<tr style='border-bottom:1px solid #1e293b;font-size:0.75rem;font-family:monospace;'>"
+                f"<td style='padding:5px 8px;color:#cbd5e1;font-weight:600;'>{op.get('symbol')}</td>"
+                f"<td style='padding:5px 6px;color:#94a3b8;'><code>{op.get('timeframe')}</code></td>"
+                f"<td style='padding:5px 6px;'><span style='background:{act_bg};color:{act_color};padding:2px 6px;border-radius:4px;font-weight:700;'>{op.get('action')}</span></td>"
+                f"<td style='padding:5px 8px;color:#e2e8f0;'>{strat_name}</td>"
+                f"<td style='padding:5px 8px;color:#94a3b8;'>{float(op.get('entry_price', 0.0)):,.2f}</td>"
+                f"<td style='padding:5px 8px;color:{flt_color};font-weight:700;text-align:right;'>{flt_sign}${flt:,.2f}</td>"
+                f"</tr>"
+            )
+        open_table_html = (
+            "<table style='width:100%;border-collapse:collapse;text-align:left;'>"
+            "<thead style='background:#0f172a;color:#94a3b8;font-size:0.70rem;text-transform:uppercase;'>"
+            "<tr>"
+            "<th style='padding:6px 8px;'>Symbol</th>"
+            "<th style='padding:6px 6px;'>TF</th>"
+            "<th style='padding:6px 6px;'>Act</th>"
+            "<th style='padding:6px 8px;'>Strategy</th>"
+            "<th style='padding:6px 8px;'>Entry</th>"
+            "<th style='padding:6px 8px;text-align:right;'>Float PnL</th>"
+            "</tr>"
+            "</thead>"
+            f"<tbody>{''.join(open_rows)}</tbody>"
+            "</table>"
+        )
+    else:
+        open_table_html = "<div style='color:#64748b;font-size:0.80rem;padding:16px;text-align:center;'>No open positions at this historical bar. Scanning candle feeds...</div>"
+
+    # Recent closed rows
+    closed_rows = []
+    if recent_closed:
+        for rc in recent_closed:
+            act_color = "#34d399" if rc.get('action') == 'BUY' else "#f87171"
+            act_bg = "#064e3b" if rc.get('action') == 'BUY' else "#4c0519"
+            p = float(rc.get('profit', 0.0))
+            p_color = "#34d399" if p >= 0 else "#f87171"
+            p_sign = "+" if p >= 0 else ""
+            stt = rc.get('status', 'WIN')
+            if stt == 'WIN':
+                stt_badge = "<span style='background:#065f46;color:#34d399;padding:2px 6px;border-radius:4px;font-weight:700;'>WIN</span>"
+            elif stt == 'LOSS':
+                stt_badge = "<span style='background:#4c0519;color:#f87171;padding:2px 6px;border-radius:4px;font-weight:700;'>LOSS</span>"
+            else:
+                stt_badge = "<span style='background:#3f2c06;color:#fbbf24;padding:2px 6px;border-radius:4px;font-weight:700;'>BE</span>"
+
+            sname = str(rc.get('strategy_name', 'DEFAULT'))
+            if len(sname) > 20:
+                sname = sname[:18] + "..."
+
+            closed_rows.append(
+                f"<tr style='border-bottom:1px solid #1e293b;font-size:0.75rem;font-family:monospace;'>"
+                f"<td style='padding:5px 8px;color:#94a3b8;'>{rc.get('time')}</td>"
+                f"<td style='padding:5px 8px;color:#cbd5e1;font-weight:600;'>{rc.get('symbol')}</td>"
+                f"<td style='padding:5px 6px;'><span style='background:{act_bg};color:{act_color};padding:2px 5px;border-radius:4px;font-weight:700;font-size:0.70rem;'>{rc.get('action')}</span></td>"
+                f"<td style='padding:5px 8px;color:#e2e8f0;'>{sname}</td>"
+                f"<td style='padding:5px 6px;'>{stt_badge}</td>"
+                f"<td style='padding:5px 8px;color:{p_color};font-weight:700;text-align:right;'>{p_sign}${p:,.2f}</td>"
+                f"</tr>"
+            )
+        closed_table_html = (
+            "<table style='width:100%;border-collapse:collapse;text-align:left;'>"
+            "<thead style='background:#0f172a;color:#94a3b8;font-size:0.70rem;text-transform:uppercase;'>"
+            "<tr>"
+            "<th style='padding:6px 8px;'>Closed At</th>"
+            "<th style='padding:6px 8px;'>Symbol</th>"
+            "<th style='padding:6px 6px;'>Act</th>"
+            "<th style='padding:6px 8px;'>Strategy</th>"
+            "<th style='padding:6px 6px;'>Result</th>"
+            "<th style='padding:6px 8px;text-align:right;'>Realized</th>"
+            "</tr>"
+            "</thead>"
+            f"<tbody>{''.join(closed_rows)}</tbody>"
+            "</table>"
+        )
+    else:
+        closed_table_html = "<div style='color:#64748b;font-size:0.80rem;padding:16px;text-align:center;'>Awaiting first trade exit...</div>"
+
+    html = f"""
+    <div style='background:#070b14;border:1px solid #1e293b;border-radius:12px;padding:14px;margin-top:10px;margin-bottom:15px;box-shadow:0 8px 24px rgba(0,0,0,0.4);'>
+        <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #1e293b;'>
+            <div style='display:flex;align-items:center;gap:8px;'>
+                <span style='height:10px;width:10px;background:#10b981;border-radius:50%;display:inline-block;box-shadow:0 0 8px #10b981;'></span>
+                <b style='color:#34d399;font-size:0.85rem;letter-spacing:0.05em;'>LIVE MT5 WALK-FORWARD SIMULATION IN PROGRESS</b>
+            </div>
+            <div style='font-family:monospace;font-size:0.75rem;color:#94a3b8;'>
+                Target: <b style='color:#cbd5e1;'>{date_from} ➔ {date_to}</b> | Simulated: <b style='color:#38bdf8;'>{cur_time} UTC</b> (<span style='color:#34d399;font-weight:700;'>{prog_pct:.1f}%</span>, Bar <b style='color:#f8fafc;'>{cur_bar:,}</b> / <span style='color:#64748b;'>{tot_bars:,}</span>)
+            </div>
+        </div>
+
+        {strat_pills_html}
+
+        <div style='display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;margin-bottom:14px;'>
+            <div style='background:#0b1324;border:1px solid #1e293b;border-radius:8px;padding:10px;'>
+                <div style='font-size:0.70rem;color:#94a3b8;text-transform:uppercase;'>Simulated Equity</div>
+                <div style='font-size:1.15rem;font-weight:800;color:#f8fafc;margin-top:2px;'>${equity:,.2f}</div>
+                <div style='font-size:0.72rem;color:{pnl_color};font-weight:700;margin-top:2px;'>{pnl_sign}${net_pnl:,.2f} ({pnl_sign}{roi_pct:.2f}%)</div>
+            </div>
+            <div style='background:#0b1324;border:1px solid #1e293b;border-radius:8px;padding:10px;'>
+                <div style='font-size:0.70rem;color:#94a3b8;text-transform:uppercase;'>Total Trades Taken</div>
+                <div style='font-size:1.15rem;font-weight:800;color:#38bdf8;margin-top:2px;'>{tot_trades:,}</div>
+                <div style='font-size:0.72rem;color:#94a3b8;margin-top:2px;'>{open_trades} Active | {comp_trades} Closed</div>
+            </div>
+            <div style='background:#0b1324;border:1px solid #1e293b;border-radius:8px;padding:10px;'>
+                <div style='font-size:0.70rem;color:#94a3b8;text-transform:uppercase;'>Performance Ledger</div>
+                <div style='font-size:1.15rem;font-weight:800;color:#f8fafc;margin-top:2px;'>{wins}W <span style='color:#64748b;'>-</span> {be}BE <span style='color:#64748b;'>-</span> {losses}L</div>
+                <div style='font-size:0.72rem;color:#fde047;font-weight:700;margin-top:2px;'>Win Rate: {wr:.1f}%</div>
+            </div>
+            <div style='background:#0b1324;border:1px solid #1e293b;border-radius:8px;padding:10px;'>
+                <div style='font-size:0.70rem;color:#94a3b8;text-transform:uppercase;'>Simulation Balance</div>
+                <div style='font-size:1.15rem;font-weight:800;color:#e2e8f0;margin-top:2px;'>${balance:,.2f}</div>
+                <div style='font-size:0.72rem;color:#a855f7;font-weight:600;margin-top:2px;'>Unrealized: ${round(equity - balance, 2):+,.2f}</div>
+            </div>
+        </div>
+
+        <div style='display:grid;grid-template-columns:1fr 1fr;gap:12px;'>
+            <div style='background:#0b1324;border:1px solid #1e293b;border-radius:8px;padding:10px;overflow-x:auto;'>
+                <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>
+                    <b style='color:#38bdf8;font-size:0.78rem;'>🔄 ACTIVE OPEN BATCHES ({open_trades})</b>
+                    <span style='font-size:0.70rem;color:#64748b;'>Tracked Bar-by-Bar</span>
+                </div>
+                {open_table_html}
+            </div>
+
+            <div style='background:#0b1324;border:1px solid #1e293b;border-radius:8px;padding:10px;overflow-x:auto;'>
+                <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>
+                    <b style='color:#34d399;font-size:0.78rem;'>📜 RECENT EXECUTED DEALS (LATEST)</b>
+                    <span style='font-size:0.70rem;color:#64748b;'>Live Feed</span>
+                </div>
+                {closed_table_html}
+            </div>
+        </div>
+    </div>
+    """
+    live_monitor.markdown(html, unsafe_allow_html=True)
+
+def render_mt5_backtest_engine_view():
+    st.divider()
+    st.markdown("### 🧪 Dedicated Exness MT5 Multi-Timeframe Historical Backtesting Engine")
+    st.caption("Perform full chronological bar-by-bar walk-forward simulation across multi-year MT5 tick & candle history. Operates 100% decoupled from live autonomous trading.")
+
+    from src.engine.backtest_engine import get_backtest_engine, MT5BacktestEngine
+    from src.engine.autonomous_manager import AVAILABLE_STRATEGIES, AVAILABLE_TIMEFRAMES, DEFAULT_TIMEFRAMES, DEFAULT_SYMBOLS
+    from datetime import datetime, timezone, timedelta, date
+
+    # Dynamically ensure load_state exists on MT5BacktestEngine in memory
+    if not hasattr(MT5BacktestEngine, 'load_state'):
+        def _dyn_load_state(self_or_cls):
+            if hasattr(self_or_cls, 'load_latest_results'):
+                d = self_or_cls.load_latest_results()
+            else:
+                d = None
+            if not d:
+                return {'last_results': {}}
+            return d if 'last_results' in d else {'last_results': d}
+        MT5BacktestEngine.load_state = classmethod(_dyn_load_state)
+
+    bt_engine = get_backtest_engine()
+    bt_settings = bt_engine.load_settings() if hasattr(bt_engine, 'load_settings') else {}
+
+    # Ultra-resilient state loading with multiple fallbacks
+    bt_state = {}
+    if hasattr(bt_engine, 'load_state'):
+        try:
+            bt_state = bt_engine.load_state()
+        except Exception:
+            bt_state = {}
+    if not bt_state and hasattr(bt_engine, 'load_latest_results'):
+        try:
+            r_data = bt_engine.load_latest_results() or {}
+            bt_state = {'last_results': r_data}
+        except Exception:
+            bt_state = {}
+    if not bt_state:
+        st_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.backtest_engine_state.json')
+        if os.path.exists(st_file):
+            try:
+                with open(st_file, 'r', encoding='utf-8') as f:
+                    bt_state = {'last_results': json.load(f)}
+            except Exception:
+                bt_state = {'last_results': {}}
+        else:
+            bt_state = {'last_results': {}}
+
+    # 1. Date Range & Presets
+    st.markdown("##### 📅 Historical Simulation Period (MT5 Multi-Year Bar Feeds):")
+    dp_c1, dp_c2, dp_c3, dp_c4, dp_c5, dp_c6 = st.columns(6)
+    today = date.today()
+    
+    with dp_c1:
+        if st.button("📅 1 Month", key="bt_preset_1m", use_container_width=True):
+            d_f = today - timedelta(days=30)
+            bt_settings['date_from'] = d_f.isoformat()
+            bt_settings['date_to'] = today.isoformat()
+            st.session_state["bt_date_from_input"] = d_f
+            st.session_state["bt_date_to_input"] = today
+            bt_engine.save_settings(bt_settings)
+            st.rerun()
+    with dp_c2:
+        if st.button("📅 3 Months", key="bt_preset_3m", use_container_width=True):
+            d_f = today - timedelta(days=90)
+            bt_settings['date_from'] = d_f.isoformat()
+            bt_settings['date_to'] = today.isoformat()
+            st.session_state["bt_date_from_input"] = d_f
+            st.session_state["bt_date_to_input"] = today
+            bt_engine.save_settings(bt_settings)
+            st.rerun()
+    with dp_c3:
+        if st.button("📅 6 Months", key="bt_preset_6m", use_container_width=True):
+            d_f = today - timedelta(days=180)
+            bt_settings['date_from'] = d_f.isoformat()
+            bt_settings['date_to'] = today.isoformat()
+            st.session_state["bt_date_from_input"] = d_f
+            st.session_state["bt_date_to_input"] = today
+            bt_engine.save_settings(bt_settings)
+            st.rerun()
+    with dp_c4:
+        if st.button("📅 1 Year", key="bt_preset_1y", use_container_width=True):
+            d_f = today - timedelta(days=365)
+            bt_settings['date_from'] = d_f.isoformat()
+            bt_settings['date_to'] = today.isoformat()
+            st.session_state["bt_date_from_input"] = d_f
+            st.session_state["bt_date_to_input"] = today
+            bt_engine.save_settings(bt_settings)
+            st.rerun()
+    with dp_c5:
+        if st.button("📅 3 Years", key="bt_preset_3y", use_container_width=True):
+            d_f = today - timedelta(days=1095)
+            bt_settings['date_from'] = d_f.isoformat()
+            bt_settings['date_to'] = today.isoformat()
+            st.session_state["bt_date_from_input"] = d_f
+            st.session_state["bt_date_to_input"] = today
+            bt_engine.save_settings(bt_settings)
+            st.rerun()
+    with dp_c6:
+        if st.button("📅 5 Years", key="bt_preset_5y", use_container_width=True):
+            d_f = today - timedelta(days=1825)
+            bt_settings['date_from'] = d_f.isoformat()
+            bt_settings['date_to'] = today.isoformat()
+            st.session_state["bt_date_from_input"] = d_f
+            st.session_state["bt_date_to_input"] = today
+            bt_engine.save_settings(bt_settings)
+            st.rerun()
+
+    # Parse current date_from and date_to
+    try:
+        def_d_from = datetime.fromisoformat(bt_settings.get('date_from', '')).date()
+    except Exception:
+        def_d_from = today - timedelta(days=180)
+
+    try:
+        def_d_to = datetime.fromisoformat(bt_settings.get('date_to', '')).date()
+    except Exception:
+        def_d_to = today
+
+    dt_col1, dt_col2, dt_col3 = st.columns([1.5, 1.5, 1.5])
+    with dt_col1:
+        sel_date_from = st.date_input("From Date:", value=def_d_from, key="bt_date_from_input")
+    with dt_col2:
+        sel_date_to = st.date_input("To Date:", value=def_d_to, key="bt_date_to_input")
+    with dt_col3:
+        sel_initial_bal = st.number_input("💰 Initial Test Balance ($ USD):", min_value=100.0, max_value=1000000.0, value=float(bt_settings.get('initial_balance', 10000.0)), step=500.0, key="bt_initial_bal_input")
+
+    # 2. Pairs & Timeframes (Exact copy of Autonomous)
+    st.markdown("##### 💱 Pairs & Multi-Timeframe Scan Feeds:")
+    pair_c1, pair_c2 = st.columns([2, 2])
+
+    bt_available_symbols = [
+        "BTC/USD", "ETH/USD", "SOL/USD", "XAU/USD", "XAUUSD247", "XAG/USD",
+        "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "NZD/USD", "USD/CAD",
+        "EUR/GBP", "EUR/JPY", "GBP/JPY", "CAD/JPY"
+    ]
+    sess_pairs = st.session_state.get('exness_selectable_symbols', [])
+    for p in sess_pairs:
+        if p not in bt_available_symbols:
+            bt_available_symbols.append(p)
+
+    saved_syms = bt_settings.get('selected_symbols', ["BTC/USD", "ETH/USD", "XAU/USD", "EUR/USD", "GBP/USD", "USD/JPY"])
+    valid_bt_syms = [s for s in saved_syms if s in bt_available_symbols]
+    if not valid_bt_syms:
+        valid_bt_syms = ["BTC/USD", "XAU/USD"]
+
+    saved_tfs = bt_settings.get('timeframes', ["15m", "30m", "1h", "4h"])
+    valid_bt_tfs = [t for t in saved_tfs if t in AVAILABLE_TIMEFRAMES]
+    if not valid_bt_tfs:
+        valid_bt_tfs = ["15m", "30m", "1h", "4h"]
+
+    with pair_c1:
+        sel_symbols = st.multiselect(
+            f"Selected MT5 Symbols ({len(bt_available_symbols)} Available):",
+            options=bt_available_symbols,
+            default=valid_bt_syms,
+            key="bt_symbols_multiselect"
+        )
+    with pair_c2:
+        sel_tfs = st.multiselect(
+            "Active Backtest Timeframes:",
+            options=AVAILABLE_TIMEFRAMES,
+            default=valid_bt_tfs,
+            key="bt_timeframes_multiselect"
+        )
+
+    # 3. 19 Strategies Selector & Presets
+    st.markdown("##### 🧠 19 Strategies Selection (Institutional Core + 18 Streamers):")
+    sp_col1, sp_col2, sp_col3, sp_col4, sp_col5 = st.columns(5)
+    with sp_col1:
+        if st.button("🌟 Select All 19", key="btn_strat_all_bt", use_container_width=True):
+            all_strats = list(AVAILABLE_STRATEGIES.keys())
+            bt_settings['active_strategies'] = all_strats
+            bt_engine.save_settings(bt_settings)
+            st.session_state["bt_active_strats_ms"] = all_strats
+            st.rerun()
+    with sp_col2:
+        if st.button("🏛️ Default Core", key="btn_strat_def_bt", use_container_width=True):
+            def_s = ["DEFAULT"]
+            bt_settings['active_strategies'] = def_s
+            bt_engine.save_settings(bt_settings)
+            st.session_state["bt_active_strats_ms"] = def_s
+            st.rerun()
+    with sp_col3:
+        if st.button("💎 SMC & Scalp", key="btn_strat_smc_bt", use_container_width=True):
+            smc_s = ["DEFAULT", "VIVEK_YADAV", "BERND_SKORUPINSKI", "ICT", "WAQAR_ASIM"]
+            bt_settings['active_strategies'] = smc_s
+            bt_engine.save_settings(bt_settings)
+            st.session_state["bt_active_strats_ms"] = smc_s
+            st.rerun()
+    with sp_col4:
+        if st.button("🌪️ Momentum", key="btn_strat_trend_bt", use_container_width=True):
+            trend_s = ["KRISTJAN_QULLAMAGGIE", "PAUL_FTMO", "ROSS_CAMERON", "RAYNER_TEO", "ADAM_KHOO", "TRADE_PRO"]
+            bt_settings['active_strategies'] = trend_s
+            bt_engine.save_settings(bt_settings)
+            st.session_state["bt_active_strats_ms"] = trend_s
+            st.rerun()
+    with sp_col5:
+        if st.button("🧠 Crypto/Macro", key="btn_strat_crypto_bt", use_container_width=True):
+            cry_s = ["GCR", "WAQAR_ZAKA", "EUGENE_NG_AH_SIO", "CRYPTO_CRED", "ARIEL_ZWECHER", "OLIVER_VELEZ"]
+            bt_settings['active_strategies'] = cry_s
+            bt_engine.save_settings(bt_settings)
+            st.session_state["bt_active_strats_ms"] = cry_s
+            st.rerun()
+
+    current_bt_strats = bt_settings.get('active_strategies', list(AVAILABLE_STRATEGIES.keys()))
+    valid_bt_strats = [s for s in current_bt_strats if s in AVAILABLE_STRATEGIES]
+    if not valid_bt_strats:
+        valid_bt_strats = list(AVAILABLE_STRATEGIES.keys())
+
+    sel_strategies = st.multiselect(
+        "Select Backtest Strategies:",
+        options=list(AVAILABLE_STRATEGIES.keys()),
+        default=valid_bt_strats,
+        format_func=lambda x: AVAILABLE_STRATEGIES.get(x, x),
+        key="bt_active_strats_ms"
+    )
+
+    # 4. Risk & Geometry Controls
+    st.markdown("##### 🛡️ Risk, Geometry & Execution Rules:")
+    rc1, rc2, rc3, rc4 = st.columns(4)
+    with rc1:
+        sel_min_pillars = st.selectbox(
+            "🏛️ Minimum Pillars Gate:",
+            options=[3, 4, 5],
+            index=[3, 4, 5].index(bt_settings.get('min_pillars_required', 5)) if bt_settings.get('min_pillars_required', 5) in [3, 4, 5] else 2,
+            key="bt_min_pillars_input"
+        )
+    with rc2:
+        sel_lot_size = st.number_input(
+            "📦 Batch Lot Size:",
+            min_value=0.01,
+            max_value=50.0,
+            value=float(bt_settings.get('batch_lot_size', 0.03)),
+            step=0.01,
+            format="%.2f",
+            key="bt_batch_lot_input"
+        )
+    with rc3:
+        sel_max_risk = st.number_input(
+            "🛡️ Max Risk Cap ($ USD):",
+            min_value=0.0,
+            max_value=5000.0,
+            value=float(bt_settings.get('max_dollar_risk', 50.0)),
+            step=5.0,
+            key="bt_max_risk_input"
+        )
+    with rc4:
+        sel_max_batches = st.number_input(
+            "🔒 Max Concurrent Batches:",
+            min_value=1,
+            max_value=100,
+            value=int(bt_settings.get('max_active_batches', 5)),
+            step=1,
+            key="bt_max_batches_input"
+        )
+
+    # Toggles
+    tog1, tog2, tog3, tog4 = st.columns(4)
+    with tog1:
+        sel_same_tf = st.toggle("🔁 Multi-Trades / Same TF", value=bool(bt_settings.get('allow_same_tf_trades', False)), key="bt_same_tf_toggle")
+    with tog2:
+        sel_diff_strat = st.toggle("🔀 Diff Strats / Same TF", value=bool(bt_settings.get('allow_diff_strat_same_tf', True)), key="bt_diff_strat_toggle")
+    with tog3:
+        sel_loose_be = st.toggle("🕊️ Loose Breakeven", value=(bt_settings.get('breakeven_mode', 'tight') == 'loose'), key="bt_loose_be_toggle")
+    with tog4:
+        sel_htf = st.toggle("🔭 HTF Confluence Filter", value=bool(bt_settings.get('htf_filter_enabled', True)), key="bt_htf_toggle")
+
+    is_bt_running = getattr(bt_engine, 'is_running', False) or st.session_state.get('bt_is_running', False)
+    if not getattr(bt_engine, 'is_running', False) and st.session_state.get('bt_is_running', False):
+        st.session_state['bt_is_running'] = False
+        is_bt_running = False
+
+    live_stats = bt_engine.get_live_stats() if hasattr(bt_engine, 'get_live_stats') else {}
+
+    # Execution Action Bar
+    if is_bt_running:
+        cur_t = live_stats.get('cur_time', 'Initializing...')
+        d_f = live_stats.get('date_from', bt_settings.get('date_from', ''))
+        d_t = live_stats.get('date_to', bt_settings.get('date_to', ''))
+        c_b = live_stats.get('current_bar', 0)
+        t_b = live_stats.get('total_bars', 1)
+        p_pct = float(live_stats.get('progress_pct', 0.05)) * 100.0
+        cur_msg = live_stats.get('msg', 'Simulating chronological multi-strategy execution...')
+
+        st.markdown(f"""
+        <div style='background:#1e1b4b;border:1px solid #6366f1;border-radius:10px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;'>
+            <div style='display:flex;align-items:center;gap:10px;'>
+                <span style='height:12px;width:12px;background:#10b981;border-radius:50%;display:inline-block;box-shadow:0 0 10px #10b981;'></span>
+                <b style='color:#a5b4fc;font-size:0.92rem;'>LIVE SIMULATION IN PROGRESS:</b>
+                <span style='color:#e0e7ff;font-family:monospace;font-size:0.85rem;'>Simulated Date: <b style='color:#38bdf8;'>{cur_t} UTC</b> (Window: {d_f} ➔ {d_t})</span>
+            </div>
+            <div style='color:#94a3b8;font-size:0.82rem;font-family:monospace;'>
+                Bar <b style='color:#f8fafc;'>{c_b:,}</b> / {t_b:,} (<span style='color:#34d399;font-weight:700;'>{p_pct:.1f}%</span>)
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.info(f"⏳ **Active Status:** `{cur_msg}`")
+
+        exec_c1, exec_c2 = st.columns([3, 1])
+        with exec_c1:
+            stop_bt_btn = st.button("⏹️ STOP BACKTEST", type="primary", use_container_width=True, key="btn_stop_mt5_backtest", help="Immediately halt backtest and preserve results up to current bar")
+        with exec_c2:
+            st.button("⏳ SIMULATING...", disabled=True, use_container_width=True, key="btn_sim_in_prog")
+
+        if stop_bt_btn:
+            bt_engine.stop()
+            st.session_state['bt_is_running'] = False
+            st.toast("⏹️ Backtest stopped! Finalizing partial simulation...", icon="🛑")
+            st.rerun()
+
+        # Render Live Progress Dashboard
+        live_monitor = st.empty()
+        render_live_backtest_dashboard(live_monitor, live_stats)
+
+        # Smooth auto-rerun loop to stream bars live
+        time.sleep(0.5)
+        st.rerun()
+
+    else:
+        exec_c1, exec_c2 = st.columns([3, 1])
+        with exec_c1:
+            run_bt_btn = st.button("▶️ EXECUTE MT5 HISTORICAL BACKTEST", type="primary", use_container_width=True, key="btn_run_mt5_backtest")
+        with exec_c2:
+            clear_bt_btn = st.button("🗑️ CLEAR RESULTS", type="secondary", use_container_width=True, key="btn_clear_mt5_backtest")
+
+        if clear_bt_btn:
+            bt_engine.save_results({})
+            st.toast("Backtest results cleared!", icon="🗑️")
+            st.rerun()
+
+        if run_bt_btn:
+            # Save configured settings
+            bt_settings['selected_symbols'] = sel_symbols
+            bt_settings['timeframes'] = sel_tfs
+            bt_settings['active_strategies'] = sel_strategies if sel_strategies else list(AVAILABLE_STRATEGIES.keys())
+            bt_settings['date_from'] = sel_date_from.isoformat()
+            bt_settings['date_to'] = sel_date_to.isoformat()
+            bt_settings['initial_balance'] = sel_initial_bal
+            bt_settings['batch_lot_size'] = sel_lot_size
+            bt_settings['max_dollar_risk'] = sel_max_risk
+            bt_settings['max_active_batches'] = sel_max_batches
+            bt_settings['min_pillars_required'] = sel_min_pillars
+            bt_settings['allow_same_tf_trades'] = sel_same_tf
+            bt_settings['allow_diff_strat_same_tf'] = sel_diff_strat
+            bt_settings['breakeven_mode'] = 'loose' if sel_loose_be else 'tight'
+            bt_settings['htf_filter_enabled'] = sel_htf
+            bt_engine.save_settings(bt_settings)
+
+            # Spawn background execution thread and update session state
+            st.session_state['bt_is_running'] = True
+            bt_engine.start_backtest(bt_settings)
+            st.toast("🚀 MT5 Backtest simulation started in background!", icon="🟢")
+            st.rerun()
+
+    # Render Results & Leaderboard if present
+    res = bt_state.get('last_results') if (isinstance(bt_state, dict) and isinstance(bt_state.get('last_results'), dict) and bt_state.get('last_results')) else (bt_state if isinstance(bt_state, dict) else {})
+    if not res or ('total_trades' not in res):
+        st.info("ℹ️ No backtest results available yet. Configure your period and parameters above and click **▶️ EXECUTE MT5 HISTORICAL BACKTEST**.")
+        return
+
+    st.markdown("---")
+    st.markdown("#### 📊 MT5 Backtest Performance Analytics & KPI Dashboard")
+    sim_until = res.get('simulated_until', res.get('date_to'))
+    status_label = f" | Status: <b style='color:#ef4444;'>HALTED BY USER AT {sim_until} UTC</b>" if res.get('status') == 'STOPPED' else (f" | Status: <b style='color:#10b981;'>COMPLETED (100%)</b>" if res.get('status') == 'COMPLETED' else "")
+    st.caption(f"📅 Target Window: **{res.get('date_from')}** to **{res.get('date_to')}**{status_label} | Initial Balance: **${res.get('initial_balance', 10000):,.2f}** | Final Balance: **${res.get('final_balance', 10000):,.2f}**")
+
+    # KPI Summary Cards
+    net_p = float(res.get('net_profit', 0.0))
+    roi = float(res.get('roi_pct', 0.0))
+    w_cnt = int(res.get('wins', 0))
+    l_cnt = int(res.get('losses', 0))
+    be_cnt = int(res.get('breakevens', 0))
+    tot_trades = int(res.get('total_trades', 0))
+    wr = float(res.get('win_rate', 0.0))
+    pf = float(res.get('profit_factor', 0.0))
+    mdd_usd = float(res.get('max_drawdown_usd', 0.0))
+    mdd_pct = float(res.get('max_drawdown_pct', 0.0))
+    bsl = float(res.get('biggest_sl_loss', 0.0))
+    sl_hits = int(res.get('sl_hits', 0))
+
+    net_color = "#00c853" if net_p >= 0 else "#ff1744"
+    wr_color = "#00c853" if wr >= 65 else ("#ffab00" if wr >= 50 else "#ff1744")
+
+    kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
+    with kpi_col1:
+        st.markdown(f"""
+        <div style='background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:12px;text-align:center;'>
+            <div style='color:#8b949e;font-size:0.75rem;text-transform:uppercase;'>Net Realized PnL</div>
+            <div style='color:{net_color};font-size:1.4rem;font-weight:800;'>${net_p:+,.2f}</div>
+            <div style='color:{net_color};font-size:0.8rem;font-weight:700;'>ROI: {roi:+.2f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_col2:
+        st.markdown(f"""
+        <div style='background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:12px;text-align:center;'>
+            <div style='color:#8b949e;font-size:0.75rem;text-transform:uppercase;'>Win Rate / Record</div>
+            <div style='color:{wr_color};font-size:1.4rem;font-weight:800;'>{wr:.1f}%</div>
+            <div style='font-size:0.8rem;color:#cbd5e1;'><span style='color:#10b981;font-weight:700;'>{w_cnt}W</span> / <span style='color:#ef4444;font-weight:700;'>{l_cnt}L</span> / <span style='color:#f59e0b;font-weight:700;'>{be_cnt}BE</span> ({tot_trades}T)</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_col3:
+        st.markdown(f"""
+        <div style='background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:12px;text-align:center;'>
+            <div style='color:#8b949e;font-size:0.75rem;text-transform:uppercase;'>Profit Factor & Drawdown</div>
+            <div style='color:#38bdf8;font-size:1.4rem;font-weight:800;'>{pf:.2f} PF</div>
+            <div style='color:#f87171;font-size:0.8rem;'>Max DD: -${mdd_usd:,.2f} ({mdd_pct:.1f}%)</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with kpi_col4:
+        st.markdown(f"""
+        <div style='background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:12px;text-align:center;'>
+            <div style='color:#8b949e;font-size:0.75rem;text-transform:uppercase;'>Stop Loss Damage Control</div>
+            <div style='color:#ef4444;font-size:1.4rem;font-weight:800;'>-${bsl:,.2f}</div>
+            <div style='color:#94a3b8;font-size:0.8rem;'>SL Hits: <b style='color:#f87171;'>{sl_hits}</b> / {tot_trades} trades</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Backtest Strategy Leaderboard ──
+    st.markdown("##### 🏆 Backtest Streamer Strategies Performance Leaderboard")
+    st.caption("Empirical ranking of strategies across the chosen historical MT5 window, highlighting Biggest SL Hit and SL count.")
+
+    leaderboard = res.get('leaderboard', [])
+    if leaderboard:
+        # Sorting
+        bt_sort_map = {
+            "🏆 Most Profitable (Net PnL $)": "net_pnl",
+            "🎯 Highest Win Rate (%)": "win_rate",
+            "📉 Biggest SL Hit ($)": "biggest_sl_loss",
+            "🛑 Most SL Hits": "sl_hits",
+            "📈 Most Active (Total Trades)": "total_trades"
+        }
+        b_sort_c1, b_sort_c2 = st.columns([3, 2])
+        with b_sort_c1:
+            sel_bt_sort = st.selectbox("Sort Backtest Leaderboard By:", options=list(bt_sort_map.keys()), index=0, key="bt_lb_sort_selector")
+            sort_attr = bt_sort_map[sel_bt_sort]
+
+        # Sort leaderboard
+        sorted_bt_lb = sorted(leaderboard, key=lambda x: float(x.get(sort_attr, 0.0)), reverse=True)
+
+        with b_sort_c2:
+            bt_csv_df = pd.DataFrame(sorted_bt_lb)
+            if not bt_csv_df.empty:
+                bt_csv_bytes = bt_csv_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Export Backtest Leaderboard (CSV)",
+                    data=bt_csv_bytes,
+                    file_name=f"mt5_backtest_leaderboard_{res.get('date_from')}_{res.get('date_to')}.csv",
+                    mime="text/csv",
+                    key="dl_bt_leaderboard_csv"
+                )
+
+        # Build Leaderboard Table HTML
+        bt_rows_html = []
+        for rank_idx, item in enumerate(sorted_bt_lb, 1):
+            s_name = item.get('strategy_name', item.get('strategy_key', 'Unknown'))
+            t_trades = item.get('total_trades', 0)
+            w = item.get('wins', 0)
+            l = item.get('losses', 0)
+            be = item.get('breakevens', 0)
+            wr_val = item.get('win_rate', 0.0)
+            net_pnl_val = item.get('net_pnl', 0.0)
+            pf_val = item.get('profit_factor', 0.0)
+            bsl_val = item.get('biggest_sl_loss', 0.0)
+            sl_h_val = item.get('sl_hits', 0)
+            badge = item.get('status_badge', '⚖️ Neutral')
+            btf = item.get('best_timeframes', '-')
+            bpr = item.get('best_pairs', '-')
+
+            # Rank styling
+            if rank_idx == 1:
+                rank_disp = "🥇 #1"
+                rank_style = "color:#ffd700;font-weight:900;font-size:1.0rem;"
+            elif rank_idx == 2:
+                rank_disp = "🥈 #2"
+                rank_style = "color:#c0c0c0;font-weight:800;font-size:0.95rem;"
+            elif rank_idx == 3:
+                rank_disp = "🥉 #3"
+                rank_style = "color:#cd7f32;font-weight:800;font-size:0.95rem;"
+            else:
+                rank_disp = f"#{rank_idx}"
+                rank_style = "color:#94a3b8;font-weight:700;font-size:0.85rem;"
+
+            pnl_col = "#00c853" if net_pnl_val > 0 else ("#ff1744" if net_pnl_val < 0 else "#94a3b8")
+            pnl_html = f"<b style='color:{pnl_col};'>{net_pnl_val:+,.2f}</b>"
+            wr_col = "#00c853" if wr_val >= 65 else ("#ffab00" if wr_val >= 50 else "#ff1744")
+            wr_html = f"<span style='color:{wr_col};font-weight:700;'>{wr_val:.1f}%</span>"
+            bsl_html = f"<span style='color:#ef4444;font-weight:700;'>-${bsl_val:,.2f}</span>" if bsl_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
+            sl_h_html = f"<span style='color:#f87171;font-weight:700;'>{sl_h_val}</span>" if sl_h_val > 0 else "<span style='color:#64748b;'>0</span>"
+            btf_html = f"<span style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.72rem;font-weight:600;'>{btf}</span>"
+            bpr_html = f"<span style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;'>{bpr}</span>"
+            row_bg = "background:rgba(255,215,0,0.04);" if rank_idx == 1 else ""
+
+            bt_rows_html.append(f"""
+            <tr style='{row_bg}border-bottom:1px solid #1e293b;'>
+                <td style='padding:8px 10px;text-align:center;'><span style='{rank_style}'>{rank_disp}</span></td>
+                <td style='padding:8px 10px;font-size:0.83rem;color:#f8fafc;font-weight:600;'>{s_name}</td>
+                <td style='padding:8px 10px;text-align:center;font-size:0.82rem;color:#cbd5e1;font-weight:700;'>{t_trades}</td>
+                <td style='padding:8px 10px;text-align:center;font-size:0.78rem;'>
+                    <span style='color:#10b981;font-weight:700;'>{w}W</span> / 
+                    <span style='color:#ef4444;font-weight:700;'>{l}L</span> / 
+                    <span style='color:#f59e0b;font-weight:700;'>{be}BE</span>
+                </td>
+                <td style='padding:8px 10px;'>{wr_html}</td>
+                <td style='padding:8px 10px;text-align:right;font-size:0.85rem;'>{pnl_html}</td>
+                <td style='padding:8px 10px;text-align:center;font-size:0.8rem;color:#94a3b8;'>{pf_val:.2f}</td>
+                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{bsl_html}</td>
+                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{sl_h_html}</td>
+                <td style='padding:8px 8px;text-align:center;'>{btf_html}</td>
+                <td style='padding:8px 8px;text-align:center;'>{bpr_html}</td>
+                <td style='padding:8px 10px;text-align:center;font-size:0.76rem;'><span style='background:#18181b;border:1px solid #27272a;padding:3px 8px;border-radius:8px;color:#e2e8f0;'>{badge}</span></td>
+            </tr>
+            """)
+
+        bt_table_html = f"""
+        <div style='margin-top:10px;border:1px solid #1e293b;border-radius:10px;overflow:hidden;background:#0b0f19;'>
+            <table style='width:100%;border-collapse:collapse;font-family:sans-serif;'>
+                <thead>
+                    <tr style='background:#0f172a;border-bottom:2px solid #334155;color:#94a3b8;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;'>
+                        <th style='padding:10px;text-align:center;width:55px;'>Rank</th>
+                        <th style='padding:10px;text-align:left;'>Strategy & Channel</th>
+                        <th style='padding:10px;text-align:center;width:55px;'>Trades</th>
+                        <th style='padding:10px;text-align:center;width:105px;'>W / L / BE</th>
+                        <th style='padding:10px;text-align:left;width:100px;'>Win Rate</th>
+                        <th style='padding:10px;text-align:right;width:85px;'>Net PnL</th>
+                        <th style='padding:10px;text-align:center;width:50px;'>PF</th>
+                        <th style='padding:10px;text-align:center;width:95px;'>Biggest SL</th>
+                        <th style='padding:10px;text-align:center;width:60px;'>SL Hits</th>
+                        <th style='padding:10px;text-align:center;width:125px;'>Best Timeframes</th>
+                        <th style='padding:10px;text-align:center;width:140px;'>Best Trading Pairs</th>
+                        <th style='padding:10px;text-align:center;width:115px;'>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(bt_rows_html)}
+                </tbody>
+            </table>
+        </div>
+        """
+        bt_table_container = st.empty()
+        with bt_table_container:
+            render_html(bt_table_html)
+
+    # ── Backtest Executed Batches Ledger ──
+    closed_batches = res.get('closed_batches', [])
+    if closed_batches:
+        st.markdown("##### 📜 Backtest Executed Batches Ledger:")
+        with st.expander(f"🔍 Inspect {len(closed_batches)} Simulated Batches & Exit Reasons", expanded=False):
+            b_df = pd.DataFrame(closed_batches)
+            disp_cols = [c for c in ['batch_id', 'symbol', 'strategy_name', 'action', 'timeframe', 'entry_price', 'sl_price', 'risk_usd', 'tp1_price', 'tp2_price', 'tp3_price', 'profit', 'status', 'exit_reason', 'closed_at'] if c in b_df.columns]
+            st.dataframe(
+                b_df[disp_cols].rename(columns={
+                    'batch_id': 'Batch #',
+                    'symbol': 'Pair',
+                    'strategy_name': 'Strategy',
+                    'action': 'Type',
+                    'timeframe': 'TF',
+                    'entry_price': 'Entry',
+                    'sl_price': 'SL',
+                    'risk_usd': 'Risk ($)',
+                    'tp1_price': 'TP1',
+                    'tp2_price': 'TP2',
+                    'tp3_price': 'TP3',
+                    'profit': 'PnL ($)',
+                    'status': 'Result',
+                    'exit_reason': 'Exit Reason',
+                    'closed_at': 'Close Time'
+                }),
+                use_container_width=True,
+                hide_index=True
+            )
+            csv_b_bytes = b_df[disp_cols].to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="📥 Export Leaderboard (CSV)",
-                data=lb_df.to_csv(index=False).encode('utf-8'),
-                file_name="strategy_performance_leaderboard.csv",
+                label="📥 Export Simulated Batches (CSV)",
+                data=csv_b_bytes,
+                file_name=f"mt5_simulated_batches_{res.get('date_from')}_{res.get('date_to')}.csv",
                 mime="text/csv",
-                key="dl_auto_leaderboard_csv"
+                key="dl_bt_batches_csv"
             )
 
 def render_mt5_position_tracker():
@@ -2019,7 +2809,8 @@ def render_mt5_position_tracker():
         options=[
             "🟢 Active Open Positions", 
             "📜 Closed Trades History (7 Days)",
-            "🤖 Autonomous 5/5 Pillar Scanner & AI Journal"
+            "🤖 Autonomous 5/5 Pillar Scanner & AI Journal",
+            "🧪 Dedicated MT5 Multi-TF Backtesting Engine"
         ],
         horizontal=True,
         key="mt5_tracker_main_view_selector",
@@ -2030,8 +2821,10 @@ def render_mt5_position_tracker():
         render_mt5_active_positions_view(live_exec)
     elif "Closed Trades History" in selected_tracker_tab:
         render_mt5_closed_history_view(live_exec)
-    else:
+    elif "Autonomous" in selected_tracker_tab:
         render_mt5_autonomous_engine_view(live_exec)
+    else:
+        render_mt5_backtest_engine_view()
 
 
 

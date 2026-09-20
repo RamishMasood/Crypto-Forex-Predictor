@@ -307,6 +307,8 @@ class AutonomousTraderEngine:
                 'gross_profit': 0.0,
                 'gross_loss': 0.0,
                 'profit_factor': 0.0,
+                'biggest_sl_loss': 0.0,
+                'sl_hits': 0,
                 'status_badge': '💤 NO TRADES',
                 'best_timeframes': playbook_profiles.get(strat_key, {}).get('default_tfs', '15m, 1h'),
                 'best_pairs': playbook_profiles.get(strat_key, {}).get('default_pairs', 'BTC/USD, Gold')
@@ -428,7 +430,11 @@ class AutonomousTraderEngine:
                 stats_map[k]['gross_profit'] += pnl
             elif status == 'LOSS' or pnl < -0.15:
                 stats_map[k]['losses'] += 1
+                stats_map[k]['sl_hits'] += 1
                 stats_map[k]['gross_loss'] += abs(pnl)
+                loss_amt = abs(pnl)
+                if loss_amt > stats_map[k]['biggest_sl_loss']:
+                    stats_map[k]['biggest_sl_loss'] = round(loss_amt, 2)
             else:
                 stats_map[k]['breakevens'] += 1
 
@@ -550,6 +556,10 @@ class AutonomousTraderEngine:
             leaderboard.sort(key=lambda x: (x['win_rate'], x['wins'], x['net_pnl']), reverse=True)
         elif sort_key in ['total_trades', 'most_active', 'volume']:
             leaderboard.sort(key=lambda x: (x['total_trades'], x['net_pnl']), reverse=True)
+        elif sort_key in ['biggest_sl_loss', 'biggest_sl', 'max_loss']:
+            leaderboard.sort(key=lambda x: (x['biggest_sl_loss'], x['losses']), reverse=True)
+        elif sort_key in ['sl_hits', 'most_sl_hits']:
+            leaderboard.sort(key=lambda x: (x['sl_hits'], x['biggest_sl_loss']), reverse=True)
         else: # Default: 'profit' / Most Profitable
             leaderboard.sort(key=lambda x: (x['net_pnl'], x['win_rate'], x['wins']), reverse=True)
 
@@ -1674,7 +1684,9 @@ class AutonomousTraderEngine:
                             continue
 
                         # Standard execution safety guards (news spikes, high spread)
-                        if not is_spread_fail and not is_news_blackout:
+                        # WAQAR_ZAKA is explicitly designed to trade High-Volatility News Events & Liquidation Sweeps (Playbook PDF)
+                        is_news_blocked = is_news_blackout and (strat_key != 'WAQAR_ZAKA')
+                        if not is_spread_fail and not is_news_blocked:
                             candidates.append({
                                 'strategy_key': strat_key,
                                 'strategy_name': st_res.get('strategy_name', AVAILABLE_STRATEGIES.get(strat_key, strat_key)),
