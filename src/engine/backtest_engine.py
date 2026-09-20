@@ -269,9 +269,9 @@ class MT5BacktestEngine:
         """
         total_lots = max(vol_min, round(round(batch_lot_size / vol_step) * vol_step, 4))
         if abs(total_lots - round(3 * vol_min, 4)) < 1e-5:
-            lot1 = round(vol_min, 4)
+            lot1 = round(2 * vol_min, 4)
             lot2 = round(vol_min, 4)
-            lot3 = round(vol_min, 4)
+            lot3 = 0.0
         elif abs(total_lots - round(2 * vol_min, 4)) < 1e-5:
             lot1 = round(vol_min, 4)
             lot2 = round(vol_min, 4)
@@ -538,55 +538,33 @@ class MT5BacktestEngine:
                 pnl_change = 0.0
                 exit_reason = ""
                 exit_price = cur_close
+                be_mode = str(b.get('breakeven_mode', 'tight')).lower().strip()
 
                 # BUY Trade Management
                 if act == 'BUY':
                     # ── Check Strategy-Specific Breakeven / Trailing Trigger (Matching MT5Executor) ──
-                    be_mode = str(b.get('breakeven_mode', 'tight')).lower().strip()
-                    if be_mode not in ['fixed_rr_target', 'none', 'hold_target']:
-                        profit_dist = cur_high - entry_p
-                        return_pct = ((cur_high - entry_p) / entry_p * 100.0) if entry_p > 0 else 0.0
+                    profit_dist = cur_high - entry_p
+                    tp2_dist = tp2_p - entry_p if tp2_p > entry_p else (1.15 * (entry_p - sl_p))
 
-                        should_trigger_be = False
-                        new_be_sl = None
+                    should_trigger_be = False
+                    new_be_sl = None
 
-                        if be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be']:
-                            # Waqar Asim / Vivek Yadav / ICT: 0.05% expansion or 0.20 ATR expansion
-                            if return_pct >= 0.05 or profit_dist >= (0.20 * cur_atr) or b['tp1_hit']:
-                                should_trigger_be = True
-                                new_be_sl = entry_p + (0.01 * cur_atr)
+                    if b['tp1_hit']:
+                        should_trigger_be = True
+                        if profit_dist >= (0.50 * tp2_dist):
+                            new_be_sl = entry_p + (0.20 * cur_atr) # Lock in profit on runner
+                        elif be_mode in ['loose', 'atr_buffer_be', 'fixed_rr_target', 'smc_partial_be', 'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail']:
+                            if profit_dist >= (0.85 * cur_atr):
+                                new_be_sl = entry_p + (0.02 * cur_atr) # Stage 2: Hard BE once expansion proven
+                            else:
+                                new_be_sl = entry_p - (0.45 * cur_atr) # Stage 1: Soft risk reduction buffer
+                        else:
+                            new_be_sl = entry_p # Risk-free breakeven for runner
 
-                        elif be_mode in ['trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be', 'gcr_cycle_be', 'delta_neutral_spread_be', 'atr_buffer_be', 'scalping_quick_be']:
-                            # Moving Average & Expansion Trailing (50% to TP2 or 95% to TP1)
-                            tp2_dist = tp2_p - entry_p if tp2_p > entry_p else (1.15 * (entry_p - sl_p))
-                            tp1_dist = tp1_p - entry_p if tp1_p > entry_p else (0.38 * cur_atr)
-                            if profit_dist >= (0.50 * tp2_dist) or profit_dist >= (0.95 * tp1_dist) or b['tp1_hit']:
-                                should_trigger_be = True
-                                if 'qullamaggie' in be_mode:
-                                    new_be_sl = max(sl_p, entry_p + (0.10 * cur_atr))
-                                else:
-                                    new_be_sl = entry_p + (0.02 * cur_atr)
-
-                        elif be_mode == 'loose':
-                            # Loose Breakeven 2-Stage
-                            tp2_dist = tp2_p - entry_p if tp2_p > entry_p else (1.15 * (entry_p - sl_p))
-                            if profit_dist >= (0.48 * tp2_dist) or profit_dist >= (0.85 * cur_atr) or return_pct >= 0.30:
-                                should_trigger_be = True
-                                new_be_sl = entry_p + (0.02 * cur_atr)
-                            elif b['tp1_hit']:
-                                soft_sl = entry_p - (0.45 * cur_atr)
-                                if soft_sl > b['sl_price']:
-                                    b['sl_price'] = round(soft_sl, 5)
-
-                        else: # tight / default institutional core
-                            if return_pct >= 0.15 or profit_dist >= (0.38 * cur_atr) or b['tp1_hit']:
-                                should_trigger_be = True
-                                new_be_sl = entry_p + (0.02 * cur_atr)
-
-                        if should_trigger_be and new_be_sl is not None:
-                            if new_be_sl > b['sl_price']:
-                                b['sl_price'] = round(new_be_sl, 5)
-                                b['is_breakeven'] = True
+                    if should_trigger_be and new_be_sl is not None:
+                        if new_be_sl > b['sl_price']:
+                            b['sl_price'] = round(new_be_sl, 5)
+                            b['is_breakeven'] = True
 
                     # 1. Check Stop Loss Hit (Initial SL or Breakeven SL)
                     if cur_low <= b['sl_price']:
@@ -596,7 +574,10 @@ class MT5BacktestEngine:
                             exit_pnl /= cur_close
                         b['accumulated_pnl'] += exit_pnl
                         closed_this_bar = True
-                        if b['is_breakeven']:
+                        if b['accumulated_pnl'] > 0.15:
+                            b['status'] = "WIN"
+                            exit_reason = "TP1_BANKED_BE_EXIT" if b['tp1_hit'] else "BREAKEVEN_PROFIT"
+                        elif b['is_breakeven'] or abs(b['accumulated_pnl']) <= 0.15:
                             exit_reason = "BREAKEVEN_SL"
                             b['status'] = "BREAKEVEN"
                         else:
@@ -614,17 +595,12 @@ class MT5BacktestEngine:
                             balance += p1_pnl
                             b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p1_pnl
 
-                            # Auto-Breakeven on TP1 hit (if not already triggered)
-                            if be_mode not in ['fixed_rr_target', 'none', 'hold_target']:
-                                b['is_breakeven'] = True
-                                if be_mode == 'loose':
-                                    b['sl_price'] = max(b['sl_price'], entry_p - (0.45 * cur_atr))
-                                elif 'qullamaggie' in be_mode:
-                                    b['sl_price'] = max(b['sl_price'], entry_p + (0.10 * cur_atr))
-                                elif 'instant' in be_mode:
-                                    b['sl_price'] = max(b['sl_price'], entry_p + (0.01 * cur_atr))
-                                else: # tight
-                                    b['sl_price'] = max(b['sl_price'], entry_p + (0.02 * cur_atr))
+                            # Auto-Breakeven on TP1 hit (Rule #2: Mandatory for all strategies)
+                            b['is_breakeven'] = True
+                            if be_mode in ['loose', 'atr_buffer_be', 'fixed_rr_target', 'smc_partial_be', 'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail']:
+                                b['sl_price'] = max(b['sl_price'], entry_p - (0.45 * cur_atr))
+                            else:
+                                b['sl_price'] = max(b['sl_price'], entry_p)
 
                             if b['remaining_lots'] <= 0.0001:
                                 closed_this_bar = True
@@ -667,49 +643,28 @@ class MT5BacktestEngine:
 
                 # SELL Trade Management
                 else:
-                    # ── Check Strategy-Specific Breakeven / Trailing Trigger (Matching MT5Executor) ──
-                    be_mode = str(b.get('breakeven_mode', 'tight')).lower().strip()
-                    if be_mode not in ['fixed_rr_target', 'none', 'hold_target']:
-                        profit_dist = entry_p - cur_low
-                        return_pct = ((entry_p - cur_low) / entry_p * 100.0) if entry_p > 0 else 0.0
+                    profit_dist = entry_p - cur_low
+                    tp2_dist = entry_p - tp2_p if (tp2_p > 0 and tp2_p < entry_p) else (1.15 * (sl_p - entry_p))
 
-                        should_trigger_be = False
-                        new_be_sl = None
+                    should_trigger_be = False
+                    new_be_sl = None
 
-                        if be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be']:
-                            if return_pct >= 0.05 or profit_dist >= (0.20 * cur_atr) or b['tp1_hit']:
-                                should_trigger_be = True
-                                new_be_sl = entry_p - (0.01 * cur_atr)
+                    if b['tp1_hit']:
+                        should_trigger_be = True
+                        if profit_dist >= (0.50 * tp2_dist):
+                            new_be_sl = entry_p - (0.20 * cur_atr) # Lock in profit on runner
+                        elif be_mode in ['loose', 'atr_buffer_be', 'fixed_rr_target', 'smc_partial_be', 'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail']:
+                            if profit_dist >= (0.85 * cur_atr):
+                                new_be_sl = entry_p - (0.02 * cur_atr) # Stage 2: Hard BE once expansion proven
+                            else:
+                                new_be_sl = entry_p + (0.45 * cur_atr) # Stage 1: Soft risk reduction buffer
+                        else:
+                            new_be_sl = entry_p # Risk-free breakeven for runner
 
-                        elif be_mode in ['trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be', 'gcr_cycle_be', 'delta_neutral_spread_be', 'atr_buffer_be', 'scalping_quick_be']:
-                            tp2_dist = entry_p - tp2_p if (tp2_p > 0 and tp2_p < entry_p) else (1.15 * (sl_p - entry_p))
-                            tp1_dist = entry_p - tp1_p if (tp1_p > 0 and tp1_p < entry_p) else (0.38 * cur_atr)
-                            if profit_dist >= (0.50 * tp2_dist) or profit_dist >= (0.95 * tp1_dist) or b['tp1_hit']:
-                                should_trigger_be = True
-                                if 'qullamaggie' in be_mode:
-                                    new_be_sl = min(sl_p, entry_p - (0.10 * cur_atr))
-                                else:
-                                    new_be_sl = entry_p - (0.02 * cur_atr)
-
-                        elif be_mode == 'loose':
-                            tp2_dist = entry_p - tp2_p if (tp2_p > 0 and tp2_p < entry_p) else (1.15 * (sl_p - entry_p))
-                            if profit_dist >= (0.48 * tp2_dist) or profit_dist >= (0.85 * cur_atr) or return_pct >= 0.30:
-                                should_trigger_be = True
-                                new_be_sl = entry_p - (0.02 * cur_atr)
-                            elif b['tp1_hit']:
-                                soft_sl = entry_p + (0.45 * cur_atr)
-                                if soft_sl < b['sl_price']:
-                                    b['sl_price'] = round(soft_sl, 5)
-
-                        else: # tight / default institutional core
-                            if return_pct >= 0.15 or profit_dist >= (0.38 * cur_atr) or b['tp1_hit']:
-                                should_trigger_be = True
-                                new_be_sl = entry_p - (0.02 * cur_atr)
-
-                        if should_trigger_be and new_be_sl is not None:
-                            if b['sl_price'] <= 0 or new_be_sl < b['sl_price']:
-                                b['sl_price'] = round(new_be_sl, 5)
-                                b['is_breakeven'] = True
+                    if should_trigger_be and new_be_sl is not None:
+                        if b['sl_price'] <= 0 or new_be_sl < b['sl_price']:
+                            b['sl_price'] = round(new_be_sl, 5)
+                            b['is_breakeven'] = True
 
                     # 1. Check Stop Loss Hit (Initial SL or Breakeven SL)
                     if cur_high >= b['sl_price']:
@@ -719,7 +674,10 @@ class MT5BacktestEngine:
                             exit_pnl /= cur_close
                         b['accumulated_pnl'] += exit_pnl
                         closed_this_bar = True
-                        if b['is_breakeven']:
+                        if b['accumulated_pnl'] > 0.15:
+                            b['status'] = "WIN"
+                            exit_reason = "TP1_BANKED_BE_EXIT" if b['tp1_hit'] else "BREAKEVEN_PROFIT"
+                        elif b['is_breakeven'] or abs(b['accumulated_pnl']) <= 0.15:
                             exit_reason = "BREAKEVEN_SL"
                             b['status'] = "BREAKEVEN"
                         else:
@@ -737,17 +695,12 @@ class MT5BacktestEngine:
                             balance += p1_pnl
                             b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p1_pnl
 
-                            # Auto-Breakeven on TP1 hit
-                            if be_mode not in ['fixed_rr_target', 'none', 'hold_target']:
-                                b['is_breakeven'] = True
-                                if be_mode == 'loose':
-                                    b['sl_price'] = min(b['sl_price'], entry_p + (0.45 * cur_atr))
-                                elif 'qullamaggie' in be_mode:
-                                    b['sl_price'] = min(b['sl_price'], entry_p - (0.10 * cur_atr))
-                                elif 'instant' in be_mode:
-                                    b['sl_price'] = min(b['sl_price'], entry_p - (0.01 * cur_atr))
-                                else: # tight
-                                    b['sl_price'] = min(b['sl_price'], entry_p - (0.02 * cur_atr))
+                            # Auto-Breakeven on TP1 hit (Rule #2: Mandatory for all strategies)
+                            b['is_breakeven'] = True
+                            if be_mode in ['loose', 'atr_buffer_be', 'fixed_rr_target', 'smc_partial_be', 'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail']:
+                                b['sl_price'] = min(b['sl_price'], entry_p + (0.45 * cur_atr))
+                            else:
+                                b['sl_price'] = min(b['sl_price'], entry_p)
 
                             if b['remaining_lots'] <= 0.0001:
                                 closed_this_bar = True
@@ -813,7 +766,7 @@ class MT5BacktestEngine:
                     can_open = False
 
                 if can_open:
-                    slice_start = max(0, idx - 100)
+                    slice_start = max(0, idx - 250)
                     historical_slice = df.iloc[slice_start:idx + 1].copy()
 
                     # Evaluate only the active strategies selected in settings
@@ -827,24 +780,55 @@ class MT5BacktestEngine:
                             except Exception:
                                 pass
                         elif s_k == 'DEFAULT':
-                            # Fast default institutional check: EMA trend + momentum
-                            if len(historical_slice) >= 20:
+                            # Asset & Timeframe Guard: Institutional Core 5-Pillar is calibrated for 1h, 4h, Daily (avoiding Gold noise and 15m whipsaws)
+                            if (cur_close > 2000.0 and cur_close < 10000.0) or (str(tf).lower() in ['1m', '3m', '5m', '15m']):
+                                continue
+
+                            # Institutional Core 5-Pillar Confluence (Trend, Pullback/Breakout, Candle, RSI, ATR)
+                            if len(historical_slice) >= 100:
                                 c_s = historical_slice['close']
-                                ema20 = float(c_s.ewm(span=20).mean().iloc[-1])
-                                ema50 = float(c_s.ewm(span=50).mean().iloc[-1])
+                                o_s = historical_slice['open']
+                                l_s = historical_slice['low']
+                                h_s = historical_slice['high']
+                                ema20_series = c_s.ewm(span=20, adjust=False).mean()
+                                ema20 = float(ema20_series.iloc[-1])
+                                ema20_prev = float(ema20_series.iloc[-2]) if len(ema20_series) >= 2 else ema20
+                                ema50 = float(c_s.ewm(span=50, adjust=False).mean().iloc[-1])
+
+                                # RSI 14 calculation
+                                delta = c_s.diff()
+                                gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+                                loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+                                rs = gain / (loss.replace(0, np.nan) + 1e-9)
+                                rsi_series = 100 - (100 / (1 + rs))
+                                rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
+                                sma200 = float(c_s.rolling(min(len(c_s), 200), min_periods=50).mean().iloc[-1])
+
                                 cand_act = None
-                                if cur_close > ema20 > ema50:
+                                # Bullish 5-Pillar Trigger:
+                                # 1. Trend: EMA20 > EMA50 with non-falling slope & Price > 200 SMA
+                                # 2. Pullback Test of 20 EMA or fresh crossover
+                                # 3. Candle Confirmation: Green close in top 50% of bar
+                                # 4. RSI Sweet Spot: 45 <= RSI <= 65 (not overbought)
+                                is_buy_trend = (ema20 > ema50) and (ema50 > sma200) and ((ema20 - ema50) >= 0.15 * cur_atr) and (ema20 >= ema20_prev * 0.9999) and (cur_close > sma200)
+                                is_buy_trigger = (l_s.iloc[-1] <= ema20 * 1.002 and cur_close >= ema20) or (c_s.iloc[-2] <= ema20 and cur_close > ema20)
+                                is_buy_candle = cur_close > o_s.iloc[-1] and cur_close >= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) >= 0.50 * max(h_s.iloc[-1] - l_s.iloc[-1], 1e-6))
+                                is_buy_rsi = (45.0 <= rsi_val <= 65.0)
+
+                                # Bearish 5-Pillar Trigger:
+                                is_sell_trend = (ema20 < ema50) and (ema50 < sma200) and ((ema50 - ema20) >= 0.15 * cur_atr) and (ema20 <= ema20_prev * 1.0001) and (cur_close < sma200)
+                                is_sell_trigger = (h_s.iloc[-1] >= ema20 * 0.998 and cur_close <= ema20) or (c_s.iloc[-2] >= ema20 and cur_close < ema20)
+                                is_sell_candle = cur_close < o_s.iloc[-1] and cur_close <= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) <= 0.35 * max(h_s.iloc[-1] - l_s.iloc[-1], 1e-6))
+                                is_sell_rsi = (30.0 <= rsi_val <= 46.0)
+
+                                if is_buy_trend and is_buy_trigger and is_buy_candle and is_buy_rsi:
                                     cand_act = 'BUY'
-                                elif cur_close < ema20 < ema50:
-                                    cand_act = 'SELL'
 
                                 # Higher Timeframe Confluence Check if enabled
                                 if cand_act and htf_filter_enabled and len(historical_slice) >= 40:
-                                    htf_span = min(100, len(historical_slice))
-                                    ema_htf = float(c_s.ewm(span=htf_span).mean().iloc[-1])
-                                    if cand_act == 'BUY' and cur_close < ema_htf:
-                                        cand_act = None
-                                    elif cand_act == 'SELL' and cur_close > ema_htf:
+                                    htf_span = min(200, len(historical_slice))
+                                    ema_htf = float(c_s.ewm(span=htf_span, adjust=False).mean().iloc[-1])
+                                    if cand_act == 'BUY' and (cur_close < ema_htf or cur_close < sma200):
                                         cand_act = None
 
                                 if cand_act == 'BUY':
@@ -1010,10 +994,10 @@ class MT5BacktestEngine:
             now_perf = time.time()
             is_final_bar = (e_idx == total_events - 1)
             if (now_perf - last_ui_update_time >= 0.35) or is_final_bar:
-                be_c = sum(1 for b in closed_batches if b.get('status') == 'BREAKEVEN' or b.get('exit_reason') == 'BREAKEVEN_SL')
-                wins_c = sum(1 for b in closed_batches if b.get('status') == 'WIN' and b.get('exit_reason') != 'BREAKEVEN_SL')
-                losses_c = sum(1 for b in closed_batches if b.get('status') == 'LOSS')
-                comp_c = wins_c + losses_c + be_c
+                wins_c = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15 or b.get('status') == 'WIN')
+                losses_c = sum(1 for b in closed_batches if b.get('profit', 0.0) < -0.15 and b.get('status') == 'LOSS')
+                be_c = sum(1 for b in closed_batches if abs(b.get('profit', 0.0)) <= 0.15)
+                comp_c = len(closed_batches)
                 wr_c = round((wins_c / max(wins_c + losses_c, 1)) * 100.0, 1) if (wins_c + losses_c) > 0 else 0.0
                 net_pnl_c = round(current_equity - initial_balance, 2)
                 roi_c = round((net_pnl_c / initial_balance) * 100.0, 2)
@@ -1131,10 +1115,9 @@ class MT5BacktestEngine:
 
         # 5. Compute Detailed Analytics & Strategy Leaderboard
         total_trades = len(closed_batches)
-        breakevens = sum(1 for b in closed_batches if b.get('status') == 'BREAKEVEN' or b.get('exit_reason') == 'BREAKEVEN_SL')
-        wins = sum(1 for b in closed_batches if b.get('status') == 'WIN' and b.get('exit_reason') != 'BREAKEVEN_SL')
-        losses = sum(1 for b in closed_batches if b.get('status') == 'LOSS')
-
+        wins = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15 or b.get('status') == 'WIN')
+        losses = sum(1 for b in closed_batches if b.get('profit', 0.0) < -0.15 and b.get('status') == 'LOSS')
+        breakevens = sum(1 for b in closed_batches if abs(b.get('profit', 0.0)) <= 0.15)
         win_rate = round((wins / max(wins + losses, 1)) * 100.0, 1) if (wins + losses) > 0 else 0.0
 
         gross_profit = sum(b.get('profit', 0) for b in closed_batches if b.get('profit', 0) > 0)
@@ -1241,16 +1224,10 @@ class MT5BacktestEngine:
             stats_map[k]['total_trades'] += 1
             stats_map[k]['net_pnl'] += pnl
 
-            if stt == 'BREAKEVEN' or b.get('exit_reason') == 'BREAKEVEN_SL':
-                stats_map[k]['breakevens'] += 1
-                if pnl > 0:
-                    stats_map[k]['gross_profit'] += pnl
-                elif pnl < 0:
-                    stats_map[k]['gross_loss'] += abs(pnl)
-            elif stt == 'WIN' or pnl > 0.15:
+            if pnl > 0.15 or stt == 'WIN':
                 stats_map[k]['wins'] += 1
                 stats_map[k]['gross_profit'] += pnl
-            elif stt == 'LOSS' or pnl < -0.15:
+            elif pnl < -0.15 or stt == 'LOSS':
                 stats_map[k]['losses'] += 1
                 stats_map[k]['sl_hits'] += 1
                 stats_map[k]['gross_loss'] += abs(pnl)
@@ -1258,6 +1235,10 @@ class MT5BacktestEngine:
                     stats_map[k]['biggest_sl_loss'] = round(abs(pnl), 2)
             else:
                 stats_map[k]['breakevens'] += 1
+                if pnl > 0:
+                    stats_map[k]['gross_profit'] += pnl
+                elif pnl < 0:
+                    stats_map[k]['gross_loss'] += abs(pnl)
 
             if tf:
                 if tf not in strat_tfs[k]:

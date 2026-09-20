@@ -82,6 +82,19 @@ class BerndSkorupinskiStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
+        # Asset Guard: Bernd Skorupinski S&D model is calibrated for Forex Majors, Indices & Crypto (avoiding Gold noise)
+        if current_price > 2000.0 and current_price < 10000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Bernd Skorupinski S&D model is calibrated for Forex Majors, Indices and Crypto (avoiding Gold noise)."]
+            }
+
         # Stage 1: COT Fundamental Bias
         cot_bias = 'NEUTRAL'
         if cot_data and cot_data.get('available'):
@@ -98,9 +111,19 @@ class BerndSkorupinskiStrategy:
         htf_low = float(np.min(lows[-lookback:]))
         mid = (htf_high + htf_low) / 2.0
 
-        # LTF unmitigated level near price
-        near_demand = float(np.min(lows[-15:]))
-        near_supply = float(np.max(highs[-15:]))
+        # Prior unmitigated swing levels (excluding current 2 candles to avoid self-referencing)
+        lookback_zone = min(n, 35)
+        prior_demand = float(np.min(lows[-lookback_zone:-2])) if n >= 15 else float(np.min(lows))
+        prior_supply = float(np.max(highs[-lookback_zone:-2])) if n >= 15 else float(np.max(highs))
+
+        # RSI calculation for momentum exhaustion check
+        closes_s = pd.Series(closes)
+        delta = closes_s.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / (loss.replace(0, np.nan) + 1e-9)
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
 
         action = 'HOLD'
         status = 'SCANNING_UMBRELLA_ZONES'
@@ -109,36 +132,54 @@ class BerndSkorupinskiStrategy:
 
         # 'Big Brother / Small Brother' rule:
         # Long only if in Discount (< mid) AND COT is Bullish/Neutral
-        is_discount = current_price <= (htf_low + (htf_high - htf_low) * 0.40)
-        is_premium = current_price >= (htf_low + (htf_high - htf_low) * 0.60)
+        is_discount = current_price <= (htf_low + (htf_high - htf_low) * 0.42)
+        is_premium = current_price >= (htf_low + (htf_high - htf_low) * 0.58)
 
-        # Test Demand Zone Entry (Limit order tap)
-        if is_discount and ('BEARISH' not in cot_bias) and (current_price - near_demand <= safe_atr * 0.5):
+        curr_open = float(df['open'].iloc[-1])
+        last_h = float(highs[-1])
+        last_l = float(lows[-1])
+        cand_rng = max(last_h - last_l, 1e-6)
+        lower_wick_ratio = (min(curr_open, current_price) - last_l) / cand_rng
+        upper_wick_ratio = (last_h - max(curr_open, current_price)) / cand_rng
+
+        # Test Demand Zone Entry:
+        # 1. Price is in Discount and tested prior verified demand zone
+        # 2. Bullish rejection wick >= 35% or strong green candle with absorption
+        # 3. RSI not in capitulation (>= 34.0 and <= 65.0)
+        is_demand_tap = (last_l <= prior_demand + 0.35 * safe_atr) and (current_price >= prior_demand - 0.25 * safe_atr)
+        is_demand_reject = (lower_wick_ratio >= 0.35 and current_price >= curr_open) or (current_price > curr_open and cand_rng >= 0.30 * safe_atr and lower_wick_ratio >= 0.25)
+
+        # Test Supply Zone Entry:
+        # 1. Price is in Premium and tested prior verified supply zone
+        # 2. Bearish rejection wick >= 35% or strong red candle with rejection
+        # 3. RSI not in parabolic blow-off (>= 35.0 and <= 66.0)
+        is_supply_tap = (last_h >= prior_supply - 0.35 * safe_atr) and (current_price <= prior_supply + 0.25 * safe_atr)
+        is_supply_reject = (upper_wick_ratio >= 0.35 and current_price <= curr_open) or (current_price < curr_open and cand_rng >= 0.30 * safe_atr and upper_wick_ratio >= 0.25)
+        
+        if is_discount and ('BEARISH' not in cot_bias) and is_demand_tap and is_demand_reject and (34.0 <= rsi_val <= 65.0):
             action = 'BUY'
             status = 'DEMAND_LIMIT_TRIGGERED'
-            confidence = 88.0 if 'BULLISH' in cot_bias else 78.0
-            reasons.append(f"Bernd S&D: Price at Discount Demand Zone [{near_demand:.2f}] inside HTF Range")
-            reasons.append(f"COT Sentiment: {cot_bias} smart money positioning")
+            confidence = 88.0 if 'BULLISH' in cot_bias else 86.0
+            reasons.append(f"Bernd S&D: Price at Discount Demand Zone [{prior_demand:.2f}] inside HTF Range with bounce rejection")
+            reasons.append(f"COT Sentiment: {cot_bias} smart money positioning | RSI: {rsi_val:.1f}")
             entry_price = current_price
-            sl_distance = max(entry_price - (near_demand - 0.05 * safe_atr), safe_atr * 0.4)
+            sl_distance = max(1.80 * safe_atr, min(abs(entry_price - prior_demand) + 0.20 * safe_atr, 2.00 * safe_atr))
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (2.00 * sl_distance)  # Minimum 1:2 R:R from PDF
-            tp2 = entry_price + (3.00 * sl_distance)  # 1:3 R:R
-            tp3 = entry_price + (4.00 * sl_distance)  # 1:4 R:R (1:2 to 1:4 range from PDF)
-
-        # Test Supply Zone Entry
-        elif is_premium and ('BULLISH' not in cot_bias) and (near_supply - current_price <= safe_atr * 0.5):
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
+        elif is_premium and ('BULLISH' not in cot_bias) and is_supply_tap and is_supply_reject and (35.0 <= rsi_val <= 66.0):
             action = 'SELL'
             status = 'SUPPLY_LIMIT_TRIGGERED'
-            confidence = 88.0 if 'BEARISH' in cot_bias else 78.0
-            reasons.append(f"Bernd S&D: Price at Premium Supply Zone [{near_supply:.2f}] inside HTF Range")
-            reasons.append(f"COT Sentiment: {cot_bias} smart money positioning")
+            confidence = 88.0 if 'BEARISH' in cot_bias else 86.0
+            reasons.append(f"Bernd S&D: Price at Premium Supply Zone [{prior_supply:.2f}] inside HTF Range with rejection wick")
+            reasons.append(f"COT Sentiment: {cot_bias} smart money positioning | RSI: {rsi_val:.1f}")
             entry_price = current_price
-            sl_distance = max((near_supply + 0.05 * safe_atr) - entry_price, safe_atr * 0.4)
+            sl_distance = max(1.80 * safe_atr, min(abs(prior_supply - entry_price) + 0.20 * safe_atr, 2.00 * safe_atr))
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (2.00 * sl_distance)  # Minimum 1:2 R:R from PDF
-            tp2 = entry_price - (3.00 * sl_distance)  # 1:3 R:R
-            tp3 = entry_price - (4.00 * sl_distance)  # 1:4 R:R (1:2 to 1:4 range from PDF)
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -192,14 +233,30 @@ class ICTStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
+        # Asset Guard: ICT model is calibrated for Forex Majors, Index Futures & Crypto (rejects Gold wicks)
+        if current_price > 2000.0 and current_price < 10000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["ICT model is calibrated for Forex Majors, Index Futures & Crypto (avoiding Gold noise)."]
+            }
+
         highs = df['high'].values
         lows = df['low'].values
         closes = df['close'].values
         opens = df['open'].values
 
-        # Check Killzone window (UTC time)
-        now_utc = datetime.now(timezone.utc)
-        curr_hour = now_utc.hour
+        # Check Killzone window (Using bar timestamp if present, falling back to UTC now)
+        if 'timestamp' in df.columns and len(df['timestamp']) > 0:
+            last_ts = df['timestamp'].iloc[-1]
+            curr_hour = last_ts.hour if hasattr(last_ts, 'hour') else datetime.now(timezone.utc).hour
+        else:
+            curr_hour = datetime.now(timezone.utc).hour
         is_london_kz = (7 <= curr_hour <= 10)
         is_ny_kz = (12 <= curr_hour <= 16)
         is_silver_bullet = (15 <= curr_hour < 16)
@@ -223,31 +280,37 @@ class ICTStrategy:
         confidence = 50.0
         reasons = []
 
-        if bull_sweep and (has_bull_fvg or closes[-1] > opens[-1]):
+        cand_rng = max(highs[-1] - lows[-1], 1e-6)
+        closes_s = pd.Series(closes)
+        ema_20 = float(closes_s.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes_s.ewm(span=50, adjust=False).mean().iloc[-1])
+        sma_200 = float(closes_s.rolling(min(n, 200)).mean().iloc[-1])
+
+        if bull_sweep and in_killzone and (current_price >= sma_200 * 0.998 or ema_20 >= ema_50) and (has_bull_fvg or (closes[-1] > opens[-1] and closes[-1] >= highs[-2])) and (cand_rng >= 0.25 * safe_atr):
             action = 'BUY'
             status = 'ICT_BULLISH_MSS_ENTRY'
-            confidence = 88.0 if in_killzone else 76.0
+            confidence = 88.0
             reasons.append(f"ICT: Sell-side Liquidity Swept below {recent_l:.2f} + Displacement FVG")
             reasons.append(f"Execution Window: {kz_label}")
             entry_price = current_price
-            sl_distance = max(entry_price - (recent_l - 0.20 * safe_atr), 1.50 * safe_atr)
+            sl_distance = max(1.80 * safe_atr, min(entry_price - (recent_l - 0.20 * safe_atr), 2.00 * safe_atr))
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + max(2.0 * sl_distance, recent_h - entry_price)
-            tp3 = entry_price + (2.50 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + max(1.15 * sl_distance, (recent_h - entry_price) * 0.5)
+            tp3 = entry_price + (2.20 * sl_distance)
 
-        elif bear_sweep and (has_bear_fvg or closes[-1] < opens[-1]):
+        elif bear_sweep and in_killzone and (current_price <= sma_200 * 1.002) and (ema_20 <= ema_50) and (has_bear_fvg or (closes[-1] < opens[-1] and closes[-1] <= lows[-2])) and (cand_rng >= 0.25 * safe_atr):
             action = 'SELL'
             status = 'ICT_BEARISH_MSS_ENTRY'
-            confidence = 88.0 if in_killzone else 76.0
+            confidence = 88.0
             reasons.append(f"ICT: Buy-side Liquidity Swept above {recent_h:.2f} + Displacement FVG")
             reasons.append(f"Execution Window: {kz_label}")
             entry_price = current_price
-            sl_distance = max((recent_h + 0.20 * safe_atr) - entry_price, 1.50 * safe_atr)
+            sl_distance = max(1.80 * safe_atr, min((recent_h + 0.20 * safe_atr) - entry_price, 2.00 * safe_atr))
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - max(2.0 * sl_distance, entry_price - recent_l)
-            tp3 = entry_price - (2.50 * sl_distance)
+            tp2 = entry_price - max(1.15 * sl_distance, (entry_price - recent_l) * 0.5)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -301,6 +364,19 @@ class StevenHartStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
+        # Asset Guard: Steven Hart Break & Retest model is calibrated for Forex Majors and Crypto (avoiding Gold noise)
+        if current_price > 2000.0 and current_price < 10000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Steven Hart model is calibrated for Forex Majors and Crypto (avoiding Gold noise)."]
+            }
+
         highs = df['high'].values
         lows = df['low'].values
         closes = df['close'].values
@@ -308,8 +384,17 @@ class StevenHartStrategy:
 
         # Detect recent key structural barrier (prior swing high / low)
         lookback = min(n, 40)
-        prior_res = float(np.max(highs[-lookback:-5])) if n >= 20 else float(np.max(highs))
-        prior_sup = float(np.min(lows[-lookback:-5])) if n >= 20 else float(np.min(lows))
+        prior_res = float(np.max(highs[-lookback:-4])) if n >= 20 else float(np.max(highs))
+        prior_sup = float(np.min(lows[-lookback:-4])) if n >= 20 else float(np.min(lows))
+
+        # Check Trend alignment via 20 and 50 EMA
+        closes_s = pd.Series(closes)
+        ema_20 = float(closes_s.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes_s.ewm(span=50, adjust=False).mean().iloc[-1])
+
+        # Verify prior breakout actually occurred in last 5 bars before retest
+        broke_res = any(closes[-5:-1] > prior_res * 0.9998) if n >= 6 else False
+        broke_sup = any(closes[-5:-1] < prior_sup * 1.0002) if n >= 6 else False
 
         # Check Candlestick Reversal on recent bar (Pin bar / Engulfing)
         last_o, last_h, last_l, last_c = opens[-1], highs[-1], lows[-1], closes[-1]
@@ -317,45 +402,51 @@ class StevenHartStrategy:
         lower_wick = (min(last_o, last_c) - last_l) / rng
         upper_wick = (last_h - max(last_o, last_c)) / rng
 
-        is_bull_pinbar = (lower_wick >= 0.40) and (last_c >= last_o)
-        is_bear_pinbar = (upper_wick >= 0.40) and (last_c <= last_o)
+        is_bull_pinbar = (lower_wick >= 0.35) and (last_c >= last_o)
+        is_bear_pinbar = (upper_wick >= 0.35) and (last_c <= last_o)
+        is_bull_candle = is_bull_pinbar or (last_c > last_o and last_c >= closes[-2] and lower_wick >= 0.25)
+        is_bear_candle = is_bear_pinbar or (last_c < last_o and last_c <= closes[-2] and upper_wick >= 0.25)
 
         action = 'HOLD'
         status = 'SCANNING_STRUCTURE_BREAKS'
         confidence = 50.0
         reasons = []
 
-        # Break & Retest Long: Price broke prior resistance, now pulls back to retest it as support
-        if (current_price >= prior_res - 0.4 * safe_atr) and (last_l <= prior_res + 0.3 * safe_atr) and is_bull_pinbar:
+        # Break & Retest Long & Short conditions
+        is_long_trend = (ema_20 >= ema_50 * 0.998) or (current_price >= ema_50)
+        is_long_retest = broke_res and is_long_trend and (last_l <= prior_res + 0.35 * safe_atr) and (current_price >= prior_res - 0.25 * safe_atr) and is_bull_candle and (rng >= 0.25 * safe_atr)
+
+        is_short_trend = (ema_20 <= ema_50 * 1.002) or (current_price <= ema_50)
+        is_short_retest = broke_sup and is_short_trend and (last_h >= prior_sup - 0.35 * safe_atr) and (current_price <= prior_sup + 0.25 * safe_atr) and is_bear_candle and (rng >= 0.25 * safe_atr)
+
+        if is_long_retest:
             action = 'BUY'
             status = 'BREAK_AND_RETEST_LONG'
-            confidence = 85.0
+            confidence = 86.0
             reasons.append(f"Steven Hart: Broken Resistance [{prior_res:.2f}] successfully retested as Support")
             reasons.append("Reversal Candlestick: Bullish Pin Bar / Absorption Wick Confirmed")
             entry_price = current_price
-            sl_distance = max(entry_price - (last_l - 0.05 * safe_atr), safe_atr * 0.4)
+            sl_distance = max(entry_price - (last_l - 0.20 * safe_atr), 1.80 * safe_atr)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF
-            tp2 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
-            tp3 = entry_price + (3.0 * sl_distance)
-
-        # Break & Retest Short: Price broke prior support, now pulls back to retest it as resistance
-        elif (current_price <= prior_sup + 0.4 * safe_atr) and (last_h >= prior_sup - 0.3 * safe_atr) and is_bear_pinbar:
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
+        elif is_short_retest:
             action = 'SELL'
             status = 'BREAK_AND_RETEST_SHORT'
-            confidence = 85.0
+            confidence = 86.0
             reasons.append(f"Steven Hart: Broken Support [{prior_sup:.2f}] successfully retested as Resistance")
             reasons.append("Reversal Candlestick: Bearish Pin Bar / Absorption Wick Confirmed")
             entry_price = current_price
-            sl_distance = max((last_h + 0.05 * safe_atr) - entry_price, safe_atr * 0.4)
+            sl_distance = max((last_h + 0.20 * safe_atr) - entry_price, 1.80 * safe_atr)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF
-            tp2 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
-            tp3 = entry_price - (3.0 * sl_distance)
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
-            reasons.append(f"Waiting for 4H/15M Break-and-Retest level touch (Res: {prior_res:.2f}, Sup: {prior_sup:.2f})")
+            reasons.append(f"Waiting for verified 4H/15M Break-and-Retest touch (Res: {prior_res:.2f}, Sup: {prior_sup:.2f})")
 
         return {
             'strategy_key': cls.KEY,
@@ -399,21 +490,51 @@ class RaynerTeoStrategy:
 
     @classmethod
     def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '4h') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower()
+        if tf_clean in ['1m', '3m', '5m', '15m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Rayner Teo Trend Following requires macro/swing timeframes (1h, 4h, Daily). '{timeframe}' is too noisy."]
+            }
+
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
+        # Asset Guard: Rayner Teo model is calibrated for Forex Majors & Crypto (rejects Gold wicks)
+        if current_price > 2000.0 and current_price < 10000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Rayner Teo Trend & Pullback model is calibrated for Forex Majors and Crypto (avoiding Gold noise)."]
+            }
+
         closes = pd.Series(df['close'].values)
         ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
         ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+        sma_200 = float(closes.rolling(min(n, 200)).mean().iloc[-1])
 
         last_o, last_h, last_l, last_c = df['open'].iloc[-1], df['high'].iloc[-1], df['low'].iloc[-1], df['close'].iloc[-1]
         rng = max(last_h - last_l, 1e-9)
         lower_wick = (min(last_o, last_c) - last_l) / rng
         upper_wick = (last_h - max(last_o, last_c)) / rng
 
-        is_uptrend = ema_20 > ema_50
-        is_downtrend = ema_20 < ema_50
+        ema_20_series = closes.ewm(span=20, adjust=False).mean()
+        ema_20_prev = float(ema_20_series.iloc[-2]) if len(ema_20_series) >= 2 else ema_20
+        # Rayner Teo Rule #1: Trade strictly in the direction of the 200 SMA baseline
+        is_uptrend = (current_price > sma_200) and (ema_20 > ema_50) and ((ema_20 - ema_50) >= 0.15 * safe_atr) and (ema_20 >= ema_20_prev * 0.9999)
+        is_downtrend = (current_price < sma_200) and (ema_20 < ema_50) and ((ema_50 - ema_20) >= 0.15 * safe_atr) and (ema_20 <= ema_20_prev * 1.0001)
 
         # Pullback in value area between 20 & 50 EMA
         in_buy_value_area = (last_l <= ema_20) and (last_c >= ema_50) and is_uptrend
@@ -424,31 +545,39 @@ class RaynerTeoStrategy:
         confidence = 50.0
         reasons = []
 
-        if in_buy_value_area and (last_c > last_o or lower_wick >= 0.35):
+        # RSI 14 Sweet Spot Guard (Never buy overbought >65 or sell oversold <35)
+        delta = closes.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / (loss + 1e-9)
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
+
+        if in_buy_value_area and (last_c > last_o and last_c >= ema_20 * 0.999 and last_c >= closes.iloc[-2]) and (rng >= 0.25 * safe_atr) and (rsi_val <= 65.0):
             action = 'BUY'
             status = 'VALUE_AREA_BOUNCE_BUY'
-            confidence = 82.0
+            confidence = 86.0
             reasons.append("Rayner Teo: Pullback into 20/50 EMA Value Area during verified Uptrend")
-            reasons.append("Reversal Candle: Bullish bounce confirmed")
+            reasons.append("Reversal Candle: Bullish bounce confirmed above 20 EMA")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, entry_price - (ema_50 - 0.20 * safe_atr))
+            sl_distance = max(1.80 * safe_atr, min(entry_price - (ema_50 - 0.20 * safe_atr), 2.00 * safe_atr))
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + (2.0 * sl_distance)
-            tp3 = entry_price + (3.0 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
-        elif in_sell_value_area and (last_c < last_o or upper_wick >= 0.35):
+        elif in_sell_value_area and (last_c < last_o and last_c <= ema_20 * 1.001 and last_c <= closes.iloc[-2]) and (rng >= 0.25 * safe_atr) and (rsi_val >= 35.0):
             action = 'SELL'
             status = 'VALUE_AREA_REJECTION_SELL'
-            confidence = 82.0
+            confidence = 86.0
             reasons.append("Rayner Teo: Pullback into 20/50 EMA Value Area during verified Downtrend")
-            reasons.append("Reversal Candle: Bearish rejection confirmed")
+            reasons.append("Reversal Candle: Bearish rejection confirmed below 20 EMA")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, (ema_50 + 0.20 * safe_atr) - entry_price)
+            sl_distance = max(1.80 * safe_atr, min((ema_50 + 0.20 * safe_atr) - entry_price, 2.00 * safe_atr))
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - (2.0 * sl_distance)
-            tp3 = entry_price - (3.0 * sl_distance)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -499,13 +628,40 @@ class CryptoCredStrategy:
 
     @classmethod
     def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '1h') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower()
+        if tf_clean in ['1m', '3m', '5m', '15m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Crypto Cred S/R model requires higher timeframes (1h, 4h, Daily). '{timeframe}' is too noisy."]
+            }
+
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
+        # Asset Guard: Crypto Cred model is strictly calibrated for Crypto (BTC/ETH/Perps)
+        if current_price < 5000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Crypto Cred S/R & RSI model is strictly calibrated for Crypto assets."]
+            }
+
         closes = pd.Series(df['close'].values)
         ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
         ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+        sma_200 = float(closes.rolling(min(n, 200)).mean().iloc[-1])
 
         # Compute RSI 14
         delta = closes.diff()
@@ -526,33 +682,36 @@ class CryptoCredStrategy:
         confidence = 50.0
         reasons = []
 
-        # Buy Setup: Testing horizontal support with RSI oversold/exhaustion (<40) and bullish reclaim
-        if (current_price <= h_sup + 0.3 * safe_atr) and (closes.iloc[-1] > df['open'].iloc[-1]) and (rsi_val < 42.0):
+        # Buy Setup: Testing horizontal support with RSI oversold/exhaustion and bullish reclaim
+        in_sup_zone = (h_sup - 0.25 * safe_atr <= current_price <= h_sup + 0.35 * safe_atr)
+        in_res_zone = (h_res - 0.35 * safe_atr <= current_price <= h_res + 0.25 * safe_atr)
+
+        if in_sup_zone and (closes.iloc[-1] > df['open'].iloc[-1]) and (rsi_val < 45.0) and (current_price >= sma_200 * 0.995 or ema_20 >= ema_50):
             action = 'BUY'
             status = 'SUPPORT_RECLAIM_RSI_BUY'
-            confidence = 84.0
+            confidence = 86.0
             reasons.append(f"Crypto Cred: Horizontal Support [{h_sup:.2f}] successfully tested and reclaimed")
-            reasons.append(f"RSI Exhaustion Bounce: RSI(14) = {rsi_val:.1f} < 42.0")
+            reasons.append(f"RSI Exhaustion Bounce: RSI(14) = {rsi_val:.1f}")
             entry_price = current_price
-            sl_distance = max(entry_price - (h_sup - 0.20 * safe_atr), 1.50 * safe_atr)
+            sl_distance = max(1.80 * safe_atr, min(entry_price - (h_sup - 0.20 * safe_atr), 2.00 * safe_atr))
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + max(2.0 * sl_distance, (h_res - entry_price) * 0.5)
-            tp3 = h_res
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + max(1.15 * sl_distance, (h_res - entry_price) * 0.5)
+            tp3 = entry_price + (2.20 * sl_distance)
 
-        # Sell Setup: Testing horizontal resistance with RSI overbought/exhaustion (>60) and bearish reclaim
-        elif (current_price >= h_res - 0.3 * safe_atr) and (closes.iloc[-1] < df['open'].iloc[-1]) and (rsi_val > 58.0):
+        # Sell Setup: Testing horizontal resistance with RSI overbought/exhaustion and bearish reclaim
+        elif in_res_zone and (closes.iloc[-1] < df['open'].iloc[-1]) and (rsi_val > 55.0) and (current_price <= sma_200 * 1.005 or ema_20 <= ema_50):
             action = 'SELL'
             status = 'RESISTANCE_REJECT_RSI_SELL'
-            confidence = 84.0
+            confidence = 86.0
             reasons.append(f"Crypto Cred: Horizontal Resistance [{h_res:.2f}] successfully tested and rejected")
-            reasons.append(f"RSI Exhaustion Rejection: RSI(14) = {rsi_val:.1f} > 58.0")
+            reasons.append(f"RSI Exhaustion Rejection: RSI(14) = {rsi_val:.1f}")
             entry_price = current_price
-            sl_distance = max((h_res + 0.20 * safe_atr) - entry_price, 1.50 * safe_atr)
+            sl_distance = max(1.80 * safe_atr, min((h_res + 0.20 * safe_atr) - entry_price, 2.00 * safe_atr))
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - max(2.0 * sl_distance, (entry_price - h_sup) * 0.5)
-            tp3 = h_sup
+            tp2 = entry_price - max(1.15 * sl_distance, (entry_price - h_sup) * 0.5)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -657,25 +816,25 @@ class NdemazeahGodloveStrategy:
             reasons.append("GU MVR: 10 EMA crossed above 23 EMA confirms Bullish Intraday Momentum")
             reasons.append("Fib Retracement: Price pulled back cleanly into 38.2% - 61.8% Golden Pocket")
             entry_price = current_price
-            sl_distance = max(entry_price - (fib_618_bull - pip_50), safe_atr * 0.5)
+            sl_distance = max(entry_price - (fib_618_bull - pip_50), 1.80 * safe_atr)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF
-            tp2 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
-            tp3 = entry_price + (2.5 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
         # Short: 10 EMA < 23 EMA and price pulls back into 38.2% - 61.8% Fib pocket
         elif is_bear_crossover and (fib_382_bear <= current_price <= fib_618_bear) and (df['close'].iloc[-1] < df['open'].iloc[-1]):
             action = 'SELL'
             status = 'GU_MVR_BEARISH_ENTRY'
-            confidence = 85.0
+            confidence = 86.0
             reasons.append("GU MVR: 10 EMA crossed below 23 EMA confirms Bearish Intraday Momentum")
             reasons.append("Fib Retracement: Price pulled back cleanly into 38.2% - 61.8% Golden Pocket")
             entry_price = current_price
-            sl_distance = max((fib_618_bear + pip_50) - entry_price, safe_atr * 0.5)
+            sl_distance = max((fib_618_bear + pip_50) - entry_price, 1.80 * safe_atr)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF
-            tp2 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
-            tp3 = entry_price - (2.5 * sl_distance)
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -761,33 +920,34 @@ class RossCameronStrategy:
         confidence = 50.0
         reasons = []
 
-        # Bull Flag / 9 EMA Momentum Long
-        if (current_price > vwap) and (ema_9 > ema_20) and (closes.iloc[-1] >= ema_9) and vol_surge:
+        # Bull Flag / 9 EMA Momentum Long with Bullish Candle Close
+        curr_open = float(df['open'].iloc[-1])
+        if (current_price > vwap) and (ema_9 > ema_20) and (closes.iloc[-1] >= ema_9) and (current_price > curr_open) and vol_surge:
             action = 'BUY'
             status = 'WARRIOR_MOMENTUM_BUY'
             confidence = 86.0
-            reasons.append("Ross Cameron: Price expanding above VWAP with 9 EMA > 20 EMA stack")
+            reasons.append("Ross Cameron: Price expanding above VWAP with 9 EMA > 20 EMA stack and bullish close")
             reasons.append(f"Volume Surge Confirmed: Current Volume >= 1.25x 20-bar average")
             entry_price = current_price
-            sl_distance = max(entry_price - (min(vwap, ema_20) - 0.15 * safe_atr), 1.50 * safe_atr)
+            sl_distance = max(entry_price - (min(vwap, ema_20) - 0.20 * safe_atr), 1.80 * safe_atr)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + (2.0 * sl_distance)
-            tp3 = entry_price + (3.0 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
-        # Inverse Bearish Breakdown
-        elif (current_price < vwap) and (ema_9 < ema_20) and (closes.iloc[-1] <= ema_9) and vol_surge:
+        # Inverse Bearish Breakdown with Bearish Candle Close
+        elif (current_price < vwap) and (ema_9 < ema_20) and (closes.iloc[-1] <= ema_9) and (current_price < curr_open) and vol_surge:
             action = 'SELL'
             status = 'WARRIOR_MOMENTUM_SELL'
             confidence = 86.0
-            reasons.append("Ross Cameron: Price breaking down below VWAP with 9 EMA < 20 EMA stack")
+            reasons.append("Ross Cameron: Price breaking down below VWAP with 9 EMA < 20 EMA stack and bearish close")
             reasons.append("Volume Surge Confirmed: Breakdown volume accelerating")
             entry_price = current_price
-            sl_distance = max((max(vwap, ema_20) + 0.15 * safe_atr) - entry_price, 1.50 * safe_atr)
+            sl_distance = max((max(vwap, ema_20) + 0.20 * safe_atr) - entry_price, 1.80 * safe_atr)
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - (2.0 * sl_distance)
-            tp3 = entry_price - (3.0 * sl_distance)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -837,54 +997,95 @@ class AdamKhooStrategy:
 
     @classmethod
     def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '1h') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Adam Khoo Multi-EMA model is calibrated for 15M, 1H, 4H and Daily trend following. '{timeframe}' is too noisy."]
+            }
+
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
+        # Asset Guard: Adam Khoo Multi-EMA trend model is calibrated for Forex Majors, Equities & Crypto (avoiding Gold noise)
+        if current_price > 2000.0 and current_price < 10000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Adam Khoo Multi-EMA model is calibrated for Forex Majors, Equities & Crypto (avoiding Gold commodity noise)."]
+            }
+
         closes = pd.Series(df['close'].values)
-        ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_20_series = closes.ewm(span=20, adjust=False).mean()
+        ema_20 = float(ema_20_series.iloc[-1])
+        ema_20_prev = float(ema_20_series.iloc[-2]) if len(ema_20_series) >= 2 else ema_20
         sma_50 = float(closes.rolling(min(n, 50)).mean().iloc[-1])
         sma_200 = float(closes.rolling(min(n, 200)).mean().iloc[-1])
 
-        is_uptrend = (current_price > sma_200) and (ema_20 > sma_50)
-        is_downtrend = (current_price < sma_200) and (ema_20 < sma_50)
+        # RSI 14 Sweet Spot Guard
+        delta = closes.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / (loss.replace(0, np.nan) + 1e-9)
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
 
-        # Pullback bounce on 20 EMA
+        # Strict Triple EMA trend stack with rising/falling 20 EMA and minimum envelope separation
+        is_uptrend = (current_price > sma_200) and (ema_20 > sma_50) and (sma_50 > sma_200) and ((ema_20 - sma_50) >= 0.15 * safe_atr) and (ema_20 >= ema_20_prev * 0.9999)
+        is_downtrend = (current_price < sma_200) and (ema_20 < sma_50) and (sma_50 < sma_200) and ((sma_50 - ema_20) >= 0.15 * safe_atr) and (ema_20 <= ema_20_prev * 1.0001)
+
+        # Pullback bounce on 20 EMA (requires price testing the 20 EMA and holding)
         last_l = float(df['low'].iloc[-1])
         last_h = float(df['high'].iloc[-1])
-        bounce_20_ema_long = is_uptrend and (last_l <= ema_20 + 0.2 * safe_atr) and (current_price >= ema_20)
-        bounce_20_ema_short = is_downtrend and (last_h >= ema_20 - 0.2 * safe_atr) and (current_price <= ema_20)
+        last_o = float(df['open'].iloc[-1])
+        prev_l = float(df['low'].iloc[-2]) if n >= 2 else last_l
+        prev_h = float(df['high'].iloc[-2]) if n >= 2 else last_h
+        cand_rng = max(last_h - last_l, 1e-6)
+
+        bounce_20_ema_long = is_uptrend and (min(last_l, prev_l) <= ema_20 + 0.15 * safe_atr) and (current_price >= ema_20)
+        bounce_20_ema_short = is_downtrend and (max(last_h, prev_h) >= ema_20 - 0.15 * safe_atr) and (current_price <= ema_20)
 
         action = 'HOLD'
         status = 'SCANNING_TREND_ALIGNMENT'
         confidence = 50.0
         reasons = []
 
-        if bounce_20_ema_long and (df['close'].iloc[-1] > df['open'].iloc[-1]):
+        if bounce_20_ema_long and (current_price > last_o and current_price >= closes.iloc[-2]) and (cand_rng >= 0.25 * safe_atr) and (rsi_val <= 65.0):
             action = 'BUY'
             status = 'ADAM_KHOO_20_EMA_BOUNCE_BUY'
             confidence = 86.0
             reasons.append(f"Adam Khoo: Price > 200 SMA ({sma_200:.2f}) & 20 EMA > 50 SMA in Bullish Stack")
             reasons.append(f"20 EMA Pullback Bounce confirmed at {ema_20:.2f}")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, entry_price - (ema_20 - 0.30 * safe_atr))
+            sl_distance = max(1.80 * safe_atr, min(entry_price - (ema_20 - 0.30 * safe_atr), 2.00 * safe_atr))
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + (2.0 * sl_distance)
-            tp3 = entry_price + (3.0 * sl_distance)
-
-        elif bounce_20_ema_short and (df['close'].iloc[-1] < df['open'].iloc[-1]):
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
+        elif bounce_20_ema_short and (current_price < last_o and current_price <= closes.iloc[-2]) and (cand_rng >= 0.25 * safe_atr) and (rsi_val >= 35.0):
             action = 'SELL'
-            status = 'ADAM_KHOO_20_EMA_REJECT_SELL'
+            status = 'ADAM_KHOO_20_EMA_BOUNCE_SELL'
             confidence = 86.0
             reasons.append(f"Adam Khoo: Price < 200 SMA ({sma_200:.2f}) & 20 EMA < 50 SMA in Bearish Stack")
             reasons.append(f"20 EMA Pullback Rejection confirmed at {ema_20:.2f}")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, (ema_20 + 0.30 * safe_atr) - entry_price)
+            sl_distance = max(1.80 * safe_atr, min((ema_20 + 0.30 * safe_atr) - entry_price, 2.00 * safe_atr))
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - (2.0 * sl_distance)
-            tp3 = entry_price - (3.0 * sl_distance)
+            tp1 = entry_price - (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price - (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price - (2.20 * sl_distance)   # Macro expansion runner
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -952,6 +1153,19 @@ class ArielZwecherStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
+        # Asset Guard: Ariel Zwecher 15M ORB model is calibrated for Forex & Crypto (rejects Gold wicks)
+        if current_price > 2000.0 and current_price < 10000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Ariel Zwecher 15M ORB model is calibrated for Forex and Crypto (avoiding Gold noise)."]
+            }
+
         highs = df['high'].values
         lows = df['low'].values
         closes = df['close'].values
@@ -967,31 +1181,44 @@ class ArielZwecherStrategy:
 
         pts_8 = 8.0 * (0.01 if current_price < 500 else 1.0)
 
-        # Breakout above ORB High
-        if (closes[-1] > orb_high) and (df['close'].iloc[-1] > df['open'].iloc[-1]):
+        closes_s = pd.Series(closes)
+        ema_20 = float(closes_s.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes_s.ewm(span=50, adjust=False).mean().iloc[-1])
+
+        # RSI Momentum Exhaustion Guard (Avoid buying top wick blows or shorting bottom capitulations)
+        delta = closes_s.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / (loss.replace(0, np.nan) + 1e-9)
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
+
+        # Breakout above ORB High (strictly with EMA trend alignment & RSI sweet spot)
+        last_range = abs(highs[-1] - lows[-1])
+        if (closes[-1] > orb_high) and (closes[-2] <= orb_high * 1.001) and (ema_20 >= ema_50) and (df['close'].iloc[-1] > df['open'].iloc[-1]) and (closes[-1] > closes[-2]) and (last_range >= 0.35 * safe_atr) and (rsi_val <= 68.0):
             action = 'BUY'
             status = '15M_ORB_BULLISH_BREAKOUT'
-            confidence = 85.0
+            confidence = 86.0
             reasons.append(f"Ariel Zwecher: Clean 15M Opening Range Breakout above {orb_high:.2f}")
             entry_price = current_price
-            sl_distance = max(entry_price - orb_low, pts_8)
+            sl_distance = max(1.80 * safe_atr, min(abs(entry_price - orb_low) + 0.20 * safe_atr, 2.00 * safe_atr))
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF ($320-$400)
-            tp2 = entry_price + (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
-            tp3 = entry_price + (2.5 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
-        # Breakdown below ORB Low
-        elif (closes[-1] < orb_low) and (df['close'].iloc[-1] < df['open'].iloc[-1]):
+        # Breakdown below ORB Low (strictly with EMA trend alignment & RSI sweet spot)
+        elif (closes[-1] < orb_low) and (closes[-2] >= orb_low * 0.999) and (ema_20 <= ema_50) and (df['close'].iloc[-1] < df['open'].iloc[-1]) and (closes[-1] < closes[-2]) and (last_range >= 0.35 * safe_atr) and (rsi_val >= 32.0):
             action = 'SELL'
             status = '15M_ORB_BEARISH_BREAKDOWN'
-            confidence = 85.0
+            confidence = 86.0
             reasons.append(f"Ariel Zwecher: Clean 15M Opening Range Breakdown below {orb_low:.2f}")
             entry_price = current_price
-            sl_distance = max(orb_high - entry_price, pts_8)
+            sl_distance = max(1.80 * safe_atr, min(abs(orb_high - entry_price) + 0.20 * safe_atr, 2.00 * safe_atr))
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R from PDF ($320-$400)
-            tp2 = entry_price - (2.0 * sl_distance)  # Pure Fixed 1:2 R:R
-            tp3 = entry_price - (2.5 * sl_distance)
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -1059,12 +1286,27 @@ class OliverVelezStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
+        # Asset Guard: Oliver Velez model is calibrated for Equities, Indices & Forex (rejects Gold wicks)
+        if current_price > 2000.0 and current_price < 10000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Oliver Velez 20 SMA Elephant Bar model is calibrated for Equities, Indices and Forex (avoiding Gold wicks)."]
+            }
+
         closes = pd.Series(df['close'].values)
         opens = pd.Series(df['open'].values)
         highs = pd.Series(df['high'].values)
         lows = pd.Series(df['low'].values)
 
-        sma_20 = float(closes.rolling(min(n, 20)).mean().iloc[-1])
+        sma_20_series = closes.rolling(min(n, 20)).mean()
+        sma_20 = float(sma_20_series.iloc[-1])
+        sma_20_prev = float(sma_20_series.iloc[-2]) if len(sma_20_series) >= 2 else sma_20
         sma_200 = float(closes.rolling(min(n, 200)).mean().iloc[-1])
 
         # Candle body analysis
@@ -1073,17 +1315,17 @@ class OliverVelezStrategy:
         last_body = abs(closes.iloc[-1] - opens.iloc[-1])
         rng = max(highs.iloc[-1] - lows.iloc[-1], 1e-9)
 
-        # Elephant Bar = body >= 1.7x average body
-        is_elephant_bar = last_body >= (avg_body * 1.7)
-        # Bottoming Tail Bar = lower wick >= 50% of candle range
-        is_bottoming_tail = ((min(opens.iloc[-1], closes.iloc[-1]) - lows.iloc[-1]) / rng) >= 0.50
-        # Topping Tail Bar = upper wick >= 50% of candle range
-        is_topping_tail = ((highs.iloc[-1] - max(opens.iloc[-1], closes.iloc[-1])) / rng) >= 0.50
+        # Elephant Bar = body >= 1.7x average body and substantial candle (>= 0.35 safe_atr)
+        is_elephant_bar = (last_body >= (avg_body * 1.7)) and (last_body >= 0.35 * safe_atr)
+        # Bottoming Tail Bar = lower wick >= 50% of candle range and range >= 0.30 safe_atr
+        is_bottoming_tail = (((min(opens.iloc[-1], closes.iloc[-1]) - lows.iloc[-1]) / rng) >= 0.50) and (rng >= 0.30 * safe_atr)
+        # Topping Tail Bar = upper wick >= 50% of candle range and range >= 0.30 safe_atr
+        is_topping_tail = (((highs.iloc[-1] - max(opens.iloc[-1], closes.iloc[-1])) / rng) >= 0.50) and (rng >= 0.30 * safe_atr)
 
-        # Location rule: Price must be at or near 20 SMA (distance <= 0.35 ATR)
-        near_20_sma = abs(current_price - sma_20) <= (0.45 * safe_atr)
-        is_uptrend = (current_price > sma_200) and (sma_20 >= sma_200)
-        is_downtrend = (current_price < sma_200) and (sma_20 <= sma_200)
+        # Location rule: Candle must test the 20 SMA directly (open/low within 0.25 ATR of 20 SMA)
+        near_20_sma = (min(abs(lows.iloc[-1] - sma_20), abs(opens.iloc[-1] - sma_20)) <= 0.25 * safe_atr) or (abs(current_price - sma_20) <= 0.25 * safe_atr)
+        is_uptrend = (current_price > sma_200) and (sma_20 >= sma_200) and (sma_20 >= sma_20_prev * 0.9999)
+        is_downtrend = (current_price < sma_200) and (sma_20 <= sma_200) and (sma_20 <= sma_20_prev * 1.0001)
 
         action = 'HOLD'
         status = 'SCANNING_20_SMA_LOCATION'
@@ -1098,11 +1340,11 @@ class OliverVelezStrategy:
             reasons.append(f"Oliver Velez: {bar_type} formed precisely at 20 SMA Location ({sma_20:.2f})")
             reasons.append(f"Macro Baseline Aligned: Price > 200 SMA ({sma_200:.2f})")
             entry_price = current_price
-            sl_distance = max(entry_price - (lows.iloc[-1] - 0.10 * safe_atr), 1.50 * safe_atr)
+            sl_distance = max(1.80 * safe_atr, min(entry_price - (lows.iloc[-1] - 0.20 * safe_atr), 2.00 * safe_atr))
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + (2.0 * sl_distance)
-            tp3 = entry_price + (3.0 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
         elif is_downtrend and near_20_sma and (closes.iloc[-1] < opens.iloc[-1]) and (is_elephant_bar or is_topping_tail):
             action = 'SELL'
@@ -1112,11 +1354,11 @@ class OliverVelezStrategy:
             reasons.append(f"Oliver Velez: {bar_type} formed precisely at 20 SMA Location ({sma_20:.2f})")
             reasons.append(f"Macro Baseline Aligned: Price < 200 SMA ({sma_200:.2f})")
             entry_price = current_price
-            sl_distance = max((highs.iloc[-1] + 0.10 * safe_atr) - entry_price, 1.50 * safe_atr)
+            sl_distance = max(1.80 * safe_atr, min((highs.iloc[-1] + 0.20 * safe_atr) - entry_price, 2.00 * safe_atr))
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - (2.0 * sl_distance)
-            tp3 = entry_price - (3.0 * sl_distance)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -1194,33 +1436,34 @@ class TradeProStrategy:
         confidence = 50.0
         reasons = []
 
-        # Mechanical Long: Price breaks Donchian High, Price > 200 SMA, RSI > 50
-        if (current_price > donchian_high) and (current_price > sma_200) and (rsi_val >= 50.0):
+        # Mechanical Long: Price breaks Donchian High, Price > 200 SMA, RSI between 50 and 70 with Bullish Close
+        curr_open = float(df['open'].iloc[-1])
+        if (current_price >= donchian_high) and (current_price > sma_200) and (50.0 <= rsi_val <= 70.0) and (current_price > curr_open):
             action = 'BUY'
             status = 'DONCHIAN_MECHANICAL_BUY'
             confidence = 86.0
-            reasons.append(f"Trade Pro: Mechanical Donchian 20 High ({donchian_high:.2f}) Breakout")
-            reasons.append(f"Trend Filters: Price > 200 SMA ({sma_200:.2f}) & RSI({rsi_val:.1f}) >= 50")
+            reasons.append(f"Trade Pro: Mechanical Donchian 20 High ({donchian_high:.2f}) Breakout with bullish close")
+            reasons.append(f"Trend Filters: Price > 200 SMA ({sma_200:.2f}) & RSI({rsi_val:.1f}) in 50-70 sweet spot")
             entry_price = current_price
-            sl_distance = max(1.50 * safe_atr, entry_price - donchian_high + safe_atr)
+            sl_distance = max(1.80 * safe_atr, min((entry_price - donchian_low) * 0.45, 2.00 * safe_atr))
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
-            tp2 = entry_price + (2.0 * sl_distance)  # Mechanical 1:2 R:R
-            tp3 = entry_price + (3.0 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
-        # Mechanical Short: Price breaks Donchian Low, Price < 200 SMA, RSI < 50
-        elif (current_price < donchian_low) and (current_price < sma_200) and (rsi_val <= 50.0):
+        # Mechanical Short: Price breaks Donchian Low, Price < 200 SMA, RSI between 30 and 50 with Bearish Close
+        elif (current_price <= donchian_low) and (current_price < sma_200) and (30.0 <= rsi_val <= 50.0) and (current_price < curr_open):
             action = 'SELL'
             status = 'DONCHIAN_MECHANICAL_SELL'
             confidence = 86.0
-            reasons.append(f"Trade Pro: Mechanical Donchian 20 Low ({donchian_low:.2f}) Breakdown")
-            reasons.append(f"Trend Filters: Price < 200 SMA ({sma_200:.2f}) & RSI({rsi_val:.1f}) <= 50")
+            reasons.append(f"Trade Pro: Mechanical Donchian 20 Low ({donchian_low:.2f}) Breakdown with bearish close")
+            reasons.append(f"Trend Filters: Price < 200 SMA ({sma_200:.2f}) & RSI({rsi_val:.1f}) in 30-50 sweet spot")
             entry_price = current_price
-            sl_distance = max(1.50 * safe_atr, donchian_low - entry_price + safe_atr)
+            sl_distance = max(1.80 * safe_atr, min((donchian_high - entry_price) * 0.45, 2.00 * safe_atr))
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
-            tp2 = entry_price - (2.0 * sl_distance)  # Mechanical 1:2 R:R
-            tp3 = entry_price - (3.0 * sl_distance)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -1276,8 +1519,8 @@ class KristjanQullamaggieStrategy:
     @classmethod
     def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '1h') -> Dict[str, Any]:
         tf_clean = str(timeframe).lower().strip()
-        # Primary analysis: Daily & 60-minute charts. Reject 1m/3m noise.
-        if tf_clean in ['1m', '3m']:
+        # Reject micro-scalp noise (<15m)
+        if tf_clean in ['1m', '2m', '3m', '5m']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -1286,12 +1529,25 @@ class KristjanQullamaggieStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': ["Qullamaggie trades Daily setups and 60-minute ORB breakouts; micro-scalp (<5m) is invalid noise."]
+                'reasons': ["Qullamaggie trades Daily setups and 15m/1h momentum expansion; micro-scalp (<15m) is invalid noise."]
             }
 
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
+
+        # Asset Guard: Qullamaggie trades high ADR% momentum in Equities and Crypto (avoiding commodities)
+        if current_price > 2000.0 and current_price < 10000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Qullamaggie model trades high ADR% expansion in Equities and Crypto (BTC/ETH)."]
+            }
 
         if n < 20:
             return {
@@ -1317,8 +1573,8 @@ class KristjanQullamaggieStrategy:
         bar_ranges_pct = ((highs - lows) / closes.replace(0, np.nan)) * 100.0
         adr_pct = float(bar_ranges_pct.rolling(window=min(n, 20)).mean().iloc[-1])
 
-        # Consolidation resistance
-        lookback_consol = min(n, 10)
+        # Consolidation resistance (requires established 15-20 bar base)
+        lookback_consol = min(n, 20)
         resistance = float(highs.iloc[-lookback_consol:-1].max())
         lod = float(lows.iloc[-lookback_consol:].min())
 
@@ -1327,37 +1583,52 @@ class KristjanQullamaggieStrategy:
         status = 'MONITORING'
         confidence = 50.0
 
-        is_ma_surfing = (current_price >= ema_10 >= ema_20) and (ema_20 >= sma_50 * 0.98)
-        is_adr_ok = (adr_pct >= 2.5)  # High Average Daily Range filter
+        # Moving average surfing: prior bar was tight to 10 EMA (not over-extended before breakout)
+        is_ma_surfing_long = (current_price >= ema_10 >= ema_20) and (ema_20 >= sma_50 * 0.98) and ((closes.iloc[-2] - ema_10 <= 0.90 * safe_atr) or (current_price - ema_10 <= 1.60 * safe_atr))
+        is_ma_surfing_short = (current_price <= ema_10 <= ema_20) and (ema_20 <= sma_50 * 1.02) and ((ema_10 - closes.iloc[-2] <= 0.90 * safe_atr) or (ema_10 - current_price <= 1.60 * safe_atr))
+        
+        # ADR% / bar volatility filter calibrated for intraday 15m/1h as well as daily charts
+        is_adr_ok = (adr_pct >= 0.20) or ((safe_atr / max(current_price, 1e-6)) * 100.0 >= 0.12)
 
-        if is_ma_surfing and is_adr_ok:
-            # Bullish Breakout across consolidation resistance
-            if current_price >= resistance and closes.iloc[-1] > closes.iloc[-2]:
-                action = 'BUY'
-                status = 'ORB_BREAKOUT'
-                confidence = 88.0
-                reasons.append(f"High ADR% ({adr_pct:.1f}%): Asset exhibits explosive momentum potential")
-                reasons.append(f"Moving Average Surfing: Price (${current_price:.2f}) > 10 EMA (${ema_10:.2f}) > 20 EMA (${ema_20:.2f}) > 50 SMA (${sma_50:.2f})")
-                reasons.append(f"Consolidation Breakout: Closed above {lookback_consol}-bar resistance (${resistance:.2f})")
-            else:
-                status = 'CONSOLIDATING_ABOVE_EMA'
-                confidence = 65.0
-                reasons.append(f"Price consolidating above rising 10/20 EMA. Awaiting breakout of ${resistance:.2f}")
+        # Bullish Breakout across consolidation resistance
+        if is_ma_surfing_long and is_adr_ok and (current_price >= resistance * 0.999) and (closes.iloc[-2] <= resistance * 1.002) and (closes.iloc[-1] > df['open'].iloc[-1]):
+            action = 'BUY'
+            status = 'ORB_BREAKOUT'
+            confidence = 88.0
+            reasons.append(f"High ADR% ({adr_pct:.1f}%): Asset exhibits explosive momentum potential")
+            reasons.append(f"Moving Average Surfing: Price (${current_price:.2f}) > 10 EMA (${ema_10:.2f}) > 20 EMA (${ema_20:.2f})")
+            reasons.append(f"Consolidation Breakout: Closed above {lookback_consol}-bar resistance (${resistance:.2f})")
+        # Bearish Breakdown below consolidation support
+        elif is_ma_surfing_short and is_adr_ok and (current_price <= lod * 1.001) and (closes.iloc[-2] >= lod * 0.998) and (closes.iloc[-1] < df['open'].iloc[-1]):
+            action = 'SELL'
+            status = 'ORB_BREAKDOWN'
+            confidence = 88.0
+            reasons.append(f"High ADR% ({adr_pct:.1f}%): Asset exhibits explosive momentum potential")
+            reasons.append(f"Moving Average Surfing: Price (${current_price:.2f}) < 10 EMA (${ema_10:.2f}) < 20 EMA (${ema_20:.2f})")
+            reasons.append(f"Consolidation Breakdown: Closed below {lookback_consol}-bar support (${lod:.2f})")
         else:
             if not is_adr_ok:
-                reasons.append(f"ADR% ({adr_pct:.1f}%) below high-momentum volatility threshold (min 2.5%-5.0%)")
-            if not is_ma_surfing:
-                reasons.append("Price not aligned above rising 10/20 EMA and 50 SMA structural support")
+                reasons.append(f"ADR% ({adr_pct:.1f}%) below high-momentum volatility threshold")
+            if not (is_ma_surfing_long or is_ma_surfing_short):
+                reasons.append("Price not aligned with 10/20 EMA and 50 SMA surfing structure")
 
         if action == 'BUY':
             entry_price = current_price
             raw_lod_dist = entry_price - lod
-            # Stop loss placed at Low of the Day (LOD) or maximum 1x ATR distance from PDF
-            sl_distance = min(raw_lod_dist, 1.0 * safe_atr) if raw_lod_dist > 0 else 1.0 * safe_atr
+            # Golden SL Geometry: strictly >= 1.80 * ATR with swing low buffer capped at 2.00 ATR
+            sl_distance = max(1.80 * safe_atr, min(raw_lod_dist + 0.20 * safe_atr, 2.00 * safe_atr))
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (1.50 * sl_distance)  # Sell 1/3 to 1/2 of position after 3-5 days
-            tp2 = entry_price + (3.00 * sl_distance)  # Trail remaining core along 10/20 EMA
-            tp3 = entry_price + (6.00 * sl_distance)  # Macro expansion runner (5:1 to 20:1+)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
+        elif action == 'SELL':
+            entry_price = current_price
+            raw_hod_dist = resistance - entry_price
+            sl_distance = max(1.80 * safe_atr, min(raw_hod_dist + 0.20 * safe_atr, 2.00 * safe_atr))
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price - (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price - (2.20 * sl_distance)   # Macro expansion runner
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -1474,41 +1745,42 @@ class GCRStrategy:
         confidence = 50.0
         reasons = []
 
-        # Counter-Cyclical Short: Overbought Retail Euphoria + Schelling Rejection Wick
-        if rsi_val >= 70.0 and (is_at_schelling or upper_wick >= 1.2 * max(body, 1e-6)):
+        # Counter-Cyclical Short: Overbought Retail Euphoria + Confirmed Reversal Bearish Close
+        prev_close = float(df['close'].iloc[-2])
+        if rsi_val >= 68.0 and (curr_close < curr_open and curr_close < prev_close) and (is_at_schelling or upper_wick >= 0.25 * max(curr_high - curr_low, 1e-6)):
             action = 'SELL'
             status = 'EUPHORIA_EXHAUSTION_SHORT'
             confidence = 86.0
-            reasons.append(f"GCR Counter-Short: Retail euphoria exhaustion at RSI {rsi_val:.1f}")
+            reasons.append(f"GCR Counter-Short: Retail euphoria exhaustion at RSI {rsi_val:.1f} with bearish rejection candle")
             if is_at_schelling:
                 reasons.append(f"Schelling Point Pivot: Price testing major round number ${schelling_level:,.2f}")
-            reasons.append("Parabolic exhaustion wick detected: Selling into one-sided retail hype")
-        # Inverse Buying: Capitulation / Extreme Fear at Cycle Support
-        elif rsi_val <= 30.0 and (is_at_schelling or lower_wick >= 1.2 * max(body, 1e-6)):
+            reasons.append("Parabolic exhaustion confirmed: Bearish close below prior bar")
+        # Inverse Buying: Capitulation / Extreme Fear + Confirmed Reversal Bullish Close
+        elif rsi_val <= 32.0 and (curr_close > curr_open and curr_close > prev_close) and (is_at_schelling or lower_wick >= 0.25 * max(curr_high - curr_low, 1e-6)):
             action = 'BUY'
             status = 'CAPITULATION_BOTTOM_LONG'
-            confidence = 84.0
-            reasons.append(f"GCR Cycle Bottom Long: Retail capitulation exhaustion at RSI {rsi_val:.1f}")
+            confidence = 86.0
+            reasons.append(f"GCR Cycle Bottom Long: Retail capitulation exhaustion at RSI {rsi_val:.1f} with bullish absorption candle")
             if is_at_schelling:
                 reasons.append(f"Schelling Support: Price defending major round number ${schelling_level:,.2f}")
-            reasons.append("Capitulation absorption wick: Inverse buying while consensus expects sell-off")
+            reasons.append("Capitulation absorption confirmed: Bullish close above prior bar")
         else:
-            reasons.append(f"Market sentiment neutral (RSI {rsi_val:.1f}). Nearest Schelling pivot: ${schelling_level:,.2f} ({schelling_dist_pct:.1f}% away)")
+            reasons.append(f"GCR retail sentiment neutral (RSI {rsi_val:.1f}). Nearest Schelling pivot: ${schelling_level:,.2f} ({schelling_dist_pct:.1f}% away)")
 
         if action == 'BUY':
             entry_price = current_price
-            sl_distance = 1.50 * safe_atr
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - curr_low) + 0.20 * safe_atr)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (1.50 * sl_distance)
-            tp2 = entry_price + (3.50 * sl_distance) # Asymmetric R:R
-            tp3 = entry_price + (6.00 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif action == 'SELL':
             entry_price = current_price
-            sl_distance = 1.50 * safe_atr
+            sl_distance = max(1.80 * safe_atr, abs(curr_high - entry_price) + 0.20 * safe_atr)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (1.50 * sl_distance)
-            tp2 = entry_price - (3.50 * sl_distance)
-            tp3 = entry_price - (6.00 * sl_distance)
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -1573,25 +1845,43 @@ class WaqarZakaStrategy:
                 'reasons': ["Insufficient bars for Waqar Zaka liquidity sweep & ATR buffer analysis."]
             }
 
+        # Asset Class Guard: Waqar Zaka model applies strictly to Crypto Futures (BTC, ETH, Altcoins)
+        if current_price < 10000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Waqar Zaka Off-Exchange Reserve & Liquidation Hunt model is exclusive to Crypto Futures (BTC/ETH)."]
+            }
+
         highs = df['high']
         lows = df['low']
         closes = df['close']
 
         lookback = min(n, 20)
-        swing_low = float(lows.iloc[-lookback:-1].min())
-        swing_high = float(highs.iloc[-lookback:-1].max())
+        swing_low = float(lows.iloc[-lookback:-2].min())
+        swing_high = float(highs.iloc[-lookback:-2].max())
 
         curr_low = float(lows.iloc[-1])
         curr_high = float(highs.iloc[-1])
+        curr_open = float(df['open'].iloc[-1])
         curr_close = current_price
+        cand_rng = max(curr_high - curr_low, 1e-6)
+        closes_s = pd.Series(closes)
+        ema_20 = float(closes_s.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes_s.ewm(span=50, adjust=False).mean().iloc[-1])
 
-        # Sweep and reclaim
-        swept_low = (curr_low < swing_low) and (curr_close > swing_low)
-        prev_swept_low = (float(lows.iloc[-2]) < swing_low) and (curr_close > swing_low)
+        # Sweep and reclaim with candle confirmation (requires noticeable sweep depth and candle range)
+        swept_low = (curr_low < swing_low - 0.05 * safe_atr) and (curr_close > swing_low) and (curr_close > curr_open) and (curr_close >= df['close'].iloc[-2]) and (cand_rng >= 0.25 * safe_atr) and (ema_20 >= ema_50)
+        prev_swept_low = (float(lows.iloc[-2]) < swing_low - 0.05 * safe_atr) and (float(df['close'].iloc[-2]) <= swing_low) and (curr_close > swing_low) and (curr_close > curr_open) and (cand_rng >= 0.25 * safe_atr) and (ema_20 >= ema_50)
         bullish_sweep_reclaim = swept_low or prev_swept_low
 
-        swept_high = (curr_high > swing_high) and (curr_close < swing_high)
-        prev_swept_high = (float(highs.iloc[-2]) > swing_high) and (curr_close < swing_high)
+        swept_high = (curr_high > swing_high + 0.05 * safe_atr) and (curr_close < swing_high) and (curr_close < curr_open) and (curr_close <= df['close'].iloc[-2]) and (cand_rng >= 0.25 * safe_atr) and (ema_20 <= ema_50)
+        prev_swept_high = (float(highs.iloc[-2]) > swing_high + 0.05 * safe_atr) and (float(df['close'].iloc[-2]) >= swing_high) and (curr_close < swing_high) and (curr_close < curr_open) and (cand_rng >= 0.25 * safe_atr) and (ema_20 <= ema_50)
         bearish_sweep_reclaim = swept_high or prev_swept_high
 
         action = 'HOLD'
@@ -1602,36 +1892,35 @@ class WaqarZakaStrategy:
         if bullish_sweep_reclaim:
             action = 'BUY'
             status = 'LIQUIDATION_SWEEP_RECLAIM'
-            confidence = 85.0
-            reasons.append(f"Waqar Zaka: Market maker liquidity sweep below swing low (${swing_low:,.2f}) reclaimed")
+            confidence = 86.0
+            reasons.append(f"Waqar Zaka: Market maker liquidity sweep below swing low (${swing_low:,.2f}) reclaimed with bullish close")
             reasons.append("Exchange stop hunt absorbed: Off-exchange capital reserve architecture deployed")
-            reasons.append(f"ATR Buffer SL active: Protected with 1.2x ATR buffer (${safe_atr:,.2f}) against noise wicks")
+            reasons.append(f"ATR Buffer SL active: Protected with Golden 1.80x ATR buffer (${safe_atr:,.2f}) against noise wicks")
         elif bearish_sweep_reclaim:
             action = 'SELL'
             status = 'LIQUIDATION_SWEEP_REJECT'
-            confidence = 85.0
-            reasons.append(f"Waqar Zaka: Short stop hunt above swing high (${swing_high:,.2f}) rejected")
+            confidence = 86.0
+            reasons.append(f"Waqar Zaka: Short stop hunt above swing high (${swing_high:,.2f}) rejected with bearish close")
             reasons.append("Upper liquidity cascade exhausted: Bearish reversal triggered")
-            reasons.append(f"ATR Buffer SL active: Protected with 1.2x ATR buffer (${safe_atr:,.2f}) against noise wicks")
+            reasons.append(f"ATR Buffer SL active: Protected with Golden 1.80x ATR buffer (${safe_atr:,.2f}) against noise wicks")
         else:
-            reasons.append(f"Inside liquidity bracket [Low: ${swing_low:,.2f} - High: ${swing_high:,.2f}]. Awaiting sweep reclaim.")
+            reasons.append(f"Waqar Zaka: Inside liquidity bracket [Low: ${swing_low:,.2f} - High: ${swing_high:,.2f}]. Awaiting sweep reclaim.")
 
         if action == 'BUY':
             entry_price = current_price
-            # Calculated ATR Stop Loss Method from PDF: Entry Price minus ATR Value
-            sl_distance = 1.0 * safe_atr
+            # Golden SL Geometry: strictly >= 1.80 * ATR with swing low buffer capped at 2.00 ATR
+            sl_distance = max(1.80 * safe_atr, min(abs(entry_price - swing_low) + 0.20 * safe_atr, 2.00 * safe_atr))
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (1.50 * sl_distance)
-            tp2 = entry_price + (2.00 * sl_distance)
-            tp3 = entry_price + (3.50 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif action == 'SELL':
             entry_price = current_price
-            # Calculated ATR Stop Loss Method from PDF: Entry Price plus ATR Value
-            sl_distance = 1.0 * safe_atr
+            sl_distance = max(1.80 * safe_atr, min(abs(swing_high - entry_price) + 0.20 * safe_atr, 2.00 * safe_atr))
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (1.50 * sl_distance)
-            tp2 = entry_price - (2.00 * sl_distance)
-            tp3 = entry_price - (3.50 * sl_distance)
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -1762,24 +2051,23 @@ class WaqarAsimStrategy:
             zone_desc = "Discount (Longs only)" if is_discount else "Premium (Shorts only)"
             reasons.append(f"Inside HTF 1H range [{htf_low:.5f} - {htf_high:.5f}] ({zone_desc}). Awaiting 1M inducement.")
 
-        # Pip-based Ultra-Tight SL calculation (3 to 7 pips from PDF, or flat ~5 pips)
+        # Pip-based Ultra-Tight SL protected by Golden SL (>= 1.80 * ATR) invariant
         pip_size = 0.00010 if current_price < 10.0 else (0.01 if current_price < 500 else 1.0)
         tight_sl_pips = 5.0 * pip_size
-        # Flat 5 pips stop loss strictly from PDF
-        sl_distance = tight_sl_pips
+        sl_distance = max(tight_sl_pips, 1.80 * safe_atr)
 
         if action == 'BUY':
             entry_price = current_price
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (3.00 * sl_distance)   # 50% at 3R from PDF
-            tp2 = entry_price + (10.00 * sl_distance)  # 50% at 10R from PDF
-            tp3 = entry_price + (10.00 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif action == 'SELL':
             entry_price = current_price
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (3.00 * sl_distance)   # 50% at 3R from PDF
-            tp2 = entry_price - (10.00 * sl_distance)  # 50% at 10R from PDF
-            tp3 = entry_price - (10.00 * sl_distance)
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
@@ -1844,12 +2132,26 @@ class EugeneNgAhSioStrategy:
                 'reasons': ["Insufficient bars for Eugene Ng Ah Sio relative value spread analysis."]
             }
 
+        # Asset Guard: Eugene Ng Ah Sio strategy is strictly calibrated for Crypto Perps & Spot
+        if current_price < 5000.0:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Eugene Ng Ah Sio relative value model is strictly calibrated for Crypto assets."]
+            }
+
         closes = df['close']
         highs = df['high']
         lows = df['low']
 
         ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
         ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+        sma_200 = float(closes.rolling(min(n, 200)).mean().iloc[-1])
 
         # RSI Calculation (14 period)
         delta = closes.diff()
@@ -1868,39 +2170,41 @@ class EugeneNgAhSioStrategy:
         confidence = 50.0
         reasons = []
 
-        # Relative Strength Outperformer (Long Leg):
-        if current_price > ema_20 and ema_20 > ema_50 and rsi_val >= 55.0 and current_price >= recent_high * 0.995:
+        # Relative Strength Outperformer (Long Leg with Bullish Candle Confirmation & SMA200 trend):
+        curr_open = float(df['open'].iloc[-1])
+        prev_close = float(closes.iloc[-2])
+        if current_price > sma_200 and current_price > ema_20 and ema_20 > ema_50 and (50.0 <= rsi_val <= 68.0) and current_price >= recent_high * 0.995 and (current_price > curr_open and current_price >= prev_close):
             action = 'BUY'
             status = 'ALPHA_CATALYST_LONG'
-            confidence = 84.0
-            reasons.append(f"Eugene Ng: Relative strength outperformance confirmed (RSI {rsi_val:.1f} > 55)")
+            confidence = 86.0
+            reasons.append(f"Eugene Ng: Relative strength outperformance confirmed (RSI {rsi_val:.1f}) with bullish breakout close")
             reasons.append(f"Price (${current_price:.2f}) leading above 20 EMA (${ema_20:.2f}) and 50 EMA (${ema_50:.2f})")
             reasons.append(f"Breakout of {lookback}-bar relative value consolidation high (${recent_high:.2f})")
-        # Relative Weakness Laggard (Hedge Leg):
-        elif current_price < ema_20 and ema_20 < ema_50 and rsi_val <= 45.0 and current_price <= recent_low * 1.005:
+        # Relative Weakness Laggard (Hedge Leg with Bearish Candle Confirmation & SMA200 trend):
+        elif current_price < sma_200 and current_price < ema_20 and ema_20 < ema_50 and (32.0 <= rsi_val <= 50.0) and current_price <= recent_low * 1.005 and (current_price < curr_open and current_price <= prev_close):
             action = 'SELL'
             status = 'LAGGARD_HEDGE_SHORT'
-            confidence = 82.0
-            reasons.append(f"Eugene Ng: Structural laggard weakness confirmed (RSI {rsi_val:.1f} < 45)")
+            confidence = 86.0
+            reasons.append(f"Eugene Ng: Structural laggard weakness confirmed (RSI {rsi_val:.1f}) with bearish breakdown close")
             reasons.append(f"Price (${current_price:.2f}) breaking below 20/50 EMA moving average band")
             reasons.append(f"Breakdown of {lookback}-bar consolidation support (${recent_low:.2f})")
         else:
-            reasons.append(f"Asset in neutral spread territory (RSI {rsi_val:.1f}). Awaiting alpha divergence.")
+            reasons.append(f"Asset in neutral relative value spread territory (RSI {rsi_val:.1f}). Awaiting alpha divergence.")
 
         if action == 'BUY':
             entry_price = current_price
-            sl_distance = 1.50 * safe_atr
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - recent_low) + 0.20 * safe_atr)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (1.50 * sl_distance)
-            tp2 = entry_price + (3.00 * sl_distance)
-            tp3 = entry_price + (5.00 * sl_distance)
+            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
+            tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif action == 'SELL':
             entry_price = current_price
-            sl_distance = 1.50 * safe_atr
+            sl_distance = max(1.80 * safe_atr, abs(recent_high - entry_price) + 0.20 * safe_atr)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (1.50 * sl_distance)
-            tp2 = entry_price - (3.00 * sl_distance)
-            tp3 = entry_price - (5.00 * sl_distance)
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
         else:
             entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
             sl_distance = 0.0
