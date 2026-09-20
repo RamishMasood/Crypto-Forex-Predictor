@@ -2066,7 +2066,11 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
                     f"<span style='background:#1e293b;border:1px solid #334155;border-radius:6px;padding:2px 7px;font-size:0.72rem;color:#e2e8f0;white-space:nowrap;'>"
                     f"<b style='color:#38bdf8;'>{short_k}:</b> {count}</span>"
                 )
-    strat_pills_html = f"<div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center;'><span style='color:#94a3b8;font-size:0.70rem;text-transform:uppercase;font-weight:700;'>Trades by Strategy:</span> {' '.join(strat_pills) if strat_pills else '<span style=\"color:#64748b;font-size:0.72rem;\">Scanning 19 strategies bar-by-bar...</span>'}</div>"
+    if strat_pills:
+        pills_content = ' '.join(strat_pills)
+    else:
+        pills_content = "<span style='color:#64748b;font-size:0.72rem;'>Scanning 19 strategies bar-by-bar...</span>"
+    strat_pills_html = f"<div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center;'><span style='color:#94a3b8;font-size:0.70rem;text-transform:uppercase;font-weight:700;'>Trades by Strategy:</span> {pills_content}</div>"
 
     # Open positions rows
     open_rows = []
