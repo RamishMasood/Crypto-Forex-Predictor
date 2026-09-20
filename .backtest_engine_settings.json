@@ -35,8 +35,8 @@
     "EUGENE_NG_AH_SIO",
     "PAUL_FTMO"
   ],
-  "date_from": "2026-09-01",
-  "date_to": "2026-09-18",
+  "date_from": "2026-06-22",
+  "date_to": "2026-09-20",
   "initial_balance": 10000.0,
   "batch_lot_size": 0.04,
   "max_active_batches": 100,

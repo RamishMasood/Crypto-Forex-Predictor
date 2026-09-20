@@ -7942,8 +7942,8 @@
   "current_scan": {
     "cycle": 106,
     "symbol": "BTC/USD",
-    "timeframe": "15m",
-    "time": "16:15:23 UTC"
+    "timeframe": "30m",
+    "time": "16:15:26 UTC"
   },
   "next_scan_time": "00:01 remaining",
   "reset_at": "2026-09-20T14:56:28.436977+00:00",
