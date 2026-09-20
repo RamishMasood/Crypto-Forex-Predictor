@@ -553,7 +553,7 @@ class MT5BacktestEngine:
                         should_trigger_be = True
                         if profit_dist >= (0.50 * tp2_dist):
                             new_be_sl = entry_p + (0.20 * cur_atr) # Lock in profit on runner
-                        elif be_mode in ['loose', 'atr_buffer_be', 'fixed_rr_target', 'smc_partial_be', 'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail']:
+                        elif be_mode == 'loose':
                             if profit_dist >= (0.85 * cur_atr):
                                 new_be_sl = entry_p + (0.02 * cur_atr) # Stage 2: Hard BE once expansion proven
                             else:
@@ -597,7 +597,7 @@ class MT5BacktestEngine:
 
                             # Auto-Breakeven on TP1 hit (Rule #2: Mandatory for all strategies)
                             b['is_breakeven'] = True
-                            if be_mode in ['loose', 'atr_buffer_be', 'fixed_rr_target', 'smc_partial_be', 'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail']:
+                            if be_mode == 'loose':
                                 b['sl_price'] = max(b['sl_price'], entry_p - (0.45 * cur_atr))
                             else:
                                 b['sl_price'] = max(b['sl_price'], entry_p)
@@ -653,7 +653,7 @@ class MT5BacktestEngine:
                         should_trigger_be = True
                         if profit_dist >= (0.50 * tp2_dist):
                             new_be_sl = entry_p - (0.20 * cur_atr) # Lock in profit on runner
-                        elif be_mode in ['loose', 'atr_buffer_be', 'fixed_rr_target', 'smc_partial_be', 'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail']:
+                        elif be_mode == 'loose':
                             if profit_dist >= (0.85 * cur_atr):
                                 new_be_sl = entry_p - (0.02 * cur_atr) # Stage 2: Hard BE once expansion proven
                             else:
@@ -697,7 +697,7 @@ class MT5BacktestEngine:
 
                             # Auto-Breakeven on TP1 hit (Rule #2: Mandatory for all strategies)
                             b['is_breakeven'] = True
-                            if be_mode in ['loose', 'atr_buffer_be', 'fixed_rr_target', 'smc_partial_be', 'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail']:
+                            if be_mode == 'loose':
                                 b['sl_price'] = min(b['sl_price'], entry_p + (0.45 * cur_atr))
                             else:
                                 b['sl_price'] = min(b['sl_price'], entry_p)

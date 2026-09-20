@@ -41,7 +41,7 @@ class VivekYadavSupplyDemandEngine:
     def detect_zones(
         cls,
         df: pd.DataFrame,
-        swing_window: int = 4
+        swing_window: int = 6
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Identifies institutional Demand and Supply zones at swing extremes with 3+ expansion candles.
@@ -156,9 +156,29 @@ class VivekYadavSupplyDemandEngine:
         """
         Full evaluation of Vivek Yadav's Supply & Demand Strategy.
         """
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Vivek Yadav S&D requires 15M, 1H or 4H execution. '{timeframe}' is too noisy."]
+            }
+
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
-        min_atr_floor = (current_price * 0.0003) if current_price < 5.0 else (current_price * 0.0015)
+        # Asset Class Guard: Vivek Yadav (Advance Crypto Trader) operates strictly on Crypto & Gold (XAUUSD)
+        if current_price < 500.0:
+            return {
+                'action': 'HOLD',
+                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Vivek Yadav S&D model is calibrated for Crypto (BTC/ETH) and Gold (XAUUSD)."]
+            }
+
+        min_atr_floor = current_price * 0.0015
         safe_atr = max(atr, min_atr_floor)
 
         zones_dict = cls.detect_zones(df)
@@ -175,6 +195,10 @@ class VivekYadavSupplyDemandEngine:
         lower_wick_ratio = (min(last_o, last_c) - last_l) / candle_range
         upper_wick_ratio = (last_h - max(last_o, last_c)) / candle_range
 
+        closes_s = pd.Series(df['close'].values)
+        ema_20 = float(closes_s.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes_s.ewm(span=50, adjust=False).mean().iloc[-1])
+
         action = 'HOLD'
         status = 'SCANNING_ZONES'
         confidence = 50.0
@@ -182,20 +206,20 @@ class VivekYadavSupplyDemandEngine:
         reasons = []
 
         # 1. TEST DEMAND TRIGGER (BUY):
-        # Allowed in BULLISH trend or CONSOLIDATION
-        if trend in ['BULLISH', 'CONSOLIDATION']:
+        # Allowed strictly in BULLISH trend with price holding above EMA20
+        if trend == 'BULLISH' and (last_c >= ema_20) and (ema_20 >= ema_50 * 0.998):
             for dz in reversed(demand_zones):
                 z_top = dz['top']
                 z_bot = dz['bottom']
 
-                # Touch Requirement: Current or previous low dipped into zone
-                touched = (last_l <= z_top) and (last_h >= z_bot)
+                # Touch Requirement: Current or previous low dipped into zone without blowing through
+                touched = (last_l <= z_top) and (last_h >= z_bot) and (last_l >= z_bot - 0.15 * safe_atr)
                 # Invalidation: Full body candle closed below zone bottom
                 invalidated = (last_c < z_bot) and (last_o < z_bot)
 
                 if touched and not invalidated:
-                    # Confirmation: Green candle with bottom rejection wick >= 35%
-                    is_green_confirm = (last_c > last_o) and (lower_wick_ratio >= 0.35)
+                    # Confirmation: Green candle with bottom rejection wick >= 38%, price holding above zone bottom, and substantial range
+                    is_green_confirm = (last_c > last_o) and (last_c >= z_bot + 0.05 * safe_atr) and (lower_wick_ratio >= 0.38) and (candle_range >= 0.40 * safe_atr)
                     # Also permit confirmation if previous candle formed the rejection and current confirms green
                     if not is_green_confirm and n >= 2:
                         prev_o = float(df['open'].iloc[-2])
@@ -203,41 +227,41 @@ class VivekYadavSupplyDemandEngine:
                         prev_l = float(df['low'].iloc[-2])
                         prev_range = max(float(df['high'].iloc[-2]) - prev_l, 1e-9)
                         prev_lower_wick = (min(prev_o, prev_c) - prev_l) / prev_range
-                        if prev_lower_wick >= 0.35 and last_c > last_o:
+                        if prev_lower_wick >= 0.38 and last_c > last_o and (last_c >= z_bot + 0.05 * safe_atr) and (candle_range >= 0.40 * safe_atr):
                             is_green_confirm = True
 
                     if is_green_confirm:
                         action = 'BUY'
                         status = 'DEMAND_ENTRY_READY'
                         active_zone = dz
-                        confidence = 86.0 if trend == 'BULLISH' else 75.0
+                        confidence = 88.0
                         reasons.append(f"Vivek Yadav S&D: Valid Demand Zone Touch [{z_bot:.2f} - {z_top:.2f}]")
                         reasons.append(f"Candle Confirmation: Green Close with {lower_wick_ratio*100:.1f}% Bottom Rejection Wick")
-                        reasons.append(f"Trend Filter: {trend} market structure")
+                        reasons.append(f"Trend Filter: {trend} market structure & EMA20 ({ema_20:.2f}) >= EMA50 ({ema_50:.2f})")
                         break
 
         # 2. TEST SUPPLY TRIGGER (SELL):
-        # Allowed in BEARISH trend or CONSOLIDATION
-        if action == 'HOLD' and trend in ['BEARISH', 'CONSOLIDATION']:
+        # Allowed strictly in BEARISH trend with price holding below EMA20
+        if action == 'HOLD' and trend == 'BEARISH' and (last_c <= ema_20) and (ema_20 <= ema_50 * 1.002):
             for sz in reversed(supply_zones):
                 z_top = sz['top']
                 z_bot = sz['bottom']
 
-                # Touch Requirement: Current or previous high reached into zone
-                touched = (last_h >= z_bot) and (last_l <= z_top)
+                # Touch Requirement: Current or previous high reached into zone without blowing through
+                touched = (last_h >= z_bot) and (last_l <= z_top) and (last_h <= z_top + 0.15 * safe_atr)
                 # Invalidation: Full body candle closed above zone top
                 invalidated = (last_c > z_top) and (last_o > z_top)
 
                 if touched and not invalidated:
-                    # Confirmation: Red candle with top rejection wick >= 35%
-                    is_red_confirm = (last_c < last_o) and (upper_wick_ratio >= 0.35)
+                    # Confirmation: Red candle with top rejection wick >= 38%, price holding below zone top, and substantial range
+                    is_red_confirm = (last_c < last_o) and (last_c <= z_top - 0.05 * safe_atr) and (upper_wick_ratio >= 0.38) and (candle_range >= 0.40 * safe_atr)
                     if not is_red_confirm and n >= 2:
                         prev_o = float(df['open'].iloc[-2])
                         prev_c = float(df['close'].iloc[-2])
                         prev_h = float(df['high'].iloc[-2])
                         prev_range = max(prev_h - float(df['low'].iloc[-2]), 1e-9)
                         prev_upper_wick = (prev_h - max(prev_o, prev_c)) / prev_range
-                        if prev_upper_wick >= 0.35 and last_c < last_o:
+                        if prev_upper_wick >= 0.38 and last_c < last_o and (last_c <= z_top - 0.05 * safe_atr) and (candle_range >= 0.40 * safe_atr):
                             is_red_confirm = True
 
                     if is_red_confirm:
@@ -258,24 +282,19 @@ class VivekYadavSupplyDemandEngine:
 
             if action == 'BUY':
                 zone_bottom = active_zone['bottom']
-                # Safe SL below zone bottom
-                raw_sl = min(zone_bottom - (0.20 * safe_atr), entry_price - base_sl_dist)
-                sl_distance = max(entry_price - raw_sl, min_sl_dist)
+                sl_distance = max(1.80 * safe_atr, min(abs(entry_price - zone_bottom) + 0.20 * safe_atr, 2.00 * safe_atr))
                 stop_loss = entry_price - sl_distance
-
                 tp1 = entry_price + (0.38 * safe_atr) # Precision scalp bank -> BE lock
-                tp2 = entry_price + (2.0 * sl_distance) # Vivek Yadav 1:2 R:R Base Target
-                tp3 = entry_price + (2.50 * sl_distance) # Extended runner
+                tp2 = entry_price + (1.15 * sl_distance) # Mandatory 1:1+ Runner Geometry
+                tp3 = entry_price + (2.20 * sl_distance) # Extended runner
 
             else:  # SELL
                 zone_top = active_zone['top']
-                raw_sl = max(zone_top + (0.20 * safe_atr), entry_price + base_sl_dist)
-                sl_distance = max(raw_sl - entry_price, min_sl_dist)
+                sl_distance = max(1.80 * safe_atr, min(abs(zone_top - entry_price) + 0.20 * safe_atr, 2.00 * safe_atr))
                 stop_loss = entry_price + sl_distance
-
                 tp1 = entry_price - (0.38 * safe_atr)
-                tp2 = entry_price - (2.0 * sl_distance) # 1:2 R:R Base Target
-                tp3 = entry_price - (2.50 * sl_distance)
+                tp2 = entry_price - (1.15 * sl_distance)
+                tp3 = entry_price - (2.20 * sl_distance)
 
             trade_setup = {
                 'action': action,
