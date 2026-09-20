@@ -1187,35 +1187,69 @@ def render_mt5_autonomous_engine_view(live_exec):
                 help="Autonomous engine checks every selected timeframe for setups. (Locked when Recommended Mode is ON)."
             )
 
-        # ── 2.5 Autonomous Multi-Strategy Selector (13 Strategies: Institutional Core + 12 Streamers) ──
+        # ── 2.5 Autonomous Multi-Strategy Selector (19 Strategies: Institutional Core + 18 Streamers) ──
         from src.engine.autonomous_manager import AVAILABLE_STRATEGIES
         st.markdown("##### 🧠 Autonomous Trading Strategy Selection (Multi-Select Supported):")
         
-        strat_preset_col1, strat_preset_col2, strat_preset_col3, strat_preset_col4 = st.columns(4)
+        strat_preset_col1, strat_preset_col2, strat_preset_col3, strat_preset_col4, strat_preset_col5 = st.columns(5)
         with strat_preset_col1:
-            if st.button("🌟 Select All 13 Strategies", key="btn_strat_all_auto", use_container_width=True):
-                settings['active_strategies'] = list(AVAILABLE_STRATEGIES.keys())
+            if st.button("🌟 Select All 19", key="btn_strat_all_auto", use_container_width=True):
+                all_strats = list(AVAILABLE_STRATEGIES.keys())
+                settings['active_strategies'] = all_strats
+                st.session_state["auto_cfg_active_strategies_ms"] = all_strats
                 auto_engine.save_settings(settings)
                 st.rerun()
         with strat_preset_col2:
-            if st.button("🏛️ Default Core Only", key="btn_strat_def_auto", use_container_width=True):
-                settings['active_strategies'] = ["DEFAULT"]
+            if st.button("🏛️ Default Core", key="btn_strat_def_auto", use_container_width=True):
+                def_strats = ["DEFAULT"]
+                settings['active_strategies'] = def_strats
+                st.session_state["auto_cfg_active_strategies_ms"] = def_strats
                 auto_engine.save_settings(settings)
                 st.rerun()
         with strat_preset_col3:
-            if st.button("💎 Top 3 SMC (Vivek, ICT, Bernd)", key="btn_strat_smc_auto", use_container_width=True):
-                settings['active_strategies'] = ["DEFAULT", "VIVEK_YADAV", "BERND_SKORUPINSKI", "ICT"]
+            if st.button("💎 SMC & Scalp", key="btn_strat_smc_auto", use_container_width=True, help="Vivek, Bernd, ICT, Waqar Asim"):
+                smc_strats = ["DEFAULT", "VIVEK_YADAV", "BERND_SKORUPINSKI", "ICT", "WAQAR_ASIM"]
+                settings['active_strategies'] = smc_strats
+                st.session_state["auto_cfg_active_strategies_ms"] = smc_strats
                 auto_engine.save_settings(settings)
                 st.rerun()
         with strat_preset_col4:
-            if st.button("🌊 Trend (Rayner, Adam, Oliver)", key="btn_strat_trend_auto", use_container_width=True):
-                settings['active_strategies'] = ["RAYNER_TEO", "ADAM_KHOO", "OLIVER_VELEZ", "TRADE_PRO"]
+            if st.button("🌪️ Momentum", key="btn_strat_trend_auto", use_container_width=True, help="Qullamaggie, Paul FTMO, Ross, Rayner, Adam, Trade Pro"):
+                trend_strats = ["KRISTJAN_QULLAMAGGIE", "PAUL_FTMO", "ROSS_CAMERON", "RAYNER_TEO", "ADAM_KHOO", "TRADE_PRO"]
+                settings['active_strategies'] = trend_strats
+                st.session_state["auto_cfg_active_strategies_ms"] = trend_strats
+                auto_engine.save_settings(settings)
+                st.rerun()
+        with strat_preset_col5:
+            if st.button("🧠 Crypto/Macro", key="btn_strat_crypto_auto", use_container_width=True, help="GCR, Waqar Zaka, Eugene Ng, Crypto Cred"):
+                crypto_strats = ["GCR", "WAQAR_ZAKA", "EUGENE_NG_AH_SIO", "CRYPTO_CRED", "ARIEL_ZWECHER", "OLIVER_VELEZ"]
+                settings['active_strategies'] = crypto_strats
+                st.session_state["auto_cfg_active_strategies_ms"] = crypto_strats
                 auto_engine.save_settings(settings)
                 st.rerun()
 
-        saved_active_strats = settings.get('active_strategies', ['DEFAULT'])
+        saved_active_strats = settings.get('active_strategies', [])
+        legacy_13 = {
+            'DEFAULT', 'STEVEN_HART', 'RAYNER_TEO', 'ICT', 'BERND_SKORUPINSKI',
+            'VIVEK_YADAV', 'CRYPTO_CRED', 'NDEMAZEAH_GODLOVE', 'ROSS_CAMERON',
+            'ADAM_KHOO', 'ARIEL_ZWECHER', 'OLIVER_VELEZ', 'TRADE_PRO'
+        }
+        # Auto-upgrade: if user had all 13 legacy strategies selected, or none, expand to all 19!
+        if set(saved_active_strats) == legacy_13 or not saved_active_strats:
+            saved_active_strats = list(AVAILABLE_STRATEGIES.keys())
+            settings['active_strategies'] = saved_active_strats
+            auto_engine.save_settings(settings)
+
+        # Ensure valid selection from AVAILABLE_STRATEGIES
+        saved_active_strats = [k for k in saved_active_strats if k in AVAILABLE_STRATEGIES]
         if not saved_active_strats:
-            saved_active_strats = ['DEFAULT']
+            saved_active_strats = list(AVAILABLE_STRATEGIES.keys())
+
+        # If session_state contains the legacy 13, upgrade session_state as well so the widget re-renders with all 19!
+        if 'auto_cfg_active_strategies_ms' in st.session_state:
+            curr_ms = set(st.session_state['auto_cfg_active_strategies_ms'])
+            if curr_ms == legacy_13:
+                st.session_state['auto_cfg_active_strategies_ms'] = list(AVAILABLE_STRATEGIES.keys())
 
         chosen_strats = st.multiselect(
             "Select which strategies the Autonomous Engine scans and executes simultaneously:",
@@ -1223,7 +1257,7 @@ def render_mt5_autonomous_engine_view(live_exec):
             default=saved_active_strats,
             format_func=lambda x: AVAILABLE_STRATEGIES.get(x, x),
             key="auto_cfg_active_strategies_ms",
-            help="Multi-select any combination of the 12 master streamer strategies + institutional default core. The engine will evaluate all selected strategies on each scan and execute the highest-conviction setup."
+            help="Multi-select any combination of the 18 master streamer strategies + institutional default core (19 total). The engine will evaluate all selected strategies on each scan and execute the highest-conviction setup."
         )
 
         if not chosen_strats:
@@ -2519,16 +2553,17 @@ if tfp:
         unsafe_allow_html=True
     )
 
-# ── MASTER STREAMER PLAYBOOK RADAR (TOP 12 GLOBAL TRADERS) ─────────────────
+# ── MASTER STREAMER PLAYBOOK RADAR (TOP GLOBAL TRADERS) ─────────────────
 pb = res.get('streamer_playbook', {})
 if pb and pb.get('all_strategies'):
     pb_strats = pb['all_strategies']
+    total_pb_count = len(pb_strats)
     active_cnt = pb.get('active_count', 0)
     best_setup = pb.get('best_setup')
     
     badge_col = "#10b981" if active_cnt > 0 else "#64748b"
-    header_status = f"{active_cnt}/12 CONFIRMED SIGNALS" if active_cnt > 0 else "0/12 ACTIVE (MONITORING)"
-    best_txt = f"⭐ <b>Top Confirmed Setup:</b> <span style='color:#38bdf8;'>{best_setup.get('strategy_name', '')}</span> — <b style='color:{'#00c853' if best_setup.get('action')=='BUY' else '#ff1744'};'>{best_setup.get('action')}</b> ({best_setup.get('confidence', 0):.0f}% Conviction)" if best_setup else "🔍 All 12 strategies currently monitoring price structure for valid trigger conditions."
+    header_status = f"{active_cnt}/{total_pb_count} CONFIRMED SIGNALS" if active_cnt > 0 else f"0/{total_pb_count} ACTIVE (MONITORING)"
+    best_txt = f"⭐ <b>Top Confirmed Setup:</b> <span style='color:#38bdf8;'>{best_setup.get('strategy_name', '')}</span> — <b style='color:{'#00c853' if best_setup.get('action')=='BUY' else '#ff1744'};'>{best_setup.get('action')}</b> ({best_setup.get('confidence', 0):.0f}% Conviction)" if best_setup else f"🔍 All {total_pb_count} strategies currently monitoring price structure for valid trigger conditions."
 
     st.markdown(
         clean_html(f"""
@@ -2551,7 +2586,7 @@ if pb and pb.get('all_strategies'):
         unsafe_allow_html=True
     )
 
-    with st.expander(f"🎬 View Live Details & Rule Checks for All 12 Streamers ({active_cnt} Active)", expanded=(active_cnt > 0)):
+    with st.expander(f"🎬 View Live Details & Rule Checks for All {total_pb_count} Streamers ({active_cnt} Active)", expanded=(active_cnt > 0)):
         import importlib
         import src.engine.session_manager
         if not hasattr(src.engine.session_manager.SessionManager, 'is_strategy_session_allowed'):

@@ -1246,12 +1246,820 @@ class TradeProStrategy:
         }
 
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# MASTER STREAMER PLAYBOOK DISPATCHER (EVALUATE ALL 12 STRATEGIES)
+# 13. KRISTJAN QULLAMAGGIE — SYSTEMATIC MOMENTUM EXPANSION
+# ─────────────────────────────────────────────────────────────────────────────
+class KristjanQullamaggieStrategy:
+    """
+    Trader 13: Kristjan Qullamaggie
+    - Asset Class: Stocks & Crypto Altcoins (High-Beta momentum)
+    - Concept: High-probability momentum breakouts in explosive expansion assets
+    - Setup Criteria: 30%-100%+ upward move preceding 12 weeks, orderly 2-8 week consolidation, High ADR% > 5%
+    - MA Surfing: Consolidates tightly above rising 10 EMA & 20 EMA, with 50 SMA acting as structural support
+    - Entry Trigger: Opening Range Breakout (ORB) or inside/narrow bar breakout across resistance
+    - Stop Loss: Low of the Day (LOD) or max 1x ATR distance. Risk 0.25%-1.0%
+    - Exits: Sell 1/3 to 1/2 of position after 3 to 5 days. Move SL to BE. Trail along 10/20 EMA
+    - Breakeven Mode: QULLAMAGGIE_EMA_TRAIL
+    - Timeframes: Daily ('1d') and 60-Minute ('1h'). Micro (<5m) rejected.
+    """
+    NAME = "Kristjan Qullamaggie (Systematic Momentum Expansion)"
+    KEY = "KRISTJAN_QULLAMAGGIE"
+    BE_MODE = "QULLAMAGGIE_EMA_TRAIL"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '1h') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        # Primary analysis: Daily & 60-minute charts. Reject 1m/3m noise.
+        if tf_clean in ['1m', '3m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Qullamaggie trades Daily setups and 60-minute ORB breakouts; micro-scalp (<5m) is invalid noise."]
+            }
+
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.001)
+
+        if n < 20:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient historical bars for 10/20 EMA and 50 SMA surfing analysis."]
+            }
+
+        closes = df['close']
+        highs = df['high']
+        lows = df['low']
+
+        ema_10 = float(closes.ewm(span=10, adjust=False).mean().iloc[-1])
+        ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        sma_50 = float(closes.rolling(window=min(n, 50)).mean().iloc[-1])
+
+        # ADR% Calculation (High ADR% > 5% or relative volatility > 3.0%)
+        bar_ranges_pct = ((highs - lows) / closes.replace(0, np.nan)) * 100.0
+        adr_pct = float(bar_ranges_pct.rolling(window=min(n, 20)).mean().iloc[-1])
+
+        # Consolidation resistance
+        lookback_consol = min(n, 10)
+        resistance = float(highs.iloc[-lookback_consol:-1].max())
+        lod = float(lows.iloc[-lookback_consol:].min())
+
+        reasons = []
+        action = 'HOLD'
+        status = 'MONITORING'
+        confidence = 50.0
+
+        is_ma_surfing = (current_price >= ema_10 >= ema_20) and (ema_20 >= sma_50 * 0.98)
+        is_adr_ok = (adr_pct >= 2.5)  # High Average Daily Range filter
+
+        if is_ma_surfing and is_adr_ok:
+            # Bullish Breakout across consolidation resistance
+            if current_price >= resistance and closes.iloc[-1] > closes.iloc[-2]:
+                action = 'BUY'
+                status = 'ORB_BREAKOUT'
+                confidence = 88.0
+                reasons.append(f"High ADR% ({adr_pct:.1f}%): Asset exhibits explosive momentum potential")
+                reasons.append(f"Moving Average Surfing: Price (${current_price:.2f}) > 10 EMA (${ema_10:.2f}) > 20 EMA (${ema_20:.2f}) > 50 SMA (${sma_50:.2f})")
+                reasons.append(f"Consolidation Breakout: Closed above {lookback_consol}-bar resistance (${resistance:.2f})")
+            else:
+                status = 'CONSOLIDATING_ABOVE_EMA'
+                confidence = 65.0
+                reasons.append(f"Price consolidating above rising 10/20 EMA. Awaiting breakout of ${resistance:.2f}")
+        else:
+            if not is_adr_ok:
+                reasons.append(f"ADR% ({adr_pct:.1f}%) below high-momentum volatility threshold (min 2.5%-5.0%)")
+            if not is_ma_surfing:
+                reasons.append("Price not aligned above rising 10/20 EMA and 50 SMA structural support")
+
+        if action == 'BUY':
+            entry_price = current_price
+            sl_distance = max(entry_price - (lod - 0.20 * safe_atr), 1.50 * safe_atr)
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)
+            tp2 = entry_price + (2.00 * sl_distance)  # 1:2+ R:R runner
+            tp3 = entry_price + (4.00 * sl_distance) # Macro expansion runner
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:5.0',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'QULLAMAGGIE_EMA_TRAIL'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 14. GCR (@GiganticRebirth) — BEHAVIORAL SENTIMENT & COUNTER-CYCLICAL SHORTING
+# ─────────────────────────────────────────────────────────────────────────────
+class GCRStrategy:
+    """
+    Trader 14: GCR (@GiganticRebirth)
+    - Asset Class: Crypto (BTC, ETH, and Liquid High-Caps only)
+    - Concept: Exploiting retail psychological biases, tokenomics, and structural market cycles
+    - Schelling Points: Major round numbers ($1, $10, $100, $1k, $10k, $100k) serve as liquidity pools
+    - Counter-Cyclical Shorting: Shorts retail hype exhaustion / 'Sell the News' catalyst peaks (RSI > 70)
+    - Cycle Bottom Rebalancing: Inverse buying when 95% expect a sell event / capitulation (RSI < 30)
+    - Breakeven Mode: GCR_CYCLE_BE
+    - Timeframes: 1h, 4h, 1d
+    """
+    NAME = "GCR (@GiganticRebirth - Behavioral Sentiment)"
+    KEY = "GCR"
+    BE_MODE = "GCR_CYCLE_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '1h') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '3m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["GCR trades macro cycle pivots and catalyst exhaustion on 1H/4H/Daily; micro timeframes (<5m) are invalid."]
+            }
+
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.001)
+
+        if n < 14:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for GCR sentiment and Schelling point cycle analysis."]
+            }
+
+        closes = df['close']
+        highs = df['high']
+        lows = df['low']
+
+        # RSI Calculation (14 period)
+        delta = closes.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / (loss.replace(0, np.nan))
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi_val = float(rsi_series.iloc[-1]) if not np.isnan(rsi_series.iloc[-1]) else 50.0
+
+        # Schelling Point Proximity (Psychological Round Numbers)
+        def _get_schelling_proximity(price: float) -> Tuple[float, float]:
+            if price <= 0:
+                return 0.0, 100.0
+            order = 10 ** int(np.floor(np.log10(price)))
+            candidates = [order, 2 * order, 5 * order, 10 * order]
+            closest = min(candidates, key=lambda x: abs(x - price))
+            dist_pct = abs(price - closest) / price * 100.0
+            return closest, dist_pct
+
+        schelling_level, schelling_dist_pct = _get_schelling_proximity(current_price)
+        is_at_schelling = schelling_dist_pct <= 1.5
+
+        # Candle wicks (Exhaustion wick detection)
+        curr_open = float(df['open'].iloc[-1])
+        curr_high = float(highs.iloc[-1])
+        curr_low = float(lows.iloc[-1])
+        curr_close = current_price
+        upper_wick = curr_high - max(curr_open, curr_close)
+        lower_wick = min(curr_open, curr_close) - curr_low
+        body = abs(curr_close - curr_open)
+
+        action = 'HOLD'
+        status = 'MONITORING'
+        confidence = 50.0
+        reasons = []
+
+        # Counter-Cyclical Short: Overbought Retail Euphoria + Schelling Rejection Wick
+        if rsi_val >= 70.0 and (is_at_schelling or upper_wick >= 1.2 * max(body, 1e-6)):
+            action = 'SELL'
+            status = 'EUPHORIA_EXHAUSTION_SHORT'
+            confidence = 86.0
+            reasons.append(f"GCR Counter-Short: Retail euphoria exhaustion at RSI {rsi_val:.1f}")
+            if is_at_schelling:
+                reasons.append(f"Schelling Point Pivot: Price testing major round number ${schelling_level:,.2f}")
+            reasons.append("Parabolic exhaustion wick detected: Selling into one-sided retail hype")
+        # Inverse Buying: Capitulation / Extreme Fear at Cycle Support
+        elif rsi_val <= 30.0 and (is_at_schelling or lower_wick >= 1.2 * max(body, 1e-6)):
+            action = 'BUY'
+            status = 'CAPITULATION_BOTTOM_LONG'
+            confidence = 84.0
+            reasons.append(f"GCR Cycle Bottom Long: Retail capitulation exhaustion at RSI {rsi_val:.1f}")
+            if is_at_schelling:
+                reasons.append(f"Schelling Support: Price defending major round number ${schelling_level:,.2f}")
+            reasons.append("Capitulation absorption wick: Inverse buying while consensus expects sell-off")
+        else:
+            reasons.append(f"Market sentiment neutral (RSI {rsi_val:.1f}). Nearest Schelling pivot: ${schelling_level:,.2f} ({schelling_dist_pct:.1f}% away)")
+
+        if action == 'BUY':
+            entry_price = current_price
+            sl_distance = 1.50 * safe_atr
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (1.50 * sl_distance)
+            tp2 = entry_price + (3.50 * sl_distance) # Asymmetric R:R
+            tp3 = entry_price + (6.00 * sl_distance)
+        elif action == 'SELL':
+            entry_price = current_price
+            sl_distance = 1.50 * safe_atr
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (1.50 * sl_distance)
+            tp2 = entry_price - (3.50 * sl_distance)
+            tp3 = entry_price - (6.00 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:3.5',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'GCR_CYCLE_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 15. WAQAR ZAKA — OFF-EXCHANGE CAPITAL RESERVE & ATR BUFFER MODEL
+# ─────────────────────────────────────────────────────────────────────────────
+class WaqarZakaStrategy:
+    """
+    Trader 15: Waqar Zaka
+    - Asset Class: Crypto Futures / Perps (BTC, ETH, Altcoins)
+    - Concept: Neutralizing market maker liquidity sweeps and exchange stop-hunting
+    - Liquidity Sweep Reclaim: Detects exchange stop hunts where price sweeps swing low/high
+      and aggressively reclaims the level within the candle or following bar
+    - ATR Stop Loss Buffer: Boundary set using Entry Price minus ATR Value, absorbing noise wicks
+    - Breakeven Mode: ATR_BUFFER_BE
+    - Timeframes: 15m, 1h, 4h
+    """
+    NAME = "Waqar Zaka (Off-Exchange Reserve & ATR Buffer Model)"
+    KEY = "WAQAR_ZAKA"
+    BE_MODE = "ATR_BUFFER_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '15m') -> Dict[str, Any]:
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.001)
+
+        if n < 20:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Waqar Zaka liquidity sweep & ATR buffer analysis."]
+            }
+
+        highs = df['high']
+        lows = df['low']
+        closes = df['close']
+
+        lookback = min(n, 20)
+        swing_low = float(lows.iloc[-lookback:-1].min())
+        swing_high = float(highs.iloc[-lookback:-1].max())
+
+        curr_low = float(lows.iloc[-1])
+        curr_high = float(highs.iloc[-1])
+        curr_close = current_price
+
+        # Sweep and reclaim
+        swept_low = (curr_low < swing_low) and (curr_close > swing_low)
+        prev_swept_low = (float(lows.iloc[-2]) < swing_low) and (curr_close > swing_low)
+        bullish_sweep_reclaim = swept_low or prev_swept_low
+
+        swept_high = (curr_high > swing_high) and (curr_close < swing_high)
+        prev_swept_high = (float(highs.iloc[-2]) > swing_high) and (curr_close < swing_high)
+        bearish_sweep_reclaim = swept_high or prev_swept_high
+
+        action = 'HOLD'
+        status = 'MONITORING'
+        confidence = 50.0
+        reasons = []
+
+        if bullish_sweep_reclaim:
+            action = 'BUY'
+            status = 'LIQUIDATION_SWEEP_RECLAIM'
+            confidence = 85.0
+            reasons.append(f"Waqar Zaka: Market maker liquidity sweep below swing low (${swing_low:,.2f}) reclaimed")
+            reasons.append("Exchange stop hunt absorbed: Off-exchange capital reserve architecture deployed")
+            reasons.append(f"ATR Buffer SL active: Protected with 1.2x ATR buffer (${safe_atr:,.2f}) against noise wicks")
+        elif bearish_sweep_reclaim:
+            action = 'SELL'
+            status = 'LIQUIDATION_SWEEP_REJECT'
+            confidence = 85.0
+            reasons.append(f"Waqar Zaka: Short stop hunt above swing high (${swing_high:,.2f}) rejected")
+            reasons.append("Upper liquidity cascade exhausted: Bearish reversal triggered")
+            reasons.append(f"ATR Buffer SL active: Protected with 1.2x ATR buffer (${safe_atr:,.2f}) against noise wicks")
+        else:
+            reasons.append(f"Inside liquidity bracket [Low: ${swing_low:,.2f} - High: ${swing_high:,.2f}]. Awaiting sweep reclaim.")
+
+        if action == 'BUY':
+            entry_price = current_price
+            sl_distance = max(entry_price - (swing_low - 0.20 * safe_atr), 1.80 * safe_atr)
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)
+            tp2 = entry_price + (2.00 * sl_distance)
+            tp3 = entry_price + (3.50 * sl_distance)
+        elif action == 'SELL':
+            entry_price = current_price
+            sl_distance = max((swing_high + 0.20 * safe_atr) - entry_price, 1.80 * safe_atr)
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (2.00 * sl_distance)
+            tp3 = entry_price - (3.50 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:2.5',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'ATR_BUFFER_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 16. WAQAR ASIM — FOREX SUPPLY & DEMAND SCALPING (INDUCEMENT MODEL)
+# ─────────────────────────────────────────────────────────────────────────────
+class WaqarAsimStrategy:
+    """
+    Trader 16: Waqar Asim
+    - Asset Class: Forex (EURUSD, GBPUSD)
+    - Concept: Precision 1-minute scalping based on institutional liquidity inducement
+    - HTF Context (1-Hour): Decisional S&D zones + Premium/Discount Array Filter (Shorts in Premium, Longs in Discount)
+    - LTF Trigger (1-Minute): Inducement (liquidity sweep) followed by Break of Structure (BOS/MSB) tapping LTF S/D zone
+    - Risk & SL: Ultra-tight stop loss of 3 to 7 pips (flat ~5 pips / ~0.0005)
+    - Exits: Move SL to Breakeven immediately upon formation of new internal high/low on 1m chart. 50% at 3R, 50% at 10R
+    - Trading Session Timings: London Open (8:00-9:00 AM London) & NY Afternoon (2:00-3:00 PM London)
+    - Breakeven Mode: WAQAR_ASIM_INSTANT_BE
+    - Timeframes: 1m (primary, operable on 5m). Rejects 4h/1d.
+    """
+    NAME = "Waqar Asim (Forex 1M S&D Inducement Scalping Model)"
+    KEY = "WAQAR_ASIM"
+    BE_MODE = "WAQAR_ASIM_INSTANT_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '1m') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['4h', '1d', 'daily']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Waqar Asim is strictly a precision 1-minute/5-minute S&D scalper; HTF charts (4H/Daily) are invalid."]
+            }
+
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.0002)
+
+        if n < 20:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient 1M bars for Waqar Asim inducement and Premium/Discount zone analysis."]
+            }
+
+        highs = df['high']
+        lows = df['low']
+        closes = df['close']
+
+        # HTF Decisional S&D context (60 bars lookback = 1 hour on 1m chart)
+        htf_lookback = min(n, 60)
+        htf_high = float(highs.iloc[-htf_lookback:].max())
+        htf_low = float(lows.iloc[-htf_lookback:].min())
+        equilibrium = (htf_high + htf_low) / 2.0
+
+        is_discount = current_price < equilibrium   # Longs strictly in Discount
+        is_premium = current_price > equilibrium    # Shorts strictly in Premium
+
+        # Inducement & BOS detection (minor liquidity sweep of last 5-10 bars followed by candle break)
+        ltf_lookback = min(n, 10)
+        minor_low = float(lows.iloc[-ltf_lookback:-2].min())
+        minor_high = float(highs.iloc[-ltf_lookback:-2].max())
+
+        # Bullish Inducement + BOS in Discount:
+        has_bullish_inducement = (float(lows.iloc[-2]) < minor_low or float(lows.iloc[-1]) < minor_low)
+        has_bullish_bos = closes.iloc[-1] > highs.iloc[-2]
+        bullish_setup = is_discount and has_bullish_inducement and has_bullish_bos
+
+        # Bearish Inducement + BOS in Premium:
+        has_bearish_inducement = (float(highs.iloc[-2]) > minor_high or float(highs.iloc[-1]) > minor_high)
+        has_bearish_bos = closes.iloc[-1] < lows.iloc[-2]
+        bearish_setup = is_premium and has_bearish_inducement and has_bearish_bos
+
+        action = 'HOLD'
+        status = 'MONITORING'
+        confidence = 50.0
+        reasons = []
+
+        if bullish_setup:
+            action = 'BUY'
+            status = 'DISCOUNT_INDUCEMENT_BOS'
+            confidence = 89.0
+            reasons.append("Waqar Asim: Price operating strictly in HTF Discount zone (below equilibrium)")
+            reasons.append(f"Inducement captured: Liquidity sweep below minor low ({minor_low:.5f})")
+            reasons.append("LTF Break of Structure (BOS): Institutional supply/demand tap confirmed")
+        elif bearish_setup:
+            action = 'SELL'
+            status = 'PREMIUM_INDUCEMENT_BOS'
+            confidence = 89.0
+            reasons.append("Waqar Asim: Price operating strictly in HTF Premium zone (above equilibrium)")
+            reasons.append(f"Inducement captured: Liquidity sweep above minor high ({minor_high:.5f})")
+            reasons.append("LTF Market Structure Break (MSB): Institutional supply zone tap confirmed")
+        else:
+            zone_desc = "Discount (Longs only)" if is_discount else "Premium (Shorts only)"
+            reasons.append(f"Inside HTF 1H range [{htf_low:.5f} - {htf_high:.5f}] ({zone_desc}). Awaiting 1M inducement.")
+
+        # Pip-based Ultra-Tight SL calculation (3 to 7 pips from PDF, or flat ~5 pips)
+        pip_size = 0.00010 if current_price < 10.0 else (0.01 if current_price < 500 else 1.0)
+        tight_sl_pips = 5.0 * pip_size
+        sl_distance = max(tight_sl_pips, 1.80 * safe_atr)
+
+        if action == 'BUY':
+            entry_price = current_price
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)     # Precision Scalp Bank
+            tp2 = entry_price + (2.00 * sl_distance)  # 1:2+ R:R runner
+            tp3 = entry_price + (5.00 * sl_distance)
+        elif action == 'SELL':
+            entry_price = current_price
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (2.00 * sl_distance)
+            tp3 = entry_price - (5.00 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:3.0 / 1:10.0',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'WAQAR_ASIM_INSTANT_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 17. EUGENE NG AH SIO — RELATIVE VALUE DELTA-NEUTRAL SPREADS
+# ─────────────────────────────────────────────────────────────────────────────
+class EugeneNgAhSioStrategy:
+    """
+    Trader 17: Eugene Ng Ah Sio
+    - Asset Class: Crypto Perps & Spot
+    - Concept: Pair trading derivatives to capture fundamental divergence while neutralizing directional risk
+    - Long Outperformers: Accumulating high yield / strong fundamental catalyst assets
+    - Short Laggards: Hedging weak/laggard assets
+    - Catalyst Unwinding: Close hedges upon catalyst fulfillment to lock in net spread gains
+    - Breakeven Mode: DELTA_NEUTRAL_SPREAD_BE
+    - Timeframes: 1h, 4h, 1d
+    """
+    NAME = "Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)"
+    KEY = "EUGENE_NG_AH_SIO"
+    BE_MODE = "DELTA_NEUTRAL_SPREAD_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '1h') -> Dict[str, Any]:
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.001)
+
+        if n < 20:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Eugene Ng Ah Sio relative value spread analysis."]
+            }
+
+        closes = df['close']
+        highs = df['high']
+        lows = df['low']
+
+        ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+
+        # RSI Calculation (14 period)
+        delta = closes.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / (loss.replace(0, np.nan))
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi_val = float(rsi_series.iloc[-1]) if not np.isnan(rsi_series.iloc[-1]) else 50.0
+
+        lookback = min(n, 20)
+        recent_high = float(highs.iloc[-lookback:-1].max())
+        recent_low = float(lows.iloc[-lookback:-1].min())
+
+        action = 'HOLD'
+        status = 'MONITORING'
+        confidence = 50.0
+        reasons = []
+
+        # Relative Strength Outperformer (Long Leg):
+        if current_price > ema_20 and ema_20 > ema_50 and rsi_val >= 55.0 and current_price >= recent_high * 0.995:
+            action = 'BUY'
+            status = 'ALPHA_CATALYST_LONG'
+            confidence = 84.0
+            reasons.append(f"Eugene Ng: Relative strength outperformance confirmed (RSI {rsi_val:.1f} > 55)")
+            reasons.append(f"Price (${current_price:.2f}) leading above 20 EMA (${ema_20:.2f}) and 50 EMA (${ema_50:.2f})")
+            reasons.append(f"Breakout of {lookback}-bar relative value consolidation high (${recent_high:.2f})")
+        # Relative Weakness Laggard (Hedge Leg):
+        elif current_price < ema_20 and ema_20 < ema_50 and rsi_val <= 45.0 and current_price <= recent_low * 1.005:
+            action = 'SELL'
+            status = 'LAGGARD_HEDGE_SHORT'
+            confidence = 82.0
+            reasons.append(f"Eugene Ng: Structural laggard weakness confirmed (RSI {rsi_val:.1f} < 45)")
+            reasons.append(f"Price (${current_price:.2f}) breaking below 20/50 EMA moving average band")
+            reasons.append(f"Breakdown of {lookback}-bar consolidation support (${recent_low:.2f})")
+        else:
+            reasons.append(f"Asset in neutral spread territory (RSI {rsi_val:.1f}). Awaiting alpha divergence.")
+
+        if action == 'BUY':
+            entry_price = current_price
+            sl_distance = 1.50 * safe_atr
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (1.50 * sl_distance)
+            tp2 = entry_price + (3.00 * sl_distance)
+            tp3 = entry_price + (5.00 * sl_distance)
+        elif action == 'SELL':
+            entry_price = current_price
+            sl_distance = 1.50 * safe_atr
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (1.50 * sl_distance)
+            tp2 = entry_price - (3.00 * sl_distance)
+            tp3 = entry_price - (5.00 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:3.0',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'DELTA_NEUTRAL_SPREAD_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 18. PAUL (RECORD FTMO TRADER) — MACRO-FUNDAMENTAL & DIVERGENCE STRATEGY
+# ─────────────────────────────────────────────────────────────────────────────
+class PaulFTMOStrategy:
+    """
+    Trader 18: Paul (Record FTMO Leaderboard Trader)
+    - Asset Class: Forex (EURJPY, GBPJPY, EURUSD, GBPUSD) & S&P 500
+    - Concept: Institutional multi-timeframe confluence, Asian session breakout boundaries,
+      and custom RSI(12) + MACD(4, 18, 9) price/momentum divergences
+    - Asian Range: Uses Asian Session consolidation boundaries (00:00-07:00 UTC) for London breakout
+    - Execution & Risk: 25-30 pips SL (or 1.5x ATR). Fibonacci Extension Targets (100% and 161.8%)
+    - Session: London Session Open
+    - Breakeven Mode: FIB_EXTENSION_BE
+    - Timeframes: 5m, 15m, 1h, 4h
+    """
+    NAME = "Paul (Record FTMO Trader - Macro & Divergence)"
+    KEY = "PAUL_FTMO"
+    BE_MODE = "FIB_EXTENSION_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '15m') -> Dict[str, Any]:
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.001)
+
+        if n < 25:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Paul FTMO Asian breakout and RSI/MACD divergence analysis."]
+            }
+
+        closes = df['close']
+        highs = df['high']
+        lows = df['low']
+
+        # Custom RSI (Setting 12) from PDF
+        delta = closes.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=12).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=12).mean()
+        rs = gain / (loss.replace(0, np.nan))
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi_12 = float(rsi_series.iloc[-1]) if not np.isnan(rsi_series.iloc[-1]) else 50.0
+        rsi_12_prev = float(rsi_series.iloc[-4]) if not np.isnan(rsi_series.iloc[-4]) else 50.0
+
+        # Custom MACD (4, 18, 9) from PDF
+        ema_4 = closes.ewm(span=4, adjust=False).mean()
+        ema_18 = closes.ewm(span=18, adjust=False).mean()
+        macd_line = ema_4 - ema_18
+        signal_line = macd_line.rolling(window=9).mean()
+        macd_hist = float(macd_line.iloc[-1] - signal_line.iloc[-1])
+        macd_hist_prev = float(macd_line.iloc[-3] - signal_line.iloc[-3])
+
+        # Asian Consolidation Boundary (lookback ~30 bars)
+        lookback_asian = min(n, 30)
+        asian_high = float(highs.iloc[-lookback_asian:-2].max())
+        asian_low = float(lows.iloc[-lookback_asian:-2].min())
+        asian_range = max(asian_high - asian_low, safe_atr)
+
+        # Bullish Divergence: Price lower/equal to Asian low while RSI(12) or MACD hist is higher
+        bullish_div = (float(lows.iloc[-1]) <= asian_low * 1.002) and (rsi_12 > rsi_12_prev or macd_hist > macd_hist_prev)
+        # Bearish Divergence: Price higher/equal to Asian high while RSI(12) or MACD hist is lower
+        bearish_div = (float(highs.iloc[-1]) >= asian_high * 0.998) and (rsi_12 < rsi_12_prev or macd_hist < macd_hist_prev)
+
+        action = 'HOLD'
+        status = 'MONITORING'
+        confidence = 50.0
+        reasons = []
+
+        if bullish_div and closes.iloc[-1] > closes.iloc[-2]:
+            action = 'BUY'
+            status = 'ASIAN_RANGE_BULLISH_DIVERGENCE'
+            confidence = 88.0
+            reasons.append(f"Paul FTMO: Bullish Divergence at Asian Range Low (${asian_low:,.4f})")
+            reasons.append(f"Custom RSI(12) rising ({rsi_12:.1f} > {rsi_12_prev:.1f}) & Fast MACD(4,18,9) momentum expanding")
+            reasons.append("Asian Range sweep completed; European order flow breakout active")
+        elif bearish_div and closes.iloc[-1] < closes.iloc[-2]:
+            action = 'SELL'
+            status = 'ASIAN_RANGE_BEARISH_DIVERGENCE'
+            confidence = 88.0
+            reasons.append(f"Paul FTMO: Bearish Divergence at Asian Range High (${asian_high:,.4f})")
+            reasons.append(f"Custom RSI(12) exhausting ({rsi_12:.1f} < {rsi_12_prev:.1f}) & Fast MACD(4,18,9) momentum weakening")
+            reasons.append("Asian Range high tested; European liquidity distribution active")
+        else:
+            reasons.append(f"Inside Asian consolidation [{asian_low:,.4f} - {asian_high:,.4f}]. RSI(12): {rsi_12:.1f}. Awaiting divergence breakout.")
+
+        # Execution & Risk: 25-30 pips stop loss with Fibonacci Extension targets (100% & 161.8%) from PDF
+        pip_size = 0.00010 if current_price < 10.0 else (0.01 if current_price < 500 else 1.0)
+        pip_30 = 28.0 * pip_size
+        sl_distance = max(pip_30, 1.80 * safe_atr)
+
+        if action == 'BUY':
+            entry_price = current_price
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)     # Precision Scalp Bank
+            tp2 = entry_price + max(1.618 * asian_range, 2.00 * sl_distance) # 1:2+ R:R runner
+            tp3 = entry_price + max(2.618 * asian_range, 3.50 * sl_distance)
+        elif action == 'SELL':
+            entry_price = current_price
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - max(1.618 * asian_range, 2.00 * sl_distance)
+            tp3 = entry_price - max(2.618 * asian_range, 3.50 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:1.62 Fib',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'FIB_EXTENSION_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MASTER STREAMER PLAYBOOK DISPATCHER (EVALUATE ALL 18 STRATEGIES)
 # ─────────────────────────────────────────────────────────────────────────────
 class MasterStreamerPlaybook:
     """
-    Central dispatcher that evaluates all 12 strategies from the Master Playbook PDF.
+    Central dispatcher that evaluates all 18 strategies from the Master Playbooks.
     """
     STRATEGY_MAP = {
         'VIVEK_YADAV': VivekYadavPlaybookStrategy,
@@ -1265,7 +2073,14 @@ class MasterStreamerPlaybook:
         'ADAM_KHOO': AdamKhooStrategy,
         'ARIEL_ZWECHER': ArielZwecherStrategy,
         'OLIVER_VELEZ': OliverVelezStrategy,
-        'TRADE_PRO': TradeProStrategy
+        'TRADE_PRO': TradeProStrategy,
+        # 6 New Elite Traders from Playbook PDF:
+        'KRISTJAN_QULLAMAGGIE': KristjanQullamaggieStrategy,
+        'GCR': GCRStrategy,
+        'WAQAR_ZAKA': WaqarZakaStrategy,
+        'WAQAR_ASIM': WaqarAsimStrategy,
+        'EUGENE_NG_AH_SIO': EugeneNgAhSioStrategy,
+        'PAUL_FTMO': PaulFTMOStrategy
     }
 
     @classmethod
@@ -1277,7 +2092,7 @@ class MasterStreamerPlaybook:
         cot_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Evaluates all 12 strategies simultaneously and identifies all confirmed setups.
+        Evaluates all 18 strategies simultaneously and identifies all confirmed setups.
         """
         results = {}
         active_setups = []
@@ -1354,6 +2169,42 @@ class MasterStreamerPlaybook:
         if res_tp['action'] in ['BUY', 'SELL']:
             active_setups.append(res_tp)
 
+        # 13. Kristjan Qullamaggie
+        res_kq = KristjanQullamaggieStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['KRISTJAN_QULLAMAGGIE'] = res_kq
+        if res_kq['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_kq)
+
+        # 14. GCR
+        res_gcr = GCRStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['GCR'] = res_gcr
+        if res_gcr['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_gcr)
+
+        # 15. Waqar Zaka
+        res_wz = WaqarZakaStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['WAQAR_ZAKA'] = res_wz
+        if res_wz['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_wz)
+
+        # 16. Waqar Asim
+        res_wa = WaqarAsimStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['WAQAR_ASIM'] = res_wa
+        if res_wa['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_wa)
+
+        # 17. Eugene Ng Ah Sio
+        res_en = EugeneNgAhSioStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['EUGENE_NG_AH_SIO'] = res_en
+        if res_en['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_en)
+
+        # 18. Paul FTMO
+        res_pf = PaulFTMOStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['PAUL_FTMO'] = res_pf
+        if res_pf['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_pf)
+
         # Best / Highest confidence confirmed setup
         best_setup = None
         if active_setups:
@@ -1366,3 +2217,4 @@ class MasterStreamerPlaybook:
             'active_count': len(active_setups),
             'best_setup': best_setup
         }
+

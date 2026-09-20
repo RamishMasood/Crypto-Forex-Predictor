@@ -44,19 +44,21 @@ class TestStreamerStrategiesPlaybookAudit(unittest.TestCase):
             'volume': [1500.0] * n
         }, index=dates)
 
-    def test_all_13_strategies_registered(self):
-        """Verify all 13 strategies are registered in AVAILABLE_STRATEGIES."""
+    def test_all_19_strategies_registered(self):
+        """Verify all 19 strategies are registered in AVAILABLE_STRATEGIES."""
         expected_keys = [
             'DEFAULT', 'VIVEK_YADAV', 'BERND_SKORUPINSKI', 'ICT', 'STEVEN_HART',
             'RAYNER_TEO', 'CRYPTO_CRED', 'NDEMAZEAH_GODLOVE', 'ROSS_CAMERON',
-            'ADAM_KHOO', 'ARIEL_ZWECHER', 'OLIVER_VELEZ', 'TRADE_PRO'
+            'ADAM_KHOO', 'ARIEL_ZWECHER', 'OLIVER_VELEZ', 'TRADE_PRO',
+            'KRISTJAN_QULLAMAGGIE', 'GCR', 'WAQAR_ZAKA', 'WAQAR_ASIM',
+            'EUGENE_NG_AH_SIO', 'PAUL_FTMO'
         ]
-        self.assertEqual(len(AVAILABLE_STRATEGIES), 13)
+        self.assertEqual(len(AVAILABLE_STRATEGIES), 19)
         for k in expected_keys:
             self.assertIn(k, AVAILABLE_STRATEGIES)
 
-    def test_playbook_evaluates_all_12_streamers(self):
-        """MasterStreamerPlaybook must evaluate and return results for all 12 streamer strategies."""
+    def test_playbook_evaluates_all_18_streamers(self):
+        """MasterStreamerPlaybook must evaluate and return results for all 18 streamer strategies."""
         pb = MasterStreamerPlaybook.evaluate_all(
             df=self.df,
             atr=150.0,
@@ -64,12 +66,14 @@ class TestStreamerStrategiesPlaybookAudit(unittest.TestCase):
         )
         self.assertIn('all_strategies', pb)
         strats = pb['all_strategies']
-        self.assertEqual(len(strats), 12)
+        self.assertEqual(len(strats), 18)
         
         expected_streamer_keys = [
             'VIVEK_YADAV', 'BERND_SKORUPINSKI', 'ICT', 'STEVEN_HART',
             'RAYNER_TEO', 'CRYPTO_CRED', 'NDEMAZEAH_GODLOVE', 'ROSS_CAMERON',
-            'ADAM_KHOO', 'ARIEL_ZWECHER', 'OLIVER_VELEZ', 'TRADE_PRO'
+            'ADAM_KHOO', 'ARIEL_ZWECHER', 'OLIVER_VELEZ', 'TRADE_PRO',
+            'KRISTJAN_QULLAMAGGIE', 'GCR', 'WAQAR_ZAKA', 'WAQAR_ASIM',
+            'EUGENE_NG_AH_SIO', 'PAUL_FTMO'
         ]
         for k in expected_streamer_keys:
             self.assertIn(k, strats)
@@ -174,7 +178,7 @@ class TestStreamerStrategiesPlaybookAudit(unittest.TestCase):
         
         # Test default sorting: Most Profitable (Net PnL)
         lb_profit = AutonomousTraderEngine.compute_strategy_leaderboard(fake_state, sort_by='profit')
-        self.assertEqual(len(lb_profit), 13)
+        self.assertEqual(len(lb_profit), 19)
         self.assertEqual(lb_profit[0]['strategy_key'], 'ADAM_KHOO')
         self.assertEqual(lb_profit[0]['rank'], 1)
         self.assertEqual(lb_profit[0]['rank_display'], '🥇 1')

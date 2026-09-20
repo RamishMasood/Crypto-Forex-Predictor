@@ -77,6 +77,40 @@ class SessionManager:
         ],
         "RAYNER_TEO": [
             ((8, 0), (17, 0), "London & NY Trend Hours (08:00-17:00 UTC / Avoid Asian)")
+        ],
+
+        # 7. Kristjan Qullamaggie
+        # Windows: Market Session Opens (London & NY Opens for high ADR% momentum continuation)
+        "KRISTJAN_QULLAMAGGIE": [
+            ((7, 0), (11, 0), "London Open Momentum Window (07:00-11:00 UTC / European Open)"),
+            ((13, 0), (17, 0), "NY Open Momentum Window (13:00-17:00 UTC / US Open)")
+        ],
+
+        # 8. GCR (@GiganticRebirth)
+        # Execution: Macro Cycles & Exact Catalyst Event Timestamps (24/7 round the clock for crypto)
+        "GCR": "SESSION_INDEPENDENT",
+
+        # 9. Waqar Zaka
+        # Execution: High-Volatility Spikes, Liquidation Sweeps, and News Cascades (24/7 crypto)
+        "WAQAR_ZAKA": "SESSION_INDEPENDENT",
+
+        # 10. Waqar Asim
+        # Strict 1-Hour Institutional Windows from PDF:
+        # • London Open Window: 8:00 AM – 9:00 AM London Time (07:00 - 09:00 UTC)
+        # • NY Afternoon Window: 2:00 PM – 3:00 PM London Time (13:00 - 15:00 UTC)
+        "WAQAR_ASIM": [
+            ((7, 0), (9, 0), "London Open Inducement Window (07:00-09:00 UTC / 8:00-9:00 AM London)"),
+            ((13, 0), (15, 0), "NY Afternoon Inducement Window (13:00-15:00 UTC / 2:00-3:00 PM London)")
+        ],
+
+        # 11. Eugene Ng Ah Sio
+        # Execution: Fundamental Catalyst Window Releases & Protocol Upgrade Timelines (24/7 crypto)
+        "EUGENE_NG_AH_SIO": "SESSION_INDEPENDENT",
+
+        # 12. Paul (Record FTMO Leaderboard Trader)
+        # Focus: London Session Open (Capitalizing on European order flow; Asian range consolidation breakout)
+        "PAUL_FTMO": [
+            ((7, 0), (11, 0), "London Open Asian Breakout Window (07:00-11:00 UTC / European Order Flow)")
         ]
     }
 
@@ -163,9 +197,9 @@ class SessionManager:
         strat_cfg = cls.STRATEGY_SPECIFIC_WINDOWS.get(strategy_key)
 
         if strat_cfg is not None:
-            # Case 1: Session-Independent (Bernd Skorupinski)
+            # Case 1: Session-Independent (Bernd Skorupinski, GCR, Waqar Zaka, Eugene Ng)
             if strat_cfg == "SESSION_INDEPENDENT":
-                return True, "Bernd Skorupinski: Session-Independent ('Set and Forget') / 24-7"
+                return True, f"{strategy_key}: Session-Independent ('Set and Forget') / 24-7"
 
             # Case 2: Specific Killzones & Execution Windows
             matched_windows = []

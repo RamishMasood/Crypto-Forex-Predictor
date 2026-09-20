@@ -73,25 +73,27 @@ class TestStreamerStrategiesPlaybook(unittest.TestCase):
         })
         self.atr = 2.0
 
-    def test_all_12_strategies_exist_in_playbook(self):
-        """All 12 strategies must be registered in MasterStreamerPlaybook."""
-        self.assertEqual(len(MasterStreamerPlaybook.STRATEGY_MAP), 12)
+    def test_all_18_strategies_exist_in_playbook(self):
+        """All 18 streamer strategies must be registered in MasterStreamerPlaybook."""
+        self.assertEqual(len(MasterStreamerPlaybook.STRATEGY_MAP), 18)
         expected_keys = [
             'VIVEK_YADAV', 'BERND_SKORUPINSKI', 'ICT', 'STEVEN_HART',
             'RAYNER_TEO', 'CRYPTO_CRED', 'NDEMAZEAH_GODLOVE', 'ROSS_CAMERON',
-            'ADAM_KHOO', 'ARIEL_ZWECHER', 'OLIVER_VELEZ', 'TRADE_PRO'
+            'ADAM_KHOO', 'ARIEL_ZWECHER', 'OLIVER_VELEZ', 'TRADE_PRO',
+            'KRISTJAN_QULLAMAGGIE', 'GCR', 'WAQAR_ZAKA', 'WAQAR_ASIM',
+            'EUGENE_NG_AH_SIO', 'PAUL_FTMO'
         ]
         for k in expected_keys:
             self.assertIn(k, MasterStreamerPlaybook.STRATEGY_MAP)
             self.assertIn(k, AVAILABLE_STRATEGIES)
 
     def test_evaluate_all_dispatcher(self):
-        """MasterStreamerPlaybook.evaluate_all returns evaluations for all 12 strategies."""
+        """MasterStreamerPlaybook.evaluate_all returns evaluations for all 18 strategies."""
         res = MasterStreamerPlaybook.evaluate_all(self.df, atr=self.atr, timeframe='1h')
         self.assertIn('all_strategies', res)
         self.assertIn('active_setups', res)
         self.assertIn('active_count', res)
-        self.assertEqual(len(res['all_strategies']), 12)
+        self.assertEqual(len(res['all_strategies']), 18)
 
         for strat_k, strat_res in res['all_strategies'].items():
             self.assertIn('action', strat_res)

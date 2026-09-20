@@ -808,27 +808,27 @@ class MT5TradeExecutor:
             active_be_mode = str(b_info.get('breakeven_mode') or breakeven_mode).lower().strip()
 
             # ── 1. STRATEGY-SPECIFIC FIXED R:R TARGET (NO PREMATURE BREAKEVEN) ──
-            # Strategies like Steven Hart, Bernd Skorupinski, Ariel Zwecher, Trade Pro
-            # require letting the trade breathe without early BE choking.
+            # Strategies like Steven Hart, Bernd Skorupinski, Ariel Zwecher, Trade Pro,
+            # and Waqar Zaka (ATR Buffer) require letting the trade breathe without early BE choking.
             if active_be_mode in ['fixed_rr_target', 'none', 'hold_target']:
                 continue
 
-            # ── 2. STRATEGY-SPECIFIC MOVING AVERAGE TRAILING MODES ──────────────
-            # Rayner Teo & Adam Khoo (20 EMA) / Oliver Velez (20 SMA):
-            # Only locks to Breakeven once price expands at least 1.0 ATR (or 50% to TP2)
-            if active_be_mode in ['trailing_20_ema', 'trailing_20_sma']:
+            # ── 2. STRATEGY-SPECIFIC MOVING AVERAGE & EXPANSION TRAILING MODES ──
+            # Rayner Teo & Adam Khoo (20 EMA) / Oliver Velez (20 SMA) / Qullamaggie (10/20 EMA) / Paul FTMO (Fib Ext):
+            # Only locks to Breakeven once price expands at least 1.0 ATR (or 50% to TP2 / TP1 hit)
+            if active_be_mode in ['trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be', 'gcr_cycle_be', 'delta_neutral_spread_be', 'atr_buffer_be']:
                 is_expansion_reached = False
                 if pos_type == 'BUY':
                     profit_dist = curr_p - open_p
                     if tp2_p > open_p and profit_dist >= 0.50 * (tp2_p - open_p):
                         is_expansion_reached = True
-                    elif tp1_p > open_p and profit_dist >= 2.0 * (tp1_p - open_p):
+                    elif tp1_p > open_p and profit_dist >= (tp1_p - open_p) * 0.95:
                         is_expansion_reached = True
                 else:
                     profit_dist = open_p - curr_p
                     if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.50 * (open_p - tp2_p):
                         is_expansion_reached = True
-                    elif tp1_p > 0 and tp1_p < open_p and profit_dist >= 2.0 * (open_p - tp1_p):
+                    elif tp1_p > 0 and tp1_p < open_p and profit_dist >= (open_p - tp1_p) * 0.95:
                         is_expansion_reached = True
 
                 if is_profitable and is_expansion_reached and not sl_at_be:
@@ -837,6 +837,21 @@ class MT5TradeExecutor:
                         results.append({
                             'ticket': pos['ticket'],
                             'status': 'MOVED_TO_MA_TRAILING_BE',
+                            'mode': active_be_mode.upper(),
+                            'new_sl': res['new_sl']
+                        })
+                continue
+
+            # ── 2.5 WAQAR ASIM 1-MINUTE INSTANT BREAKEVEN ────────────────────────
+            # Waqar Asim: Precision 1m scalper locks Breakeven immediately upon internal structure expansion
+            if active_be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be']:
+                is_expansion_reached = (batch_tp1_hit or symbol_tp1_hit or (is_profitable and pos.get('return_pct', 0) >= 0.05))
+                if is_profitable and is_expansion_reached and not sl_at_be:
+                    res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
+                    if res.get('success'):
+                        results.append({
+                            'ticket': pos['ticket'],
+                            'status': 'MOVED_TO_INSTANT_BE',
                             'mode': active_be_mode.upper(),
                             'new_sl': res['new_sl']
                         })

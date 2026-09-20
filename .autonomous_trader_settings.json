@@ -31,18 +31,24 @@
   "active_strategy_mode": "DEFAULT",
   "active_strategies": [
     "DEFAULT",
-    "STEVEN_HART",
-    "RAYNER_TEO",
-    "ICT",
     "VIVEK_YADAV",
     "BERND_SKORUPINSKI",
+    "ICT",
+    "STEVEN_HART",
+    "RAYNER_TEO",
     "CRYPTO_CRED",
     "NDEMAZEAH_GODLOVE",
     "ROSS_CAMERON",
     "ADAM_KHOO",
     "ARIEL_ZWECHER",
     "OLIVER_VELEZ",
-    "TRADE_PRO"
+    "TRADE_PRO",
+    "KRISTJAN_QULLAMAGGIE",
+    "GCR",
+    "WAQAR_ZAKA",
+    "WAQAR_ASIM",
+    "EUGENE_NG_AH_SIO",
+    "PAUL_FTMO"
   ],
   "manual_selected_symbols": [
     "ETH/USD",

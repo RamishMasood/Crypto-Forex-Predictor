@@ -59,7 +59,14 @@ AVAILABLE_STRATEGIES = {
     "ADAM_KHOO": "📈 Adam Khoo (Triple EMA Trend Breakout & 20 EMA Trailing)",
     "ARIEL_ZWECHER": "⏰ Ariel Zwecher (RealSimpleAriel - 15M ORB & Prop Math)",
     "OLIVER_VELEZ": "🐘 Oliver Velez (Elephant/Tail Bar + 20 SMA Location + 200 SMA Baseline)",
-    "TRADE_PRO": "🤖 Trade Pro (Mechanical Donchian 20 Channel + 200 SMA Slope + ATR 1:2)"
+    "TRADE_PRO": "🤖 Trade Pro (Mechanical Donchian 20 Channel + 200 SMA Slope + ATR 1:2)",
+    # 6 New Elite Traders from Playbook PDF:
+    "KRISTJAN_QULLAMAGGIE": "🌪️ Kristjan Qullamaggie (Systematic Momentum Expansion & High ADR%)",
+    "GCR": "🧠 GCR (@GiganticRebirth - Behavioral Sentiment & Counter-Shorting)",
+    "WAQAR_ZAKA": "🛡️ Waqar Zaka (Off-Exchange Capital Reserve & ATR Buffer Model)",
+    "WAQAR_ASIM": "🎯 Waqar Asim (Forex 1M S&D Inducement Scalping Model)",
+    "EUGENE_NG_AH_SIO": "⚖️ Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)",
+    "PAUL_FTMO": "👑 Paul (Record FTMO Leaderboard Trader - Macro & Divergence)"
 }
 
 _SCAN_STOP_EVENT = threading.Event()
@@ -131,6 +138,12 @@ class AutonomousTraderEngine:
                                 data['active_strategies'] = list(AVAILABLE_STRATEGIES.keys())
                             else:
                                 data['active_strategies'] = ['DEFAULT']
+                        elif set(data.get('active_strategies', [])) == {
+                            "DEFAULT", "STEVEN_HART", "RAYNER_TEO", "ICT", "BERND_SKORUPINSKI",
+                            "VIVEK_YADAV", "CRYPTO_CRED", "NDEMAZEAH_GODLOVE", "ROSS_CAMERON",
+                            "ADAM_KHOO", "ARIEL_ZWECHER", "OLIVER_VELEZ", "TRADE_PRO"
+                        }:
+                            data['active_strategies'] = list(AVAILABLE_STRATEGIES.keys())
                         default_settings.update(data)
                 except Exception as e:
                     logger.error(f"Error loading settings: {e}")
@@ -264,10 +277,16 @@ class AutonomousTraderEngine:
             'ADAM_KHOO': {'default_tfs': '1h, 4h, 15m', 'default_pairs': 'BTC/USD, Forex, Equities'},
             'ARIEL_ZWECHER': {'default_tfs': '15m, 5m', 'default_pairs': 'BTC/USD, CME Futures'},
             'OLIVER_VELEZ': {'default_tfs': '2m, 5m, 15m', 'default_pairs': 'Crypto, Futures, Equities'},
-            'TRADE_PRO': {'default_tfs': '1h, 4h, 15m', 'default_pairs': 'Forex Majors, Crypto'}
+            'TRADE_PRO': {'default_tfs': '1h, 4h, 15m', 'default_pairs': 'Forex Majors, Crypto'},
+            'KRISTJAN_QULLAMAGGIE': {'default_tfs': 'Daily, 1h', 'default_pairs': 'Crypto, Altcoins, Stocks'},
+            'GCR': {'default_tfs': '1h, 4h, Daily', 'default_pairs': 'BTC/USD, ETH/USD, High-Caps'},
+            'WAQAR_ZAKA': {'default_tfs': '15m, 1h, 4h', 'default_pairs': 'BTC/USD, ETH/USD, Perps'},
+            'WAQAR_ASIM': {'default_tfs': '1m, 1h', 'default_pairs': 'EUR/USD, GBP/USD'},
+            'EUGENE_NG_AH_SIO': {'default_tfs': '1h, 4h, Daily', 'default_pairs': 'Crypto Spot & Perps'},
+            'PAUL_FTMO': {'default_tfs': '15m, 5m, 1h, 4h', 'default_pairs': 'EUR/JPY, GBP/JPY, EUR/USD, S&P 500'}
         }
 
-        # Initialize stats bucket for each of the 13 strategies
+        # Initialize stats bucket for each of the strategies
         stats_map: Dict[str, Dict[str, Any]] = {}
         strat_tfs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in AVAILABLE_STRATEGIES}
         strat_pairs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in AVAILABLE_STRATEGIES}
@@ -302,7 +321,7 @@ class AutonomousTraderEngine:
                 try:
                     bid = str(stt.split('Batch #')[1].split(')')[0].strip())
                     for k, fname in AVAILABLE_STRATEGIES.items():
-                        clean_fn = fname.split('(')[0].replace('🏛️', '').replace('🎯', '').replace('🏆', '').replace('⚡', '').replace('📐', '').replace('🌊', '').replace('📊', '').replace('🚀', '').replace('📈', '').replace('⏰', '').replace('🐘', '').replace('🤖', '').strip().upper()
+                        clean_fn = fname.split('(')[0].replace('🏛️', '').replace('🎯', '').replace('🏆', '').replace('⚡', '').replace('📐', '').replace('🌊', '').replace('📊', '').replace('🚀', '').replace('📈', '').replace('⏰', '').replace('🐘', '').replace('🤖', '').replace('🌪️', '').replace('🧠', '').replace('🛡️', '').replace('⚖️', '').replace('👑', '').strip().upper()
                         if k in det.upper() or (len(clean_fn) > 3 and clean_fn in det.upper()):
                             log_strategy_map[bid] = k
                             break
@@ -326,9 +345,11 @@ class AutonomousTraderEngine:
                 if k in raw_k or k in raw_n:
                     return k
 
+            if 'PAUL' in raw_k or 'PAUL' in raw_n:
+                return 'PAUL_FTMO'
             if 'VIVEK' in raw_k or 'VIVEK' in raw_n or 'TFP' in raw_k or 'TFP' in raw_n:
                 return 'VIVEK_YADAV'
-            if 'BERND' in raw_k or 'BERND' in raw_n or 'FTMO' in raw_n:
+            if 'BERND' in raw_k or 'BERND' in raw_n or 'SKORUPINSKI' in raw_n:
                 return 'BERND_SKORUPINSKI'
             if 'HUDDLESTON' in raw_n or 'ICT' in raw_k or 'ICT' in raw_n:
                 return 'ICT'
@@ -350,6 +371,16 @@ class AutonomousTraderEngine:
                 return 'OLIVER_VELEZ'
             if 'PRO' in raw_k or 'PRO' in raw_n or 'DONCHIAN' in raw_n:
                 return 'TRADE_PRO'
+            if 'QULLAMAGGIE' in raw_k or 'QULLAMAGGIE' in raw_n or 'KRISTJAN' in raw_k or 'KRISTJAN' in raw_n:
+                return 'KRISTJAN_QULLAMAGGIE'
+            if 'GCR' in raw_k or 'GCR' in raw_n or 'GIGANTICREBIRTH' in raw_n:
+                return 'GCR'
+            if 'ZAKA' in raw_k or 'ZAKA' in raw_n:
+                return 'WAQAR_ZAKA'
+            if 'ASIM' in raw_k or 'ASIM' in raw_n:
+                return 'WAQAR_ASIM'
+            if 'EUGENE' in raw_k or 'EUGENE' in raw_n or 'AH SIO' in raw_n or 'DELTA_NEUTRAL' in raw_n:
+                return 'EUGENE_NG_AH_SIO'
             
             return 'DEFAULT'
 
