@@ -2158,6 +2158,77 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
     else:
         closed_table_html = "<div style='color:#64748b;font-size:0.80rem;padding:16px;text-align:center;'>Awaiting first trade exit...</div>"
 
+    # Live Streamer Strategies Performance Leaderboard
+    lb_data = stats.get('leaderboard', [])
+    if lb_data:
+        lb_rows = []
+        for item in lb_data:
+            t_trades = item.get('total_trades', 0)
+            if t_trades == 0:
+                continue
+            s_name = item.get('strategy_name', item.get('strategy_key', 'Unknown'))
+            w = item.get('wins', 0)
+            l = item.get('losses', 0)
+            be_cnt = item.get('breakevens', 0)
+            wr_v = item.get('win_rate', 0.0)
+            pnl_v = item.get('net_pnl', 0.0)
+            pf_v = item.get('profit_factor', 0.0)
+            bsl_v = item.get('biggest_sl_loss', 0.0)
+            sl_h = item.get('sl_hits', 0)
+            badge_txt = item.get('status_badge', '⚖️ Neutral')
+            rk_disp = item.get('rank_display', '#')
+
+            pnl_c = "#34d399" if pnl_v >= 0 else "#f87171"
+            pnl_s = "+" if pnl_v >= 0 else ""
+            wr_c = "#34d399" if wr_v >= 65 else ("#fbbf24" if wr_v >= 50 else "#f87171")
+            bsl_c = f"-${bsl_v:,.2f}" if bsl_v > 0 else "$0.00"
+
+            lb_rows.append(
+                f"<tr style='border-bottom:1px solid #1e293b;font-size:0.75rem;font-family:monospace;'>"
+                f"<td style='padding:6px 8px;text-align:center;font-weight:800;'>{rk_disp}</td>"
+                f"<td style='padding:6px 8px;color:#f8fafc;font-weight:600;'>{s_name}</td>"
+                f"<td style='padding:6px 8px;text-align:center;color:#cbd5e1;font-weight:700;'>{t_trades}</td>"
+                f"<td style='padding:6px 8px;text-align:center;'><span style='color:#34d399;font-weight:700;'>{w}W</span> - <span style='color:#fbbf24;font-weight:700;'>{be_cnt}BE</span> - <span style='color:#f87171;font-weight:700;'>{l}L</span></td>"
+                f"<td style='padding:6px 8px;text-align:center;color:{wr_c};font-weight:700;'>{wr_v:.1f}%</td>"
+                f"<td style='padding:6px 8px;color:{pnl_c};font-weight:700;text-align:right;'>{pnl_s}${pnl_v:,.2f}</td>"
+                f"<td style='padding:6px 8px;text-align:center;color:#94a3b8;'>{pf_v:.2f}</td>"
+                f"<td style='padding:6px 8px;text-align:center;color:#f87171;'>{bsl_c}</td>"
+                f"<td style='padding:6px 8px;text-align:center;color:#f87171;'>{sl_h}</td>"
+                f"<td style='padding:6px 8px;text-align:center;'><span style='background:#18181b;border:1px solid #27272a;padding:2px 6px;border-radius:6px;font-size:0.70rem;color:#e2e8f0;'>{badge_txt}</span></td>"
+                f"</tr>"
+            )
+
+        if lb_rows:
+            lb_table_html = (
+                "<div style='margin-top:14px;background:#0b1324;border:1px solid #1e293b;border-radius:8px;padding:10px;overflow-x:auto;'>"
+                "<div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>"
+                "<b style='color:#ffd700;font-size:0.78rem;'>🏆 LIVE STRATEGIES PERFORMANCE LEADERBOARD (STREAMING REAL-TIME)</b>"
+                "<span style='font-size:0.70rem;color:#94a3b8;'>Ranked Bar-by-Bar across Historical Candle Window</span>"
+                "</div>"
+                "<table style='width:100%;border-collapse:collapse;text-align:left;'>"
+                "<thead style='background:#0f172a;color:#94a3b8;font-size:0.70rem;text-transform:uppercase;'>"
+                "<tr>"
+                "<th style='padding:6px 8px;text-align:center;width:45px;'>Rank</th>"
+                "<th style='padding:6px 8px;'>Strategy</th>"
+                "<th style='padding:6px 8px;text-align:center;'>Trades</th>"
+                "<th style='padding:6px 8px;text-align:center;'>Record (W-BE-L)</th>"
+                "<th style='padding:6px 8px;text-align:center;'>Win Rate</th>"
+                "<th style='padding:6px 8px;text-align:right;'>Net PnL</th>"
+                "<th style='padding:6px 8px;text-align:center;'>PF</th>"
+                "<th style='padding:6px 8px;text-align:center;'>Max SL Hit</th>"
+                "<th style='padding:6px 8px;text-align:center;'>SL Hits</th>"
+                "<th style='padding:6px 8px;text-align:center;'>Status</th>"
+                "</tr>"
+                "</thead>"
+                f"<tbody>{''.join(lb_rows)}</tbody>"
+                "</table>"
+                "</div>"
+            )
+        else:
+            lb_table_html = "<div style='margin-top:14px;color:#64748b;font-size:0.75rem;text-align:center;padding:10px;border:1px dashed #1e293b;border-radius:8px;'>Waiting for strategy trades to compile Live Leaderboard...</div>"
+    else:
+        lb_table_html = ""
+
     html = f"""
     <div style='background:#070b14;border:1px solid #1e293b;border-radius:12px;padding:14px;margin-top:10px;margin-bottom:15px;box-shadow:0 8px 24px rgba(0,0,0,0.4);'>
         <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #1e293b;'>
@@ -2212,9 +2283,12 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
                 {closed_table_html}
             </div>
         </div>
+
+        {lb_table_html}
     </div>
     """
-    live_monitor.markdown(html, unsafe_allow_html=True)
+    clean_html = "\n".join(line.strip() for line in str(html).splitlines() if line.strip())
+    live_monitor.markdown(clean_html, unsafe_allow_html=True)
 
 def render_mt5_backtest_engine_view():
     st.divider()
