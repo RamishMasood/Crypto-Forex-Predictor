@@ -43,25 +43,261 @@
       "strategy_used": "GCR",
       "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
     },
-    "929315": {
-      "batch_id": 929315,
+    "930851": {
+      "batch_id": "930851",
+      "symbol": "ETH/USD",
+      "broker_sym": "ETHUSDm",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry_price": 2625.42,
+      "sl_price": 2654.78,
+      "breakeven_sl": 2625.42,
+      "soft_breakeven_sl": 2654.78,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 2618.58,
+      "tp2_price": 2618.58,
+      "tp3_price": 2618.58,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.1
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1915988253
+      ],
+      "executed_at": "2026-09-20T20:14:28.676243+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "EXECUTING (GCR",
+      "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
+    },
+    "934491": {
+      "batch_id": "934491",
       "symbol": "BTC/USD",
       "broker_sym": "BTCUSDm",
       "timeframe": "5m",
       "action": "BUY",
-      "entry_price": 81226.85,
-      "sl_price": 80970.55114,
-      "breakeven_sl": 81229.41299,
-      "soft_breakeven_sl": 81162.77529,
+      "entry_price": 81211.32,
+      "sl_price": 80976.38,
+      "breakeven_sl": 81211.32,
+      "soft_breakeven_sl": 80976.38,
       "breakeven_mode": "tight",
       "recommended_mode": false,
       "active_sessions": [
         "24/7 (Any Session)"
       ],
       "htf_confluence": true,
-      "tp1_price": 81270.64283,
-      "tp2_price": 81521.59369,
-      "tp3_price": 81790.70749,
+      "tp1_price": 81402.75,
+      "tp2_price": 81402.75,
+      "tp3_price": 81402.75,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.01
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1916038747,
+        1916038757
+      ],
+      "executed_at": "2026-09-20T20:14:28.676890+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "934761": {
+      "batch_id": "934761",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "1h",
+      "action": "BUY",
+      "entry_price": 81216.24,
+      "sl_price": 80679.19,
+      "breakeven_sl": 81216.24,
+      "soft_breakeven_sl": 80679.19,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 81318.87,
+      "tp2_price": 81318.87,
+      "tp3_price": 81318.87,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1916041230,
+        1916041232,
+        1916041237
+      ],
+      "executed_at": "2026-09-20T20:14:28.677142+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "935298": {
+      "batch_id": 935298,
+      "symbol": "ETH/USD",
+      "broker_sym": "ETHUSDm",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry_price": 2630.66,
+      "sl_price": 2660.59914,
+      "breakeven_sl": 2630.36061,
+      "soft_breakeven_sl": 2638.14478,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 2624.33951,
+      "tp2_price": 2596.22999,
+      "tp3_price": 2564.79389,
+      "matched_pillars": 2,
+      "lot_split": {
+        "tp1_lots": 0.1,
+        "tp2_lots": 0.0,
+        "tp3_lots": 0.0,
+        "tp1_pct": 100.0,
+        "tp2_pct": 0.0,
+        "tp3_pct": 0.0,
+        "tp1_reward_usd": 0.63,
+        "tp2_reward_usd": 0.0,
+        "tp3_reward_usd": 0.0,
+        "total_reward_usd": 0.63
+      },
+      "risk_usd": 2.99,
+      "tickets": [
+        1916047859
+      ],
+      "executed_at": "2026-09-20T20:14:59.312204+00:00",
+      "status": "OPEN",
+      "p1_score": -5.8,
+      "p1_prob": 50.0,
+      "strategy_used": "GCR",
+      "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
+    },
+    "935455": {
+      "batch_id": 935455,
+      "symbol": "ETH/USD",
+      "broker_sym": "ETHUSDm",
+      "timeframe": "1h",
+      "action": "SELL",
+      "entry_price": 2630.85,
+      "sl_price": 2661.28543,
+      "breakeven_sl": 2630.54565,
+      "soft_breakeven_sl": 2638.45886,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 2624.42474,
+      "tp2_price": 2595.84926,
+      "tp3_price": 2563.89206,
+      "matched_pillars": 2,
+      "lot_split": {
+        "tp1_lots": 0.1,
+        "tp2_lots": 0.0,
+        "tp3_lots": 0.0,
+        "tp1_pct": 100.0,
+        "tp2_pct": 0.0,
+        "tp3_pct": 0.0,
+        "tp1_reward_usd": 0.64,
+        "tp2_reward_usd": 0.0,
+        "tp3_reward_usd": 0.0,
+        "total_reward_usd": 0.64
+      },
+      "risk_usd": 3.04,
+      "tickets": [
+        1916050537
+      ],
+      "executed_at": "2026-09-20T20:17:36.049931+00:00",
+      "status": "OPEN",
+      "p1_score": -4.2,
+      "p1_prob": 52.0,
+      "strategy_used": "GCR",
+      "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
+    },
+    "936113": {
+      "batch_id": 936113,
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "1h",
+      "action": "SELL",
+      "entry_price": 81162.26,
+      "sl_price": 81702.04914,
+      "breakeven_sl": 81156.86211,
+      "soft_breakeven_sl": 81297.20728,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 81048.30451,
+      "tp2_price": 80541.50249,
+      "tp3_price": 79974.72389,
+      "matched_pillars": 4,
+      "lot_split": {
+        "tp1_lots": 0.02,
+        "tp2_lots": 0.01,
+        "tp3_lots": 0.01,
+        "tp1_pct": 50.0,
+        "tp2_pct": 25.0,
+        "tp3_pct": 25.0,
+        "tp1_reward_usd": 2.28,
+        "tp2_reward_usd": 6.21,
+        "tp3_reward_usd": 11.88,
+        "total_reward_usd": 20.37
+      },
+      "risk_usd": 21.59,
+      "tickets": [
+        1916061241,
+        1916061252,
+        1916061282
+      ],
+      "executed_at": "2026-09-20T20:28:34.808013+00:00",
+      "status": "OPEN",
+      "p1_score": 24.1,
+      "p1_prob": 84.0,
+      "strategy_used": "GCR",
+      "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
+    },
+    "936189": {
+      "batch_id": 936189,
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "5m",
+      "action": "BUY",
+      "entry_price": 81187.53,
+      "sl_price": 80976.37249,
+      "breakeven_sl": 81189.64158,
+      "soft_breakeven_sl": 81134.74062,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 81218.38126,
+      "tp2_price": 81430.36113,
+      "tp3_price": 81652.07651,
       "matched_pillars": 2,
       "lot_split": {
         "tp1_lots": 0.02,
@@ -70,43 +306,43 @@
         "tp1_pct": 50.0,
         "tp2_pct": 25.0,
         "tp3_pct": 25.0,
-        "tp1_reward_usd": 0.88,
-        "tp2_reward_usd": 2.95,
-        "tp3_reward_usd": 5.64,
-        "total_reward_usd": 9.47
+        "tp1_reward_usd": 0.62,
+        "tp2_reward_usd": 2.43,
+        "tp3_reward_usd": 4.65,
+        "total_reward_usd": 7.7
       },
-      "risk_usd": 10.25,
+      "risk_usd": 8.45,
       "tickets": [
-        1915963305,
-        1915963307,
-        1915963310
+        1916063138,
+        1916063148,
+        1916063157
       ],
-      "executed_at": "2026-09-20T18:35:15.984072+00:00",
+      "executed_at": "2026-09-20T20:29:50.813942+00:00",
       "status": "OPEN",
-      "p1_score": 8.0,
+      "p1_score": 14.0,
       "p1_prob": 48.0,
       "strategy_used": "EUGENE_NG_AH_SIO",
       "strategy_name": "Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)"
     },
-    "929346": {
-      "batch_id": 929346,
+    "936647": {
+      "batch_id": 936647,
       "symbol": "BTC/USD",
       "broker_sym": "BTCUSDm",
-      "timeframe": "3m",
-      "action": "BUY",
-      "entry_price": 81229.31,
-      "sl_price": 80976.62886,
-      "breakeven_sl": 81231.83681,
-      "soft_breakeven_sl": 81166.13971,
+      "timeframe": "1m",
+      "action": "SELL",
+      "entry_price": 81073.04,
+      "sl_price": 81227.11461,
+      "breakeven_sl": 81071.49925,
+      "soft_breakeven_sl": 81111.55865,
       "breakeven_mode": "tight",
       "recommended_mode": false,
       "active_sessions": [
         "24/7 (Any Session)"
       ],
       "htf_confluence": true,
-      "tp1_price": 81261.55517,
-      "tp2_price": 81519.89331,
-      "tp3_price": 81785.20851,
+      "tp1_price": 81042.23224,
+      "tp2_price": 80895.8542,
+      "tp3_price": 80734.07586,
       "matched_pillars": 2,
       "lot_split": {
         "tp1_lots": 0.02,
@@ -115,26 +351,938 @@
         "tp1_pct": 50.0,
         "tp2_pct": 25.0,
         "tp3_pct": 25.0,
-        "tp1_reward_usd": 0.64,
-        "tp2_reward_usd": 2.91,
-        "tp3_reward_usd": 5.56,
-        "total_reward_usd": 9.11
+        "tp1_reward_usd": 0.62,
+        "tp2_reward_usd": 1.77,
+        "tp3_reward_usd": 3.39,
+        "total_reward_usd": 5.78
       },
-      "risk_usd": 10.11,
+      "risk_usd": 6.16,
       "tickets": [
-        1915963571,
-        1915963574,
-        1915963575
+        1916068488,
+        1916068491,
+        1916068497
       ],
-      "executed_at": "2026-09-20T18:35:48.040725+00:00",
+      "executed_at": "2026-09-20T20:37:28.182113+00:00",
       "status": "OPEN",
-      "p1_score": -25.8,
-      "p1_prob": 64.9,
+      "p1_score": -41.1,
+      "p1_prob": 65.6,
       "strategy_used": "EUGENE_NG_AH_SIO",
       "strategy_name": "Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)"
+    }
+  },
+  "scan_activity_log": [
+    {
+      "timestamp": "20:43:46 UTC",
+      "cycle": 121,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
-    "930194": {
-      "batch_id": 930194,
+    {
+      "timestamp": "20:43:38 UTC",
+      "cycle": 121,
+      "symbol": "BTC/USD",
+      "timeframe": "1h",
+      "action": "HOLD",
+      "pillars": "-",
+      "status": "SKIPPED (Same Strat Active on TF)",
+      "details": "Strategy GCR already active on BTC/USD (1h). (Diff Strats Only Mode)"
+    },
+    {
+      "timestamp": "20:43:36 UTC",
+      "cycle": 121,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "BUY",
+      "pillars": "3/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:43:31 UTC",
+      "cycle": 121,
+      "symbol": "BTC/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:43:29 UTC",
+      "cycle": 121,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:43:21 UTC",
+      "cycle": 121,
+      "symbol": "BTC/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:43:20 UTC",
+      "cycle": 121,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:43:15 UTC",
+      "cycle": 121,
+      "symbol": "BTC/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
+      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
+    },
+    {
+      "timestamp": "20:43:15 UTC",
+      "cycle": 121,
+      "symbol": "ETH/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:43:06 UTC",
+      "cycle": 121,
+      "symbol": "ETH/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:43:06 UTC",
+      "cycle": 121,
+      "symbol": "BTC/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:43:00 UTC",
+      "cycle": 121,
+      "symbol": "BTC/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (10.7) "
+    },
+    {
+      "timestamp": "20:43:00 UTC",
+      "cycle": 121,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.8) "
+    },
+    {
+      "timestamp": "20:42:33 UTC",
+      "cycle": 120,
+      "symbol": "BTC/USD",
+      "timeframe": "1h",
+      "action": "HOLD",
+      "pillars": "-",
+      "status": "SKIPPED (Same Strat Active on TF)",
+      "details": "Strategy GCR already active on BTC/USD (1h). (Diff Strats Only Mode)"
+    },
+    {
+      "timestamp": "20:42:32 UTC",
+      "cycle": 120,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "BUY",
+      "pillars": "3/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:42:26 UTC",
+      "cycle": 120,
+      "symbol": "BTC/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:42:25 UTC",
+      "cycle": 120,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "BUY",
+      "pillars": "3/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:42:16 UTC",
+      "cycle": 120,
+      "symbol": "BTC/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:42:16 UTC",
+      "cycle": 120,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:42:11 UTC",
+      "cycle": 120,
+      "symbol": "BTC/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:42:10 UTC",
+      "cycle": 120,
+      "symbol": "ETH/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:42:04 UTC",
+      "cycle": 120,
+      "symbol": "ETH/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Outside ROSS_CAMERON Session)",
+      "details": "Outside ROSS_CAMERON Killzone/Session (Designated: Pre-Market & NY Open Power Hour)"
+    },
+    {
+      "timestamp": "20:42:04 UTC",
+      "cycle": 120,
+      "symbol": "BTC/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:41:55 UTC",
+      "cycle": 120,
+      "symbol": "BTC/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (10.7) "
+    },
+    {
+      "timestamp": "20:41:54 UTC",
+      "cycle": 120,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.1) "
+    },
+    {
+      "timestamp": "20:41:48 UTC",
+      "cycle": 120,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:41:48 UTC",
+      "cycle": 120,
+      "symbol": "BTC/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:41:18 UTC",
+      "cycle": 119,
+      "symbol": "BTC/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:41:17 UTC",
+      "cycle": 119,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:41:12 UTC",
+      "cycle": 119,
+      "symbol": "BTC/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:41:11 UTC",
+      "cycle": 119,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:41:03 UTC",
+      "cycle": 119,
+      "symbol": "BTC/USD",
+      "timeframe": "1m",
+      "action": "HOLD",
+      "pillars": "-",
+      "status": "SKIPPED (Same Strat Active on TF)",
+      "details": "Strategy EUGENE_NG_AH_SIO already active on BTC/USD (1m). (Diff Strats Only Mode)"
+    },
+    {
+      "timestamp": "20:41:02 UTC",
+      "cycle": 119,
+      "symbol": "ETH/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:40:57 UTC",
+      "cycle": 119,
+      "symbol": "BTC/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:40:56 UTC",
+      "cycle": 119,
+      "symbol": "ETH/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
+      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
+    },
+    {
+      "timestamp": "20:40:51 UTC",
+      "cycle": 119,
+      "symbol": "BTC/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (10.7) "
+    },
+    {
+      "timestamp": "20:40:50 UTC",
+      "cycle": 119,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.1) "
+    },
+    {
+      "timestamp": "20:40:41 UTC",
+      "cycle": 119,
+      "symbol": "BTC/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:40:40 UTC",
+      "cycle": 119,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:40:33 UTC",
+      "cycle": 119,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:40:04 UTC",
+      "cycle": 118,
+      "symbol": "BTC/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:40:01 UTC",
+      "cycle": 118,
+      "symbol": "BTC/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:40:01 UTC",
+      "cycle": 118,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:39:53 UTC",
+      "cycle": 118,
+      "symbol": "ETH/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:39:52 UTC",
+      "cycle": 118,
+      "symbol": "BTC/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:39:50 UTC",
+      "cycle": 118,
+      "symbol": "ETH/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:39:49 UTC",
+      "cycle": 118,
+      "symbol": "BTC/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (8.8) B"
+    },
+    {
+      "timestamp": "20:39:47 UTC",
+      "cycle": 118,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.0) "
+    },
+    {
+      "timestamp": "20:39:45 UTC",
+      "cycle": 118,
+      "symbol": "BTC/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:39:44 UTC",
+      "cycle": 118,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "20:39:41 UTC",
+      "cycle": 118,
+      "symbol": "BTC/USD",
+      "timeframe": "1h",
+      "action": "HOLD",
+      "pillars": "-",
+      "status": "SKIPPED (Same Strat Active on TF)",
+      "details": "Strategy GCR already active on BTC/USD (1h). (Diff Strats Only Mode)"
+    },
+    {
+      "timestamp": "20:39:40 UTC",
+      "cycle": 118,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "BUY",
+      "pillars": "3/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:39:37 UTC",
+      "cycle": 118,
+      "symbol": "BTC/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:39:37 UTC",
+      "cycle": 118,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "BUY",
+      "pillars": "3/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "20:39:12 UTC",
+      "cycle": 117,
+      "symbol": "BTC/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Outside WAQAR_ASIM Session)",
+      "details": "Outside WAQAR_ASIM Killzone/Session (Designated: London Open Inducement Window | NY Afternoon Inducement Window)"
+    },
+    {
+      "timestamp": "20:39:12 UTC",
+      "cycle": 117,
+      "symbol": "ETH/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:39:06 UTC",
+      "cycle": 117,
+      "symbol": "BTC/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:39:06 UTC",
+      "cycle": 117,
+      "symbol": "ETH/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (No ICT Sweep / FVG)",
+      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+    },
+    {
+      "timestamp": "20:39:00 UTC",
+      "cycle": 117,
+      "symbol": "BTC/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (8.8) B"
+    },
+    {
+      "timestamp": "20:38:59 UTC",
+      "cycle": 117,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.2) "
+    }
+  ],
+  "tf_rotation_indices": {
+    "ETH/USD": 5,
+    "BTC/USD": 4
+  },
+  "total_trades_taken": 61,
+  "trades_by_symbol": {
+    "ETH/USD": 21,
+    "ETHUSDm": 21,
+    "BTC/USD": 40,
+    "BTCUSDm": 40
+  },
+  "symbol_stats": {
+    "ETH/USD": {
+      "wins": 6,
+      "losses": 0,
+      "breakevens": 11,
+      "completed": 17,
+      "total_profit": 3.59
+    },
+    "BTC/USD": {
+      "wins": 12,
+      "losses": 13,
+      "breakevens": 10,
+      "completed": 35,
+      "total_profit": 1.18
+    }
+  },
+  "closed_batches": [
+    {
+      "batch_id": "936044",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry_price": 81112.65,
+      "sl_price": 81626.379,
+      "breakeven_sl": 81107.51271,
+      "matched_pillars": 2,
+      "tp1_price": 81004.1961,
+      "tp2_price": 80521.86165,
+      "tp3_price": 79982.4462,
+      "lot_split": {
+        "tp1_lots": 0.02,
+        "tp2_lots": 0.01,
+        "tp3_lots": 0.01,
+        "tp1_pct": 50.0,
+        "tp2_pct": 25.0,
+        "tp3_pct": 25.0,
+        "tp1_reward_usd": 2.17,
+        "tp2_reward_usd": 5.91,
+        "tp3_reward_usd": 11.3,
+        "total_reward_usd": 19.38
+      },
+      "tickets": [
+        1916059117,
+        1916059139,
+        1916059149
+      ],
+      "executed_at": "2026-09-20T20:27:25.853927+00:00",
+      "closed_at": "2026-09-20T20:39:33.552586+00:00",
+      "profit": -0.39,
+      "risk_usd": 20.55,
+      "status": "LOSS",
+      "p1_score": -21.7,
+      "p1_prob": 79.3,
+      "strategy_used": "GCR",
+      "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
+    },
+    {
+      "batch_id": "935343",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "1h",
+      "action": "SELL",
+      "entry_price": 81157.92,
+      "sl_price": 81690.43329,
+      "breakeven_sl": 81152.59487,
+      "matched_pillars": 4,
+      "tp1_price": 81045.50053,
+      "tp2_price": 80545.52972,
+      "tp3_price": 79986.39077,
+      "lot_split": {
+        "tp1_lots": 0.02,
+        "tp2_lots": 0.01,
+        "tp3_lots": 0.01,
+        "tp1_pct": 50.0,
+        "tp2_pct": 25.0,
+        "tp3_pct": 25.0,
+        "tp1_reward_usd": 2.25,
+        "tp2_reward_usd": 6.12,
+        "tp3_reward_usd": 11.72,
+        "total_reward_usd": 20.09
+      },
+      "tickets": [
+        1916048786,
+        1916048796,
+        1916048810
+      ],
+      "executed_at": "2026-09-20T20:15:44.271115+00:00",
+      "closed_at": "2026-09-20T20:28:23.087936+00:00",
+      "profit": -1.12,
+      "risk_usd": 21.3,
+      "status": "LOSS",
+      "p1_score": 16.0,
+      "p1_prob": 75.9,
+      "strategy_used": "GCR",
+      "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
+    },
+    {
+      "batch_id": "935576",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry_price": 81106.52,
+      "sl_price": 81617.57986,
+      "breakeven_sl": 81101.4094,
+      "matched_pillars": 2,
+      "tp1_price": 80998.62959,
+      "tp2_price": 80518.80116,
+      "tp3_price": 79982.18831,
+      "lot_split": {
+        "tp1_lots": 0.02,
+        "tp2_lots": 0.01,
+        "tp3_lots": 0.01,
+        "tp1_pct": 50.0,
+        "tp2_pct": 25.0,
+        "tp3_pct": 25.0,
+        "tp1_reward_usd": 2.16,
+        "tp2_reward_usd": 5.88,
+        "tp3_reward_usd": 11.24,
+        "total_reward_usd": 19.28
+      },
+      "tickets": [
+        1916051921,
+        1916051929,
+        1916051939
+      ],
+      "executed_at": "2026-09-20T20:19:37.241365+00:00",
+      "closed_at": "2026-09-20T20:27:13.985165+00:00",
+      "profit": 0.22,
+      "risk_usd": 20.44,
+      "status": "WIN",
+      "p1_score": -21.9,
+      "p1_prob": 79.4,
+      "strategy_used": "GCR",
+      "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
+    },
+    {
+      "batch_id": "935136",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "1h",
+      "action": "SELL",
+      "entry_price": 81137.47,
+      "sl_price": 81668.01,
+      "breakeven_sl": 81137.47,
+      "matched_pillars": 5,
+      "tp1_price": 81023.08,
+      "tp2_price": 81023.08,
+      "tp3_price": 81023.08,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "tickets": [
+        1916046342,
+        1916046347,
+        1916046353
+      ],
+      "executed_at": "2026-09-20T20:14:28.677390+00:00",
+      "closed_at": "2026-09-20T20:20:18.677964+00:00",
+      "profit": -0.16,
+      "risk_usd": 10.61,
+      "status": "LOSS",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    {
+      "batch_id": "935287",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry_price": 81131.17,
+      "sl_price": 81637.62314,
+      "breakeven_sl": 81126.10547,
+      "matched_pillars": 2,
+      "tp1_price": 81024.25211,
+      "tp2_price": 80548.74889,
+      "tp3_price": 80016.97309,
+      "lot_split": {
+        "tp1_lots": 0.02,
+        "tp2_lots": 0.01,
+        "tp3_lots": 0.01,
+        "tp1_pct": 50.0,
+        "tp2_pct": 25.0,
+        "tp3_pct": 25.0,
+        "tp1_reward_usd": 2.14,
+        "tp2_reward_usd": 5.82,
+        "tp3_reward_usd": 11.14,
+        "total_reward_usd": 19.1
+      },
+      "tickets": [
+        1916047728,
+        1916047733,
+        1916047735
+      ],
+      "executed_at": "2026-09-20T20:14:48.518793+00:00",
+      "closed_at": "2026-09-20T20:19:07.076324+00:00",
+      "profit": 0.0,
+      "risk_usd": 20.26,
+      "status": "BREAKEVEN",
+      "p1_score": -28.8,
+      "p1_prob": 85.5,
+      "strategy_used": "GCR",
+      "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
+    },
+    {
+      "batch_id": "935240",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry_price": 81135.8,
+      "sl_price": 81644.01,
+      "breakeven_sl": 81135.8,
+      "matched_pillars": 5,
+      "tp1_price": 81030.64,
+      "tp2_price": 81030.64,
+      "tp3_price": 81030.64,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "tickets": [
+        1916047162,
+        1916047185,
+        1916047190
+      ],
+      "executed_at": "2026-09-20T20:14:28.678787+00:00",
+      "closed_at": "2026-09-20T20:19:06.988741+00:00",
+      "profit": -0.08,
+      "risk_usd": 10.16,
+      "status": "BREAKEVEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    {
+      "batch_id": "935167",
+      "symbol": "ETH/USD",
+      "broker_sym": "ETHUSDm",
+      "timeframe": "1h",
+      "action": "SELL",
+      "entry_price": 2631.58,
+      "sl_price": 2661.87,
+      "breakeven_sl": 2631.58,
+      "matched_pillars": 5,
+      "tp1_price": 2625.29,
+      "tp2_price": 2625.29,
+      "tp3_price": 2625.29,
+      "lot_split": {
+        "tp1_lots": 0.1
+      },
+      "tickets": [
+        1916046614
+      ],
+      "executed_at": "2026-09-20T20:14:28.678504+00:00",
+      "closed_at": "2026-09-20T20:17:54.305119+00:00",
+      "profit": 0.0,
+      "risk_usd": 3.03,
+      "status": "BREAKEVEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "EXECUTING (GCR",
+      "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
+    },
+    {
+      "batch_id": "931483",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "15m",
+      "action": "BUY",
+      "entry_price": 81111.1,
+      "sl_price": 81111.15,
+      "breakeven_sl": 81111.1,
+      "matched_pillars": 5,
+      "tp1_price": 81982.6,
+      "tp2_price": 81982.6,
+      "tp3_price": 81982.6,
+      "lot_split": {
+        "tp1_lots": 0.01
+      },
+      "tickets": [
+        1915995484,
+        1915995486
+      ],
+      "executed_at": "2026-09-20T20:14:28.676630+00:00",
+      "closed_at": "2026-09-20T20:16:41.438601+00:00",
+      "profit": -0.06,
+      "risk_usd": 0.0,
+      "status": "BREAKEVEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    {
+      "batch_id": "930194",
       "symbol": "BTC/USD",
       "broker_sym": "BTCUSDm",
       "timeframe": "30m",
@@ -142,17 +1290,10 @@
       "entry_price": 81163.47,
       "sl_price": 81674.67386,
       "breakeven_sl": 81158.35796,
-      "soft_breakeven_sl": 81291.27097,
-      "breakeven_mode": "tight",
-      "recommended_mode": false,
-      "active_sessions": [
-        "24/7 (Any Session)"
-      ],
-      "htf_confluence": true,
+      "matched_pillars": 3,
       "tp1_price": 81055.54919,
       "tp2_price": 80575.58556,
       "tp3_price": 80038.82151,
-      "matched_pillars": 3,
       "lot_split": {
         "tp1_lots": 0.02,
         "tp2_lots": 0.01,
@@ -165,650 +1306,101 @@
         "tp3_reward_usd": 11.25,
         "total_reward_usd": 19.29
       },
-      "risk_usd": 20.45,
       "tickets": [
         1915975168,
         1915975177,
         1915975183
       ],
       "executed_at": "2026-09-20T18:49:56.092519+00:00",
-      "status": "OPEN",
+      "closed_at": "2026-09-20T20:14:29.483339+00:00",
+      "profit": 2.55,
+      "risk_usd": 20.45,
+      "status": "WIN",
       "p1_score": 18.5,
       "p1_prob": 73.2,
       "strategy_used": "GCR",
       "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
-    }
-  },
-  "scan_activity_log": [
+    },
     {
-      "timestamp": "19:00:29 UTC",
-      "cycle": 62,
+      "batch_id": "929346",
       "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "19:00:26 UTC",
-      "cycle": 62,
-      "symbol": "ETH/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "19:00:12 UTC",
-      "cycle": 62,
-      "symbol": "ETH/USD",
+      "broker_sym": "BTCUSDm",
       "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "19:00:11 UTC",
-      "cycle": 62,
-      "symbol": "BTC/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:59:30 UTC",
-      "cycle": 61,
-      "symbol": "BTC/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:59:27 UTC",
-      "cycle": 61,
-      "symbol": "ETH/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:59:16 UTC",
-      "cycle": 61,
-      "symbol": "BTC/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (15.7) "
-    },
-    {
-      "timestamp": "18:59:05 UTC",
-      "cycle": 61,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:58:56 UTC",
-      "cycle": 61,
-      "symbol": "BTC/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:58:53 UTC",
-      "cycle": 61,
-      "symbol": "ETH/USD",
-      "timeframe": "30m",
       "action": "BUY",
-      "pillars": "3/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+      "entry_price": 81229.31,
+      "sl_price": 80976.62886,
+      "breakeven_sl": 81231.83681,
+      "matched_pillars": 2,
+      "tp1_price": 81261.55517,
+      "tp2_price": 81519.89331,
+      "tp3_price": 81785.20851,
+      "lot_split": {
+        "tp1_lots": 0.02,
+        "tp2_lots": 0.01,
+        "tp3_lots": 0.01,
+        "tp1_pct": 50.0,
+        "tp2_pct": 25.0,
+        "tp3_pct": 25.0,
+        "tp1_reward_usd": 0.64,
+        "tp2_reward_usd": 2.91,
+        "tp3_reward_usd": 5.56,
+        "total_reward_usd": 9.11
+      },
+      "tickets": [
+        1915963571,
+        1915963574,
+        1915963575
+      ],
+      "executed_at": "2026-09-20T18:35:48.040725+00:00",
+      "closed_at": "2026-09-20T20:14:28.766354+00:00",
+      "profit": -0.61,
+      "risk_usd": 10.11,
+      "status": "LOSS",
+      "p1_score": -25.8,
+      "p1_prob": 64.9,
+      "strategy_used": "EUGENE_NG_AH_SIO",
+      "strategy_name": "Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)"
     },
     {
-      "timestamp": "18:58:39 UTC",
-      "cycle": 61,
+      "batch_id": "929315",
       "symbol": "BTC/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:58:36 UTC",
-      "cycle": 61,
-      "symbol": "ETH/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:58:17 UTC",
-      "cycle": 61,
-      "symbol": "ETH/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:58:17 UTC",
-      "cycle": 61,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "5m",
       "action": "BUY",
-      "pillars": "3/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
+      "entry_price": 81226.85,
+      "sl_price": 80970.55114,
+      "breakeven_sl": 81229.41299,
+      "matched_pillars": 2,
+      "tp1_price": 81270.64283,
+      "tp2_price": 81521.59369,
+      "tp3_price": 81790.70749,
+      "lot_split": {
+        "tp1_lots": 0.02,
+        "tp2_lots": 0.01,
+        "tp3_lots": 0.01,
+        "tp1_pct": 50.0,
+        "tp2_pct": 25.0,
+        "tp3_pct": 25.0,
+        "tp1_reward_usd": 0.88,
+        "tp2_reward_usd": 2.95,
+        "tp3_reward_usd": 5.64,
+        "total_reward_usd": 9.47
+      },
+      "tickets": [
+        1915963305,
+        1915963307,
+        1915963310
+      ],
+      "executed_at": "2026-09-20T18:35:15.984072+00:00",
+      "closed_at": "2026-09-20T20:14:28.709012+00:00",
+      "profit": -0.41,
+      "risk_usd": 10.25,
+      "status": "LOSS",
+      "p1_score": 8.0,
+      "p1_prob": 48.0,
+      "strategy_used": "EUGENE_NG_AH_SIO",
+      "strategy_name": "Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)"
     },
-    {
-      "timestamp": "18:58:00 UTC",
-      "cycle": 61,
-      "symbol": "ETH/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:57:55 UTC",
-      "cycle": 61,
-      "symbol": "BTC/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:57:43 UTC",
-      "cycle": 61,
-      "symbol": "ETH/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (14.4) "
-    },
-    {
-      "timestamp": "18:57:40 UTC",
-      "cycle": 61,
-      "symbol": "BTC/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:56:57 UTC",
-      "cycle": 60,
-      "symbol": "BTC/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (15.7) "
-    },
-    {
-      "timestamp": "18:56:53 UTC",
-      "cycle": 60,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:56:28 UTC",
-      "cycle": 60,
-      "symbol": "BTC/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:56:27 UTC",
-      "cycle": 60,
-      "symbol": "ETH/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:56:08 UTC",
-      "cycle": 60,
-      "symbol": "BTC/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:56:07 UTC",
-      "cycle": 60,
-      "symbol": "ETH/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:55:54 UTC",
-      "cycle": 60,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "BUY",
-      "pillars": "3/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:55:42 UTC",
-      "cycle": 60,
-      "symbol": "ETH/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:55:36 UTC",
-      "cycle": 60,
-      "symbol": "BTC/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:55:27 UTC",
-      "cycle": 60,
-      "symbol": "ETH/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (14.4) "
-    },
-    {
-      "timestamp": "18:55:24 UTC",
-      "cycle": 60,
-      "symbol": "BTC/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:55:09 UTC",
-      "cycle": 60,
-      "symbol": "ETH/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:55:05 UTC",
-      "cycle": 60,
-      "symbol": "BTC/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:54:33 UTC",
-      "cycle": 59,
-      "symbol": "BTC/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:54:26 UTC",
-      "cycle": 59,
-      "symbol": "BTC/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:54:18 UTC",
-      "cycle": 59,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "BUY",
-      "pillars": "3/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:54:10 UTC",
-      "cycle": 59,
-      "symbol": "BTC/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:54:02 UTC",
-      "cycle": 59,
-      "symbol": "BTC/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:53:54 UTC",
-      "cycle": 59,
-      "symbol": "BTC/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:53:47 UTC",
-      "cycle": 59,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "SELL",
-      "pillars": "STRAT",
-      "status": "EXECUTED (Batch #930426)",
-      "details": "[GCR (@GiganticRebirth - Behavioral Sentiment)] Entry: 2624.69 | SL: 2656.09357 | Lots: 0.1/0.0/0.0 (Auto-clamped to Exness min 0.1)"
-    },
-    {
-      "timestamp": "18:53:46 UTC",
-      "cycle": 59,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "SELL",
-      "pillars": "STRAT",
-      "status": "EXECUTING (GCR)",
-      "details": "Strategy: GCR (@GiganticRebirth - Behavioral Sentiment) | Action: SELL"
-    },
-    {
-      "timestamp": "18:53:44 UTC",
-      "cycle": 59,
-      "symbol": "BTC/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (14.0)"
-    },
-    {
-      "timestamp": "18:53:10 UTC",
-      "cycle": 58,
-      "symbol": "BTC/USD",
-      "timeframe": "1h",
-      "action": "BUY",
-      "pillars": "4/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:53:03 UTC",
-      "cycle": 58,
-      "symbol": "ETH/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:52:56 UTC",
-      "cycle": 58,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "STRONG BUY",
-      "pillars": "3/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:52:48 UTC",
-      "cycle": 58,
-      "symbol": "ETH/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:52:37 UTC",
-      "cycle": 58,
-      "symbol": "BTC/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:52:35 UTC",
-      "cycle": 58,
-      "symbol": "ETH/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:52:23 UTC",
-      "cycle": 58,
-      "symbol": "BTC/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:52:16 UTC",
-      "cycle": 58,
-      "symbol": "ETH/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.3) "
-    },
-    {
-      "timestamp": "18:51:59 UTC",
-      "cycle": 58,
-      "symbol": "BTC/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:51:55 UTC",
-      "cycle": 58,
-      "symbol": "ETH/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:51:48 UTC",
-      "cycle": 58,
-      "symbol": "BTC/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.7)"
-    },
-    {
-      "timestamp": "18:51:46 UTC",
-      "cycle": 58,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "SKIPPED (Same Strat Active on TF)",
-      "details": "Strategy GCR already active on ETH/USD (1h). (Diff Strats Only Mode)"
-    },
-    {
-      "timestamp": "18:51:41 UTC",
-      "cycle": 58,
-      "symbol": "BTC/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:51:38 UTC",
-      "cycle": 58,
-      "symbol": "ETH/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:51:06 UTC",
-      "cycle": 57,
-      "symbol": "ETH/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:51:02 UTC",
-      "cycle": 57,
-      "symbol": "ETH/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
-    },
-    {
-      "timestamp": "18:50:55 UTC",
-      "cycle": 57,
-      "symbol": "ETH/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.1) "
-    },
-    {
-      "timestamp": "18:50:49 UTC",
-      "cycle": 57,
-      "symbol": "ETH/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:50:41 UTC",
-      "cycle": 57,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "18:50:33 UTC",
-      "cycle": 57,
-      "symbol": "ETH/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    }
-  ],
-  "tf_rotation_indices": {
-    "ETH/USD": 5,
-    "BTC/USD": 0
-  },
-  "total_trades_taken": 45,
-  "trades_by_symbol": {
-    "ETH/USD": 17,
-    "ETHUSDm": 17,
-    "BTC/USD": 28,
-    "BTCUSDm": 28
-  },
-  "symbol_stats": {
-    "ETH/USD": {
-      "wins": 6,
-      "losses": 0,
-      "breakevens": 10,
-      "completed": 16,
-      "total_profit": 3.59
-    },
-    "BTC/USD": {
-      "wins": 10,
-      "losses": 8,
-      "breakevens": 7,
-      "completed": 25,
-      "total_profit": 1.24
-    }
-  },
-  "closed_batches": [
     {
       "batch_id": "930426",
       "symbol": "ETH/USD",
@@ -2409,18 +3001,18 @@
       "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
     }
   ],
-  "wins": 16,
-  "losses": 8,
-  "breakevens": 17,
-  "last_scan_time": "2026-09-20T18:59:57.792403+00:00",
+  "wins": 18,
+  "losses": 13,
+  "breakevens": 21,
+  "last_scan_time": "2026-09-20T20:42:53.881525+00:00",
   "last_scanned_symbol": null,
   "engine_status": "RUNNING",
-  "cycle_count": 62,
+  "cycle_count": 121,
   "current_scan": {
-    "cycle": 62,
+    "cycle": 121,
     "symbol": "BTC/USD",
-    "timeframe": "1h",
-    "time": "19:00:29 UTC"
+    "timeframe": "4h",
+    "time": "20:43:38 UTC"
   },
   "next_scan_time": "00:01 remaining",
   "reset_at": "2026-09-20T17:13:39.991131+00:00",
