@@ -65,5 +65,11 @@ class TestRecommendedMode(unittest.TestCase):
         self.assertIn("recommended_mode", settings)
         self.assertIsInstance(settings["recommended_mode"], bool)
 
+    def test_all_recommended_profiles_min_5_pillars(self):
+        for sym in RecommendedPresetsManager.get_recommended_symbols():
+            prof = RecommendedPresetsManager.get_profile_for_symbol(sym)
+            self.assertIsNotNone(prof)
+            self.assertEqual(prof.get("min_pillars"), 5, f"{sym} must require 5 pillars")
+
 if __name__ == '__main__':
     unittest.main()

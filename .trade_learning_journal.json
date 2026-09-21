@@ -46,7 +46,11 @@
     "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAUUSD247 (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (4h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On CADJPY (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
@@ -278,6 +282,46 @@
       "sl": 4346.52193,
       "loss_usd": 31.19,
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-17T06:03:33.515518+00:00",
+      "symbol": "XAUUSD247",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 4283.607,
+      "sl": 4307.74423,
+      "loss_usd": 45.14,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-17T07:10:51.735709+00:00",
+      "symbol": "XAUUSD247",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 4307.434,
+      "sl": 4319.6427,
+      "loss_usd": 22.15,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-17T07:33:19.954201+00:00",
+      "symbol": "BTC/USD",
+      "timeframe": "4h",
+      "action": "BUY",
+      "entry": 76403.15,
+      "sl": 74698.47043,
+      "loss_usd": 0.27,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-17T18:59:47.838733+00:00",
+      "symbol": "CADJPY",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 111.118,
+      "sl": 111.48734,
+      "loss_usd": 4.73,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     }
   ],
   "optimal_adjustments": {
@@ -285,6 +329,6 @@
     "swing_buffer_atr": 0.45,
     "tp1_atr_multiplier": 0.38,
     "min_confluence_score": 35.0,
-    "min_calibrated_prob": 82.0
+    "min_calibrated_prob": 84.0
   }
 }

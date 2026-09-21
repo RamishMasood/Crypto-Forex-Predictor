@@ -15,7 +15,7 @@ RECOMMENDED_SYMBOL_PROFILES: Dict[str, Dict[str, Any]] = {
         "timeframes": ["15m", "1h"],
         "breakeven_mode": "loose",
         "active_sessions": ["London Session", "New York Session"],
-        "min_pillars": 4,
+        "min_pillars": 5,
         "description": "73.1% TP2 Win Rate, 0% SL Loss in real backtest. Runs on Loose BE to maximize runner momentum."
     },
     "ETH/USD": {
@@ -45,7 +45,7 @@ RECOMMENDED_SYMBOL_PROFILES: Dict[str, Dict[str, Any]] = {
         "timeframes": ["15m", "1h"],
         "breakeven_mode": "loose",
         "active_sessions": ["24/7 (Any Session)"],
-        "min_pillars": 4,
+        "min_pillars": 5,
         "description": "100% Historical TP2 Win Rate. Weekend and round-the-clock metal feed running on Loose BE."
     },
     "BTC/USD": {

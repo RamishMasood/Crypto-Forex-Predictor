@@ -796,6 +796,7 @@ class AutonomousTraderEngine:
                 if not active_in_batch and deals:
                     total_batch_profit = 0.0
                     matched_deal_ids = set()
+                    matched_deal_prices = []
                     broker_sym = str(trade.get('broker_sym', '')).lower()
                     batch_str_id = str(batch_id)
 
@@ -820,17 +821,26 @@ class AutonomousTraderEngine:
                             pnl_contrib = float(d.profit) + float(getattr(d, 'swap', 0.0) or 0.0) + float(getattr(d, 'commission', 0.0) or 0.0)
                             total_batch_profit += pnl_contrib
                             matched_deal_ids.add(deal_id)
+                            matched_deal_prices.append(float(getattr(d, 'price', 0.0) or 0.0))
 
-                    # Dynamic outcome classification:
+                    # Outcome Determination:
                     # Clear profit (> +$0.15) = WIN
-                    # Clear loss (< -$0.15) = LOSS
-                    # Minimal dust/scratch (within +/- $0.15) = BREAKEVEN
+                    # Breakeven SL triggered or minimal commission/spread friction (within +/- $0.60) = BREAKEVEN
+                    # Otherwise = LOSS
+                    be_sl = trade.get('breakeven_sl')
+                    closed_near_be = False
+                    if be_sl and be_sl > 0:
+                        for d_p in matched_deal_prices:
+                            if d_p > 0 and abs(d_p - be_sl) / be_sl < 0.002:  # within 0.2% of BE SL
+                                closed_near_be = True
+                                break
+
                     if total_batch_profit > 0.15:
                         outcome = 'WIN'
-                    elif total_batch_profit < -0.15:
-                        outcome = 'LOSS'
-                    else:
+                    elif (abs(total_batch_profit) <= 0.60) or closed_near_be:
                         outcome = 'BREAKEVEN'
+                    else:
+                        outcome = 'LOSS'
 
                     logger.info(f"Batch #{batch_id} ({trade['symbol']}) Completed: {outcome} | PnL: ${total_batch_profit:+.2f} ({len(matched_deal_ids)} deals matched)")
 
@@ -1039,6 +1049,8 @@ class AutonomousTraderEngine:
                 eval_res = self.evaluate_5_pillars(pred)
                 p_cnt = eval_res['aligned_count']
                 action = pred['confluence']['action']
+                is_dir_buy = ('BUY' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action) and ('CHOP' not in action)
+                is_dir_sell = ('SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action) and ('CHOP' not in action)
                 score = eval_res['p1']['score']
                 prob = eval_res['p1']['prob']
 
@@ -1048,7 +1060,7 @@ class AutonomousTraderEngine:
                 is_spread_fail = bool(spread_guard and not spread_guard.get('passed', True))
 
                 total_req = eval_res.get('total_applicable', 5)
-                is_actionable = ('BUY' in action or 'SELL' in action) and ('FILTER' not in action) and ('BLACKOUT' not in action) and ('CHOP' not in action) and (not is_chop) and (not is_spread_fail)
+                is_actionable = (is_dir_buy or is_dir_sell) and (not is_chop) and (not is_spread_fail)
 
                 # 1. Market Session Filter (London / New York / Asian / 24-7)
                 curr_settings = self.load_settings()
@@ -1118,7 +1130,12 @@ class AutonomousTraderEngine:
                         is_actionable = False
 
                 active_min_pillars = rec_profile.get('min_pillars', min_pillars_required) if (is_rec_mode and rec_profile) else min_pillars_required
-                is_eligible = (p_cnt >= min(active_min_pillars, total_req)) and is_actionable
+                p1_info = eval_res.get('p1', {})
+                p1_passed = bool(p1_info.get('ok', False))
+
+                # Pillar 1 is the Non-Negotiable Master Alpha Gate: Must ALWAYS pass (Win Prob >= 80%, Confluence Score >= 35)
+                # No trade can ever execute if Pillar 1 fails, regardless of other pillar counts.
+                is_eligible = p1_passed and (p_cnt >= min(active_min_pillars, total_req)) and is_actionable
 
                 pillar_str = f"{p_cnt}/{total_req}"
 
@@ -1128,6 +1145,8 @@ class AutonomousTraderEngine:
                     status_lbl = "SKIPPED (Outside Trading Session)"
                 elif htf_conflict:
                     status_lbl = "SKIPPED (HTF Trend Conflict)"
+                elif not p1_passed and (is_dir_buy or is_dir_sell):
+                    status_lbl = "SKIPPED (Pillar 1 Alpha Low Conviction)"
                 elif macro_conflict_scalp:
                     status_lbl = "SKIPPED (Macro 200 EMA Conflict)"
                 elif micro_noise_scalp:
@@ -1146,6 +1165,8 @@ class AutonomousTraderEngine:
                     detail_str = f"SESSION FILTER: {session_desc}"
                 elif htf_conflict:
                     detail_str = f"HTF FILTER: {htf_detail}"
+                elif not p1_passed and (is_dir_buy or is_dir_sell):
+                    detail_str = f"PILLAR 1 REJECTED: {p1_info.get('desc', 'Insufficient score or win probability')}"
                 elif macro_conflict_scalp:
                     detail_str = f"MACRO CONFLICT: Scalp opposes 200 EMA trend"
                 elif micro_noise_scalp:
