@@ -810,16 +810,18 @@ class MT5BacktestEngine:
                                 # 2. Pullback Test of 20 EMA or fresh crossover
                                 # 3. Candle Confirmation: Green close in top 50% of bar
                                 # 4. RSI Sweet Spot: 45 <= RSI <= 65 (not overbought)
-                                is_buy_trend = (ema20 > ema50) and (ema50 > sma200) and ((ema20 - ema50) >= 0.15 * cur_atr) and (ema20 >= ema20_prev * 0.9999) and (cur_close > sma200)
-                                is_buy_trigger = (l_s.iloc[-1] <= ema20 * 1.002 and cur_close >= ema20) or (c_s.iloc[-2] <= ema20 and cur_close > ema20)
-                                is_buy_candle = cur_close > o_s.iloc[-1] and cur_close >= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) >= 0.50 * max(h_s.iloc[-1] - l_s.iloc[-1], 1e-6))
-                                is_buy_rsi = (45.0 <= rsi_val <= 65.0)
+                                cand_rng = max(h_s.iloc[-1] - l_s.iloc[-1], 1e-6)
+                                cand_body = abs(cur_close - o_s.iloc[-1])
+                                is_buy_trend = (ema20 > ema50) and (ema50 > sma200) and ((ema20 - ema50) >= 0.20 * cur_atr) and (ema20 >= ema20_prev * 0.9999) and (cur_close > sma200)
+                                is_buy_trigger = (l_s.iloc[-1] <= ema20 * 1.001 and cur_close >= ema20) or (c_s.iloc[-2] <= ema20 and cur_close > ema20)
+                                is_buy_candle = cur_close > o_s.iloc[-1] and cur_close >= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) >= 0.55 * cand_rng) and (cand_rng >= 0.45 * cur_atr) and (cand_body >= 0.25 * cur_atr)
+                                is_buy_rsi = (48.0 <= rsi_val <= 62.0)
 
                                 # Bearish 5-Pillar Trigger:
-                                is_sell_trend = (ema20 < ema50) and (ema50 < sma200) and ((ema50 - ema20) >= 0.15 * cur_atr) and (ema20 <= ema20_prev * 1.0001) and (cur_close < sma200)
-                                is_sell_trigger = (h_s.iloc[-1] >= ema20 * 0.998 and cur_close <= ema20) or (c_s.iloc[-2] >= ema20 and cur_close < ema20)
-                                is_sell_candle = cur_close < o_s.iloc[-1] and cur_close <= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) <= 0.35 * max(h_s.iloc[-1] - l_s.iloc[-1], 1e-6))
-                                is_sell_rsi = (30.0 <= rsi_val <= 46.0)
+                                is_sell_trend = (ema20 < ema50) and (ema50 < sma200) and ((ema50 - ema20) >= 0.20 * cur_atr) and (ema20 <= ema20_prev * 1.0001) and (cur_close < sma200)
+                                is_sell_trigger = (h_s.iloc[-1] >= ema20 * 0.999 and cur_close <= ema20) or (c_s.iloc[-2] >= ema20 and cur_close < ema20)
+                                is_sell_candle = cur_close < o_s.iloc[-1] and cur_close <= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) <= 0.30 * cand_rng) and (cand_rng >= 0.45 * cur_atr) and (cand_body >= 0.25 * cur_atr)
+                                is_sell_rsi = (35.0 <= rsi_val <= 48.0)
 
                                 if is_buy_trend and is_buy_trigger and is_buy_candle and is_buy_rsi:
                                     cand_act = 'BUY'
@@ -925,16 +927,29 @@ class MT5BacktestEngine:
                                 c_tp3 = setup_tp3 if (setup_tp3 > 0 and setup_tp3 < c_entry) else (c_entry - (2.20 * sl_dist))
 
                         # Lot Split (Exact 65% TP1, 60% of rem on TP2, rem on TP3 matching Autonomous Executor)
-                        lot_p1, lot_p2, lot_p3 = self.compute_batch_lot_split(batch_lot_size)
+                        effective_batch_lot = batch_lot_size
+                        unit_risk = sl_dist * contract_size
+                        if is_jpy and cur_close > 0:
+                            unit_risk /= cur_close
+                        
+                        # Invariant Rule #2: Dollar risk is strictly controlled via lot sizing, NEVER suffocating SL breathing room
+                        if max_dollar_risk > 0 and unit_risk > 0:
+                            allowed_lots = max_dollar_risk / unit_risk
+                            if effective_batch_lot > allowed_lots:
+                                # Scale down to fit dollar risk cap (round down to 0.01 step)
+                                effective_batch_lot = max(0.01, round(int(allowed_lots / 0.01) * 0.01, 2))
+
+                        lot_p1, lot_p2, lot_p3 = self.compute_batch_lot_split(effective_batch_lot)
                         tot_lots = round(lot_p1 + lot_p2 + lot_p3, 4)
 
-                        # Calculate Dollar Risk
-                        dollar_risk = tot_lots * sl_dist * contract_size
-                        if is_jpy and cur_close > 0:
-                            dollar_risk /= cur_close
+                        # Calculate Dollar Risk with effective lots
+                        dollar_risk = tot_lots * unit_risk
 
-                        # Dollar Risk Cap Filter
-                        if max_dollar_risk <= 0 or dollar_risk <= max_dollar_risk:
+                        # Strict Dollar Risk Cap Enforcement: Never allow trade to exceed user-specified max_dollar_risk
+                        if max_dollar_risk > 0 and dollar_risk > max_dollar_risk:
+                            continue
+
+                        if True:
                             new_batch = {
                                 'batch_id': next_trade_id,
                                 'symbol': sym,
@@ -1193,6 +1208,8 @@ class MT5BacktestEngine:
         stats_map: Dict[str, Dict[str, Any]] = {}
         strat_tfs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in active_strategy_keys}
         strat_pairs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in active_strategy_keys}
+        # Per-symbol breakdown per strategy: {strat_key: {sym: {wins,losses,breakevens,pnl}}}
+        strat_sym_breakdown: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in active_strategy_keys}
 
         for k in active_strategy_keys:
             strat_full_name = AVAILABLE_STRATEGIES.get(k, k)
@@ -1205,14 +1222,18 @@ class MT5BacktestEngine:
                 'breakevens': 0,
                 'win_rate': 0.0,
                 'net_pnl': 0.0,
+                'net_loss': 0.0,
                 'gross_profit': 0.0,
                 'gross_loss': 0.0,
                 'profit_factor': 0.0,
                 'biggest_sl_loss': 0.0,
                 'sl_hits': 0,
+                'tp_hits': 0,
+                'biggest_tp': 0.0,
                 'status_badge': '💤 NO TRADES',
                 'best_timeframes': '-',
-                'best_pairs': '-'
+                'best_pairs': '-',
+                'symbol_breakdown': {}
             }
 
         for b in closed_batches:
@@ -1224,6 +1245,7 @@ class MT5BacktestEngine:
             stt = str(b.get('status', ''))
             tf = str(b.get('timeframe', ''))
             sym = str(b.get('symbol', ''))
+            exit_r = str(b.get('exit_reason', ''))
 
             stats_map[k]['total_trades'] += 1
             stats_map[k]['net_pnl'] += pnl
@@ -1231,10 +1253,20 @@ class MT5BacktestEngine:
             if pnl > 0.15 or stt == 'WIN':
                 stats_map[k]['wins'] += 1
                 stats_map[k]['gross_profit'] += pnl
+                # Track TP hits from exit_reason
+                if 'TP' in exit_r.upper():
+                    stats_map[k]['tp_hits'] += 1
+                # Also count from tp1_hit/tp2_hit flags
+                if b.get('tp1_hit'):
+                    pass  # already counted via exit_reason above
+                # Biggest TP win
+                if pnl > stats_map[k]['biggest_tp']:
+                    stats_map[k]['biggest_tp'] = round(pnl, 2)
             elif pnl < -0.15 or stt == 'LOSS':
                 stats_map[k]['losses'] += 1
                 stats_map[k]['sl_hits'] += 1
                 stats_map[k]['gross_loss'] += abs(pnl)
+                stats_map[k]['net_loss'] += pnl  # negative value
                 if abs(pnl) > stats_map[k]['biggest_sl_loss']:
                     stats_map[k]['biggest_sl_loss'] = round(abs(pnl), 2)
             else:
@@ -1260,6 +1292,17 @@ class MT5BacktestEngine:
                 if stt == 'WIN':
                     strat_pairs[k][sym]['wins'] += 1
 
+                # Per-symbol detailed breakdown (wins / losses / breakevens / pnl per symbol per strategy)
+                if sym not in strat_sym_breakdown[k]:
+                    strat_sym_breakdown[k][sym] = {'wins': 0, 'losses': 0, 'breakevens': 0, 'pnl': 0.0}
+                strat_sym_breakdown[k][sym]['pnl'] += pnl
+                if pnl > 0.15 or stt == 'WIN':
+                    strat_sym_breakdown[k][sym]['wins'] += 1
+                elif pnl < -0.15 or stt == 'LOSS':
+                    strat_sym_breakdown[k][sym]['losses'] += 1
+                else:
+                    strat_sym_breakdown[k][sym]['breakevens'] += 1
+
         leaderboard = []
         for k, item in stats_map.items():
             wins = item['wins']
@@ -1268,6 +1311,9 @@ class MT5BacktestEngine:
             trades = item['total_trades']
             net_pnl = round(item['net_pnl'], 2)
             item['net_pnl'] = net_pnl
+            item['net_loss'] = round(item['net_loss'], 2)
+            item['biggest_tp'] = round(item['biggest_tp'], 2)
+            item['tp_hits'] = int(item['tp_hits'])
 
             # Win Rate
             decisive = wins + losses
@@ -1284,6 +1330,24 @@ class MT5BacktestEngine:
             # Best Pairs
             p_items = sorted(strat_pairs[k].items(), key=lambda x: (x[1]['wins'], x[1]['pnl']), reverse=True)
             item['best_pairs'] = ', '.join([p[0] for p in p_items[:2]]) if p_items else '-'
+
+            # Attach per-symbol breakdown (wins/losses/breakevens/pnl + win_rate per symbol)
+            sym_bd = strat_sym_breakdown.get(k, {})
+            formatted_breakdown = {}
+            for s, sd in sym_bd.items():
+                s_w = sd['wins']
+                s_l = sd['losses']
+                s_be = sd['breakevens']
+                s_dec = s_w + s_l
+                s_wr = round((s_w / s_dec) * 100.0, 1) if s_dec > 0 else 0.0
+                formatted_breakdown[s] = {
+                    'wins': s_w,
+                    'losses': s_l,
+                    'breakevens': s_be,
+                    'pnl': round(sd['pnl'], 2),
+                    'win_rate': s_wr
+                }
+            item['symbol_breakdown'] = formatted_breakdown
 
             # Badge
             if trades == 0:

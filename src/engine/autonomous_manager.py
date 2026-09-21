@@ -304,11 +304,14 @@ class AutonomousTraderEngine:
                 'breakevens': 0,
                 'win_rate': 0.0,
                 'net_pnl': 0.0,
+                'net_loss': 0.0,
                 'gross_profit': 0.0,
                 'gross_loss': 0.0,
                 'profit_factor': 0.0,
                 'biggest_sl_loss': 0.0,
                 'sl_hits': 0,
+                'tp_hits': 0,
+                'biggest_tp': 0.0,
                 'status_badge': '💤 NO TRADES',
                 'best_timeframes': playbook_profiles.get(strat_key, {}).get('default_tfs', '15m, 1h'),
                 'best_pairs': playbook_profiles.get(strat_key, {}).get('default_pairs', 'BTC/USD, Gold')
@@ -406,6 +409,7 @@ class AutonomousTraderEngine:
             status = str(b.get('status', '')).upper()
             tf = str(b.get('timeframe', '')).strip().lower()
             sym = normalize_sym_str(b.get('symbol', ''))
+            exit_r = str(b.get('exit_reason', '')).upper()
 
             stats_map[k]['total_trades'] += 1
             stats_map[k]['closed_trades'] += 1
@@ -428,10 +432,17 @@ class AutonomousTraderEngine:
             elif status == 'WIN' or pnl > 0.15:
                 stats_map[k]['wins'] += 1
                 stats_map[k]['gross_profit'] += pnl
+                # Track TP hits from exit_reason
+                if 'TP' in exit_r:
+                    stats_map[k]['tp_hits'] += 1
+                # Biggest TP win
+                if pnl > stats_map[k]['biggest_tp']:
+                    stats_map[k]['biggest_tp'] = round(pnl, 2)
             elif status == 'LOSS' or pnl < -0.15:
                 stats_map[k]['losses'] += 1
                 stats_map[k]['sl_hits'] += 1
                 stats_map[k]['gross_loss'] += abs(pnl)
+                stats_map[k]['net_loss'] += pnl  # negative value
                 loss_amt = abs(pnl)
                 if loss_amt > stats_map[k]['biggest_sl_loss']:
                     stats_map[k]['biggest_sl_loss'] = round(loss_amt, 2)
@@ -484,6 +495,9 @@ class AutonomousTraderEngine:
             closed = item['closed_trades']
             net_pnl = round(item['net_pnl'], 2)
             item['net_pnl'] = net_pnl
+            item['net_loss'] = round(item['net_loss'], 2)
+            item['biggest_tp'] = round(item['biggest_tp'], 2)
+            item['tp_hits'] = int(item['tp_hits'])
 
             # Win Rate Calculation (decisive trades + capital protection)
             decisive_trades = wins + losses
@@ -560,6 +574,10 @@ class AutonomousTraderEngine:
             leaderboard.sort(key=lambda x: (x['biggest_sl_loss'], x['losses']), reverse=True)
         elif sort_key in ['sl_hits', 'most_sl_hits']:
             leaderboard.sort(key=lambda x: (x['sl_hits'], x['biggest_sl_loss']), reverse=True)
+        elif sort_key in ['tp_hits', 'most_tp_hits']:
+            leaderboard.sort(key=lambda x: (x['tp_hits'], x['biggest_tp']), reverse=True)
+        elif sort_key in ['biggest_tp', 'max_tp']:
+            leaderboard.sort(key=lambda x: (x['biggest_tp'], x['tp_hits']), reverse=True)
         else: # Default: 'profit' / Most Profitable
             leaderboard.sort(key=lambda x: (x['net_pnl'], x['win_rate'], x['wins']), reverse=True)
 
@@ -1891,7 +1909,34 @@ class AutonomousTraderEngine:
             if is_auto_adjusted:
                 logger.info(f"Auto-adjusted lot size for {symbol} ({broker_sym}) to broker minimum: {total_lots} lots (requested: {active_lot_size})")
 
-            # 4. Check Dollar Risk Cap (Requirement 9)
+            # 4. Check Dollar Risk Cap (Requirement 9 & Dynamic Lot Scaling)
+            if max_dollar_risk > 0 and actual_risk_usd > max_dollar_risk:
+                # Attempt to scale down lot size to fit strictly within max_dollar_risk cap
+                if total_lots > 0 and actual_risk_usd > 0:
+                    risk_per_unit_lot = actual_risk_usd / total_lots
+                    allowed_lots = max_dollar_risk / risk_per_unit_lot
+                    scaled_lots = max(0.01, round(int(allowed_lots / 0.01) * 0.01, 2))
+                    if scaled_lots < active_lot_size:
+                        recalc = self.executor.calculate_lot_and_risk(
+                            broker_symbol=broker_sym,
+                            balance_usd=balance_usd,
+                            entry_price=entry_price,
+                            stop_loss_price=sl_price,
+                            risk_pct=risk_pct,
+                            tp1_price=tp1_price,
+                            tp2_price=tp2_price,
+                            tp3_price=tp3_price,
+                            total_volume_lots=scaled_lots
+                        )
+                        recalc_risk = float(recalc.get('actual_risk_usd', 0.0))
+                        if recalc_risk <= max_dollar_risk and recalc.get('total_lots', 0.0) > 0:
+                            lot_sizing = recalc
+                            actual_risk_usd = recalc_risk
+                            lot_split = recalc.get('lot_split', {})
+                            total_lots = recalc.get('total_lots', 0.0)
+                            active_lot_size = scaled_lots
+                            logger.info(f"Scaled lot size to {scaled_lots} to strictly honor Max Dollar Risk cap (${actual_risk_usd:.2f} <= ${max_dollar_risk:.2f})")
+
             if max_dollar_risk > 0 and actual_risk_usd > max_dollar_risk:
                 msg = f"RISK FILTER TRIGGERED: Setup on {symbol} ({tf}) has risk of ${actual_risk_usd:.2f}, exceeding max cap of ${max_dollar_risk:.2f}. Trade safely SKIPPED."
                 logger.warning(msg)

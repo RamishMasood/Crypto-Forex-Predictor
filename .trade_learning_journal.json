@@ -104,7 +104,15 @@
     "On BTC/USD (1m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On ETH/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On ETH/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On ETH/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On GBP/AUD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On GBP/AUD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On GBP/AUD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On GBP/AUD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On GBP/AUD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On GBP/AUD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On GBP/AUD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On GBP/AUD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
@@ -1156,10 +1164,90 @@
       "sl": 2713.74178,
       "loss_usd": 5.06,
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-21T18:53:27.036554+00:00",
+      "symbol": "GBP/AUD",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry": 1.8767000000000003,
+      "sl": 1.88003,
+      "loss_usd": 1.32,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-21T18:53:27.172946+00:00",
+      "symbol": "GBP/AUD",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry": 1.8765500000000002,
+      "sl": 1.8799299999999999,
+      "loss_usd": 1.73,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-21T18:53:27.229480+00:00",
+      "symbol": "GBP/AUD",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry": 1.8766300000000002,
+      "sl": 1.88002,
+      "loss_usd": 1.51,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-21T18:53:27.374883+00:00",
+      "symbol": "GBP/AUD",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry": 1.8766500000000002,
+      "sl": 1.88003,
+      "loss_usd": 1.45,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-21T18:53:27.697075+00:00",
+      "symbol": "GBP/AUD",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry": 1.8767000000000003,
+      "sl": 1.88003,
+      "loss_usd": 1.32,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-21T18:53:27.955257+00:00",
+      "symbol": "GBP/AUD",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry": 1.8765500000000002,
+      "sl": 1.8799299999999999,
+      "loss_usd": 1.73,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-21T18:53:28.078370+00:00",
+      "symbol": "GBP/AUD",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry": 1.8766300000000002,
+      "sl": 1.88002,
+      "loss_usd": 1.51,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-21T18:53:28.157186+00:00",
+      "symbol": "GBP/AUD",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry": 1.8766500000000002,
+      "sl": 1.88003,
+      "loss_usd": 1.45,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     }
   ],
   "optimal_adjustments": {
     "min_confluence_score": 35.0,
-    "min_calibrated_prob": 86.0
+    "min_calibrated_prob": 89.5
   }
 }

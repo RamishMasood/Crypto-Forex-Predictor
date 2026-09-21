@@ -1,5 +1,5 @@
 {
-  "enabled": true,
+  "enabled": false,
   "selected_symbols": [
     "ETH/USD",
     "BTC/USD",
@@ -26,7 +26,7 @@
   "min_pillars_required": 5,
   "batch_lot_size": 0.04,
   "allow_same_tf_trades": false,
-  "allow_diff_strat_same_tf": true,
+  "allow_diff_strat_same_tf": false,
   "breakeven_mode": "tight",
   "active_sessions": [
     "24/7 (Any Session)"
