@@ -3,7 +3,10 @@
     "BTC/USD",
     "EUR/USD",
     "XAU/USD",
-    "ETH/USD"
+    "ETH/USD",
+    "USD/JPY",
+    "XAG/USD",
+    "CAD/JPY"
   ],
   "timeframes": [
     "15m",
@@ -35,12 +38,12 @@
     "EUGENE_NG_AH_SIO",
     "PAUL_FTMO"
   ],
-  "date_from": "2026-06-22",
-  "date_to": "2026-09-20",
+  "date_from": "2026-08-22",
+  "date_to": "2026-09-21",
   "initial_balance": 10000.0,
   "batch_lot_size": 0.04,
   "max_active_batches": 100,
-  "max_dollar_risk": 50.0,
+  "max_dollar_risk": 15.0,
   "min_pillars_required": 5,
   "allow_same_tf_trades": false,
   "allow_diff_strat_same_tf": true,
