@@ -290,6 +290,7 @@ class AutonomousTraderEngine:
         stats_map: Dict[str, Dict[str, Any]] = {}
         strat_tfs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in AVAILABLE_STRATEGIES}
         strat_pairs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in AVAILABLE_STRATEGIES}
+        strat_sym_breakdown: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in AVAILABLE_STRATEGIES}
 
         for strat_key, strat_full_name in AVAILABLE_STRATEGIES.items():
             stats_map[strat_key] = {
@@ -467,6 +468,19 @@ class AutonomousTraderEngine:
                 if status == 'WIN' or pnl > 0.15:
                     strat_pairs[k][sym]['wins'] += 1
 
+                # Detailed per-symbol breakdown (wins / losses / breakevens / pnl per symbol per strategy)
+                if sym not in strat_sym_breakdown[k]:
+                    strat_sym_breakdown[k][sym] = {'wins': 0, 'losses': 0, 'breakevens': 0, 'pnl': 0.0}
+                strat_sym_breakdown[k][sym]['pnl'] += pnl
+                if is_be:
+                    strat_sym_breakdown[k][sym]['breakevens'] += 1
+                elif status == 'WIN' or pnl > 0.15:
+                    strat_sym_breakdown[k][sym]['wins'] += 1
+                elif status == 'LOSS' or pnl < -0.15:
+                    strat_sym_breakdown[k][sym]['losses'] += 1
+                else:
+                    strat_sym_breakdown[k][sym]['breakevens'] += 1
+
         # Process Open Batches
         for b in open_batches:
             k = match_strategy_key(b)
@@ -541,6 +555,24 @@ class AutonomousTraderEngine:
                 item['best_pairs'] = ', '.join(top_pairs)
             else:
                 item['best_pairs'] = pb_entry.get('default_pairs', 'BTC/USD, Gold')
+
+            # Attach per-symbol breakdown (wins/losses/breakevens/pnl + win_rate per symbol)
+            sym_bd = strat_sym_breakdown.get(k, {})
+            formatted_breakdown = {}
+            for s, sd in sym_bd.items():
+                s_w = sd['wins']
+                s_l = sd['losses']
+                s_be = sd['breakevens']
+                s_dec = s_w + s_l
+                s_wr = round((s_w / s_dec) * 100.0, 1) if s_dec > 0 else (50.0 if s_be > 0 else 0.0)
+                formatted_breakdown[s] = {
+                    'wins': s_w,
+                    'losses': s_l,
+                    'breakevens': s_be,
+                    'pnl': round(sd['pnl'], 2),
+                    'win_rate': s_wr
+                }
+            item['symbol_breakdown'] = formatted_breakdown
 
             # Dynamic Status Badge
             if item['total_trades'] == 0:

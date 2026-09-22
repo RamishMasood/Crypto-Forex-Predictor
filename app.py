@@ -1986,10 +1986,36 @@ def render_mt5_autonomous_engine_view(live_exec):
             btf_html = f"<span style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.72rem;font-weight:600;'>{btf}</span>"
             bpr_html = f"<span style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;'>{bpr}</span>"
 
+            # Build per-symbol breakdown pills
+            sym_bd = item.get('symbol_breakdown', {})
+            sym_bd_html = ""
+            if sym_bd:
+                pills = []
+                for s_sym, s_data in sym_bd.items():
+                    s_w = s_data.get('wins', 0)
+                    s_l = s_data.get('losses', 0)
+                    s_be = s_data.get('breakevens', 0)
+                    s_wr = s_data.get('win_rate', 0.0)
+                    s_pnl = s_data.get('pnl', 0.0)
+                    s_pnl_col = "#10b981" if s_pnl >= 0 else "#f87171"
+                    pills.append(
+                        f"<span style='display:inline-block;background:#0f172a;border:1px solid #334155;border-radius:6px;"
+                        f"padding:3px 7px;margin:2px;font-size:0.7rem;'>"
+                        f"<b style='color:#e2e8f0;'>{s_sym}</b> "
+                        f"<span style='color:#10b981;'>{s_w}W</span>/<span style='color:#f87171;'>{s_l}L</span>/<span style='color:#f59e0b;'>{s_be}BE</span> "
+                        f"<b style='color:{s_pnl_col};'>{s_pnl:+.2f}</b> "
+                        f"<span style='color:#94a3b8;'>({s_wr:.0f}%)</span>"
+                        f"</span>"
+                    )
+                sym_bd_html = "".join(pills)
+
             lb_rows_html.append(f"""
             <tr style='{row_bg}border-bottom:1px solid #1e293b;'>
                 <td style='padding:8px 10px;text-align:center;'><span style='{rank_style}'>{rank_disp}</span></td>
-                <td style='padding:8px 10px;font-size:0.83rem;color:#f8fafc;font-weight:600;'>{s_name}</td>
+                <td style='padding:8px 10px;font-size:0.83rem;color:#f8fafc;font-weight:600;'>
+                    {s_name}
+                    {f"<div style='margin-top:4px;'>{sym_bd_html}</div>" if sym_bd_html else ""}
+                </td>
                 <td style='padding:8px 10px;text-align:center;font-size:0.82rem;color:#cbd5e1;font-weight:700;'>{t_trades}</td>
                 <td style='padding:8px 10px;text-align:center;font-size:0.78rem;'>
                     <span style='color:#10b981;font-weight:700;'>{w}W</span> / 
@@ -2017,7 +2043,7 @@ def render_mt5_autonomous_engine_view(live_exec):
                 <thead>
                     <tr style='background:#0f172a;border-bottom:2px solid #334155;color:#94a3b8;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;'>
                         <th style='padding:10px;text-align:center;width:55px;'>Rank</th>
-                        <th style='padding:10px;text-align:left;'>Strategy &amp; Channel</th>
+                        <th style='padding:10px;text-align:left;'>Strategy &amp; Symbol Breakdown</th>
                         <th style='padding:10px;text-align:center;width:55px;'>Trades</th>
                         <th style='padding:10px;text-align:center;width:105px;'>W / L / BE</th>
                         <th style='padding:10px;text-align:left;width:100px;'>Win Rate</th>
@@ -2207,10 +2233,36 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
             wr_c = "#34d399" if wr_v >= 65 else ("#fbbf24" if wr_v >= 50 else "#f87171")
             bsl_c = f"-${bsl_v:,.2f}" if bsl_v > 0 else "$0.00"
 
+            # Build per-symbol breakdown pills
+            sym_bd = item.get('symbol_breakdown', {})
+            sym_bd_html = ""
+            if sym_bd:
+                pills = []
+                for s_sym, s_data in sym_bd.items():
+                    s_w = s_data.get('wins', 0)
+                    s_l = s_data.get('losses', 0)
+                    s_be = s_data.get('breakevens', 0)
+                    s_wr = s_data.get('win_rate', 0.0)
+                    s_pnl = s_data.get('pnl', 0.0)
+                    s_pnl_col = "#34d399" if s_pnl >= 0 else "#f87171"
+                    pills.append(
+                        f"<span style='display:inline-block;background:#0f172a;border:1px solid #334155;border-radius:5px;"
+                        f"padding:2px 6px;margin:2px;font-size:0.68rem;'>"
+                        f"<b style='color:#e2e8f0;'>{s_sym}</b> "
+                        f"<span style='color:#34d399;'>{s_w}W</span>/<span style='color:#f87171;'>{s_l}L</span>/<span style='color:#fbbf24;'>{s_be}BE</span> "
+                        f"<b style='color:{s_pnl_col};'>{s_pnl:+.2f}</b> "
+                        f"<span style='color:#94a3b8;'>({s_wr:.0f}%)</span>"
+                        f"</span>"
+                    )
+                sym_bd_html = "".join(pills)
+
             lb_rows.append(
                 f"<tr style='border-bottom:1px solid #1e293b;font-size:0.75rem;font-family:monospace;'>"
                 f"<td style='padding:6px 8px;text-align:center;font-weight:800;'>{rk_disp}</td>"
-                f"<td style='padding:6px 8px;color:#f8fafc;font-weight:600;'>{s_name}</td>"
+                f"<td style='padding:6px 8px;color:#f8fafc;font-weight:600;'>"
+                f"{s_name}"
+                f"{f'<div style=\"margin-top:3px;\">{sym_bd_html}</div>' if sym_bd_html else ''}"
+                f"</td>"
                 f"<td style='padding:6px 8px;text-align:center;color:#cbd5e1;font-weight:700;'>{t_trades}</td>"
                 f"<td style='padding:6px 8px;text-align:center;'><span style='color:#34d399;font-weight:700;'>{w}W</span> - <span style='color:#fbbf24;font-weight:700;'>{be_cnt}BE</span> - <span style='color:#f87171;font-weight:700;'>{l}L</span></td>"
                 f"<td style='padding:6px 8px;text-align:center;color:{wr_c};font-weight:700;'>{wr_v:.1f}%</td>"
@@ -2233,7 +2285,7 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
                 "<thead style='background:#0f172a;color:#94a3b8;font-size:0.70rem;text-transform:uppercase;'>"
                 "<tr>"
                 "<th style='padding:6px 8px;text-align:center;width:45px;'>Rank</th>"
-                "<th style='padding:6px 8px;'>Strategy</th>"
+                "<th style='padding:6px 8px;'>Strategy &amp; Symbol Breakdown</th>"
                 "<th style='padding:6px 8px;text-align:center;'>Trades</th>"
                 "<th style='padding:6px 8px;text-align:center;'>Record (W-BE-L)</th>"
                 "<th style='padding:6px 8px;text-align:center;'>Win Rate</th>"
