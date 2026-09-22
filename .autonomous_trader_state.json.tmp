@@ -1157,7 +1157,7 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (11.9) "
     }
   ],
-  "next_scan_time": "00:02 remaining",
+  "next_scan_time": "00:01 remaining",
   "reset_at": "2026-09-22T16:20:11.552920+00:00",
   "tf_rotation_indices": {
     "EUR/USD": 2,
