@@ -115,7 +115,11 @@
     "On GBP/AUD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On GBP/AUD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On USD/CHF (1h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On BTC/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On BTC/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On EUR/USD (4h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On GBP/AUD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On ETH/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
@@ -1277,10 +1281,50 @@
       "sl": 84799.433,
       "loss_usd": 0.2,
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-22T08:52:57.068431+00:00",
+      "symbol": "EUR/USD",
+      "timeframe": "4h",
+      "action": "SELL",
+      "entry": 1.14358,
+      "sl": 1.14652,
+      "loss_usd": 12.25,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-22T09:15:59.506751+00:00",
+      "symbol": "GBP/AUD",
+      "timeframe": "15m",
+      "action": "BUY",
+      "entry": 1.87855,
+      "sl": 1.87337,
+      "loss_usd": 0.2,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-22T09:54:37.289027+00:00",
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry": 2734.27,
+      "sl": 2752.52714,
+      "loss_usd": 1.78,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-22T10:41:56.800979+00:00",
+      "symbol": "BTC/USD",
+      "timeframe": "15m",
+      "action": "BUY",
+      "entry": 85865.29,
+      "sl": 85326.49857,
+      "loss_usd": 0.44,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     }
   ],
   "optimal_adjustments": {
     "min_confluence_score": 35.0,
-    "min_calibrated_prob": 89.0
+    "min_calibrated_prob": 82.0
   }
 }
