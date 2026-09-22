@@ -1862,10 +1862,12 @@ def render_mt5_autonomous_engine_view(live_exec):
 
         sort_label_map = {
             "🏆 Most Profitable (Net PnL $)": "profit",
+            "🎯 Highest Win Rate (%)": "win_rate",
+            "🚀 Most TP Hits": "tp_hits",
+            "💰 Biggest TP ($)": "biggest_tp",
             "🟢 Most Wins": "wins",
             "🔴 Most Losses": "losses",
             "⚖️ Most Breakevens": "breakevens",
-            "🎯 Highest Win Rate (%)": "win_rate",
             "📉 Biggest SL Hit ($)": "biggest_sl_loss",
             "🛑 Most SL Hits": "sl_hits",
             "📈 Most Active (Total Trades)": "total_trades"
@@ -1886,14 +1888,15 @@ def render_mt5_autonomous_engine_view(live_exec):
         # Leaderboard CSV export button inside col2 before rendering table
         lb_df = pd.DataFrame(leaderboard_data)[[
             'rank', 'strategy_name', 'total_trades', 'wins', 'losses', 'breakevens',
-            'win_rate', 'net_pnl', 'profit_factor', 'biggest_sl_loss', 'sl_hits',
+            'win_rate', 'net_pnl', 'profit_factor', 'biggest_tp', 'tp_hits', 'biggest_sl_loss', 'sl_hits',
             'best_timeframes', 'best_pairs', 'active_trades', 'status_badge'
         ]].rename(columns={
             'rank': 'Rank', 'strategy_name': 'Strategy', 'total_trades': 'Trades',
             'wins': 'Wins', 'losses': 'Losses', 'breakevens': 'Breakevens',
             'win_rate': 'Win Rate (%)', 'net_pnl': 'Net PnL ($)', 'profit_factor': 'Profit Factor',
+            'biggest_tp': 'Biggest TP ($)', 'tp_hits': 'TP Hits',
             'biggest_sl_loss': 'Biggest SL Hit ($)', 'sl_hits': 'SL Hits',
-            'best_timeframes': 'Best Timeframes', 'best_pairs': 'Best Trading Pairs',
+            'best_timeframes': 'Best Timeframes', 'best_pairs': 'Trading Pairs (W-BE-L)',
             'active_trades': 'Active Trades', 'status_badge': 'Performance Status'
         })
 
@@ -1961,7 +1964,14 @@ def render_mt5_autonomous_engine_view(live_exec):
             </div>
             """
 
-            # Biggest SL and SL hits styling
+            # Target & Risk metrics styling
+            btp = float(item.get('biggest_tp', 0.0))
+            tp_h = int(item.get('tp_hits', 0))
+            bsl = float(item.get('biggest_sl_loss', 0.0))
+            sl_h = int(item.get('sl_hits', 0))
+
+            btp_html = f"<span style='color:#10b981;font-weight:700;'>+${btp:,.2f}</span>" if btp > 0 else "<span style='color:#64748b;'>$0.00</span>"
+            tp_h_html = f"<span style='color:#10b981;font-weight:600;'>{tp_h}</span>" if tp_h > 0 else "<span style='color:#64748b;'>0</span>"
             bsl_html = f"<span style='color:#f87171;font-weight:700;'>-${bsl:,.2f}</span>" if bsl > 0 else "<span style='color:#64748b;'>$0.00</span>"
             sl_h_html = f"<span style='color:#f87171;font-weight:600;'>{sl_h}</span>" if sl_h > 0 else "<span style='color:#64748b;'>0</span>"
 
@@ -1970,7 +1980,27 @@ def render_mt5_autonomous_engine_view(live_exec):
 
             # Best TF and Pairs HTML badges
             btf_html = f"<span style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.72rem;font-weight:600;'>{btf}</span>"
-            bpr_html = f"<span style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;'>{bpr}</span>"
+            
+            pairs_breakdown = item.get('pairs_breakdown', [])
+            if pairs_breakdown:
+                p_pills = []
+                for pb in pairs_breakdown:
+                    psym = pb.get('symbol', '')
+                    pw = pb.get('wins', 0)
+                    pbe = pb.get('breakevens', 0)
+                    pl = pb.get('losses', 0)
+                    pill = (
+                        f"<span style='background:#0f172a;border:1px solid #a78bfa55;padding:2px 6px;margin:2px;border-radius:6px;font-size:0.70rem;display:inline-block;white-space:nowrap;'>"
+                        f"<b style='color:#c084fc;'>{psym}</b> "
+                        f"(<span style='color:#10b981;font-weight:700;'>{pw}W</span>-"
+                        f"<span style='color:#f59e0b;font-weight:700;'>{pbe}BE</span>-"
+                        f"<span style='color:#ef4444;font-weight:700;'>{pl}L</span>)"
+                        f"</span>"
+                    )
+                    p_pills.append(pill)
+                bpr_html = " ".join(p_pills)
+            else:
+                bpr_html = f"<span style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;'>{bpr}</span>"
 
             lb_rows_html.append(f"""
             <tr style='{row_bg}border-bottom:1px solid #1e293b;'>
@@ -1985,6 +2015,8 @@ def render_mt5_autonomous_engine_view(live_exec):
                 <td style='padding:8px 10px;'>{wr_html}</td>
                 <td style='padding:8px 10px;text-align:right;font-size:0.85rem;'>{pnl_html}</td>
                 <td style='padding:8px 10px;text-align:center;font-size:0.8rem;color:#94a3b8;'>{pf:.2f}</td>
+                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{btp_html}</td>
+                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{tp_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{bsl_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{sl_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;'>{btf_html}</td>
@@ -2006,10 +2038,12 @@ def render_mt5_autonomous_engine_view(live_exec):
                         <th style='padding:10px;text-align:left;width:100px;'>Win Rate</th>
                         <th style='padding:10px;text-align:right;width:85px;'>Net PnL</th>
                         <th style='padding:10px;text-align:center;width:50px;'>PF</th>
+                        <th style='padding:10px;text-align:center;width:95px;'>Biggest TP</th>
+                        <th style='padding:10px;text-align:center;width:60px;'>TP Hits</th>
                         <th style='padding:10px;text-align:center;width:95px;'>Biggest SL</th>
                         <th style='padding:10px;text-align:center;width:60px;'>SL Hits</th>
                         <th style='padding:10px;text-align:center;width:125px;'>Best Timeframes</th>
-                        <th style='padding:10px;text-align:center;width:140px;'>Best Trading Pairs</th>
+                        <th style='padding:10px;text-align:center;min-width:180px;'>Trading Pairs (W-BE-L)</th>
                         <th style='padding:10px;text-align:center;width:65px;'>Active</th>
                         <th style='padding:10px;text-align:center;width:115px;'>Status</th>
                     </tr>
@@ -2179,13 +2213,37 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
             pf_v = item.get('profit_factor', 0.0)
             bsl_v = item.get('biggest_sl_loss', 0.0)
             sl_h = item.get('sl_hits', 0)
+            btp_v = item.get('biggest_tp', 0.0)
+            tp_h = item.get('tp_hits', 0)
             badge_txt = item.get('status_badge', '⚖️ Neutral')
             rk_disp = item.get('rank_display', '#')
 
             pnl_c = "#34d399" if pnl_v >= 0 else "#f87171"
             pnl_s = "+" if pnl_v >= 0 else ""
             wr_c = "#34d399" if wr_v >= 65 else ("#fbbf24" if wr_v >= 50 else "#f87171")
+            btp_c = f"+${btp_v:,.2f}" if btp_v > 0 else "$0.00"
             bsl_c = f"-${bsl_v:,.2f}" if bsl_v > 0 else "$0.00"
+
+            pairs_breakdown = item.get('pairs_breakdown', [])
+            if pairs_breakdown:
+                p_pills = []
+                for pb in pairs_breakdown:
+                    psym = pb.get('symbol', '')
+                    pw = pb.get('wins', 0)
+                    pbe = pb.get('breakevens', 0)
+                    pl = pb.get('losses', 0)
+                    pill = (
+                        f"<span style='background:#0f172a;border:1px solid #a78bfa55;padding:1px 5px;margin:1px;border-radius:5px;font-size:0.68rem;display:inline-block;white-space:nowrap;'>"
+                        f"<b style='color:#c084fc;'>{psym}</b> "
+                        f"(<span style='color:#34d399;font-weight:700;'>{pw}W</span>-"
+                        f"<span style='color:#fbbf24;font-weight:700;'>{pbe}BE</span>-"
+                        f"<span style='color:#f87171;font-weight:700;'>{pl}L</span>)"
+                        f"</span>"
+                    )
+                    p_pills.append(pill)
+                pairs_html = " ".join(p_pills)
+            else:
+                pairs_html = "<span style='color:#64748b;'>-</span>"
 
             lb_rows.append(
                 f"<tr style='border-bottom:1px solid #1e293b;font-size:0.75rem;font-family:monospace;'>"
@@ -2196,8 +2254,11 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
                 f"<td style='padding:6px 8px;text-align:center;color:{wr_c};font-weight:700;'>{wr_v:.1f}%</td>"
                 f"<td style='padding:6px 8px;color:{pnl_c};font-weight:700;text-align:right;'>{pnl_s}${pnl_v:,.2f}</td>"
                 f"<td style='padding:6px 8px;text-align:center;color:#94a3b8;'>{pf_v:.2f}</td>"
+                f"<td style='padding:6px 8px;text-align:center;color:#34d399;'>{btp_c}</td>"
+                f"<td style='padding:6px 8px;text-align:center;color:#34d399;'>{tp_h}</td>"
                 f"<td style='padding:6px 8px;text-align:center;color:#f87171;'>{bsl_c}</td>"
                 f"<td style='padding:6px 8px;text-align:center;color:#f87171;'>{sl_h}</td>"
+                f"<td style='padding:6px 8px;text-align:center;'>{pairs_html}</td>"
                 f"<td style='padding:6px 8px;text-align:center;'><span style='background:#18181b;border:1px solid #27272a;padding:2px 6px;border-radius:6px;font-size:0.70rem;color:#e2e8f0;'>{badge_txt}</span></td>"
                 f"</tr>"
             )
@@ -2219,8 +2280,11 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
                 "<th style='padding:6px 8px;text-align:center;'>Win Rate</th>"
                 "<th style='padding:6px 8px;text-align:right;'>Net PnL</th>"
                 "<th style='padding:6px 8px;text-align:center;'>PF</th>"
+                "<th style='padding:6px 8px;text-align:center;'>Biggest TP</th>"
+                "<th style='padding:6px 8px;text-align:center;'>TP Hits</th>"
                 "<th style='padding:6px 8px;text-align:center;'>Max SL Hit</th>"
                 "<th style='padding:6px 8px;text-align:center;'>SL Hits</th>"
+                "<th style='padding:6px 8px;text-align:center;'>Trading Pairs (W-BE-L)</th>"
                 "<th style='padding:6px 8px;text-align:center;'>Status</th>"
                 "</tr>"
                 "</thead>"
@@ -2723,6 +2787,8 @@ def render_mt5_backtest_engine_view():
         bt_sort_map = {
             "🏆 Most Profitable (Net PnL $)": "net_pnl",
             "🎯 Highest Win Rate (%)": "win_rate",
+            "🚀 Most TP Hits": "tp_hits",
+            "💰 Biggest TP ($)": "biggest_tp",
             "📉 Biggest SL Hit ($)": "biggest_sl_loss",
             "🛑 Most SL Hits": "sl_hits",
             "📈 Most Active (Total Trades)": "total_trades"
@@ -2758,8 +2824,10 @@ def render_mt5_backtest_engine_view():
             wr_val = item.get('win_rate', 0.0)
             net_pnl_val = item.get('net_pnl', 0.0)
             pf_val = item.get('profit_factor', 0.0)
-            bsl_val = item.get('biggest_sl_loss', 0.0)
-            sl_h_val = item.get('sl_hits', 0)
+            btp_val = float(item.get('biggest_tp', 0.0))
+            tp_h_val = int(item.get('tp_hits', 0))
+            bsl_val = float(item.get('biggest_sl_loss', 0.0))
+            sl_h_val = int(item.get('sl_hits', 0))
             badge = item.get('status_badge', '⚖️ Neutral')
             btf = item.get('best_timeframes', '-')
             bpr = item.get('best_pairs', '-')
@@ -2782,10 +2850,33 @@ def render_mt5_backtest_engine_view():
             pnl_html = f"<b style='color:{pnl_col};'>{net_pnl_val:+,.2f}</b>"
             wr_col = "#00c853" if wr_val >= 65 else ("#ffab00" if wr_val >= 50 else "#ff1744")
             wr_html = f"<span style='color:{wr_col};font-weight:700;'>{wr_val:.1f}%</span>"
+            btp_html = f"<span style='color:#10b981;font-weight:700;'>+${btp_val:,.2f}</span>" if btp_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
+            tp_h_html = f"<span style='color:#10b981;font-weight:700;'>{tp_h_val}</span>" if tp_h_val > 0 else "<span style='color:#64748b;'>0</span>"
             bsl_html = f"<span style='color:#ef4444;font-weight:700;'>-${bsl_val:,.2f}</span>" if bsl_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
             sl_h_html = f"<span style='color:#f87171;font-weight:700;'>{sl_h_val}</span>" if sl_h_val > 0 else "<span style='color:#64748b;'>0</span>"
+            # Best TF and Pairs HTML badges
             btf_html = f"<span style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.72rem;font-weight:600;'>{btf}</span>"
-            bpr_html = f"<span style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;'>{bpr}</span>"
+            
+            pairs_breakdown = item.get('pairs_breakdown', [])
+            if pairs_breakdown:
+                p_pills = []
+                for pb in pairs_breakdown:
+                    psym = pb.get('symbol', '')
+                    pw = pb.get('wins', 0)
+                    pbe = pb.get('breakevens', 0)
+                    pl = pb.get('losses', 0)
+                    pill = (
+                        f"<span style='background:#0f172a;border:1px solid #a78bfa55;padding:2px 6px;margin:2px;border-radius:6px;font-size:0.70rem;display:inline-block;white-space:nowrap;'>"
+                        f"<b style='color:#c084fc;'>{psym}</b> "
+                        f"(<span style='color:#10b981;font-weight:700;'>{pw}W</span>-"
+                        f"<span style='color:#f59e0b;font-weight:700;'>{pbe}BE</span>-"
+                        f"<span style='color:#ef4444;font-weight:700;'>{pl}L</span>)"
+                        f"</span>"
+                    )
+                    p_pills.append(pill)
+                bpr_html = " ".join(p_pills)
+            else:
+                bpr_html = f"<span style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;'>{bpr}</span>"
             row_bg = "background:rgba(255,215,0,0.04);" if rank_idx == 1 else ""
 
             bt_rows_html.append(f"""
@@ -2801,6 +2892,8 @@ def render_mt5_backtest_engine_view():
                 <td style='padding:8px 10px;'>{wr_html}</td>
                 <td style='padding:8px 10px;text-align:right;font-size:0.85rem;'>{pnl_html}</td>
                 <td style='padding:8px 10px;text-align:center;font-size:0.8rem;color:#94a3b8;'>{pf_val:.2f}</td>
+                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{btp_html}</td>
+                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{tp_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{bsl_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{sl_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;'>{btf_html}</td>
@@ -2821,10 +2914,12 @@ def render_mt5_backtest_engine_view():
                         <th style='padding:10px;text-align:left;width:100px;'>Win Rate</th>
                         <th style='padding:10px;text-align:right;width:85px;'>Net PnL</th>
                         <th style='padding:10px;text-align:center;width:50px;'>PF</th>
+                        <th style='padding:10px;text-align:center;width:95px;'>Biggest TP</th>
+                        <th style='padding:10px;text-align:center;width:60px;'>TP Hits</th>
                         <th style='padding:10px;text-align:center;width:95px;'>Biggest SL</th>
                         <th style='padding:10px;text-align:center;width:60px;'>SL Hits</th>
                         <th style='padding:10px;text-align:center;width:125px;'>Best Timeframes</th>
-                        <th style='padding:10px;text-align:center;width:140px;'>Best Trading Pairs</th>
+                        <th style='padding:10px;text-align:center;min-width:180px;'>Trading Pairs (W-BE-L)</th>
                         <th style='padding:10px;text-align:center;width:115px;'>Status</th>
                     </tr>
                 </thead>

@@ -309,6 +309,8 @@ class AutonomousTraderEngine:
                 'profit_factor': 0.0,
                 'biggest_sl_loss': 0.0,
                 'sl_hits': 0,
+                'biggest_tp': 0.0,
+                'tp_hits': 0,
                 'status_badge': '💤 NO TRADES',
                 'best_timeframes': playbook_profiles.get(strat_key, {}).get('default_tfs', '15m, 1h'),
                 'best_pairs': playbook_profiles.get(strat_key, {}).get('default_pairs', 'BTC/USD, Gold')
@@ -419,15 +421,32 @@ class AutonomousTraderEngine:
                 (abs(pnl) <= 0.15 and status not in ['WIN', 'LOSS'])
             )
 
+            tp_was_hit = (
+                b.get('tp1_hit', False) or
+                b.get('tp2_hit', False) or
+                b.get('tp3_hit', False) or
+                'TP' in status or
+                'TP' in str(b.get('exit_reason', '')).upper() or
+                status == 'WIN' or
+                pnl > 0.15
+            )
+
             if is_be:
                 stats_map[k]['breakevens'] += 1
                 if pnl > 0:
                     stats_map[k]['gross_profit'] += pnl
                 elif pnl < 0:
                     stats_map[k]['gross_loss'] += abs(pnl)
+                if tp_was_hit:
+                    stats_map[k]['tp_hits'] += 1
+                    if pnl > stats_map[k]['biggest_tp']:
+                        stats_map[k]['biggest_tp'] = round(pnl, 2)
             elif status == 'WIN' or pnl > 0.15:
                 stats_map[k]['wins'] += 1
+                stats_map[k]['tp_hits'] += 1
                 stats_map[k]['gross_profit'] += pnl
+                if pnl > stats_map[k]['biggest_tp']:
+                    stats_map[k]['biggest_tp'] = round(pnl, 2)
             elif status == 'LOSS' or pnl < -0.15:
                 stats_map[k]['losses'] += 1
                 stats_map[k]['sl_hits'] += 1
@@ -437,6 +456,10 @@ class AutonomousTraderEngine:
                     stats_map[k]['biggest_sl_loss'] = round(loss_amt, 2)
             else:
                 stats_map[k]['breakevens'] += 1
+                if tp_was_hit:
+                    stats_map[k]['tp_hits'] += 1
+                    if pnl > stats_map[k]['biggest_tp']:
+                        stats_map[k]['biggest_tp'] = round(pnl, 2)
 
             # Track per-timeframe metrics
             if tf and tf not in ['-', 'live', 'none']:
@@ -450,11 +473,17 @@ class AutonomousTraderEngine:
             # Track per-symbol metrics
             if sym:
                 if sym not in strat_pairs[k]:
-                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
+                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'breakevens': 0, 'losses': 0, 'pnl': 0.0}
                 strat_pairs[k][sym]['trades'] += 1
                 strat_pairs[k][sym]['pnl'] += pnl
-                if status == 'WIN' or pnl > 0.15:
+                if is_be:
+                    strat_pairs[k][sym]['breakevens'] += 1
+                elif status == 'WIN' or pnl > 0.15:
                     strat_pairs[k][sym]['wins'] += 1
+                elif status == 'LOSS' or pnl < -0.15:
+                    strat_pairs[k][sym]['losses'] += 1
+                else:
+                    strat_pairs[k][sym]['breakevens'] += 1
 
         # Process Open Batches
         for b in open_batches:
@@ -472,7 +501,7 @@ class AutonomousTraderEngine:
 
             if sym:
                 if sym not in strat_pairs[k]:
-                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
+                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'breakevens': 0, 'losses': 0, 'pnl': 0.0}
                 strat_pairs[k][sym]['trades'] += 1
 
         # Calculate Derived Metrics & Health Status
@@ -516,15 +545,36 @@ class AutonomousTraderEngine:
             else:
                 item['best_timeframes'] = pb_entry.get('default_tfs', '15m, 1h')
 
-            # Synthesize Best Trading Pairs
+            # Synthesize Best Trading Pairs & Detailed Breakdown
             p_items = sorted(
                 strat_pairs[k].items(),
                 key=lambda x: (x[1]['wins'], x[1]['pnl'], x[1]['trades']),
                 reverse=True
             )
+            pairs_breakdown = []
+            pairs_stats_list = []
+            for psym, pstats in p_items:
+                w = pstats.get('wins', 0)
+                be = pstats.get('breakevens', 0)
+                l = pstats.get('losses', 0)
+                t = pstats.get('trades', 0)
+                cpnl = round(pstats.get('pnl', 0.0), 2)
+                disp = f"{psym} ({w}W-{be}BE-{l}L)"
+                pairs_breakdown.append({
+                    'symbol': psym,
+                    'wins': w,
+                    'breakevens': be,
+                    'losses': l,
+                    'trades': t,
+                    'pnl': cpnl,
+                    'display': disp
+                })
+                pairs_stats_list.append(disp)
+
+            item['pairs_breakdown'] = pairs_breakdown
+            item['pairs_stats_display'] = ' '.join(pairs_stats_list) if pairs_stats_list else pb_entry.get('default_pairs', 'BTC/USD, Gold')
             if p_items:
-                top_pairs = [p[0] for p in p_items[:2]]
-                item['best_pairs'] = ', '.join(top_pairs)
+                item['best_pairs'] = item['pairs_stats_display']
             else:
                 item['best_pairs'] = pb_entry.get('default_pairs', 'BTC/USD, Gold')
 
@@ -560,6 +610,10 @@ class AutonomousTraderEngine:
             leaderboard.sort(key=lambda x: (x['biggest_sl_loss'], x['losses']), reverse=True)
         elif sort_key in ['sl_hits', 'most_sl_hits']:
             leaderboard.sort(key=lambda x: (x['sl_hits'], x['biggest_sl_loss']), reverse=True)
+        elif sort_key in ['tp_hits', 'most_tp_hits', 'most_tp']:
+            leaderboard.sort(key=lambda x: (x['tp_hits'], x['biggest_tp'], x['net_pnl']), reverse=True)
+        elif sort_key in ['biggest_tp', 'biggest_tp_win', 'max_tp']:
+            leaderboard.sort(key=lambda x: (x['biggest_tp'], x['tp_hits'], x['net_pnl']), reverse=True)
         else: # Default: 'profit' / Most Profitable
             leaderboard.sort(key=lambda x: (x['net_pnl'], x['win_rate'], x['wins']), reverse=True)
 

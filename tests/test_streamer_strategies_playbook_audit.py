@@ -158,7 +158,10 @@ class TestStreamerStrategiesPlaybookAudit(unittest.TestCase):
             
             # Oliver Velez (Intraday elephant bar)
             self.assertIn(strats['OLIVER_VELEZ']['action'], ['WAIT', 'HOLD'])
-            self.assertEqual(strats['OLIVER_VELEZ']['status'], 'TIMEFRAME_INCOMPATIBLE')
+
+        # Oliver Velez sub-hourly noise guard (<15m)
+        pb_5m = MasterStreamerPlaybook.evaluate_all(df=self.df, atr=100.0, timeframe='5m')
+        self.assertEqual(pb_5m['all_strategies']['OLIVER_VELEZ']['status'], 'TIMEFRAME_INCOMPATIBLE')
 
     def test_leaderboard_computation_all_13_strategies(self):
         """compute_strategy_leaderboard must rank all 13 strategies and calculate correct metrics."""
@@ -197,8 +200,40 @@ class TestStreamerStrategiesPlaybookAudit(unittest.TestCase):
         for item in lb_profit:
             self.assertIn('best_timeframes', item)
             self.assertIn('best_pairs', item)
+            self.assertIn('pairs_breakdown', item)
             self.assertTrue(len(item['best_timeframes']) > 0)
             self.assertTrue(len(item['best_pairs']) > 0)
+
+        # Steven Hart EUR/USD breakdown verification
+        sh_item = lb_profit[1]
+        self.assertIn('EUR/USD (1W-0BE-1L)', sh_item['best_pairs'])
+        self.assertEqual(len(sh_item['pairs_breakdown']), 1)
+        self.assertEqual(sh_item['pairs_breakdown'][0]['symbol'], 'EUR/USD')
+        self.assertEqual(sh_item['pairs_breakdown'][0]['wins'], 1)
+        self.assertEqual(sh_item['pairs_breakdown'][0]['losses'], 1)
+        self.assertEqual(sh_item['pairs_breakdown'][0]['breakevens'], 0)
+
+        # Adam Khoo BTC/USD breakdown verification & TP metrics
+        ak_item = lb_profit[0]
+        self.assertIn('BTC/USD (2W-0BE-0L)', ak_item['best_pairs'])
+        self.assertEqual(ak_item['tp_hits'], 2)
+        self.assertEqual(ak_item['biggest_tp'], 22.00)
+
+        # Steven Hart TP/SL metrics verification
+        self.assertEqual(sh_item['tp_hits'], 1)
+        self.assertEqual(sh_item['biggest_tp'], 15.50)
+        self.assertEqual(sh_item['sl_hits'], 1)
+        self.assertEqual(sh_item['biggest_sl_loss'], 5.00)
+
+        # Test sorting by Most TP Hits
+        lb_tp = AutonomousTraderEngine.compute_strategy_leaderboard(fake_state, sort_by='tp_hits')
+        self.assertEqual(lb_tp[0]['strategy_key'], 'ADAM_KHOO')
+        self.assertEqual(lb_tp[0]['tp_hits'], 2)
+
+        # Test sorting by Biggest TP
+        lb_btp = AutonomousTraderEngine.compute_strategy_leaderboard(fake_state, sort_by='biggest_tp')
+        self.assertEqual(lb_btp[0]['strategy_key'], 'ADAM_KHOO')
+        self.assertEqual(lb_btp[0]['biggest_tp'], 22.00)
 
         # Test sorting by Most Wins
         lb_wins = AutonomousTraderEngine.compute_strategy_leaderboard(fake_state, sort_by='wins')

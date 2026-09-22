@@ -1701,6 +1701,8 @@ class KristjanQullamaggieStrategy:
         else:
             if not is_adr_ok:
                 reasons.append(f"ADR% ({adr_pct:.1f}%) below high-momentum volatility threshold")
+            else:
+                reasons.append(f"ADR% ({adr_pct:.1f}%) volatility valid, awaiting 10/20 EMA breakout")
             if not (is_ma_surfing_long or is_ma_surfing_short):
                 reasons.append("Price not aligned with 10/20 EMA and 50 SMA surfing structure")
 

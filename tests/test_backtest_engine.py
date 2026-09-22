@@ -135,6 +135,23 @@ class TestMT5BacktestEngine(unittest.TestCase):
         self.assertEqual(bs['wins'], 1)
         self.assertEqual(bs['sl_hits'], 0)
         self.assertEqual(bs['biggest_sl_loss'], 0.0)
+        self.assertEqual(bs['tp_hits'], 1)
+        self.assertEqual(bs['biggest_tp'], 45.00)
+
+        self.assertEqual(vy['tp_hits'], 0)
+        self.assertEqual(vy['biggest_tp'], 0.0)
+
+        # Per-pair breakdown verification
+        self.assertIn('pairs_breakdown', vy)
+        self.assertEqual(len(vy['pairs_breakdown']), 1)
+        self.assertEqual(vy['pairs_breakdown'][0]['symbol'], 'BTC/USD')
+        self.assertEqual(vy['pairs_breakdown'][0]['wins'], 0)
+        self.assertEqual(vy['pairs_breakdown'][0]['losses'], 2)
+        self.assertEqual(vy['pairs_breakdown'][0]['breakevens'], 0)
+        self.assertIn('BTC/USD (0W-0BE-2L)', vy['best_pairs'])
+
+        self.assertIn('pairs_breakdown', bs)
+        self.assertIn('BTC/USD (1W-0BE-0L)', bs['best_pairs'])
 
     def test_zero_disturbance_to_autonomous_live_state(self):
         """Ensure that running backtest operations never mutates .autonomous_trader_state.json."""

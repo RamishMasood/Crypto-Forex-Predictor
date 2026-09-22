@@ -1128,16 +1128,36 @@ class MT5BacktestEngine:
         gross_loss = sum(abs(b.get('profit', 0)) for b in closed_batches if b.get('profit', 0) < 0)
         profit_factor = round(gross_profit / gross_loss, 2) if gross_loss > 0 else (99.9 if gross_profit > 0 else 0.0)
 
-        # Calculate Biggest SL Loss and SL Hits across all trades
+        # Calculate Biggest SL Loss, SL Hits, Biggest TP, and TP Hits across all trades
         biggest_sl_loss = 0.0
         sl_hits = 0
+        biggest_tp = 0.0
+        tp_hits = 0
         for b in closed_batches:
             pnl = float(b.get('profit', 0.0))
             stt = str(b.get('status', ''))
+            exit_r = str(b.get('exit_reason', '')).upper()
+            tp_was_hit = (
+                b.get('tp1_hit', False) or
+                b.get('tp2_hit', False) or
+                b.get('tp3_hit', False) or
+                'TP' in stt or
+                'TP' in exit_r or
+                pnl > 0.15 or
+                stt == 'WIN'
+            )
             if stt == 'LOSS' or pnl < -0.15:
                 sl_hits += 1
                 if abs(pnl) > biggest_sl_loss:
                     biggest_sl_loss = round(abs(pnl), 2)
+            elif stt == 'WIN' or pnl > 0.15:
+                tp_hits += 1
+                if pnl > biggest_tp:
+                    biggest_tp = round(pnl, 2)
+            elif tp_was_hit:
+                tp_hits += 1
+                if pnl > biggest_tp:
+                    biggest_tp = round(pnl, 2)
 
         # 6. Compute Backtest Strategy Leaderboard
         leaderboard = self.compute_backtest_strategy_leaderboard(closed_batches, strategies)
@@ -1164,6 +1184,8 @@ class MT5BacktestEngine:
             'max_drawdown_pct': round(max_drawdown_pct, 2),
             'biggest_sl_loss': biggest_sl_loss,
             'sl_hits': sl_hits,
+            'biggest_tp': biggest_tp,
+            'tp_hits': tp_hits,
             'equity_curve': equity_curve,
             'leaderboard': leaderboard,
             'closed_batches': closed_batches[:500], # Keep top 500 in state
@@ -1210,6 +1232,8 @@ class MT5BacktestEngine:
                 'profit_factor': 0.0,
                 'biggest_sl_loss': 0.0,
                 'sl_hits': 0,
+                'biggest_tp': 0.0,
+                'tp_hits': 0,
                 'status_badge': '💤 NO TRADES',
                 'best_timeframes': '-',
                 'best_pairs': '-'
@@ -1222,15 +1246,29 @@ class MT5BacktestEngine:
 
             pnl = float(b.get('profit', 0.0))
             stt = str(b.get('status', ''))
+            exit_r = str(b.get('exit_reason', '')).upper()
             tf = str(b.get('timeframe', ''))
             sym = str(b.get('symbol', ''))
+
+            tp_was_hit = (
+                b.get('tp1_hit', False) or
+                b.get('tp2_hit', False) or
+                b.get('tp3_hit', False) or
+                'TP' in stt or
+                'TP' in exit_r or
+                pnl > 0.15 or
+                stt == 'WIN'
+            )
 
             stats_map[k]['total_trades'] += 1
             stats_map[k]['net_pnl'] += pnl
 
             if pnl > 0.15 or stt == 'WIN':
                 stats_map[k]['wins'] += 1
+                stats_map[k]['tp_hits'] += 1
                 stats_map[k]['gross_profit'] += pnl
+                if pnl > stats_map[k]['biggest_tp']:
+                    stats_map[k]['biggest_tp'] = round(pnl, 2)
             elif pnl < -0.15 or stt == 'LOSS':
                 stats_map[k]['losses'] += 1
                 stats_map[k]['sl_hits'] += 1
@@ -1239,6 +1277,10 @@ class MT5BacktestEngine:
                     stats_map[k]['biggest_sl_loss'] = round(abs(pnl), 2)
             else:
                 stats_map[k]['breakevens'] += 1
+                if tp_was_hit:
+                    stats_map[k]['tp_hits'] += 1
+                    if pnl > stats_map[k]['biggest_tp']:
+                        stats_map[k]['biggest_tp'] = round(pnl, 2)
                 if pnl > 0:
                     stats_map[k]['gross_profit'] += pnl
                 elif pnl < 0:
@@ -1254,11 +1296,15 @@ class MT5BacktestEngine:
 
             if sym:
                 if sym not in strat_pairs[k]:
-                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
+                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'breakevens': 0, 'losses': 0, 'pnl': 0.0}
                 strat_pairs[k][sym]['trades'] += 1
                 strat_pairs[k][sym]['pnl'] += pnl
-                if stt == 'WIN':
+                if pnl > 0.15 or stt == 'WIN':
                     strat_pairs[k][sym]['wins'] += 1
+                elif pnl < -0.15 or stt == 'LOSS':
+                    strat_pairs[k][sym]['losses'] += 1
+                else:
+                    strat_pairs[k][sym]['breakevens'] += 1
 
         leaderboard = []
         for k, item in stats_map.items():
@@ -1281,9 +1327,31 @@ class MT5BacktestEngine:
             t_items = sorted(strat_tfs[k].items(), key=lambda x: (x[1]['wins'], x[1]['pnl']), reverse=True)
             item['best_timeframes'] = ', '.join([t[0] for t in t_items[:2]]) if t_items else '-'
 
-            # Best Pairs
-            p_items = sorted(strat_pairs[k].items(), key=lambda x: (x[1]['wins'], x[1]['pnl']), reverse=True)
-            item['best_pairs'] = ', '.join([p[0] for p in p_items[:2]]) if p_items else '-'
+            # Best Pairs & Detailed Breakdown
+            p_items = sorted(strat_pairs[k].items(), key=lambda x: (x[1]['wins'], x[1]['pnl'], x[1]['trades']), reverse=True)
+            pairs_breakdown = []
+            pairs_stats_list = []
+            for psym, pstats in p_items:
+                w = pstats.get('wins', 0)
+                be = pstats.get('breakevens', 0)
+                l = pstats.get('losses', 0)
+                t = pstats.get('trades', 0)
+                cpnl = round(pstats.get('pnl', 0.0), 2)
+                disp = f"{psym} ({w}W-{be}BE-{l}L)"
+                pairs_breakdown.append({
+                    'symbol': psym,
+                    'wins': w,
+                    'breakevens': be,
+                    'losses': l,
+                    'trades': t,
+                    'pnl': cpnl,
+                    'display': disp
+                })
+                pairs_stats_list.append(disp)
+
+            item['pairs_breakdown'] = pairs_breakdown
+            item['pairs_stats_display'] = ' '.join(pairs_stats_list) if pairs_stats_list else '-'
+            item['best_pairs'] = item['pairs_stats_display'] if p_items else '-'
 
             # Badge
             if trades == 0:
