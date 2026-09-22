@@ -1323,7 +1323,7 @@ class OliverVelezStrategy:
     @classmethod
     def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '15m') -> Dict[str, Any]:
         tf_clean = str(timeframe).lower()
-        if tf_clean in ['1m', '2m', '3m', '5m']:
+        if tf_clean not in ['15m', '30m', '1h']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,

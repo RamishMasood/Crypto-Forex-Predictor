@@ -1989,14 +1989,33 @@ def render_mt5_autonomous_engine_view(live_exec):
                     pw = pb.get('wins', 0)
                     pbe = pb.get('breakevens', 0)
                     pl = pb.get('losses', 0)
-                    pill = (
-                        f"<span style='background:#0f172a;border:1px solid #a78bfa55;padding:2px 6px;margin:2px;border-radius:6px;font-size:0.70rem;display:inline-block;white-space:nowrap;'>"
-                        f"<b style='color:#c084fc;'>{psym}</b> "
-                        f"(<span style='color:#10b981;font-weight:700;'>{pw}W</span>-"
-                        f"<span style='color:#f59e0b;font-weight:700;'>{pbe}BE</span>-"
-                        f"<span style='color:#ef4444;font-weight:700;'>{pl}L</span>)"
-                        f"</span>"
-                    )
+                    pact = pb.get('active', 0)
+                    if pact > 0 and (pw > 0 or pbe > 0 or pl > 0):
+                        pill = (
+                            f"<span style='background:#0f172a;border:1px solid #a78bfa55;padding:2px 6px;margin:2px;border-radius:6px;font-size:0.70rem;display:inline-block;white-space:nowrap;'>"
+                            f"<b style='color:#c084fc;'>{psym}</b> "
+                            f"(<span style='color:#10b981;font-weight:700;'>{pw}W</span>-"
+                            f"<span style='color:#f59e0b;font-weight:700;'>{pbe}BE</span>-"
+                            f"<span style='color:#ef4444;font-weight:700;'>{pl}L</span> | "
+                            f"<span style='color:#38bdf8;font-weight:700;'>{pact} Active</span>)"
+                            f"</span>"
+                        )
+                    elif pact > 0:
+                        pill = (
+                            f"<span style='background:#0f172a;border:1px solid #0284c755;padding:2px 6px;margin:2px;border-radius:6px;font-size:0.70rem;display:inline-block;white-space:nowrap;'>"
+                            f"<b style='color:#c084fc;'>{psym}</b> "
+                            f"(<span style='color:#38bdf8;font-weight:700;'>⚡ {pact} Active</span>)"
+                            f"</span>"
+                        )
+                    else:
+                        pill = (
+                            f"<span style='background:#0f172a;border:1px solid #a78bfa55;padding:2px 6px;margin:2px;border-radius:6px;font-size:0.70rem;display:inline-block;white-space:nowrap;'>"
+                            f"<b style='color:#c084fc;'>{psym}</b> "
+                            f"(<span style='color:#10b981;font-weight:700;'>{pw}W</span>-"
+                            f"<span style='color:#f59e0b;font-weight:700;'>{pbe}BE</span>-"
+                            f"<span style='color:#ef4444;font-weight:700;'>{pl}L</span>)"
+                            f"</span>"
+                        )
                     p_pills.append(pill)
                 bpr_html = " ".join(p_pills)
             else:
@@ -2054,10 +2073,8 @@ def render_mt5_autonomous_engine_view(live_exec):
             </table>
         </div>
         """
-        # Dedicated empty placeholder container guarantees atomic replacement on every rerun, preventing duplicates
-        lb_table_container = st.empty()
-        with lb_table_container:
-            render_html(lb_table_html)
+        # Render HTML directly without empty() placeholder to prevent DOM flickering/disappearing
+        render_html(lb_table_html)
 
         # ── 9. Dedicated MT5 Multi-Timeframe Historical Backtesting Engine ─────────
         render_mt5_backtest_engine_view()
@@ -2865,14 +2882,33 @@ def render_mt5_backtest_engine_view():
                     pw = pb.get('wins', 0)
                     pbe = pb.get('breakevens', 0)
                     pl = pb.get('losses', 0)
-                    pill = (
-                        f"<span style='background:#0f172a;border:1px solid #a78bfa55;padding:2px 6px;margin:2px;border-radius:6px;font-size:0.70rem;display:inline-block;white-space:nowrap;'>"
-                        f"<b style='color:#c084fc;'>{psym}</b> "
-                        f"(<span style='color:#10b981;font-weight:700;'>{pw}W</span>-"
-                        f"<span style='color:#f59e0b;font-weight:700;'>{pbe}BE</span>-"
-                        f"<span style='color:#ef4444;font-weight:700;'>{pl}L</span>)"
-                        f"</span>"
-                    )
+                    pact = pb.get('active', 0)
+                    if pact > 0 and (pw > 0 or pbe > 0 or pl > 0):
+                        pill = (
+                            f"<span style='background:#0f172a;border:1px solid #a78bfa55;padding:2px 6px;margin:2px;border-radius:6px;font-size:0.70rem;display:inline-block;white-space:nowrap;'>"
+                            f"<b style='color:#c084fc;'>{psym}</b> "
+                            f"(<span style='color:#10b981;font-weight:700;'>{pw}W</span>-"
+                            f"<span style='color:#f59e0b;font-weight:700;'>{pbe}BE</span>-"
+                            f"<span style='color:#ef4444;font-weight:700;'>{pl}L</span> | "
+                            f"<span style='color:#38bdf8;font-weight:700;'>{pact} Active</span>)"
+                            f"</span>"
+                        )
+                    elif pact > 0:
+                        pill = (
+                            f"<span style='background:#0f172a;border:1px solid #0284c755;padding:2px 6px;margin:2px;border-radius:6px;font-size:0.70rem;display:inline-block;white-space:nowrap;'>"
+                            f"<b style='color:#c084fc;'>{psym}</b> "
+                            f"(<span style='color:#38bdf8;font-weight:700;'>⚡ {pact} Active</span>)"
+                            f"</span>"
+                        )
+                    else:
+                        pill = (
+                            f"<span style='background:#0f172a;border:1px solid #a78bfa55;padding:2px 6px;margin:2px;border-radius:6px;font-size:0.70rem;display:inline-block;white-space:nowrap;'>"
+                            f"<b style='color:#c084fc;'>{psym}</b> "
+                            f"(<span style='color:#10b981;font-weight:700;'>{pw}W</span>-"
+                            f"<span style='color:#f59e0b;font-weight:700;'>{pbe}BE</span>-"
+                            f"<span style='color:#ef4444;font-weight:700;'>{pl}L</span>)"
+                            f"</span>"
+                        )
                     p_pills.append(pill)
                 bpr_html = " ".join(p_pills)
             else:
@@ -2929,9 +2965,8 @@ def render_mt5_backtest_engine_view():
             </table>
         </div>
         """
-        bt_table_container = st.empty()
-        with bt_table_container:
-            render_html(bt_table_html)
+        # Render HTML directly without empty() placeholder to prevent DOM flickering/disappearing
+        render_html(bt_table_html)
 
     # ── Backtest Executed Batches Ledger ──
     closed_batches = res.get('closed_batches', [])

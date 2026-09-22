@@ -1,232 +1,801 @@
 {
-  "total_trades_taken": 1,
-  "trades_by_symbol": {
-    "EUR/USD": 1,
-    "EURUSDm": 1
-  },
-  "symbol_stats": {},
   "open_batches": {
-    "93445": {
-      "batch_id": 93445,
+    "90542": {
+      "batch_id": "90542",
       "symbol": "EUR/USD",
       "broker_sym": "EURUSDm",
-      "timeframe": "15m",
+      "timeframe": "5m",
       "action": "BUY",
-      "entry_price": 1.14323,
-      "sl_price": 1.14117,
-      "breakeven_sl": 1.14325,
-      "soft_breakeven_sl": 1.14271,
+      "entry_price": 1.1444400000000001,
+      "sl_price": 1.14212,
+      "breakeven_sl": 1.1444400000000001,
+      "soft_breakeven_sl": 1.14212,
       "breakeven_mode": "tight",
       "recommended_mode": false,
       "active_sessions": [
         "24/7 (Any Session)"
       ],
       "htf_confluence": true,
-      "tp1_price": 1.14366,
-      "tp2_price": 1.1456,
-      "tp3_price": 1.14776,
-      "matched_pillars": 4,
+      "tp1_price": 1.14461,
+      "tp2_price": 1.14461,
+      "tp3_price": 1.14461,
+      "matched_pillars": 5,
       "lot_split": {
-        "tp1_lots": 0.02,
-        "tp2_lots": 0.01,
-        "tp3_lots": 0.01,
-        "tp1_pct": 50.0,
-        "tp2_pct": 25.0,
-        "tp3_pct": 25.0,
-        "tp1_reward_usd": 0.86,
-        "tp2_reward_usd": 2.37,
-        "tp3_reward_usd": 4.53,
-        "total_reward_usd": 7.76
+        "tp1_lots": 0.02
       },
-      "risk_usd": 8.24,
+      "risk_usd": 0.0,
       "tickets": [
-        1931793771,
-        1931793772,
-        1931793774
+        1931490366,
+        1931490373,
+        1931490376
       ],
-      "executed_at": "2026-09-22T16:10:45.697616+00:00",
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
       "status": "OPEN",
-      "p1_score": -45.3,
-      "p1_prob": 74.6,
-      "strategy_used": "GCR",
-      "strategy_name": "GCR (@GiganticRebirth - Behavioral Sentiment)"
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "90841": {
+      "batch_id": "90841",
+      "symbol": "EUR/USD",
+      "broker_sym": "EURUSDm",
+      "timeframe": "15m",
+      "action": "BUY",
+      "entry_price": 1.1440900000000003,
+      "sl_price": 1.1421999999999999,
+      "breakeven_sl": 1.1440900000000003,
+      "soft_breakeven_sl": 1.1421999999999999,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 1.14469,
+      "tp2_price": 1.14469,
+      "tp3_price": 1.14469,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931526990,
+        1931526995,
+        1931527004
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "90884": {
+      "batch_id": "90884",
+      "symbol": "USD/CHF",
+      "broker_sym": "USDCHFm",
+      "timeframe": "5m",
+      "action": "BUY",
+      "entry_price": 0.82135,
+      "sl_price": 0.8214,
+      "breakeven_sl": 0.82135,
+      "soft_breakeven_sl": 0.8214,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 0.8231,
+      "tp2_price": 0.8231,
+      "tp3_price": 0.8231,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.01
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931530850
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "91196": {
+      "batch_id": "91196",
+      "symbol": "EUR/USD",
+      "broker_sym": "EURUSDm",
+      "timeframe": "4h",
+      "action": "SELL",
+      "entry_price": 1.14371,
+      "sl_price": 1.1436600000000001,
+      "breakeven_sl": 1.14371,
+      "soft_breakeven_sl": 1.1436600000000001,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 1.14023,
+      "tp2_price": 1.14023,
+      "tp3_price": 1.14023,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.01
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931574128,
+        1931574132
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "92988": {
+      "batch_id": "92988",
+      "symbol": "USD/CHF",
+      "broker_sym": "USDCHFm",
+      "timeframe": "30m",
+      "action": "BUY",
+      "entry_price": 0.82221,
+      "sl_price": 0.82033,
+      "breakeven_sl": 0.82221,
+      "soft_breakeven_sl": 0.82033,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 0.82239,
+      "tp2_price": 0.82239,
+      "tp3_price": 0.82239,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931754225,
+        1931754233,
+        1931754249
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "93043": {
+      "batch_id": "93043",
+      "symbol": "USD/CHF",
+      "broker_sym": "USDCHFm",
+      "timeframe": "1h",
+      "action": "BUY",
+      "entry_price": 0.8222200000000001,
+      "sl_price": 0.8198,
+      "breakeven_sl": 0.8222200000000001,
+      "soft_breakeven_sl": 0.8198,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 0.82267,
+      "tp2_price": 0.82267,
+      "tp3_price": 0.82267,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931759728,
+        1931759732,
+        1931759736
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "93691": {
+      "batch_id": "93691",
+      "symbol": "USD/CHF",
+      "broker_sym": "USDCHFm",
+      "timeframe": "30m",
+      "action": "BUY",
+      "entry_price": 0.8222700000000001,
+      "sl_price": 0.82044,
+      "breakeven_sl": 0.8222700000000001,
+      "soft_breakeven_sl": 0.82044,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 0.82254,
+      "tp2_price": 0.82254,
+      "tp3_price": 0.82254,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931818892,
+        1931818915,
+        1931818920
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "93738": {
+      "batch_id": "93738",
+      "symbol": "ETH/USD",
+      "broker_sym": "ETHUSDm",
+      "timeframe": "4h",
+      "action": "SELL",
+      "entry_price": 2730.75,
+      "sl_price": 2814.56,
+      "breakeven_sl": 2730.75,
+      "soft_breakeven_sl": 2814.56,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 2713.6,
+      "tp2_price": 2713.6,
+      "tp3_price": 2713.6,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.1
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931821971
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "93741": {
+      "batch_id": "93741",
+      "symbol": "EUR/USD",
+      "broker_sym": "EURUSDm",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry_price": 1.14317,
+      "sl_price": 1.14417,
+      "breakeven_sl": 1.14317,
+      "soft_breakeven_sl": 1.14417,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 1.14291,
+      "tp2_price": 1.14291,
+      "tp3_price": 1.14291,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931822038,
+        1931822039,
+        1931822042
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "93807": {
+      "batch_id": "93807",
+      "symbol": "EUR/USD",
+      "broker_sym": "EURUSDm",
+      "timeframe": "4h",
+      "action": "SELL",
+      "entry_price": 1.1432,
+      "sl_price": 1.14636,
+      "breakeven_sl": 1.1432,
+      "soft_breakeven_sl": 1.14636,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 1.1424400000000001,
+      "tp2_price": 1.1424400000000001,
+      "tp3_price": 1.1424400000000001,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931825934,
+        1931825937,
+        1931825940
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "93825": {
+      "batch_id": "93825",
+      "symbol": "USD/CHF",
+      "broker_sym": "USDCHFm",
+      "timeframe": "5m",
+      "action": "BUY",
+      "entry_price": 0.8223,
+      "sl_price": 0.82167,
+      "breakeven_sl": 0.8223,
+      "soft_breakeven_sl": 0.82167,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 0.82246,
+      "tp2_price": 0.82246,
+      "tp3_price": 0.82246,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931826440,
+        1931826444,
+        1931826445
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "93894": {
+      "batch_id": "93894",
+      "symbol": "EUR/USD",
+      "broker_sym": "EURUSDm",
+      "timeframe": "15m",
+      "action": "BUY",
+      "entry_price": 1.1433300000000002,
+      "sl_price": 1.14115,
+      "breakeven_sl": 1.1433300000000002,
+      "soft_breakeven_sl": 1.14115,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 1.14364,
+      "tp2_price": 1.14364,
+      "tp3_price": 1.14364,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931830693,
+        1931830698,
+        1931830701
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "94002": {
+      "batch_id": "94002",
+      "symbol": "USD/CHF",
+      "broker_sym": "USDCHFm",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry_price": 0.8220400000000001,
+      "sl_price": 0.82362,
+      "breakeven_sl": 0.8220400000000001,
+      "soft_breakeven_sl": 0.82362,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 0.82183,
+      "tp2_price": 0.82183,
+      "tp3_price": 0.82183,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931841219,
+        1931841226,
+        1931841227
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
+    },
+    "94035": {
+      "batch_id": "94035",
+      "symbol": "EUR/USD",
+      "broker_sym": "EURUSDm",
+      "timeframe": "1h",
+      "action": "BUY",
+      "entry_price": 1.14338,
+      "sl_price": 1.14106,
+      "breakeven_sl": 1.14338,
+      "soft_breakeven_sl": 1.14106,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 1.14377,
+      "tp2_price": 1.14377,
+      "tp3_price": 1.14377,
+      "matched_pillars": 5,
+      "lot_split": {
+        "tp1_lots": 0.02
+      },
+      "risk_usd": 0.0,
+      "tickets": [
+        1931846021,
+        1931846022,
+        1931846023
+      ],
+      "executed_at": "2026-09-22T16:32:33.267362+00:00",
+      "status": "OPEN",
+      "p1_score": 0.0,
+      "p1_prob": 85.0,
+      "strategy_used": "STREAMER",
+      "strategy_name": "Streamer Strategy (MT5 Sync)"
     }
-  },
-  "closed_batches": [],
-  "wins": 0,
-  "losses": 0,
-  "breakevens": 0,
-  "last_scan_time": "2026-09-22T16:10:31.395913+00:00",
-  "last_scanned_symbol": null,
-  "engine_status": "RUNNING",
-  "cycle_count": 723,
-  "current_scan": {
-    "cycle": 723,
-    "symbol": "BTC/USD",
-    "timeframe": "30m",
-    "time": "16:10:48 UTC"
   },
   "scan_activity_log": [
     {
-      "timestamp": "16:10:48 UTC",
-      "cycle": 723,
+      "timestamp": "16:33:43 UTC",
+      "cycle": 732,
+      "symbol": "EUR/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 26 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:35 UTC",
+      "cycle": 732,
       "symbol": "BTC/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.4)"
-    },
-    {
-      "timestamp": "16:10:45 UTC",
-      "cycle": 723,
-      "symbol": "EUR/USD",
-      "timeframe": "15m",
-      "action": "BUY",
-      "pillars": "STRAT",
-      "status": "EXECUTED (Batch #93445)",
-      "details": "[GCR (@GiganticRebirth - Behavioral Sentiment)] Entry: 1.14323 | SL: 1.14117 | Lots: 0.02/0.01/0.01"
-    },
-    {
-      "timestamp": "16:10:45 UTC",
-      "cycle": 723,
-      "symbol": "EUR/USD",
-      "timeframe": "15m",
-      "action": "BUY",
-      "pillars": "STRAT",
-      "status": "EXECUTING (GCR)",
-      "details": "Strategy: GCR (@GiganticRebirth - Behavioral Sentiment) | Action: BUY"
-    },
-    {
-      "timestamp": "16:10:41 UTC",
-      "cycle": 723,
-      "symbol": "XAU/USD",
-      "timeframe": "30m",
-      "action": "SELL",
-      "pillars": "5/5",
-      "status": "SKIPPED (Risk Cap)",
-      "details": "Risk $201.46 > Cap $15.00"
-    },
-    {
-      "timestamp": "16:10:41 UTC",
-      "cycle": 723,
-      "symbol": "XAU/USD",
-      "timeframe": "30m",
-      "action": "SELL",
-      "pillars": "STRAT",
-      "status": "EXECUTING (NDEMAZEAH_GODLOVE)",
-      "details": "Strategy: Ndemazeah Godlove (GU MVR) | Action: SELL"
-    },
-    {
-      "timestamp": "16:10:40 UTC",
-      "cycle": 723,
-      "symbol": "XAG/USD",
-      "timeframe": "30m",
-      "action": "SELL",
-      "pillars": "5/5",
-      "status": "SKIPPED (Risk Cap)",
-      "details": "Risk $114.94 > Cap $15.00"
-    },
-    {
-      "timestamp": "16:10:40 UTC",
-      "cycle": 723,
-      "symbol": "XAG/USD",
-      "timeframe": "30m",
-      "action": "SELL",
-      "pillars": "STRAT",
-      "status": "EXECUTING (RAYNER_TEO)",
-      "details": "Strategy: Rayner Teo (Trend & Pullback) | Action: SELL"
-    },
-    {
-      "timestamp": "16:10:36 UTC",
-      "cycle": 723,
-      "symbol": "XAU/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "16:10:34 UTC",
-      "cycle": 723,
-      "symbol": "XAG/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "16:10:13 UTC",
-      "cycle": 722,
-      "symbol": "USD/CHF",
       "timeframe": "1h",
-      "action": "BUY",
-      "pillars": "5/5",
-      "status": "SKIPPED (Risk Cap)",
-      "details": "Risk $43.16 > Cap $15.00"
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 26 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
     },
     {
-      "timestamp": "16:10:13 UTC",
-      "cycle": 722,
-      "symbol": "USD/CHF",
+      "timestamp": "16:33:33 UTC",
+      "cycle": 732,
+      "symbol": "ETH/USD",
       "timeframe": "1h",
-      "action": "BUY",
-      "pillars": "STRAT",
-      "status": "EXECUTING (STEVEN_HART)",
-      "details": "Strategy: Steven Hart (The Trading Channel) | Action: BUY"
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 26 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
     },
     {
-      "timestamp": "16:09:45 UTC",
-      "cycle": 722,
-      "symbol": "USD/CHF",
-      "timeframe": "30m",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "SKIPPED (Same Strat Active on TF)",
-      "details": "Strategy DEFAULT already active on USD/CHF (30m). (Diff Strats Only Mode)"
-    },
-    {
-      "timestamp": "16:09:07 UTC",
-      "cycle": 722,
-      "symbol": "USD/CHF",
-      "timeframe": "15m",
-      "action": "BUY",
-      "pillars": "4/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [DEFAULT, VIVEK_YADAV, BERND_SKORUPINSKI +16 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "16:08:19 UTC",
-      "cycle": 722,
-      "symbol": "USD/CHF",
+      "timestamp": "16:33:30 UTC",
+      "cycle": 732,
+      "symbol": "XAU/USD",
       "timeframe": "1m",
-      "action": "BUY",
-      "pillars": "4/5",
-      "status": "SKIPPED (No ICT Sweep / FVG)",
-      "details": "MICRO NOISE FILTER: 1m/3m entries strictly require ICT Liquidity Sweep or FVG tap"
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
     },
     {
-      "timestamp": "16:07:48 UTC",
-      "cycle": 0,
-      "symbol": "SYSTEM",
-      "timeframe": "-",
-      "action": "RESET",
-      "status": "Target Progress Reset",
-      "details": "All trade targets & symbol win rates reset to 0."
+      "timestamp": "16:33:25 UTC",
+      "cycle": 732,
+      "symbol": "XAG/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:25 UTC",
+      "cycle": 732,
+      "symbol": "EUR/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:23 UTC",
+      "cycle": 732,
+      "symbol": "XAU/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
+      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
+    },
+    {
+      "timestamp": "16:33:22 UTC",
+      "cycle": 732,
+      "symbol": "BTC/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:22 UTC",
+      "cycle": 732,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:19 UTC",
+      "cycle": 732,
+      "symbol": "XAG/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:18 UTC",
+      "cycle": 732,
+      "symbol": "XAU/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:14 UTC",
+      "cycle": 732,
+      "symbol": "XAG/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:14 UTC",
+      "cycle": 732,
+      "symbol": "EUR/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:08 UTC",
+      "cycle": 732,
+      "symbol": "XAU/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:06 UTC",
+      "cycle": 732,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:05 UTC",
+      "cycle": 732,
+      "symbol": "XAG/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:01 UTC",
+      "cycle": 732,
+      "symbol": "EUR/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:33:00 UTC",
+      "cycle": 732,
+      "symbol": "XAU/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:32:59 UTC",
+      "cycle": 732,
+      "symbol": "XAG/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:32:54 UTC",
+      "cycle": 732,
+      "symbol": "XAU/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:32:53 UTC",
+      "cycle": 732,
+      "symbol": "XAG/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:32:49 UTC",
+      "cycle": 732,
+      "symbol": "XAU/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Barkin Speaks release (in 27 minutes). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
+      "timestamp": "16:32:49 UTC",
+      "cycle": 732,
+      "symbol": "XAG/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "0/5",
+      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
+      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
     }
   ],
-  "next_scan_time": "00:01 remaining",
-  "reset_at": "2026-09-22T16:07:48.053798+00:00",
   "tf_rotation_indices": {
-    "USD/CHF": 3,
-    "XAG/USD": 2,
-    "XAU/USD": 2,
-    "EUR/USD": 1,
-    "ETH/USD": 1
+    "BTC/USD": 0,
+    "USD/CHF": 5,
+    "XAG/USD": 1,
+    "XAU/USD": 1
   },
-  "xau_trades_taken": 0,
-  "btc_trades_taken": 0,
-  "eth_trades_taken": 0
+  "total_trades_taken": 14,
+  "trades_by_symbol": {
+    "EUR/USD": 7,
+    "EURUSDm": 7,
+    "USD/CHF": 6,
+    "USDCHFm": 6,
+    "ETH/USD": 1,
+    "ETHUSDm": 1
+  },
+  "symbol_stats": {
+    "BTC/USD": {
+      "wins": 0,
+      "losses": 0,
+      "breakevens": 1,
+      "completed": 1,
+      "total_profit": 0.0
+    }
+  },
+  "closed_batches": [
+    {
+      "batch_id": "999",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "15m",
+      "action": null,
+      "entry_price": null,
+      "sl_price": null,
+      "breakeven_sl": null,
+      "matched_pillars": 5,
+      "tp1_price": null,
+      "tp2_price": null,
+      "tp3_price": null,
+      "lot_split": null,
+      "tickets": [],
+      "executed_at": null,
+      "closed_at": "2026-09-22T16:32:33.271397+00:00",
+      "profit": 0.0,
+      "risk_usd": 0.0,
+      "status": "BREAKEVEN",
+      "p1_score": null,
+      "p1_prob": null,
+      "strategy_used": "DEFAULT_CONFLUENCE",
+      "strategy_name": "Default Confluence (5-Pillars)"
+    }
+  ],
+  "wins": 0,
+  "losses": 0,
+  "breakevens": 1,
+  "last_scan_time": "2026-09-22T16:32:45.681062+00:00",
+  "last_scanned_symbol": null,
+  "engine_status": "RUNNING",
+  "cycle_count": 732,
+  "current_scan": {
+    "cycle": 732,
+    "symbol": "EUR/USD",
+    "timeframe": "5m",
+    "time": "16:33:43 UTC"
+  },
+  "next_scan_time": "00:01 remaining",
+  "reset_at": null
 }

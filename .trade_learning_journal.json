@@ -203,7 +203,8 @@
     "On EUR/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On ETH/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On BTC/USD (3m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On USD/CHF (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On USD/CHF (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On BTC/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
@@ -2245,10 +2246,20 @@
       "sl": 0.8223,
       "loss_usd": 7.0,
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-22T16:18:33.283310+00:00",
+      "symbol": "BTC/USD",
+      "timeframe": "5m",
+      "action": "BUY",
+      "entry": 86134.4,
+      "sl": 85840.12571,
+      "loss_usd": 0.72,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     }
   ],
   "optimal_adjustments": {
     "min_confluence_score": 35.0,
-    "min_calibrated_prob": 83.5
+    "min_calibrated_prob": 82.5
   }
 }

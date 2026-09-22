@@ -252,13 +252,14 @@ class AutonomousTraderEngine:
         if reset_at_str:
             try:
                 reset_dt = datetime.fromisoformat(reset_at_str)
+                # Keep closed batches completed or executed after reset_dt (or without explicit timestamps)
                 closed_batches = [
                     b for b in closed_batches
-                    if b.get('executed_at') and datetime.fromisoformat(b.get('executed_at')) >= reset_dt
-                ]
-                open_batches = [
-                    b for b in open_batches
-                    if b.get('executed_at') and datetime.fromisoformat(b.get('executed_at')) >= reset_dt
+                    if not b.get('executed_at') or (
+                        b.get('closed_at') and datetime.fromisoformat(b.get('closed_at')) >= reset_dt
+                    ) or (
+                        b.get('executed_at') and datetime.fromisoformat(b.get('executed_at')) >= reset_dt
+                    )
                 ]
             except Exception:
                 pass
@@ -473,7 +474,7 @@ class AutonomousTraderEngine:
             # Track per-symbol metrics
             if sym:
                 if sym not in strat_pairs[k]:
-                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'breakevens': 0, 'losses': 0, 'pnl': 0.0}
+                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'breakevens': 0, 'losses': 0, 'active': 0, 'pnl': 0.0}
                 strat_pairs[k][sym]['trades'] += 1
                 strat_pairs[k][sym]['pnl'] += pnl
                 if is_be:
@@ -501,8 +502,9 @@ class AutonomousTraderEngine:
 
             if sym:
                 if sym not in strat_pairs[k]:
-                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'breakevens': 0, 'losses': 0, 'pnl': 0.0}
+                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'breakevens': 0, 'losses': 0, 'active': 0, 'pnl': 0.0}
                 strat_pairs[k][sym]['trades'] += 1
+                strat_pairs[k][sym]['active'] = strat_pairs[k][sym].get('active', 0) + 1
 
         # Calculate Derived Metrics & Health Status
         leaderboard = []
@@ -511,6 +513,7 @@ class AutonomousTraderEngine:
             losses = item['losses']
             bes = item['breakevens']
             closed = item['closed_trades']
+            act_num = item['active_trades']
             net_pnl = round(item['net_pnl'], 2)
             item['net_pnl'] = net_pnl
 
@@ -558,13 +561,20 @@ class AutonomousTraderEngine:
                 be = pstats.get('breakevens', 0)
                 l = pstats.get('losses', 0)
                 t = pstats.get('trades', 0)
+                act_cnt = pstats.get('active', 0)
                 cpnl = round(pstats.get('pnl', 0.0), 2)
-                disp = f"{psym} ({w}W-{be}BE-{l}L)"
+                if act_cnt > 0 and (w > 0 or be > 0 or l > 0):
+                    disp = f"{psym} ({w}W-{be}BE-{l}L | {act_cnt} Active)"
+                elif act_cnt > 0:
+                    disp = f"{psym} ({act_cnt} Active)"
+                else:
+                    disp = f"{psym} ({w}W-{be}BE-{l}L)"
                 pairs_breakdown.append({
                     'symbol': psym,
                     'wins': w,
                     'breakevens': be,
                     'losses': l,
+                    'active': act_cnt,
                     'trades': t,
                     'pnl': cpnl,
                     'display': disp
@@ -581,6 +591,18 @@ class AutonomousTraderEngine:
             # Dynamic Status Badge
             if item['total_trades'] == 0:
                 item['status_badge'] = '💤 Awaiting Fills'
+            elif act_num > 0 and net_pnl > 0 and item['win_rate'] >= 75.0:
+                item['status_badge'] = f'🔥 Elite ({act_num} Active)'
+            elif act_num > 0 and net_pnl > 0:
+                item['status_badge'] = f'🟢 Profitable ({act_num} Active)'
+            elif act_num > 0 and item['closed_trades'] == 0:
+                item['status_badge'] = f'⚡ Active ({act_num} Open)'
+            elif act_num > 0 and bes > 0 and losses == 0:
+                item['status_badge'] = f'🛡️ Guard ({bes} BE | {act_num} Act)'
+            elif act_num > 0 and net_pnl < 0:
+                item['status_badge'] = f'🔴 Drawdown ({act_num} Active)'
+            elif act_num > 0:
+                item['status_badge'] = f'⚡ Active ({act_num} Open)'
             elif net_pnl > 0 and item['win_rate'] >= 75.0:
                 item['status_badge'] = '🔥 Elite Performer'
             elif net_pnl > 0:
