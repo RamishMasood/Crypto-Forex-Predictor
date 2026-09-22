@@ -2256,12 +2256,13 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
                     )
                 sym_bd_html = "".join(pills)
 
+            sym_bd_div = f"<div style='margin-top:3px;'>{sym_bd_html}</div>" if sym_bd_html else ""
             lb_rows.append(
                 f"<tr style='border-bottom:1px solid #1e293b;font-size:0.75rem;font-family:monospace;'>"
                 f"<td style='padding:6px 8px;text-align:center;font-weight:800;'>{rk_disp}</td>"
                 f"<td style='padding:6px 8px;color:#f8fafc;font-weight:600;'>"
                 f"{s_name}"
-                f"{f'<div style=\"margin-top:3px;\">{sym_bd_html}</div>' if sym_bd_html else ''}"
+                f"{sym_bd_div}"
                 f"</td>"
                 f"<td style='padding:6px 8px;text-align:center;color:#cbd5e1;font-weight:700;'>{t_trades}</td>"
                 f"<td style='padding:6px 8px;text-align:center;'><span style='color:#34d399;font-weight:700;'>{w}W</span> - <span style='color:#fbbf24;font-weight:700;'>{be_cnt}BE</span> - <span style='color:#f87171;font-weight:700;'>{l}L</span></td>"
@@ -2893,12 +2894,13 @@ def render_mt5_backtest_engine_view():
                     )
                 sym_bd_html = "".join(pills)
 
+            sym_bd_div = f"<div style='margin-top:4px;'>{sym_bd_html}</div>" if sym_bd_html else ""
             bt_rows_html.append(f"""
             <tr style='{row_bg}border-bottom:1px solid #1e293b;'>
                 <td style='padding:8px 10px;text-align:center;'><span style='{rank_style}'>{rank_disp}</span></td>
                 <td style='padding:8px 10px;font-size:0.83rem;color:#f8fafc;font-weight:600;'>
                     {s_name}
-                    {f"<div style='margin-top:4px;'>{sym_bd_html}</div>" if sym_bd_html else ""}
+                    {sym_bd_div}
                 </td>
                 <td style='padding:8px 10px;text-align:center;font-size:0.82rem;color:#cbd5e1;font-weight:700;'>{t_trades}</td>
                 <td style='padding:8px 10px;text-align:center;font-size:0.78rem;'>
