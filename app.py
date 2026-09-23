@@ -1347,7 +1347,7 @@ def render_mt5_autonomous_engine_view(live_exec):
                 "🔁 Multi-Trades / Same TF",
                 value=bool(settings.get('allow_same_tf_trades', True)),
                 key="auto_cfg_allow_same_tf_trades",
-                help="ON: Allows opening multiple concurrent trades on the same timeframe (e.g. multiple 4h setups). OFF: Restricts to max 1 active batch per timeframe."
+                help="Controls same-timeframe stacking. When combined with Diff Strats:\n• OFF + Diff Strats OFF = HARD BLOCK: max 1 trade per TF, period.\n• OFF + Diff Strats ON = SOFT MODE: only different strategies may trade same TF (engine picks the highest-confidence non-duplicate).\n• ON = Full stacking allowed (Diff Strats toggle then controls same-strategy dedup)."
             )
 
         with cfg_t2:
@@ -1355,7 +1355,7 @@ def render_mt5_autonomous_engine_view(live_exec):
                 "🔀 Diff Strats / Same TF",
                 value=bool(settings.get('allow_diff_strat_same_tf', False)),
                 key="auto_cfg_allow_diff_strat_same_tf",
-                help="ON: Allows multiple concurrent trades on the same timeframe ONLY if they are from different strategies (e.g. ICT + Vivek Yadav on 15m). The SAME strategy cannot take duplicate trades on the same timeframe. OFF: Allows same-strategy stacking if Multi-Trades is ON."
+                help="Only active when Multi-Trades/Same TF is ON. Prevents the SAME strategy from stacking duplicate trades on the same timeframe. Different strategies (e.g. ICT + Vivek Yadav) may still co-exist on the same TF."
             )
 
         with cfg_t3:
@@ -1369,7 +1369,12 @@ def render_mt5_autonomous_engine_view(live_exec):
             )
             be_mode_cfg = 'loose' if loose_be_cfg else 'tight'
 
-        if allow_diff_strat_cfg:
+        # Active combo state caption
+        if not allow_same_tf_cfg and allow_diff_strat_cfg:
+            st.caption("⚠️ **Soft TF Mode**: Multi-Trades OFF + Diff Strats ON → Different strategies are allowed to co-exist on same timeframe. Same strategy cannot duplicate. Turn Diff Strats OFF too for a hard 1-trade-per-TF block.")
+        elif not allow_same_tf_cfg and not allow_diff_strat_cfg:
+            st.caption("🔒 **Hard TF Block**: Both toggles OFF → Strictly 1 active trade per timeframe, regardless of strategy.")
+        elif allow_diff_strat_cfg:
             st.caption("🔀 **Strategy Diversification Active**: Different strategies are allowed to trade on the same timeframe concurrently, but duplicate trades by the same strategy on that timeframe are strictly blocked.")
 
         # Informative active Breakeven mode feedback caption
@@ -1788,7 +1793,13 @@ def render_mt5_autonomous_engine_view(live_exec):
                     act_col = "#00c853" if 'BUY' in b_data.get('action', '') else "#ff1744"
                     be_display = f"{float(b_data['breakeven_sl']):,.4f}" if b_data.get('breakeven_sl') else "-"
                     b_risk = auto_engine.compute_batch_risk(b_data)
-                    strat_lbl = b_data.get('strategy_name') or b_data.get('strategy_used', 'DEFAULT')
+                    raw_strat_name = b_data.get('strategy_name') or ''
+                    strat_key = b_data.get('strategy_used', 'DEFAULT')
+                    if not raw_strat_name or raw_strat_name == 'Streamer Strategy (MT5 Sync)':
+                        # Resolve from AVAILABLE_STRATEGIES using strategy_used key
+                        strat_lbl = AVAILABLE_STRATEGIES.get(strat_key, raw_strat_name or strat_key or 'MT5 Sync')
+                    else:
+                        strat_lbl = raw_strat_name
                     batch_cards_html.append(f"""
                     <div style='background:#0f172a;border-left:4px solid {act_col};border-radius:8px;padding:12px 16px;margin:8px 0;'>
                         <b style='color:#38bdf8;'>Batch #{b_id}</b> &nbsp;|&nbsp; 

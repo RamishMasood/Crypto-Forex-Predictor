@@ -1318,17 +1318,49 @@ class AutonomousTraderEngine:
                             if not pos_tf:
                                 pos_tf = "15m"  # Standard default execution timeframe
 
-                            # Recover strategy name from activity feed
+                            # Recover strategy key & name from activity feed
+                            # Priority 1: "EXECUTING (STRAT_KEY)" status entry — contains key directly
+                            # Priority 2: "EXECUTED (Batch #…)" details entry — contains "[StratName] Entry:" prefix
                             resolved_strat_name = "Streamer Strategy (MT5 Sync)"
                             resolved_strat_key = "STREAMER"
-                            for entry in state.get('scan_activity_log', []):
+                            for entry in reversed(state.get('scan_activity_log', [])):
                                 e_sym = self.normalize_symbol(entry.get('symbol', ''))
-                                det = str(entry.get('details', ''))
-                                if e_sym == norm_s and 'Strategy:' in det:
-                                    try:
-                                        resolved_strat_name = det.split('Strategy:')[1].split('|')[0].strip()
-                                        resolved_strat_key = entry.get('status', '').replace('🎯 Executing (', '').replace(')', '').strip() or 'STREAMER'
+                                if e_sym != norm_s:
+                                    continue
+                                e_status = str(entry.get('status', ''))
+                                e_det = str(entry.get('details', ''))
+                                # Pattern 1: status == "EXECUTING (STRAT_KEY)"
+                                if e_status.startswith('EXECUTING (') and e_status.endswith(')'):
+                                    candidate_key = e_status[len('EXECUTING ('):-1].strip()
+                                    if candidate_key and candidate_key in AVAILABLE_STRATEGIES:
+                                        resolved_strat_key = candidate_key
+                                        resolved_strat_name = AVAILABLE_STRATEGIES[candidate_key]
                                         break
+                                # Pattern 2: details == "[Strategy Name] Entry: …" from EXECUTED log
+                                if 'Entry:' in e_det and e_det.startswith('['):
+                                    try:
+                                        candidate_name = e_det.split(']')[0].lstrip('[').strip()
+                                        if candidate_name:
+                                            resolved_strat_name = candidate_name
+                                            # Reverse-lookup key from AVAILABLE_STRATEGIES
+                                            for k, v in AVAILABLE_STRATEGIES.items():
+                                                if v == candidate_name:
+                                                    resolved_strat_key = k
+                                                    break
+                                            break
+                                    except Exception:
+                                        pass
+                                # Pattern 3: legacy "Strategy: Name | …" in details
+                                if 'Strategy:' in e_det:
+                                    try:
+                                        candidate_name = e_det.split('Strategy:')[1].split('|')[0].strip()
+                                        if candidate_name:
+                                            resolved_strat_name = candidate_name
+                                            for k, v in AVAILABLE_STRATEGIES.items():
+                                                if v == candidate_name:
+                                                    resolved_strat_key = k
+                                                    break
+                                            break
                                     except Exception:
                                         pass
 
@@ -1580,10 +1612,14 @@ class AutonomousTraderEngine:
                     running_strats_on_tf.add(binfo.get('strategy_used', 'DEFAULT'))
                     active_batch_ids_on_tf.append(bid)
 
-            # If multi-trades on same TF are completely disabled (both allow_same_tf and allow_diff_strat are False)
+            # Multi-TF gating — two toggles work in combination:
+            #   allow_same_tf=False + allow_diff_strat=False → hard block ALL same-TF trades (both OFF)
+            #   allow_same_tf=False + allow_diff_strat=True  → allow only DIFFERENT strategies on same TF
+            #                                                   (same-strategy dedup handled further below)
+            #   allow_same_tf=True                           → allow stacking freely (optional same-strat dedup via allow_diff_strat)
             if not allow_same_tf and not allow_diff_strat:
                 if active_batch_ids_on_tf:
-                    logger.info(f"Active batch #{active_batch_ids_on_tf[0]} already running on {symbol} ({tf}). Advancing to next timeframe (same-TF trades disabled).")
+                    logger.info(f"Active batch #{active_batch_ids_on_tf[0]} already running on {symbol} ({tf}). Advancing to next timeframe (Multi-Trades/Same TF disabled, Diff-Strat also OFF).")
                     self._append_activity_log({
                         "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC"),
                         "cycle": cycle,
@@ -1592,7 +1628,7 @@ class AutonomousTraderEngine:
                         "action": "HOLD",
                         "pillars": "-",
                         "status": "SKIPPED (Active Batch on TF)",
-                        "details": f"Batch #{active_batch_ids_on_tf[0]} already open on {symbol} ({tf}) (Same-TF trades disabled)"
+                        "details": f"Batch #{active_batch_ids_on_tf[0]} already open on {symbol} ({tf}) — Multi-Trades/Same TF is OFF"
                     })
                     continue
 
