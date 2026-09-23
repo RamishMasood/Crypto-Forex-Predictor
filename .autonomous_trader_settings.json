@@ -24,18 +24,17 @@
   "max_active_batches": 1000,
   "max_dollar_risk": 15.0,
   "min_pillars_required": 5,
-  "batch_lot_size": 0.04,
+  "batch_lot_size": 0.08,
   "allow_same_tf_trades": false,
-  "allow_diff_strat_same_tf": false,
+  "allow_diff_strat_same_tf": true,
   "breakeven_mode": "tight",
   "active_sessions": [
     "24/7 (Any Session)"
   ],
   "htf_filter_enabled": true,
   "recommended_mode": false,
-  "active_strategy_mode": "DEFAULT",
+  "active_strategy_mode": "VIVEK_YADAV",
   "active_strategies": [
-    "DEFAULT",
     "VIVEK_YADAV",
     "BERND_SKORUPINSKI",
     "ICT",

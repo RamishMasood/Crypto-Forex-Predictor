@@ -1354,35 +1354,53 @@ class AutonomousTraderEngine:
             for batch_id, trade in list(open_batches.items()):
                 batch_tickets = set(trade.get('tickets', []))
                 active_in_batch = batch_tickets.intersection(open_tickets)
-                if not active_in_batch and deals:
+                if not active_in_batch:
                     total_batch_profit = 0.0
                     matched_deal_ids = set()
                     broker_sym = str(trade.get('broker_sym', '')).lower()
                     batch_str_id = str(batch_id)
 
-                    for d in deals:
-                        if d.entry != 1:  # MT5 entry==1 indicates position exit/close deal
-                            continue
-                        deal_id = int(getattr(d, 'ticket', 0) or 0)
-                        if deal_id in matched_deal_ids:
-                            continue
+                    # 1. Primary MT5 Position Query: Query deals directly for each ticket
+                    for t in batch_tickets:
+                        try:
+                            pos_deals = mt5.history_deals_get(position=int(t))
+                            if pos_deals:
+                                for d in pos_deals:
+                                    if d.entry == 1:  # Exit/close deal
+                                        deal_id = int(getattr(d, 'ticket', 0) or 0)
+                                        if deal_id not in matched_deal_ids:
+                                            pnl_contrib = float(d.profit) + float(getattr(d, 'swap', 0.0) or 0.0) + float(getattr(d, 'commission', 0.0) or 0.0)
+                                            total_batch_profit += pnl_contrib
+                                            matched_deal_ids.add(deal_id)
+                        except Exception as e_pos:
+                            logger.debug(f"Direct position deals query error for ticket {t}: {e_pos}")
 
-                        deal_order = int(getattr(d, 'order', 0) or 0)
-                        deal_pos_id = int(getattr(d, 'position_id', 0) or 0)
-                        deal_comment = str(getattr(d, 'comment', ''))
+                    # 2. Fallback: Check general window deals if direct position query returned nothing
+                    if not matched_deal_ids and deals:
+                        for d in deals:
+                            if d.entry != 1:  # Exit deal
+                                continue
+                            deal_id = int(getattr(d, 'ticket', 0) or 0)
+                            if deal_id in matched_deal_ids:
+                                continue
 
-                        # 1. Primary match: order ticket or position_id matches stored tickets (works for 1, 2, or 3 tickets)
-                        direct_match = bool((deal_order and deal_order in batch_tickets) or (deal_pos_id and deal_pos_id in batch_tickets))
-                        # 2. Comment tag match fallback: comment contains batch_id (e.g. QS_<batch_id>_)
-                        comment_match = bool(f"_{batch_str_id}_" in deal_comment or f"QS_{batch_str_id}" in deal_comment)
+                            deal_order = int(getattr(d, 'order', 0) or 0)
+                            deal_pos_id = int(getattr(d, 'position_id', 0) or 0)
+                            deal_comment = str(getattr(d, 'comment', ''))
 
-                        if direct_match or comment_match:
-                            # Full PnL accounting: profit + swap + commission
-                            pnl_contrib = float(d.profit) + float(getattr(d, 'swap', 0.0) or 0.0) + float(getattr(d, 'commission', 0.0) or 0.0)
-                            total_batch_profit += pnl_contrib
-                            matched_deal_ids.add(deal_id)
+                            direct_match = bool((deal_order and deal_order in batch_tickets) or (deal_pos_id and deal_pos_id in batch_tickets))
+                            comment_match = bool(f"_{batch_str_id}_" in deal_comment or f"QS_{batch_str_id}" in deal_comment)
 
-                    # Dynamic outcome classification:
+                            if direct_match or comment_match:
+                                pnl_contrib = float(d.profit) + float(getattr(d, 'swap', 0.0) or 0.0) + float(getattr(d, 'commission', 0.0) or 0.0)
+                                total_batch_profit += pnl_contrib
+                                matched_deal_ids.add(deal_id)
+
+                    # If no exit deals found yet in MT5, position might still be executing close; wait next cycle
+                    if not matched_deal_ids:
+                        continue
+
+                    # Exact outcome classification directly mirroring MetaTrader5 result:
                     # Clear profit (> +$0.15) = WIN
                     # Clear loss (< -$0.15) = LOSS
                     # Minimal dust/scratch (within +/- $0.15) = BREAKEVEN
@@ -1393,12 +1411,11 @@ class AutonomousTraderEngine:
                     else:
                         outcome = 'BREAKEVEN'
 
-                    logger.info(f"Batch #{batch_id} ({trade['symbol']}) Completed: {outcome} | PnL: ${total_batch_profit:+.2f} ({len(matched_deal_ids)} deals matched)")
+                    logger.info(f"Batch #{batch_id} ({trade['symbol']}) Completed: {outcome} | PnL: ${total_batch_profit:+.2f} ({len(matched_deal_ids)} deals matched in MT5)")
 
                     # Global stats & Active Reinforcement Learning Loop
                     if outcome == 'WIN':
                         state['wins'] = state.get('wins', 0) + 1
-                        # Adaptive reinforcement: On consistent wins, stabilize threshold towards Bayesian baseline 82%
                         opt = journal.get('optimal_adjustments', {})
                         if float(opt.get('min_calibrated_prob', 82.0)) > 82.0:
                             opt['min_calibrated_prob'] = round(max(72.0, float(opt.get('min_calibrated_prob', 82.0)) - 0.5), 1)
@@ -1494,8 +1511,66 @@ class AutonomousTraderEngine:
                         "details": f"PnL: ${total_batch_profit:+.2f} | Tickets: {trade.get('tickets')}"
                     })
 
-            # Historical deals are never injected into current live session stats.
-            # Live session counters (wins/losses/symbol_stats) strictly reflect trades executed during this session.
+            # Continuous Live Reconciliation: Verify and re-sync all closed_batches directly with MT5 deal history
+            closed_batches_list = state.get('closed_batches', [])
+            closed_modified = False
+            for cb in closed_batches_list:
+                cb_tkts = cb.get('tickets', [])
+                if not cb_tkts:
+                    continue
+                real_deals = []
+                for t in cb_tkts:
+                    try:
+                        pos_d = mt5.history_deals_get(position=int(t))
+                        if pos_d:
+                            real_deals.extend([d for d in pos_d if d.entry == 1])
+                    except Exception:
+                        pass
+                if real_deals:
+                    real_pnl = round(sum(float(d.profit) + float(getattr(d, 'swap', 0.0) or 0.0) + float(getattr(d, 'commission', 0.0) or 0.0) for d in real_deals), 2)
+                    if real_pnl > 0.15:
+                        real_status = 'WIN'
+                    elif real_pnl < -0.15:
+                        real_status = 'LOSS'
+                    else:
+                        real_status = 'BREAKEVEN'
+                    
+                    if abs(float(cb.get('profit', 0.0)) - real_pnl) > 0.01 or cb.get('status') != real_status:
+                        logger.info(f"Reconciling Batch #{cb.get('batch_id')} ({cb.get('symbol')}) with MT5: PnL {cb.get('profit')} -> ${real_pnl:.2f} | Status {cb.get('status')} -> {real_status}")
+                        cb['profit'] = real_pnl
+                        cb['status'] = real_status
+                        closed_modified = True
+
+            if closed_modified:
+                # Re-calculate symbol_stats and global wins/losses/breakevens from verified closed batches
+                re_sym_stats = {}
+                re_w = 0
+                re_l = 0
+                re_be = 0
+                for cb in closed_batches_list:
+                    s = cb.get('symbol', 'UNKNOWN')
+                    p = float(cb.get('profit', 0.0))
+                    stt = cb.get('status', 'BREAKEVEN')
+                    if s not in re_sym_stats:
+                        re_sym_stats[s] = {'wins': 0, 'losses': 0, 'breakevens': 0, 'completed': 0, 'total_profit': 0.0}
+                    re_sym_stats[s]['completed'] += 1
+                    re_sym_stats[s]['total_profit'] = round(re_sym_stats[s]['total_profit'] + p, 2)
+                    if stt == 'WIN':
+                        re_w += 1
+                        re_sym_stats[s]['wins'] += 1
+                    elif stt == 'LOSS':
+                        re_l += 1
+                        re_sym_stats[s]['losses'] += 1
+                    else:
+                        re_be += 1
+                        re_sym_stats[s]['breakevens'] += 1
+                
+                state['closed_batches'] = closed_batches_list
+                state['symbol_stats'] = re_sym_stats
+                state['wins'] = re_w
+                state['losses'] = re_l
+                state['breakevens'] = re_be
+                state_changed = True
 
             if state_changed:
                 state['open_batches'] = open_batches

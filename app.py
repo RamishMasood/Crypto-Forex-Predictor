@@ -2587,32 +2587,34 @@ def render_mt5_backtest_engine_view():
 
     # 4. Risk & Geometry Controls
     st.markdown("##### 🛡️ Risk, Geometry & Execution Rules:")
-    rc1, rc2, rc3, rc4 = st.columns(4)
+    rc1, rc2, rc3, rc4, rc5, rc6 = st.columns([1.2, 1.2, 1.1, 1.1, 1.1, 1.1])
     with rc1:
-        sel_min_pillars = st.selectbox(
-            "🏛️ Minimum Pillars Gate:",
-            options=[3, 4, 5],
-            index=[3, 4, 5].index(bt_settings.get('min_pillars_required', 5)) if bt_settings.get('min_pillars_required', 5) in [3, 4, 5] else 2,
-            key="bt_min_pillars_input"
+        sel_target_trades = st.number_input(
+            "🎯 Target Batches / Pair:",
+            min_value=0,
+            max_value=1000,
+            value=int(bt_settings.get('target_trades_per_symbol', 10)),
+            step=1,
+            key="bt_target_trades_input",
+            help="Target completed batches per pair (e.g. 10, 20, 50). Set to 0 for unlimited historical simulation."
         )
     with rc2:
-        sel_lot_size = st.number_input(
-            "📦 Batch Lot Size:",
-            min_value=0.01,
-            max_value=50.0,
-            value=float(bt_settings.get('batch_lot_size', 0.03)),
-            step=0.01,
-            format="%.2f",
-            key="bt_batch_lot_input"
+        sel_min_pillars = st.selectbox(
+            "🏛️ Execution Pillar Threshold:",
+            options=[3, 4, 5],
+            index=[3, 4, 5].index(bt_settings.get('min_pillars_required', 5)) if bt_settings.get('min_pillars_required', 5) in [3, 4, 5] else 2,
+            key="bt_min_pillars_input",
+            help="Minimum pillar gate required to execute trade setups."
         )
     with rc3:
-        sel_max_risk = st.number_input(
-            "🛡️ Max Risk Cap ($ USD):",
-            min_value=0.0,
-            max_value=5000.0,
-            value=float(bt_settings.get('max_dollar_risk', 50.0)),
-            step=5.0,
-            key="bt_max_risk_input"
+        sel_scan_delay = st.number_input(
+            "⏱️ Scan Delay (Min):",
+            min_value=0.25,
+            max_value=60.0,
+            value=float(bt_settings.get('scan_delay_mins', 3.0)),
+            step=0.5,
+            key="bt_scan_delay_input",
+            help="Simulated scan delay between timeframe checks (synced with Autonomous interval)."
         )
     with rc4:
         sel_max_batches = st.number_input(
@@ -2621,7 +2623,29 @@ def render_mt5_backtest_engine_view():
             max_value=100,
             value=int(bt_settings.get('max_active_batches', 5)),
             step=1,
-            key="bt_max_batches_input"
+            key="bt_max_batches_input",
+            help="Maximum concurrent running trade batches allowed simultaneously."
+        )
+    with rc5:
+        sel_max_risk = st.number_input(
+            "🛡️ Max Risk Cap ($ USD):",
+            min_value=0.0,
+            max_value=5000.0,
+            value=float(bt_settings.get('max_dollar_risk', 50.0)),
+            step=5.0,
+            key="bt_max_risk_input",
+            help="Maximum dollar risk cap per batch. Trades exceeding this cap are scaled down or skipped."
+        )
+    with rc6:
+        sel_lot_size = st.number_input(
+            "📦 Batch Lot Size:",
+            min_value=0.01,
+            max_value=50.0,
+            value=float(bt_settings.get('batch_lot_size', 0.03)),
+            step=0.01,
+            format="%.2f",
+            key="bt_batch_lot_input",
+            help="Total batch lot size (0.03 = 0.01 on TP1/TP2/TP3. For pairs with higher min like ETH 0.10, auto-takes min and closes at TP1)."
         )
 
     # Toggles
@@ -2707,6 +2731,8 @@ def render_mt5_backtest_engine_view():
             bt_settings['date_from'] = sel_date_from.isoformat()
             bt_settings['date_to'] = sel_date_to.isoformat()
             bt_settings['initial_balance'] = sel_initial_bal
+            bt_settings['target_trades_per_symbol'] = sel_target_trades
+            bt_settings['scan_delay_mins'] = sel_scan_delay
             bt_settings['batch_lot_size'] = sel_lot_size
             bt_settings['max_dollar_risk'] = sel_max_risk
             bt_settings['max_active_batches'] = sel_max_batches

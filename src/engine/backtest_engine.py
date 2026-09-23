@@ -170,6 +170,8 @@ class MT5BacktestEngine:
             "date_from": six_months_ago.strftime("%Y-%m-%d"),
             "date_to": now.strftime("%Y-%m-%d"),
             "initial_balance": 10000.0,
+            "target_trades_per_symbol": 10,
+            "scan_delay_mins": 3.0,
             "batch_lot_size": 0.03,
             "max_active_batches": 5,
             "max_dollar_risk": 50.0,
@@ -258,20 +260,30 @@ class MT5BacktestEngine:
         return 100.0
 
     @staticmethod
+    def compute_symbol_vol_min(symbol: str) -> float:
+        """Determines minimum broker lot size for symbol (e.g. 0.10 for ETH, 0.01 for others)."""
+        sym = str(symbol).upper().replace("/", "").replace("_", "")
+        if 'ETH' in sym:
+            return 0.10
+        return 0.01
+
+    @staticmethod
     def compute_batch_lot_split(batch_lot_size: float, vol_min: float = 0.01, vol_step: float = 0.01) -> Tuple[float, float, float]:
         """
         Exact institutional lot allocation matching Autonomous MT5 Executor:
-        - 0.03 lots: TP1=0.01, TP2=0.01, TP3=0.01
-        - 0.02 lots: TP1=0.01, TP2=0.01, TP3=0.00
-        - 0.01 lots: TP1=0.01, TP2=0.00, TP3=0.00
-        - >0.03 lots: TP1 gets major share (65% to bank high-probability win),
+        - 0.03 lots: TP1=0.01, TP2=0.01, TP3=0.01 (3 * vol_min)
+        - 0.02 lots: TP1=0.01, TP2=0.01, TP3=0.00 (2 * vol_min)
+        - 0.01 lots: TP1=0.01, TP2=0.00, TP3=0.00 (1 * vol_min)
+        - Pairs with higher minimums (e.g. ETH min 0.10): If batch_lot_size < 2*vol_min (e.g. 0.03 or 0.10),
+          takes vol_min (0.10) and closes 100% at TP1 (TP1=0.10, TP2=0, TP3=0).
+        - >3*vol_min lots: TP1 gets major share (65% to bank high-probability win),
           with remainder split between TP2 (60%) and TP3 (40%).
         """
         total_lots = max(vol_min, round(round(batch_lot_size / vol_step) * vol_step, 4))
         if abs(total_lots - round(3 * vol_min, 4)) < 1e-5:
-            lot1 = round(2 * vol_min, 4)
+            lot1 = round(vol_min, 4)
             lot2 = round(vol_min, 4)
-            lot3 = 0.0
+            lot3 = round(vol_min, 4)
         elif abs(total_lots - round(2 * vol_min, 4)) < 1e-5:
             lot1 = round(vol_min, 4)
             lot2 = round(vol_min, 4)
@@ -376,6 +388,8 @@ class MT5BacktestEngine:
         max_active_batches = int(cfg.get('max_active_batches', 5))
         max_dollar_risk = float(cfg.get('max_dollar_risk', 50.0))
         min_pillars = int(cfg.get('min_pillars_required', 5))
+        target_trades_per_symbol = int(cfg.get('target_trades_per_symbol', 0))
+        scan_delay_mins = float(cfg.get('scan_delay_mins', 3.0))
         allow_same_tf = bool(cfg.get('allow_same_tf_trades', False))
         allow_diff_strat = bool(cfg.get('allow_diff_strat_same_tf', True))
         breakeven_mode = str(cfg.get('breakeven_mode', 'tight')).lower()
@@ -482,6 +496,7 @@ class MT5BacktestEngine:
         closed_batches: List[Dict[str, Any]] = []
         equity_curve: List[Tuple[str, float]] = []
         strat_trade_counts: Dict[str, int] = {k: 0 for k in strategies}
+        trades_by_symbol: Dict[str, int] = {s: 0 for s in symbols}
         latest_prices: Dict[str, float] = {}
 
         # Trade ID sequence
@@ -759,6 +774,11 @@ class MT5BacktestEngine:
             # Filter 1: Max active batches limit
             can_open = len(open_batches) < max_active_batches
 
+            # Filter 1b: Target Batches / Trades per pair reached
+            if can_open and target_trades_per_symbol > 0:
+                if trades_by_symbol.get(sym, 0) >= target_trades_per_symbol:
+                    can_open = False
+
             if can_open:
                 # Filter 2: Same TF and Strategy Stacking Rules
                 batches_on_sym_tf = [b for b in open_batches if b['symbol'] == sym and b['timeframe'] == tf]
@@ -926,8 +946,11 @@ class MT5BacktestEngine:
                                 c_tp2 = setup_tp2 if (setup_tp2 > 0 and setup_tp2 < c_entry) else (c_entry - (1.15 * sl_dist))
                                 c_tp3 = setup_tp3 if (setup_tp3 > 0 and setup_tp3 < c_entry) else (c_entry - (2.20 * sl_dist))
 
+                        # Determine symbol minimum volume (e.g. 0.10 for ETH, 0.01 for others)
+                        sym_vol_min = self.compute_symbol_vol_min(sym)
+
                         # Lot Split (Exact 65% TP1, 60% of rem on TP2, rem on TP3 matching Autonomous Executor)
-                        effective_batch_lot = batch_lot_size
+                        effective_batch_lot = max(sym_vol_min, batch_lot_size)
                         unit_risk = sl_dist * contract_size
                         if is_jpy and cur_close > 0:
                             unit_risk /= cur_close
@@ -936,10 +959,10 @@ class MT5BacktestEngine:
                         if max_dollar_risk > 0 and unit_risk > 0:
                             allowed_lots = max_dollar_risk / unit_risk
                             if effective_batch_lot > allowed_lots:
-                                # Scale down to fit dollar risk cap (round down to 0.01 step)
-                                effective_batch_lot = max(0.01, round(int(allowed_lots / 0.01) * 0.01, 2))
+                                # Scale down to fit dollar risk cap (round down to vol_step)
+                                effective_batch_lot = max(sym_vol_min, round(int(allowed_lots / sym_vol_min) * sym_vol_min, 4))
 
-                        lot_p1, lot_p2, lot_p3 = self.compute_batch_lot_split(effective_batch_lot)
+                        lot_p1, lot_p2, lot_p3 = self.compute_batch_lot_split(effective_batch_lot, vol_min=sym_vol_min, vol_step=sym_vol_min)
                         tot_lots = round(lot_p1 + lot_p2 + lot_p3, 4)
 
                         # Calculate Dollar Risk with effective lots
@@ -979,6 +1002,7 @@ class MT5BacktestEngine:
                             }
                             open_batches.append(new_batch)
                             strat_trade_counts[c_strat_key] = strat_trade_counts.get(c_strat_key, 0) + 1
+                            trades_by_symbol[sym] = trades_by_symbol.get(sym, 0) + 1
                             next_trade_id += 1
 
             # ── C. Track Equity & Drawdown ────────────────────────────────────
