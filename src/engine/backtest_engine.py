@@ -560,21 +560,38 @@ class MT5BacktestEngine:
                     # ── Check Strategy-Specific Breakeven / Trailing Trigger (Matching MT5Executor) ──
                     profit_dist = cur_high - entry_p
                     tp2_dist = tp2_p - entry_p if tp2_p > entry_p else (1.15 * (entry_p - sl_p))
+                    tp1_dist = tp1_p - entry_p if tp1_p > entry_p else (0.38 * cur_atr)
 
                     should_trigger_be = False
                     new_be_sl = None
 
-                    if b['tp1_hit']:
-                        should_trigger_be = True
-                        if profit_dist >= (0.50 * tp2_dist):
-                            new_be_sl = entry_p + (0.20 * cur_atr) # Lock in profit on runner
-                        elif be_mode == 'loose':
-                            if profit_dist >= (0.85 * cur_atr):
-                                new_be_sl = entry_p + (0.02 * cur_atr) # Stage 2: Hard BE once expansion proven
+                    # Strategy-specific early breakeven triggers matching MT5Executor:
+                    if be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be']:
+                        if b['tp1_hit'] or (entry_p > 0 and profit_dist / entry_p >= 0.0005) or profit_dist >= (0.38 * cur_atr):
+                            should_trigger_be = True
+                            new_be_sl = entry_p
+                    elif be_mode in ['trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be', 'gcr_cycle_be', 'delta_neutral_spread_be', 'atr_buffer_be']:
+                        if b['tp1_hit'] or profit_dist >= (0.50 * tp2_dist) or profit_dist >= (0.95 * tp1_dist):
+                            should_trigger_be = True
+                            new_be_sl = entry_p
+                    elif be_mode in ['fixed_rr_target', 'none', 'hold_target']:
+                        # Only moves to BE if TP1 was specifically banked
+                        if b['tp1_hit']:
+                            should_trigger_be = True
+                            new_be_sl = entry_p
+                    else:
+                        # Standard & Loose BE Modes
+                        if b['tp1_hit']:
+                            should_trigger_be = True
+                            if profit_dist >= (0.50 * tp2_dist):
+                                new_be_sl = entry_p + (0.20 * cur_atr) # Lock in profit on runner
+                            elif be_mode == 'loose':
+                                if profit_dist >= (0.85 * cur_atr):
+                                    new_be_sl = entry_p + (0.02 * cur_atr) # Stage 2: Hard BE once expansion proven
+                                else:
+                                    new_be_sl = entry_p - (0.45 * cur_atr) # Stage 1: Soft risk reduction buffer
                             else:
-                                new_be_sl = entry_p - (0.45 * cur_atr) # Stage 1: Soft risk reduction buffer
-                        else:
-                            new_be_sl = entry_p # Risk-free breakeven for runner
+                                new_be_sl = entry_p # Risk-free breakeven for runner
 
                     if should_trigger_be and new_be_sl is not None:
                         if new_be_sl > b['sl_price']:
@@ -589,11 +606,11 @@ class MT5BacktestEngine:
                             exit_pnl /= cur_close
                         b['accumulated_pnl'] += exit_pnl
                         closed_this_bar = True
-                        if b['accumulated_pnl'] > 0.15:
-                            b['status'] = "WIN"
-                            exit_reason = "TP1_BANKED_BE_EXIT" if b['tp1_hit'] else "BREAKEVEN_PROFIT"
-                        elif b['is_breakeven'] or abs(b['accumulated_pnl']) <= 0.15:
-                            exit_reason = "BREAKEVEN_SL"
+                        if b['is_breakeven'] or abs(b['accumulated_pnl']) <= 0.15:
+                            exit_reason = "TP1_BANKED_BE_EXIT" if b['tp1_hit'] else "BREAKEVEN_SL"
+                            b['status'] = "BREAKEVEN"
+                        elif b['accumulated_pnl'] > 0.15:
+                            exit_reason = "BREAKEVEN_PROFIT"
                             b['status'] = "BREAKEVEN"
                         else:
                             exit_reason = "FULL_SL"
@@ -660,21 +677,38 @@ class MT5BacktestEngine:
                 else:
                     profit_dist = entry_p - cur_low
                     tp2_dist = entry_p - tp2_p if (tp2_p > 0 and tp2_p < entry_p) else (1.15 * (sl_p - entry_p))
+                    tp1_dist = entry_p - tp1_p if (tp1_p > 0 and tp1_p < entry_p) else (0.38 * cur_atr)
 
                     should_trigger_be = False
                     new_be_sl = None
 
-                    if b['tp1_hit']:
-                        should_trigger_be = True
-                        if profit_dist >= (0.50 * tp2_dist):
-                            new_be_sl = entry_p - (0.20 * cur_atr) # Lock in profit on runner
-                        elif be_mode == 'loose':
-                            if profit_dist >= (0.85 * cur_atr):
-                                new_be_sl = entry_p - (0.02 * cur_atr) # Stage 2: Hard BE once expansion proven
+                    # Strategy-specific early breakeven triggers matching MT5Executor:
+                    if be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be']:
+                        if b['tp1_hit'] or (entry_p > 0 and profit_dist / entry_p >= 0.0005) or profit_dist >= (0.38 * cur_atr):
+                            should_trigger_be = True
+                            new_be_sl = entry_p
+                    elif be_mode in ['trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be', 'gcr_cycle_be', 'delta_neutral_spread_be', 'atr_buffer_be']:
+                        if b['tp1_hit'] or profit_dist >= (0.50 * tp2_dist) or profit_dist >= (0.95 * tp1_dist):
+                            should_trigger_be = True
+                            new_be_sl = entry_p
+                    elif be_mode in ['fixed_rr_target', 'none', 'hold_target']:
+                        # Only moves to BE if TP1 was specifically banked
+                        if b['tp1_hit']:
+                            should_trigger_be = True
+                            new_be_sl = entry_p
+                    else:
+                        # Standard & Loose BE Modes
+                        if b['tp1_hit']:
+                            should_trigger_be = True
+                            if profit_dist >= (0.50 * tp2_dist):
+                                new_be_sl = entry_p - (0.20 * cur_atr) # Lock in profit on runner
+                            elif be_mode == 'loose':
+                                if profit_dist >= (0.85 * cur_atr):
+                                    new_be_sl = entry_p - (0.02 * cur_atr) # Stage 2: Hard BE once expansion proven
+                                else:
+                                    new_be_sl = entry_p + (0.45 * cur_atr) # Stage 1: Soft risk reduction buffer
                             else:
-                                new_be_sl = entry_p + (0.45 * cur_atr) # Stage 1: Soft risk reduction buffer
-                        else:
-                            new_be_sl = entry_p # Risk-free breakeven for runner
+                                new_be_sl = entry_p # Risk-free breakeven for runner
 
                     if should_trigger_be and new_be_sl is not None:
                         if b['sl_price'] <= 0 or new_be_sl < b['sl_price']:
@@ -689,11 +723,11 @@ class MT5BacktestEngine:
                             exit_pnl /= cur_close
                         b['accumulated_pnl'] += exit_pnl
                         closed_this_bar = True
-                        if b['accumulated_pnl'] > 0.15:
-                            b['status'] = "WIN"
-                            exit_reason = "TP1_BANKED_BE_EXIT" if b['tp1_hit'] else "BREAKEVEN_PROFIT"
-                        elif b['is_breakeven'] or abs(b['accumulated_pnl']) <= 0.15:
-                            exit_reason = "BREAKEVEN_SL"
+                        if b['is_breakeven'] or abs(b['accumulated_pnl']) <= 0.15:
+                            exit_reason = "TP1_BANKED_BE_EXIT" if b['tp1_hit'] else "BREAKEVEN_SL"
+                            b['status'] = "BREAKEVEN"
+                        elif b['accumulated_pnl'] > 0.15:
+                            exit_reason = "BREAKEVEN_PROFIT"
                             b['status'] = "BREAKEVEN"
                         else:
                             exit_reason = "FULL_SL"
@@ -1158,9 +1192,22 @@ class MT5BacktestEngine:
 
         # 5. Compute Detailed Analytics & Strategy Leaderboard
         total_trades = len(closed_batches)
-        wins = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15 or b.get('status') == 'WIN')
-        losses = sum(1 for b in closed_batches if b.get('profit', 0.0) < -0.15 and b.get('status') == 'LOSS')
-        breakevens = sum(1 for b in closed_batches if abs(b.get('profit', 0.0)) <= 0.15)
+        def _is_batch_be(batch_obj):
+            st = str(batch_obj.get('status', '')).upper()
+            ex = str(batch_obj.get('exit_reason', '')).upper()
+            p = float(batch_obj.get('profit', 0.0))
+            return (
+                st in ['BREAKEVEN', 'BE'] or
+                'BREAKEVEN' in st or
+                'BREAKEVEN' in ex or
+                ex in ['TP1_BANKED_BE_EXIT', 'BREAKEVEN_SL', 'BREAKEVEN_PROFIT'] or
+                (batch_obj.get('is_breakeven') and 'SL' in ex) or
+                (abs(p) <= 0.15 and st != 'LOSS')
+            )
+
+        wins = sum(1 for b in closed_batches if not _is_batch_be(b) and (b.get('profit', 0.0) > 0.15 or b.get('status') == 'WIN'))
+        losses = sum(1 for b in closed_batches if not _is_batch_be(b) and (b.get('profit', 0.0) < -0.15 or b.get('status') == 'LOSS'))
+        breakevens = sum(1 for b in closed_batches if _is_batch_be(b))
         win_rate = round((wins / max(wins + losses, 1)) * 100.0, 1) if (wins + losses) > 0 else 0.0
 
         gross_profit = sum(b.get('profit', 0) for b in closed_batches if b.get('profit', 0) > 0)
@@ -1274,7 +1321,22 @@ class MT5BacktestEngine:
             stats_map[k]['total_trades'] += 1
             stats_map[k]['net_pnl'] += pnl
 
-            if pnl > 0.15 or stt == 'WIN':
+            is_be = (
+                stt in ['BREAKEVEN', 'BE'] or
+                'BREAKEVEN' in stt or
+                'BREAKEVEN' in exit_r.upper() or
+                exit_r.upper() in ['TP1_BANKED_BE_EXIT', 'BREAKEVEN_SL', 'BREAKEVEN_PROFIT'] or
+                (b.get('is_breakeven') and 'SL' in exit_r.upper()) or
+                (abs(pnl) <= 0.15 and stt != 'LOSS')
+            )
+
+            if is_be:
+                stats_map[k]['breakevens'] += 1
+                if pnl > 0:
+                    stats_map[k]['gross_profit'] += pnl
+                elif pnl < 0:
+                    stats_map[k]['gross_loss'] += abs(pnl)
+            elif pnl > 0.15 or stt == 'WIN':
                 stats_map[k]['wins'] += 1
                 stats_map[k]['gross_profit'] += pnl
                 # Track TP hits from exit_reason
@@ -1305,7 +1367,7 @@ class MT5BacktestEngine:
                     strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
                 strat_tfs[k][tf]['trades'] += 1
                 strat_tfs[k][tf]['pnl'] += pnl
-                if stt == 'WIN':
+                if not is_be and stt == 'WIN':
                     strat_tfs[k][tf]['wins'] += 1
 
             if sym:
@@ -1313,14 +1375,16 @@ class MT5BacktestEngine:
                     strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
                 strat_pairs[k][sym]['trades'] += 1
                 strat_pairs[k][sym]['pnl'] += pnl
-                if stt == 'WIN':
+                if not is_be and stt == 'WIN':
                     strat_pairs[k][sym]['wins'] += 1
 
                 # Per-symbol detailed breakdown (wins / losses / breakevens / pnl per symbol per strategy)
                 if sym not in strat_sym_breakdown[k]:
                     strat_sym_breakdown[k][sym] = {'wins': 0, 'losses': 0, 'breakevens': 0, 'pnl': 0.0}
                 strat_sym_breakdown[k][sym]['pnl'] += pnl
-                if pnl > 0.15 or stt == 'WIN':
+                if is_be:
+                    strat_sym_breakdown[k][sym]['breakevens'] += 1
+                elif pnl > 0.15 or stt == 'WIN':
                     strat_sym_breakdown[k][sym]['wins'] += 1
                 elif pnl < -0.15 or stt == 'LOSS':
                     strat_sym_breakdown[k][sym]['losses'] += 1
