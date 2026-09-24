@@ -392,30 +392,60 @@
   "wins": 3,
   "losses": 2,
   "breakevens": 3,
-  "last_scan_time": "2026-09-24T02:47:51.861703+00:00",
+  "last_scan_time": "2026-09-24T02:56:37.134494+00:00",
   "last_scanned_symbol": null,
   "engine_status": "RUNNING",
-  "cycle_count": 2,
+  "cycle_count": 9,
   "current_scan": {
-    "cycle": 2,
-    "symbol": "ETH/USD",
-    "timeframe": "1m",
-    "time": "02:48:43 UTC"
+    "cycle": 9,
+    "symbol": "XAG/USD",
+    "timeframe": "1h",
+    "time": "02:56:57 UTC"
   },
   "scan_activity_log": [
     {
-      "timestamp": "02:48:49 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "1m",
+      "timestamp": "02:56:57 UTC",
+      "cycle": 9,
+      "symbol": "EUR/USD",
+      "timeframe": "15m",
       "action": "NEUTRAL",
-      "pillars": "2/5",
+      "pillars": "1/5",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:48:47 UTC",
-      "cycle": 2,
+      "timestamp": "02:56:57 UTC",
+      "cycle": 9,
+      "symbol": "XAG/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:55 UTC",
+      "cycle": 9,
+      "symbol": "GBP/AUD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/4",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:53 UTC",
+      "cycle": 9,
+      "symbol": "XAU/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:50 UTC",
+      "cycle": 9,
       "symbol": "BTC/USD",
       "timeframe": "1h",
       "action": "STRONG BUY",
@@ -424,138 +454,68 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:48:43 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:42 UTC",
-      "cycle": 2,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "02:48:39 UTC",
-      "cycle": 2,
-      "symbol": "USD/CHF",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:38 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.6)"
-    },
-    {
-      "timestamp": "02:48:38 UTC",
-      "cycle": 2,
-      "symbol": "USD/CHF",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:36 UTC",
-      "cycle": 2,
-      "symbol": "BTC/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:35 UTC",
-      "cycle": 2,
-      "symbol": "USD/CHF",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:34 UTC",
-      "cycle": 2,
-      "symbol": "USD/CHF",
-      "timeframe": "5m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.5)"
-    },
-    {
-      "timestamp": "02:48:32 UTC",
-      "cycle": 2,
-      "symbol": "USD/CHF",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:30 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "02:48:29 UTC",
-      "cycle": 2,
-      "symbol": "USD/CHF",
-      "timeframe": "1h",
-      "action": "BUY",
-      "pillars": "4/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:29 UTC",
-      "cycle": 2,
-      "symbol": "BTC/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:28 UTC",
-      "cycle": 2,
+      "timestamp": "02:56:49 UTC",
+      "cycle": 9,
       "symbol": "EUR/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
+      "timeframe": "1m",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "1/5",
       "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.2)"
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "02:48:28 UTC",
-      "cycle": 2,
+      "timestamp": "02:56:48 UTC",
+      "cycle": 9,
+      "symbol": "XAG/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:48 UTC",
+      "cycle": 9,
+      "symbol": "GBP/AUD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/4",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:47 UTC",
+      "cycle": 9,
+      "symbol": "XAU/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:46 UTC",
+      "cycle": 9,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
+    },
+    {
+      "timestamp": "02:56:43 UTC",
+      "cycle": 9,
+      "symbol": "EUR/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:42 UTC",
+      "cycle": 9,
       "symbol": "GBP/AUD",
       "timeframe": "1h",
       "action": "HOLD",
@@ -564,8 +524,138 @@
       "details": "Strategy BERND_SKORUPINSKI already active on GBP/AUD (1h). (Diff Strats Only Mode)"
     },
     {
-      "timestamp": "02:48:26 UTC",
-      "cycle": 2,
+      "timestamp": "02:56:41 UTC",
+      "cycle": 9,
+      "symbol": "XAG/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:34 UTC",
+      "cycle": 8,
+      "symbol": "ETH/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:31 UTC",
+      "cycle": 8,
+      "symbol": "BTC/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:27 UTC",
+      "cycle": 8,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (16.9)"
+    },
+    {
+      "timestamp": "02:56:26 UTC",
+      "cycle": 8,
+      "symbol": "USD/CHF",
+      "timeframe": "1m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "02:56:24 UTC",
+      "cycle": 8,
+      "symbol": "USD/CHF",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:23 UTC",
+      "cycle": 8,
+      "symbol": "BTC/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "02:56:22 UTC",
+      "cycle": 8,
+      "symbol": "USD/CHF",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:21 UTC",
+      "cycle": 8,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
+    },
+    {
+      "timestamp": "02:56:20 UTC",
+      "cycle": 8,
+      "symbol": "USD/CHF",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:18 UTC",
+      "cycle": 8,
+      "symbol": "USD/CHF",
+      "timeframe": "1h",
+      "action": "BUY",
+      "pillars": "4/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:16 UTC",
+      "cycle": 8,
+      "symbol": "BTC/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:15 UTC",
+      "cycle": 8,
+      "symbol": "EUR/USD",
+      "timeframe": "4h",
+      "action": "SELL",
+      "pillars": "4/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:14 UTC",
+      "cycle": 8,
       "symbol": "USD/CHF",
       "timeframe": "30m",
       "action": "NEUTRAL",
@@ -574,48 +664,8 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "02:48:25 UTC",
-      "cycle": 2,
-      "symbol": "EUR/USD",
-      "timeframe": "4h",
-      "action": "SELL",
-      "pillars": "4/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:24 UTC",
-      "cycle": 2,
-      "symbol": "GBP/AUD",
-      "timeframe": "30m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/4",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:24 UTC",
-      "cycle": 2,
-      "symbol": "XAU/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:21 UTC",
-      "cycle": 2,
-      "symbol": "BTC/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:21 UTC",
-      "cycle": 2,
+      "timestamp": "02:56:13 UTC",
+      "cycle": 8,
       "symbol": "ETH/USD",
       "timeframe": "1h",
       "action": "BUY",
@@ -624,8 +674,18 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:48:21 UTC",
-      "cycle": 2,
+      "timestamp": "02:56:11 UTC",
+      "cycle": 8,
+      "symbol": "GBP/AUD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/4",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:56:09 UTC",
+      "cycle": 8,
       "symbol": "EUR/USD",
       "timeframe": "1h",
       "action": "NEUTRAL",
@@ -634,29 +694,9 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:48:20 UTC",
-      "cycle": 2,
-      "symbol": "XAG/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "02:48:18 UTC",
-      "cycle": 2,
-      "symbol": "GBP/AUD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/4",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:18 UTC",
-      "cycle": 2,
-      "symbol": "XAU/USD",
+      "timestamp": "02:56:08 UTC",
+      "cycle": 8,
+      "symbol": "USD/CHF",
       "timeframe": "15m",
       "action": "NEUTRAL",
       "pillars": "1/5",
@@ -664,98 +704,58 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:48:16 UTC",
-      "cycle": 2,
-      "symbol": "XAG/USD",
-      "timeframe": "3m",
-      "action": "SELL",
-      "pillars": "4/5",
-      "status": "SKIPPED (Spread > 18% TP1)",
-      "details": "Spread: $0.03 (82.0%) > 18%"
-    },
-    {
-      "timestamp": "02:48:13 UTC",
-      "cycle": 2,
-      "symbol": "XAG/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:12 UTC",
-      "cycle": 2,
-      "symbol": "EUR/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "02:48:12 UTC",
-      "cycle": 2,
+      "timestamp": "02:56:06 UTC",
+      "cycle": 8,
       "symbol": "BTC/USD",
       "timeframe": "5m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.5)"
-    },
-    {
-      "timestamp": "02:48:10 UTC",
-      "cycle": 2,
-      "symbol": "GBP/AUD",
-      "timeframe": "1m",
-      "action": "NEUTRAL",
-      "pillars": "1/4",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:10 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "30m",
       "action": "NEUTRAL",
       "pillars": "2/5",
       "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.4)"
+    },
+    {
+      "timestamp": "02:56:05 UTC",
+      "cycle": 8,
+      "symbol": "GBP/AUD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "1/4",
+      "status": "SKIPPED (Chop Gate)",
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "02:48:09 UTC",
-      "cycle": 2,
-      "symbol": "XAG/USD",
-      "timeframe": "4h",
-      "action": "SELL",
-      "pillars": "3/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:08 UTC",
-      "cycle": 2,
+      "timestamp": "02:56:04 UTC",
+      "cycle": 8,
       "symbol": "XAU/USD",
-      "timeframe": "3m",
+      "timeframe": "15m",
       "action": "NEUTRAL",
       "pillars": "1/5",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:48:07 UTC",
-      "cycle": 2,
+      "timestamp": "02:56:02 UTC",
+      "cycle": 8,
+      "symbol": "EUR/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "02:56:00 UTC",
+      "cycle": 8,
       "symbol": "XAG/USD",
-      "timeframe": "1h",
+      "timeframe": "5m",
       "action": "NEUTRAL",
       "pillars": "1/5",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:48:06 UTC",
-      "cycle": 2,
+      "timestamp": "02:55:59 UTC",
+      "cycle": 8,
       "symbol": "GBP/AUD",
       "timeframe": "3m",
       "action": "NEUTRAL",
@@ -764,18 +764,38 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:48:03 UTC",
-      "cycle": 2,
+      "timestamp": "02:55:55 UTC",
+      "cycle": 8,
       "symbol": "XAU/USD",
-      "timeframe": "5m",
+      "timeframe": "1m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:54 UTC",
+      "cycle": 8,
+      "symbol": "EUR/USD",
+      "timeframe": "15m",
       "action": "NEUTRAL",
       "pillars": "1/5",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:48:02 UTC",
-      "cycle": 2,
+      "timestamp": "02:55:53 UTC",
+      "cycle": 8,
+      "symbol": "XAG/USD",
+      "timeframe": "4h",
+      "action": "SELL",
+      "pillars": "4/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:52 UTC",
+      "cycle": 8,
       "symbol": "BTC/USD",
       "timeframe": "4h",
       "action": "STRONG BUY",
@@ -784,89 +804,19 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:48:01 UTC",
-      "cycle": 2,
-      "symbol": "XAG/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:01 UTC",
-      "cycle": 2,
-      "symbol": "EUR/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:48:00 UTC",
-      "cycle": 2,
+      "timestamp": "02:55:50 UTC",
+      "cycle": 8,
       "symbol": "GBP/AUD",
       "timeframe": "5m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "1/4",
-      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
-      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
-    },
-    {
-      "timestamp": "02:47:59 UTC",
-      "cycle": 2,
-      "symbol": "XAU/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:47:58 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "02:47:57 UTC",
-      "cycle": 2,
+      "timestamp": "02:55:48 UTC",
+      "cycle": 8,
       "symbol": "XAG/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:47:56 UTC",
-      "cycle": 2,
-      "symbol": "EUR/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:47:55 UTC",
-      "cycle": 2,
-      "symbol": "GBP/AUD",
-      "timeframe": "4h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/4",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:47:55 UTC",
-      "cycle": 2,
-      "symbol": "XAU/USD",
       "timeframe": "1h",
       "action": "NEUTRAL",
       "pillars": "1/5",
@@ -874,146 +824,196 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:47:36 UTC",
-      "cycle": 1,
-      "symbol": "ETH/USD",
+      "timestamp": "02:55:48 UTC",
+      "cycle": 8,
+      "symbol": "XAU/USD",
       "timeframe": "3m",
       "action": "NEUTRAL",
-      "pillars": "2/5",
+      "pillars": "1/5",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "02:47:34 UTC",
-      "cycle": 1,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "02:47:30 UTC",
-      "cycle": 1,
+      "timestamp": "02:55:46 UTC",
+      "cycle": 8,
       "symbol": "ETH/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.8)"
-    },
-    {
-      "timestamp": "02:47:29 UTC",
-      "cycle": 1,
-      "symbol": "BTC/USD",
       "timeframe": "15m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "2/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:47:27 UTC",
-      "cycle": 1,
-      "symbol": "USD/CHF",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:47:26 UTC",
-      "cycle": 1,
-      "symbol": "USD/CHF",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:47:25 UTC",
-      "cycle": 1,
-      "symbol": "ETH/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "2/5",
       "status": "SKIPPED (Chop Gate)",
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
     },
     {
-      "timestamp": "02:47:24 UTC",
-      "cycle": 1,
-      "symbol": "USD/CHF",
-      "timeframe": "5m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "1/5",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.5)"
-    },
-    {
-      "timestamp": "02:47:23 UTC",
-      "cycle": 1,
-      "symbol": "BTC/USD",
+      "timestamp": "02:55:45 UTC",
+      "cycle": 8,
+      "symbol": "EUR/USD",
       "timeframe": "1m",
-      "action": "BUY",
-      "pillars": "3/5",
-      "status": "SKIPPED (Spread > 18% TP1)",
-      "details": "Spread: $10.0 (20.8%) > 18%"
-    },
-    {
-      "timestamp": "02:47:22 UTC",
-      "cycle": 1,
-      "symbol": "USD/CHF",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "1/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:47:19 UTC",
-      "cycle": 1,
-      "symbol": "USD/CHF",
-      "timeframe": "1h",
-      "action": "BUY",
-      "pillars": "4/5",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "02:47:18 UTC",
-      "cycle": 1,
-      "symbol": "USD/CHF",
-      "timeframe": "30m",
       "action": "NEUTRAL",
       "pillars": "1/5",
       "status": "SKIPPED (Chop Gate)",
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "02:47:16 UTC",
-      "cycle": 1,
-      "symbol": "USD/CHF",
+      "timestamp": "02:55:43 UTC",
+      "cycle": 8,
+      "symbol": "GBP/AUD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/4",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:42 UTC",
+      "cycle": 8,
+      "symbol": "XAU/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:40 UTC",
+      "cycle": 8,
+      "symbol": "XAG/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:37 UTC",
+      "cycle": 8,
+      "symbol": "GBP/AUD",
+      "timeframe": "1h",
+      "action": "HOLD",
+      "pillars": "-",
+      "status": "SKIPPED (Same Strat Active on TF)",
+      "details": "Strategy BERND_SKORUPINSKI already active on GBP/AUD (1h). (Diff Strats Only Mode)"
+    },
+    {
+      "timestamp": "02:55:36 UTC",
+      "cycle": 8,
+      "symbol": "XAU/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:36 UTC",
+      "cycle": 8,
+      "symbol": "ETH/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "2/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "02:55:34 UTC",
+      "cycle": 8,
+      "symbol": "XAG/USD",
       "timeframe": "15m",
       "action": "NEUTRAL",
       "pillars": "1/5",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:33 UTC",
+      "cycle": 8,
+      "symbol": "EUR/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.8)"
+    },
+    {
+      "timestamp": "02:55:33 UTC",
+      "cycle": 8,
+      "symbol": "GBP/AUD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/4",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:32 UTC",
+      "cycle": 8,
+      "symbol": "XAU/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:29 UTC",
+      "cycle": 8,
+      "symbol": "XAG/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:28 UTC",
+      "cycle": 8,
+      "symbol": "XAU/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:27 UTC",
+      "cycle": 8,
+      "symbol": "XAG/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (19.5) "
+    },
+    {
+      "timestamp": "02:55:10 UTC",
+      "cycle": 7,
+      "symbol": "BTC/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "2/5",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "02:55:09 UTC",
+      "cycle": 7,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (16.9)"
     }
   ],
-  "next_scan_time": "00:06 remaining",
+  "next_scan_time": null,
   "reset_at": "2026-09-23T20:09:17.788259+00:00",
   "tf_rotation_indices": {
-    "XAU/USD": 3,
-    "XAG/USD": 1,
-    "ETH/USD": 1,
-    "GBP/AUD": 4,
-    "BTC/USD": 4,
-    "EUR/USD": 6,
-    "USD/CHF": 2
+    "XAU/USD": 2,
+    "XAG/USD": 6,
+    "ETH/USD": 0,
+    "GBP/AUD": 2,
+    "BTC/USD": 2,
+    "EUR/USD": 5,
+    "USD/CHF": 1
   },
   "xau_trades_taken": 0,
   "btc_trades_taken": 0,
