@@ -8146,6 +8146,16 @@
   },
   "scan_activity_log": [
     {
+      "timestamp": "17:44:15 UTC",
+      "cycle": 1260,
+      "symbol": "BTC/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (NEWS BLACKOUT)",
+      "pillars": "1/5",
+      "status": "SKIPPED (Economic News Blackout)",
+      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Schmid Speaks release (24 minutes ago). Trading strictly halted within +/-30 min window. Do NOT trade."
+    },
+    {
       "timestamp": "17:44:10 UTC",
       "cycle": 1260,
       "symbol": "XAG/USD",
@@ -8732,16 +8742,6 @@
       "timeframe": "3m",
       "action": "NEUTRAL (NEWS BLACKOUT)",
       "pillars": "1/5",
-      "status": "SKIPPED (Economic News Blackout)",
-      "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Schmid Speaks release (20 minutes ago). Trading strictly halted within +/-30 min window. Do NOT trade."
-    },
-    {
-      "timestamp": "17:40:05 UTC",
-      "cycle": 1258,
-      "symbol": "USD/CHF",
-      "timeframe": "15m",
-      "action": "NEUTRAL (NEWS BLACKOUT)",
-      "pillars": "0/5",
       "status": "SKIPPED (Economic News Blackout)",
       "details": "NEWS FILTER: HIGH-IMPACT NEWS BLACKOUT: [USD] FOMC Member Schmid Speaks release (20 minutes ago). Trading strictly halted within +/-30 min window. Do NOT trade."
     }
