@@ -10,6 +10,7 @@ import textwrap
 import warnings
 warnings.filterwarnings('ignore')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from typing import List, Dict, Any, Optional
 
 import streamlit as st
 
@@ -55,6 +56,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from src.engine.autonomous_manager import AutonomousTraderEngine
+
+format_leaderboard_export_df = AutonomousTraderEngine.format_leaderboard_export_df
 
 # ── CSS ────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -1883,30 +1887,22 @@ def render_mt5_autonomous_engine_view(live_exec):
             )
             selected_sort_key = sort_label_map[selected_sort_label]
 
-        leaderboard_data = auto_engine.compute_strategy_leaderboard(state=state, sort_by=selected_sort_key)
+        active_for_lb = settings.get('active_strategies') or chosen_strats
+        leaderboard_data = auto_engine.compute_strategy_leaderboard(
+            state=state,
+            sort_by=selected_sort_key,
+            active_strategy_keys=active_for_lb
+        )
 
         # Leaderboard CSV export button inside col2 before rendering table
-        lb_df = pd.DataFrame(leaderboard_data)[[
-            'rank', 'strategy_name', 'total_trades', 'wins', 'losses', 'breakevens',
-            'win_rate', 'net_pnl', 'net_loss', 'profit_factor', 'biggest_sl_loss', 'sl_hits',
-            'tp_hits', 'biggest_tp', 'best_timeframes', 'best_pairs', 'active_trades', 'status_badge'
-        ]].rename(columns={
-            'rank': 'Rank', 'strategy_name': 'Strategy', 'total_trades': 'Trades',
-            'wins': 'Wins', 'losses': 'Losses', 'breakevens': 'Breakevens',
-            'win_rate': 'Win Rate (%)', 'net_pnl': 'Net PnL ($)', 'net_loss': 'Net Loss ($)',
-            'profit_factor': 'Profit Factor',
-            'biggest_sl_loss': 'Biggest SL Hit ($)', 'sl_hits': 'SL Hits',
-            'tp_hits': 'TP Hits', 'biggest_tp': 'Biggest TP ($)',
-            'best_timeframes': 'Best Timeframes', 'best_pairs': 'Best Trading Pairs',
-            'active_trades': 'Active Trades', 'status_badge': 'Performance Status'
-        })
+        lb_export_df = format_leaderboard_export_df(leaderboard_data)
 
         with lb_sort_col2:
             st.write("")
             st.write("")
             st.download_button(
                 label="📥 Export Leaderboard (CSV)",
-                data=lb_df.to_csv(index=False).encode('utf-8'),
+                data=lb_export_df.to_csv(index=False).encode('utf-8-sig'),
                 file_name="strategy_performance_leaderboard.csv",
                 mime="text/csv",
                 key="dl_auto_leaderboard_csv"
@@ -2838,10 +2834,14 @@ def render_mt5_backtest_engine_view():
         sort_reverse = sort_attr != 'net_loss'
         sorted_bt_lb = sorted(leaderboard, key=lambda x: float(x.get(sort_attr, 0.0)), reverse=sort_reverse)
 
+        active_bt_strats = res.get('settings_used', {}).get('active_strategies')
+        if active_bt_strats:
+            sorted_bt_lb = [item for item in sorted_bt_lb if item.get('strategy_key') in active_bt_strats]
+
         with b_sort_c2:
-            bt_csv_df = pd.DataFrame(sorted_bt_lb)
-            if not bt_csv_df.empty:
-                bt_csv_bytes = bt_csv_df.to_csv(index=False).encode('utf-8')
+            bt_export_df = format_leaderboard_export_df(sorted_bt_lb)
+            if not bt_export_df.empty:
+                bt_csv_bytes = bt_export_df.to_csv(index=False).encode('utf-8-sig')
                 st.download_button(
                     label="📥 Export Backtest Leaderboard (CSV)",
                     data=bt_csv_bytes,

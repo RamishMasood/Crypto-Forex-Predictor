@@ -4,8 +4,9 @@ import time
 import json
 import logging
 import threading
-import concurrent.futures
 from datetime import datetime, timezone, timedelta
+import re
+import pandas as pd
 from typing import Dict, Any, List, Optional
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -228,22 +229,22 @@ class AutonomousTraderEngine:
     def compute_strategy_leaderboard(
         cls,
         state: Optional[Dict[str, Any]] = None,
-        sort_by: str = 'profit'
+        sort_by: str = 'profit',
+        active_strategy_keys: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Computes performance metrics and dynamic ranking for all 13 strategies
-        (Institutional Core DEFAULT + 12 Streamers) across closed and open batches.
-
-        sort_by options:
-        - 'profit' / 'pnl': Net PnL ($) descending
-        - 'wins': Total wins descending
-        - 'losses': Total losses descending
-        - 'breakevens': Total breakevens descending
-        - 'win_rate': Win Rate (%) descending
-        - 'total_trades': Total volume (trades taken) descending
+        Computes performance metrics and dynamic ranking for active strategies
+        across closed and open batches.
         """
         if state is None:
             state = cls.load_state()
+
+        if active_strategy_keys is None:
+            active_strategy_keys = list(AVAILABLE_STRATEGIES.keys())
+
+        target_strategies = {k: AVAILABLE_STRATEGIES[k] for k in active_strategy_keys if k in AVAILABLE_STRATEGIES}
+        if not target_strategies:
+            target_strategies = AVAILABLE_STRATEGIES
 
         closed_batches = state.get('closed_batches', [])
         open_batches = list(state.get('open_batches', {}).values())
@@ -286,13 +287,13 @@ class AutonomousTraderEngine:
             'PAUL_FTMO': {'default_tfs': '15m, 5m, 1h, 4h', 'default_pairs': 'EUR/JPY, GBP/JPY, EUR/USD, S&P 500'}
         }
 
-        # Initialize stats bucket for each of the strategies
+        # Initialize stats bucket strictly for the target strategies
         stats_map: Dict[str, Dict[str, Any]] = {}
-        strat_tfs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in AVAILABLE_STRATEGIES}
-        strat_pairs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in AVAILABLE_STRATEGIES}
-        strat_sym_breakdown: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in AVAILABLE_STRATEGIES}
+        strat_tfs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in target_strategies}
+        strat_pairs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in target_strategies}
+        strat_sym_breakdown: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in target_strategies}
 
-        for strat_key, strat_full_name in AVAILABLE_STRATEGIES.items():
+        for strat_key, strat_full_name in target_strategies.items():
             stats_map[strat_key] = {
                 'strategy_key': strat_key,
                 'strategy_name': strat_full_name,
@@ -337,58 +338,62 @@ class AutonomousTraderEngine:
         def match_strategy_key(batch: Dict[str, Any]) -> str:
             bid = str(batch.get('batch_id', '')).strip()
             if bid in log_strategy_map:
-                return log_strategy_map[bid]
+                mapped = log_strategy_map[bid]
+                if mapped in target_strategies:
+                    return mapped
 
             raw_k = str(batch.get('strategy_used', '')).upper()
             raw_n = str(batch.get('strategy_name', '')).upper()
 
             # Exact match on key
-            if raw_k in stats_map:
+            if raw_k in target_strategies:
                 return raw_k
 
             # Heuristics for name or aliases
-            for k in AVAILABLE_STRATEGIES:
+            for k in target_strategies:
                 if k in raw_k or k in raw_n:
                     return k
 
-            if 'PAUL' in raw_k or 'PAUL' in raw_n:
-                return 'PAUL_FTMO'
-            if 'VIVEK' in raw_k or 'VIVEK' in raw_n or 'TFP' in raw_k or 'TFP' in raw_n:
-                return 'VIVEK_YADAV'
-            if 'BERND' in raw_k or 'BERND' in raw_n or 'SKORUPINSKI' in raw_n:
-                return 'BERND_SKORUPINSKI'
-            if 'HUDDLESTON' in raw_n or 'ICT' in raw_k or 'ICT' in raw_n:
-                return 'ICT'
-            if 'STEVEN' in raw_k or 'STEVEN' in raw_n:
-                return 'STEVEN_HART'
-            if 'RAYNER' in raw_k or 'RAYNER' in raw_n:
-                return 'RAYNER_TEO'
-            if 'CRED' in raw_k or 'CRED' in raw_n:
-                return 'CRYPTO_CRED'
-            if 'NDEMAZEAH' in raw_k or 'NDEMAZEAH' in raw_n or 'MVR' in raw_n:
-                return 'NDEMAZEAH_GODLOVE'
-            if 'ROSS' in raw_k or 'ROSS' in raw_n or 'WARRIOR' in raw_n:
-                return 'ROSS_CAMERON'
-            if 'ADAM' in raw_k or 'ADAM' in raw_n or 'KHOO' in raw_n:
-                return 'ADAM_KHOO'
-            if 'ARIEL' in raw_k or 'ARIEL' in raw_n or 'ORB' in raw_n:
-                return 'ARIEL_ZWECHER'
-            if 'VELEZ' in raw_k or 'VELEZ' in raw_n:
-                return 'OLIVER_VELEZ'
-            if 'PRO' in raw_k or 'PRO' in raw_n or 'DONCHIAN' in raw_n:
-                return 'TRADE_PRO'
-            if 'QULLAMAGGIE' in raw_k or 'QULLAMAGGIE' in raw_n or 'KRISTJAN' in raw_k or 'KRISTJAN' in raw_n:
-                return 'KRISTJAN_QULLAMAGGIE'
-            if 'GCR' in raw_k or 'GCR' in raw_n or 'GIGANTICREBIRTH' in raw_n:
-                return 'GCR'
-            if 'ZAKA' in raw_k or 'ZAKA' in raw_n:
-                return 'WAQAR_ZAKA'
-            if 'ASIM' in raw_k or 'ASIM' in raw_n:
-                return 'WAQAR_ASIM'
-            if 'EUGENE' in raw_k or 'EUGENE' in raw_n or 'AH SIO' in raw_n or 'DELTA_NEUTRAL' in raw_n:
-                return 'EUGENE_NG_AH_SIO'
-            
-            return 'DEFAULT'
+            alias_map = {
+                'PAUL': 'PAUL_FTMO',
+                'VIVEK': 'VIVEK_YADAV',
+                'TFP': 'VIVEK_YADAV',
+                'BERND': 'BERND_SKORUPINSKI',
+                'SKORUPINSKI': 'BERND_SKORUPINSKI',
+                'HUDDLESTON': 'ICT',
+                'ICT': 'ICT',
+                'STEVEN': 'STEVEN_HART',
+                'RAYNER': 'RAYNER_TEO',
+                'CRED': 'CRYPTO_CRED',
+                'NDEMAZEAH': 'NDEMAZEAH_GODLOVE',
+                'MVR': 'NDEMAZEAH_GODLOVE',
+                'ROSS': 'ROSS_CAMERON',
+                'WARRIOR': 'ROSS_CAMERON',
+                'ADAM': 'ADAM_KHOO',
+                'KHOO': 'ADAM_KHOO',
+                'ARIEL': 'ARIEL_ZWECHER',
+                'ORB': 'ARIEL_ZWECHER',
+                'VELEZ': 'OLIVER_VELEZ',
+                'PRO': 'TRADE_PRO',
+                'DONCHIAN': 'TRADE_PRO',
+                'QULLAMAGGIE': 'KRISTJAN_QULLAMAGGIE',
+                'KRISTJAN': 'KRISTJAN_QULLAMAGGIE',
+                'GCR': 'GCR',
+                'GIGANTICREBIRTH': 'GCR',
+                'ZAKA': 'WAQAR_ZAKA',
+                'ASIM': 'WAQAR_ASIM',
+                'EUGENE': 'EUGENE_NG_AH_SIO',
+                'AH SIO': 'EUGENE_NG_AH_SIO',
+                'DELTA_NEUTRAL': 'EUGENE_NG_AH_SIO'
+            }
+            for token, target_k in alias_map.items():
+                if (token in raw_k or token in raw_n) and target_k in target_strategies:
+                    return target_k
+
+            if 'DEFAULT' in target_strategies and ('DEFAULT' in raw_k or 'DEFAULT' in raw_n or 'INSTITUTIONAL' in raw_n or '5-PILLAR' in raw_n):
+                return 'DEFAULT'
+
+            return ''
 
         # Helper to normalize symbol string
         def normalize_sym_str(s: str) -> str:
@@ -406,6 +411,8 @@ class AutonomousTraderEngine:
         # Process Closed Batches
         for b in closed_batches:
             k = match_strategy_key(b)
+            if not k or k not in stats_map:
+                continue
             pnl = float(b.get('profit', 0.0))
             status = str(b.get('status', '')).upper()
             tf = str(b.get('timeframe', '')).strip().lower()
@@ -484,6 +491,8 @@ class AutonomousTraderEngine:
         # Process Open Batches
         for b in open_batches:
             k = match_strategy_key(b)
+            if not k or k not in stats_map:
+                continue
             tf = str(b.get('timeframe', '')).strip().lower()
             sym = normalize_sym_str(b.get('symbol', ''))
 
@@ -626,6 +635,77 @@ class AutonomousTraderEngine:
                 item['rank_display'] = f'#{idx}'
 
         return leaderboard
+
+    @classmethod
+    def format_leaderboard_export_df(cls, leaderboard_items: List[Dict[str, Any]]) -> pd.DataFrame:
+        emoji_pattern = re.compile(
+            r'[\U00010000-\U0010ffff]|[\u2600-\u27bf]|[\u2300-\u23ff]|[\u2b50-\u2b55]|[\u200d\ufe0f]',
+            flags=re.UNICODE
+        )
+        def clean_txt(val: Any) -> str:
+            if not val or val == '-':
+                return '-'
+            cleaned = emoji_pattern.sub('', str(val))
+            return ' '.join(cleaned.split()).strip()
+
+        rows = []
+        for item in leaderboard_items:
+            sym_bd = item.get('symbol_breakdown', {})
+            if sym_bd:
+                bd_parts = []
+                for s_sym, sd in sym_bd.items():
+                    s_w = int(sd.get('wins', 0))
+                    s_l = int(sd.get('losses', 0))
+                    s_be = int(sd.get('breakevens', 0))
+                    s_pnl = float(sd.get('pnl', 0.0))
+                    s_wr = float(sd.get('win_rate', 0.0))
+                    pnl_str = f"+${s_pnl:,.2f}" if s_pnl >= 0 else f"-${abs(s_pnl):,.2f}"
+                    bd_parts.append(f"{s_sym}: {s_w}W / {s_l}L / {s_be}BE ({pnl_str}, {s_wr:.0f}% WR)")
+                sym_breakdown_str = " | ".join(bd_parts)
+            else:
+                sym_breakdown_str = "-"
+
+            w = int(item.get('wins', 0))
+            l = int(item.get('losses', 0))
+            be = int(item.get('breakevens', 0))
+            wlbe_str = f"{w}W / {l}L / {be}BE"
+
+            pnl = float(item.get('net_pnl', 0.0))
+            pnl_str = f"+${pnl:,.2f}" if pnl >= 0 else f"-${abs(pnl):,.2f}"
+
+            net_loss = float(item.get('net_loss', 0.0))
+            net_loss_str = f"-${abs(net_loss):,.2f}" if net_loss < 0 else "$0.00"
+
+            bsl = float(item.get('biggest_sl_loss', 0.0))
+            bsl_str = f"-${abs(bsl):,.2f}" if bsl > 0 else "$0.00"
+
+            btp = float(item.get('biggest_tp', 0.0))
+            btp_str = f"+${btp:,.2f}" if btp > 0 else "$0.00"
+
+            rows.append({
+                'Rank': item.get('rank', 0),
+                'Strategy': clean_txt(item.get('strategy_name', item.get('strategy_key', ''))),
+                'Symbol Breakdown': sym_breakdown_str,
+                'Total Trades': int(item.get('total_trades', 0)),
+                'W / L / BE': wlbe_str,
+                'Wins': w,
+                'Losses': l,
+                'Breakevens': be,
+                'Win Rate (%)': f"{float(item.get('win_rate', 0.0)):.1f}%",
+                'Net PnL ($)': pnl_str,
+                'Net Loss ($)': net_loss_str,
+                'Profit Factor': float(item.get('profit_factor', 0.0)),
+                'Biggest SL Hit ($)': bsl_str,
+                'SL Hits': int(item.get('sl_hits', 0)),
+                'TP Hits': int(item.get('tp_hits', 0)),
+                'Biggest TP ($)': btp_str,
+                'Best Timeframes': clean_txt(item.get('best_timeframes', '-')),
+                'Best Trading Pairs': clean_txt(item.get('best_pairs', '-')),
+                'Active Trades': int(item.get('active_trades', 0)),
+                'Performance Status': clean_txt(item.get('status_badge', '-'))
+            })
+
+        return pd.DataFrame(rows)
 
 
     def has_active_batches(self) -> bool:
@@ -1590,12 +1670,11 @@ class AutonomousTraderEngine:
         tf_rotation = state.get('tf_rotation_indices', {})
         start_idx = int(tf_rotation.get(symbol, 0)) % len(timeframes)
 
-        # Order timeframes starting from start_idx
-        ordered_tfs = timeframes[start_idx:] + timeframes[:start_idx]
-        logger.info(f"Scanning {symbol} across timeframes: {ordered_tfs} (Rotated Start: {timeframes[start_idx]}, Min Pillars: {min_pillars_required}/5)")
-
         # Check Institutional Recommended Auto-Pilot Mode
         curr_settings = self.load_settings()
+        active_strats_check = curr_settings.get('active_strategies', [])
+        strat_desc = f"Min Pillars: {min_pillars_required}/5" if ('DEFAULT' in active_strats_check) else f"{len(active_strats_check)} Strats Active"
+        logger.info(f"Scanning {symbol} across timeframes: {ordered_tfs} (Rotated Start: {timeframes[start_idx]}, {strat_desc})")
         is_rec_mode = bool(curr_settings.get('recommended_mode', False))
         rec_profile = RecommendedPresetsManager.get_profile_for_symbol(symbol) if is_rec_mode else None
         if is_rec_mode and not rec_profile:
@@ -1856,7 +1935,7 @@ class AutonomousTraderEngine:
                     chosen_trade_setup = best['trade_setup']
 
                 is_eligible = (chosen_strategy_key is not None)
-                pillar_str = "5/5" if chosen_strategy_key == 'DEFAULT' else ("STRAT" if chosen_strategy_key else f"{p_cnt}/{total_req}")
+                pillar_str = "5/5" if chosen_strategy_key == 'DEFAULT' else ("STRAT" if chosen_strategy_key else (f"{p_cnt}/{total_req}" if ('DEFAULT' in active_strats) else "-"))
 
                 if is_eligible:
                     status_lbl = f"EXECUTING ({chosen_strategy_key})"
@@ -1955,6 +2034,12 @@ class AutonomousTraderEngine:
             cycle = setup_data.get('cycle', 0)
             strategy_used = setup_data.get('strategy_used', 'DEFAULT')
             strategy_name = setup_data.get('strategy_name') or setup.get('strategy_name', strategy_used)
+
+            # HARD GUARD: Unselected strategies must NEVER execute trades
+            active_strats = self.load_settings().get('active_strategies', [])
+            if active_strats and strategy_used not in active_strats:
+                logger.warning(f"BLOCKED EXECUTION: Strategy '{strategy_used}' ({strategy_name}) is NOT in active strategies {active_strats}. Aborting trade.")
+                return False
 
             entry_price = float(setup.get('recommended_entry') or pred.get('market_data', {}).get('current_price', 0.0))
             sl_price = float(setup.get('stop_loss', 0.0))
