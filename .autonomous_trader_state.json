@@ -9,10 +9,10 @@
   "symbol_stats": {
     "ETH/USD": {
       "wins": 1,
-      "losses": 1,
+      "losses": 2,
       "breakevens": 0,
-      "completed": 2,
-      "total_profit": -0.06
+      "completed": 3,
+      "total_profit": -1.59
     },
     "BTC/USD": {
       "wins": 1,
@@ -23,49 +23,6 @@
     }
   },
   "open_batches": {
-    "527452": {
-      "batch_id": 527452,
-      "symbol": "ETH/USD",
-      "broker_sym": "ETHUSDm",
-      "timeframe": "15m",
-      "action": "SELL",
-      "entry_price": 2684.15,
-      "sl_price": 2699.65314,
-      "breakeven_sl": 2683.99497,
-      "soft_breakeven_sl": 2688.02579,
-      "breakeven_mode": "loose",
-      "recommended_mode": false,
-      "active_sessions": [
-        "24/7 (Any Session)"
-      ],
-      "htf_confluence": true,
-      "tp1_price": 2680.87711,
-      "tp2_price": 2666.32139,
-      "tp3_price": 2650.04309,
-      "matched_pillars": 2,
-      "lot_split": {
-        "tp1_lots": 0.1,
-        "tp2_lots": 0.0,
-        "tp3_lots": 0.0,
-        "tp1_pct": 100.0,
-        "tp2_pct": 0.0,
-        "tp3_pct": 0.0,
-        "tp1_reward_usd": 1.78,
-        "tp2_reward_usd": 0.0,
-        "tp3_reward_usd": 0.0,
-        "total_reward_usd": 1.78
-      },
-      "risk_usd": 1.55,
-      "tickets": [
-        2449568630
-      ],
-      "executed_at": "2026-09-27T16:44:13.457312+00:00",
-      "status": "OPEN",
-      "p1_score": -44.3,
-      "p1_prob": 97.2,
-      "strategy_used": "AL_BROOKS",
-      "strategy_name": "Al Brooks (Price Action - Major Trend Reversal & High/Low 2)"
-    },
     "530616": {
       "batch_id": 530616,
       "symbol": "BTC/USD",
@@ -112,6 +69,44 @@
     }
   },
   "closed_batches": [
+    {
+      "batch_id": "527452",
+      "symbol": "ETH/USD",
+      "broker_sym": "ETHUSDm",
+      "timeframe": "15m",
+      "action": "SELL",
+      "entry_price": 2684.15,
+      "sl_price": 2699.65314,
+      "breakeven_sl": 2683.99497,
+      "matched_pillars": 2,
+      "tp1_price": 2680.87711,
+      "tp2_price": 2666.32139,
+      "tp3_price": 2650.04309,
+      "lot_split": {
+        "tp1_lots": 0.1,
+        "tp2_lots": 0.0,
+        "tp3_lots": 0.0,
+        "tp1_pct": 100.0,
+        "tp2_pct": 0.0,
+        "tp3_pct": 0.0,
+        "tp1_reward_usd": 1.78,
+        "tp2_reward_usd": 0.0,
+        "tp3_reward_usd": 0.0,
+        "total_reward_usd": 1.78
+      },
+      "tickets": [
+        2449568630
+      ],
+      "executed_at": "2026-09-27T16:44:13.457312+00:00",
+      "closed_at": "2026-09-27T18:48:12.942935+00:00",
+      "profit": -1.53,
+      "risk_usd": 1.55,
+      "status": "LOSS",
+      "p1_score": -44.3,
+      "p1_prob": 97.2,
+      "strategy_used": "AL_BROOKS",
+      "strategy_name": "Al Brooks (Price Action - Major Trend Reversal & High/Low 2)"
+    },
     {
       "batch_id": "525840",
       "symbol": "BTC/USD",
@@ -229,102 +224,82 @@
     }
   ],
   "wins": 2,
-  "losses": 1,
+  "losses": 2,
   "breakevens": 0,
-  "last_scan_time": "2026-09-27T17:39:00.260342+00:00",
+  "last_scan_time": "2026-09-27T19:16:53.407722+00:00",
   "last_scanned_symbol": null,
   "engine_status": "RUNNING",
-  "cycle_count": 100,
+  "cycle_count": 171,
   "current_scan": {
-    "cycle": 98,
-    "symbol": "BTC/USD",
-    "timeframe": "30m",
-    "time": "17:36:28 UTC"
+    "cycle": 171,
+    "symbol": "ETH/USD",
+    "timeframe": "15m",
+    "time": "19:17:05 UTC"
   },
   "scan_activity_log": [
     {
-      "timestamp": "17:39:00 UTC",
-      "cycle": 100,
-      "symbol": "GBP/AUD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for GBP/AUD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:39:00 UTC",
-      "cycle": 100,
-      "symbol": "EUR/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for EUR/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:37:58 UTC",
-      "cycle": 99,
-      "symbol": "USD/CHF",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:37:58 UTC",
-      "cycle": 99,
-      "symbol": "XAG/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:37:58 UTC",
-      "cycle": 99,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:36:56 UTC",
-      "cycle": 98,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "BUY",
-      "pillars": "STRAT",
-      "status": "EXECUTED (Batch #530616)",
-      "details": "[Al Brooks (Price Action - Major Trend Reversal & High/Low 2)] Entry: 84512.03 | SL: 84088.87314 | Lots: 0.02/0.01/0.0"
-    },
-    {
-      "timestamp": "17:36:56 UTC",
-      "cycle": 98,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "BUY",
-      "pillars": "STRAT",
-      "status": "EXECUTING (AL_BROOKS)",
-      "details": "Strategy: Al Brooks (Price Action - Major Trend Reversal & High/Low 2) | Action: BUY"
-    },
-    {
-      "timestamp": "17:36:28 UTC",
-      "cycle": 98,
-      "symbol": "BTC/USD",
+      "timestamp": "19:17:08 UTC",
+      "cycle": 171,
+      "symbol": "ETH/USD",
       "timeframe": "15m",
-      "action": "BUY",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:17:05 UTC",
+      "cycle": 171,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "17:36:00 UTC",
-      "cycle": 98,
+      "timestamp": "19:17:02 UTC",
+      "cycle": 171,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:16:59 UTC",
+      "cycle": 171,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:16:56 UTC",
+      "cycle": 171,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:16:54 UTC",
+      "cycle": 171,
+      "symbol": "USD/CHF",
+      "timeframe": "-",
+      "action": "HOLD",
+      "pillars": "-",
+      "status": "MARKET CLOSED (Weekend)",
+      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
+    },
+    {
+      "timestamp": "19:16:54 UTC",
+      "cycle": 171,
       "symbol": "GBP/AUD",
       "timeframe": "-",
       "action": "HOLD",
@@ -333,18 +308,68 @@
       "details": "Traditional market for GBP/AUD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:36:00 UTC",
-      "cycle": 98,
-      "symbol": "XAU/USD",
+      "timestamp": "19:16:54 UTC",
+      "cycle": 171,
+      "symbol": "EUR/USD",
       "timeframe": "-",
       "action": "HOLD",
       "pillars": "-",
       "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
+      "details": "Traditional market for EUR/USD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:34:58 UTC",
-      "cycle": 97,
+      "timestamp": "19:15:40 UTC",
+      "cycle": 170,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:15:38 UTC",
+      "cycle": 170,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:15:36 UTC",
+      "cycle": 170,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:15:34 UTC",
+      "cycle": 170,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:15:31 UTC",
+      "cycle": 170,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:15:29 UTC",
+      "cycle": 170,
       "symbol": "USD/CHF",
       "timeframe": "-",
       "action": "HOLD",
@@ -353,88 +378,8 @@
       "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:34:58 UTC",
-      "cycle": 97,
-      "symbol": "XAG/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:34:58 UTC",
-      "cycle": 97,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:33:56 UTC",
-      "cycle": 96,
-      "symbol": "USD/CHF",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:33:56 UTC",
-      "cycle": 96,
-      "symbol": "XAG/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:33:56 UTC",
-      "cycle": 96,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:32:53 UTC",
-      "cycle": 95,
-      "symbol": "USD/CHF",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:32:53 UTC",
-      "cycle": 95,
-      "symbol": "XAG/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:32:53 UTC",
-      "cycle": 95,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:31:51 UTC",
-      "cycle": 94,
+      "timestamp": "19:15:29 UTC",
+      "cycle": 170,
       "symbol": "GBP/AUD",
       "timeframe": "-",
       "action": "HOLD",
@@ -443,48 +388,8 @@
       "details": "Traditional market for GBP/AUD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:31:51 UTC",
-      "cycle": 94,
-      "symbol": "EUR/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for EUR/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:30:49 UTC",
-      "cycle": 93,
-      "symbol": "USD/CHF",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:30:49 UTC",
-      "cycle": 93,
-      "symbol": "XAG/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:30:49 UTC",
-      "cycle": 93,
-      "symbol": "EUR/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for EUR/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:30:49 UTC",
-      "cycle": 93,
+      "timestamp": "19:15:29 UTC",
+      "cycle": 170,
       "symbol": "XAU/USD",
       "timeframe": "-",
       "action": "HOLD",
@@ -493,8 +398,68 @@
       "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:29:47 UTC",
-      "cycle": 92,
+      "timestamp": "19:14:23 UTC",
+      "cycle": 169,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:14:21 UTC",
+      "cycle": 169,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:14:19 UTC",
+      "cycle": 169,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:14:16 UTC",
+      "cycle": 169,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:14:14 UTC",
+      "cycle": 169,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:14:12 UTC",
+      "cycle": 169,
+      "symbol": "USD/CHF",
+      "timeframe": "-",
+      "action": "HOLD",
+      "pillars": "-",
+      "status": "MARKET CLOSED (Weekend)",
+      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
+    },
+    {
+      "timestamp": "19:14:12 UTC",
+      "cycle": 169,
       "symbol": "GBP/AUD",
       "timeframe": "-",
       "action": "HOLD",
@@ -503,68 +468,8 @@
       "details": "Traditional market for GBP/AUD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:29:47 UTC",
-      "cycle": 92,
-      "symbol": "XAG/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:29:47 UTC",
-      "cycle": 92,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:28:45 UTC",
-      "cycle": 91,
-      "symbol": "USD/CHF",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:28:45 UTC",
-      "cycle": 91,
-      "symbol": "XAG/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:28:45 UTC",
-      "cycle": 91,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:27:42 UTC",
-      "cycle": 90,
-      "symbol": "XAG/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:27:42 UTC",
-      "cycle": 90,
+      "timestamp": "19:14:12 UTC",
+      "cycle": 169,
       "symbol": "EUR/USD",
       "timeframe": "-",
       "action": "HOLD",
@@ -573,8 +478,8 @@
       "details": "Traditional market for EUR/USD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:27:42 UTC",
-      "cycle": 90,
+      "timestamp": "19:14:12 UTC",
+      "cycle": 169,
       "symbol": "XAU/USD",
       "timeframe": "-",
       "action": "HOLD",
@@ -583,8 +488,68 @@
       "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:26:41 UTC",
-      "cycle": 89,
+      "timestamp": "19:13:07 UTC",
+      "cycle": 168,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:13:05 UTC",
+      "cycle": 168,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:13:03 UTC",
+      "cycle": 168,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:13:01 UTC",
+      "cycle": 168,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:12:58 UTC",
+      "cycle": 168,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:12:56 UTC",
+      "cycle": 168,
+      "symbol": "USD/CHF",
+      "timeframe": "-",
+      "action": "HOLD",
+      "pillars": "-",
+      "status": "MARKET CLOSED (Weekend)",
+      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
+    },
+    {
+      "timestamp": "19:12:56 UTC",
+      "cycle": 168,
       "symbol": "GBP/AUD",
       "timeframe": "-",
       "action": "HOLD",
@@ -593,58 +558,8 @@
       "details": "Traditional market for GBP/AUD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:26:41 UTC",
-      "cycle": 89,
-      "symbol": "EUR/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for EUR/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:25:38 UTC",
-      "cycle": 88,
-      "symbol": "GBP/AUD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for GBP/AUD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:25:38 UTC",
-      "cycle": 88,
-      "symbol": "EUR/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for EUR/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:25:38 UTC",
-      "cycle": 88,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:24:36 UTC",
-      "cycle": 87,
-      "symbol": "USD/CHF",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:24:36 UTC",
-      "cycle": 87,
+      "timestamp": "19:12:56 UTC",
+      "cycle": 168,
       "symbol": "XAG/USD",
       "timeframe": "-",
       "action": "HOLD",
@@ -653,18 +568,58 @@
       "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:24:36 UTC",
-      "cycle": 87,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:11:51 UTC",
+      "cycle": 167,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "17:23:35 UTC",
-      "cycle": 86,
+      "timestamp": "19:11:49 UTC",
+      "cycle": 167,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:11:47 UTC",
+      "cycle": 167,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:11:44 UTC",
+      "cycle": 167,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:11:42 UTC",
+      "cycle": 167,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:11:40 UTC",
+      "cycle": 167,
       "symbol": "USD/CHF",
       "timeframe": "-",
       "action": "HOLD",
@@ -673,8 +628,8 @@
       "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:23:35 UTC",
-      "cycle": 86,
+      "timestamp": "19:11:40 UTC",
+      "cycle": 167,
       "symbol": "XAG/USD",
       "timeframe": "-",
       "action": "HOLD",
@@ -683,48 +638,58 @@
       "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:23:35 UTC",
-      "cycle": 86,
-      "symbol": "EUR/USD",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:10:35 UTC",
+      "cycle": 166,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for EUR/USD is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "17:23:35 UTC",
-      "cycle": 86,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:10:33 UTC",
+      "cycle": 166,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "17:22:32 UTC",
-      "cycle": 85,
-      "symbol": "GBP/AUD",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:10:31 UTC",
+      "cycle": 166,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for GBP/AUD is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "17:22:32 UTC",
-      "cycle": 85,
-      "symbol": "EUR/USD",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:10:27 UTC",
+      "cycle": 166,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for EUR/USD is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "17:21:30 UTC",
-      "cycle": 84,
+      "timestamp": "19:10:25 UTC",
+      "cycle": 166,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:10:23 UTC",
+      "cycle": 166,
       "symbol": "USD/CHF",
       "timeframe": "-",
       "action": "HOLD",
@@ -733,8 +698,8 @@
       "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:21:30 UTC",
-      "cycle": 84,
+      "timestamp": "19:10:23 UTC",
+      "cycle": 166,
       "symbol": "XAG/USD",
       "timeframe": "-",
       "action": "HOLD",
@@ -743,18 +708,58 @@
       "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:21:30 UTC",
-      "cycle": 84,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:09:18 UTC",
+      "cycle": 165,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "17:20:28 UTC",
-      "cycle": 83,
+      "timestamp": "19:09:15 UTC",
+      "cycle": 165,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:09:13 UTC",
+      "cycle": 165,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:09:11 UTC",
+      "cycle": 165,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:09:09 UTC",
+      "cycle": 165,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:09:07 UTC",
+      "cycle": 165,
       "symbol": "USD/CHF",
       "timeframe": "-",
       "action": "HOLD",
@@ -763,18 +768,8 @@
       "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:20:28 UTC",
-      "cycle": 83,
-      "symbol": "GBP/AUD",
-      "timeframe": "-",
-      "action": "HOLD",
-      "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for GBP/AUD is closed on weekends. Reopens Sunday 22:00 UTC."
-    },
-    {
-      "timestamp": "17:20:28 UTC",
-      "cycle": 83,
+      "timestamp": "19:09:07 UTC",
+      "cycle": 165,
       "symbol": "XAG/USD",
       "timeframe": "-",
       "action": "HOLD",
@@ -783,8 +778,8 @@
       "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:20:28 UTC",
-      "cycle": 83,
+      "timestamp": "19:09:07 UTC",
+      "cycle": 165,
       "symbol": "XAU/USD",
       "timeframe": "-",
       "action": "HOLD",
@@ -793,61 +788,61 @@
       "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
     },
     {
-      "timestamp": "17:19:25 UTC",
-      "cycle": 82,
-      "symbol": "USD/CHF",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:08:02 UTC",
+      "cycle": 164,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "17:19:25 UTC",
-      "cycle": 82,
-      "symbol": "XAG/USD",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:08:00 UTC",
+      "cycle": 164,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "17:19:25 UTC",
-      "cycle": 82,
-      "symbol": "XAU/USD",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:07:57 UTC",
+      "cycle": 164,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAU/USD is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "17:18:17 UTC",
-      "cycle": 81,
-      "symbol": "USD/CHF",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:07:55 UTC",
+      "cycle": 164,
+      "symbol": "ETH/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for USD/CHF is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "17:18:17 UTC",
-      "cycle": 81,
-      "symbol": "XAG/USD",
-      "timeframe": "-",
-      "action": "HOLD",
+      "timestamp": "19:07:53 UTC",
+      "cycle": 164,
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL",
       "pillars": "-",
-      "status": "MARKET CLOSED (Weekend)",
-      "details": "Traditional market for XAG/USD is closed on weekends. Reopens Sunday 22:00 UTC."
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +24 more] | Monitoring price action for valid trigger"
     }
   ],
-  "next_scan_time": "00:29 remaining",
+  "next_scan_time": "00:23 remaining",
   "reset_at": "2026-09-27T15:46:54.625386+00:00",
   "tf_rotation_indices": {
     "BTC/USD": 2,
-    "ETH/USD": 1
+    "ETH/USD": 2
   },
   "xau_trades_taken": 0,
   "btc_trades_taken": 0,
