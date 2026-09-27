@@ -1,8 +1,8 @@
 {
-  "total_trades_taken": 304,
+  "total_trades_taken": 306,
   "trades_by_symbol": {
-    "BTC/USD": 104,
-    "BTCUSDm": 104,
+    "BTC/USD": 106,
+    "BTCUSDm": 106,
     "GBP/AUD": 75,
     "GBPAUDm": 75,
     "ETH/USD": 18,
@@ -23,11 +23,11 @@
       "total_profit": -60.09
     },
     "BTC/USD": {
-      "wins": 43,
+      "wins": 44,
       "losses": 27,
       "breakevens": 43,
-      "completed": 113,
-      "total_profit": -34.89
+      "completed": 114,
+      "total_profit": -34.49
     },
     "EUR/USD": {
       "wins": 17,
@@ -351,9 +351,93 @@
       "p1_prob": 79.3,
       "strategy_used": "ROSS_CAMERON",
       "strategy_name": "Ross Cameron (Warrior Trading)"
+    },
+    "535617": {
+      "batch_id": 535617,
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "1h",
+      "action": "BUY",
+      "entry_price": 84828.18,
+      "sl_price": 84234.06286,
+      "breakeven_sl": 84834.12117,
+      "soft_breakeven_sl": 84679.65071,
+      "breakeven_mode": "tight",
+      "recommended_mode": false,
+      "active_sessions": [
+        "24/7 (Any Session)"
+      ],
+      "htf_confluence": true,
+      "tp1_price": 84941.06226,
+      "tp2_price": 85511.41471,
+      "tp3_price": 86135.23771,
+      "matched_pillars": 2,
+      "lot_split": {
+        "tp1_lots": 0.01,
+        "tp2_lots": 0.01,
+        "tp3_lots": 0.0,
+        "tp1_pct": 50.0,
+        "tp2_pct": 50.0,
+        "tp3_pct": 0.0,
+        "tp1_reward_usd": 1.13,
+        "tp2_reward_usd": 6.83,
+        "tp3_reward_usd": 0.0,
+        "total_reward_usd": 7.96
+      },
+      "risk_usd": 11.88,
+      "tickets": [
+        1958366755,
+        1958366759
+      ],
+      "executed_at": "2026-09-27T19:00:18.339554+00:00",
+      "status": "OPEN",
+      "p1_score": -3.3,
+      "p1_prob": 52.0,
+      "strategy_used": "EUGENE_NG_AH_SIO",
+      "strategy_name": "Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)"
     }
   },
   "closed_batches": [
+    {
+      "batch_id": "522979",
+      "symbol": "BTC/USD",
+      "broker_sym": "BTCUSDm",
+      "timeframe": "15m",
+      "action": "BUY",
+      "entry_price": 84582.72,
+      "sl_price": 84190.84329,
+      "breakeven_sl": 84586.63877,
+      "matched_pillars": 4,
+      "tp1_price": 84665.44953,
+      "tp2_price": 85033.37822,
+      "tp3_price": 85444.84877,
+      "lot_split": {
+        "tp1_lots": 0.01,
+        "tp2_lots": 0.01,
+        "tp3_lots": 0.01,
+        "tp1_pct": 33.3,
+        "tp2_pct": 33.3,
+        "tp3_pct": 33.3,
+        "tp1_reward_usd": 0.83,
+        "tp2_reward_usd": 4.51,
+        "tp3_reward_usd": 8.62,
+        "total_reward_usd": 13.96
+      },
+      "tickets": [
+        1958149150,
+        1958149158,
+        1958149221
+      ],
+      "executed_at": "2026-09-27T15:29:41.580268+00:00",
+      "closed_at": "2026-09-27T16:23:08.822549+00:00",
+      "profit": 0.4,
+      "risk_usd": 11.76,
+      "status": "WIN",
+      "p1_score": 16.7,
+      "p1_prob": 64.4,
+      "strategy_used": "ICT",
+      "strategy_name": "Michael J. Huddleston (ICT)"
+    },
     {
       "batch_id": "521496",
       "symbol": "BTC/USD",
@@ -7918,255 +8002,25 @@
       "p1_prob": 97.2,
       "strategy_used": "STEVEN_HART",
       "strategy_name": "Steven Hart (The Trading Channel)"
-    },
-    {
-      "batch_id": "254678",
-      "symbol": "GBP/AUD",
-      "broker_sym": "GBPAUDm",
-      "timeframe": "5m",
-      "action": "SELL",
-      "entry_price": 1.88195,
-      "sl_price": 1.88698,
-      "breakeven_sl": 1.8819,
-      "matched_pillars": 1,
-      "tp1_price": 1.88123,
-      "tp2_price": 1.87617,
-      "tp3_price": 1.87089,
-      "lot_split": {
-        "tp1_lots": 0.02,
-        "tp2_lots": 0.01,
-        "tp3_lots": 0.01,
-        "tp1_pct": 50.0,
-        "tp2_pct": 25.0,
-        "tp3_pct": 25.0,
-        "tp1_reward_usd": 1.01,
-        "tp2_reward_usd": 4.06,
-        "tp3_reward_usd": 7.77,
-        "total_reward_usd": 12.84
-      },
-      "tickets": [
-        1945595224,
-        1945595229,
-        1945595233
-      ],
-      "executed_at": "2026-09-24T12:57:58.663650+00:00",
-      "closed_at": "2026-09-24T13:09:02.241434+00:00",
-      "profit": -0.08,
-      "risk_usd": 14.14,
-      "status": "BREAKEVEN",
-      "p1_score": 15.2,
-      "p1_prob": 48.0,
-      "strategy_used": "NDEMAZEAH_GODLOVE",
-      "strategy_name": "Ndemazeah Godlove (GU MVR)"
     }
   ],
-  "wins": 110,
+  "wins": 111,
   "losses": 81,
   "breakevens": 104,
-  "last_scan_time": "2026-09-27T15:24:38.044394+00:00",
+  "last_scan_time": "2026-09-27T19:17:44.772865+00:00",
   "last_scanned_symbol": null,
   "engine_status": "RUNNING",
-  "cycle_count": 3,
+  "cycle_count": 192,
   "current_scan": {
-    "cycle": 3,
-    "symbol": "EUR/USD",
-    "timeframe": "30m",
-    "time": "15:25:01 UTC"
+    "cycle": 192,
+    "symbol": "USD/CHF",
+    "timeframe": "1m",
+    "time": "19:18:38 UTC"
   },
   "scan_activity_log": [
     {
-      "timestamp": "15:25:00 UTC",
-      "cycle": 3,
-      "symbol": "EUR/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "-",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.4) "
-    },
-    {
-      "timestamp": "15:24:59 UTC",
-      "cycle": 3,
-      "symbol": "EUR/USD",
-      "timeframe": "1m",
-      "action": "SELL",
-      "pillars": "-",
-      "status": "SKIPPED (Spread > 18% TP1)",
-      "details": "Spread: $8e-05 (61.6%) > 18%"
-    },
-    {
-      "timestamp": "15:24:58 UTC",
-      "cycle": 3,
-      "symbol": "EUR/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:56 UTC",
-      "cycle": 3,
-      "symbol": "EUR/USD",
-      "timeframe": "5m",
-      "action": "SELL",
-      "pillars": "-",
-      "status": "SKIPPED (Spread > 18% TP1)",
-      "details": "Spread: $8e-05 (61.6%) > 18%"
-    },
-    {
-      "timestamp": "15:24:55 UTC",
-      "cycle": 3,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:55 UTC",
-      "cycle": 3,
-      "symbol": "BTC/USD",
-      "timeframe": "1h",
-      "action": "BUY",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:54 UTC",
-      "cycle": 3,
-      "symbol": "EUR/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "-",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:24:50 UTC",
-      "cycle": 3,
-      "symbol": "XAU/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:49 UTC",
-      "cycle": 3,
-      "symbol": "XAU/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:47 UTC",
-      "cycle": 3,
-      "symbol": "XAU/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:46 UTC",
-      "cycle": 3,
-      "symbol": "BTC/USD",
-      "timeframe": "30m",
-      "action": "STRONG BUY",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:44 UTC",
-      "cycle": 3,
-      "symbol": "XAU/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "-",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.2) "
-    },
-    {
-      "timestamp": "15:24:42 UTC",
-      "cycle": 3,
-      "symbol": "XAU/USD",
-      "timeframe": "1h",
-      "action": "SELL",
-      "pillars": "-",
-      "status": "SKIPPED (Spread > 30% TP1)",
-      "details": "Spread: $2.9 (118.9%) > 30%"
-    },
-    {
-      "timestamp": "15:24:41 UTC",
-      "cycle": 3,
-      "symbol": "XAU/USD",
-      "timeframe": "30m",
-      "action": "SELL",
-      "pillars": "-",
-      "status": "SKIPPED (Spread > 30% TP1)",
-      "details": "Spread: $2.9 (118.9%) > 30%"
-    },
-    {
-      "timestamp": "15:24:39 UTC",
-      "cycle": 3,
-      "symbol": "XAU/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:21 UTC",
-      "cycle": 2,
-      "symbol": "USD/CHF",
-      "timeframe": "30m",
-      "action": "SELL",
-      "pillars": "1/5",
-      "status": "EXECUTION FAILED",
-      "details": "TP1 (lots: 0.01) failed: Market closed (Code: 10018); TP2 (l"
-    },
-    {
-      "timestamp": "15:24:21 UTC",
-      "cycle": 2,
-      "symbol": "USD/CHF",
-      "timeframe": "30m",
-      "action": "SELL",
-      "pillars": "STRAT",
-      "status": "EXECUTING (NDEMAZEAH_GODLOVE)",
-      "details": "Strategy: Ndemazeah Godlove (GU MVR) | Action: SELL"
-    },
-    {
-      "timestamp": "15:24:20 UTC",
-      "cycle": 2,
-      "symbol": "USD/CHF",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
-      "pillars": "-",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (10.2) "
-    },
-    {
-      "timestamp": "15:24:19 UTC",
-      "cycle": 2,
-      "symbol": "USD/CHF",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:18 UTC",
-      "cycle": 2,
+      "timestamp": "19:18:38 UTC",
+      "cycle": 192,
       "symbol": "USD/CHF",
       "timeframe": "3m",
       "action": "NEUTRAL (FILTERED)",
@@ -8175,8 +8029,8 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:24:17 UTC",
-      "cycle": 2,
+      "timestamp": "19:18:37 UTC",
+      "cycle": 192,
       "symbol": "USD/CHF",
       "timeframe": "5m",
       "action": "NEUTRAL",
@@ -8185,8 +8039,8 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:24:16 UTC",
-      "cycle": 2,
+      "timestamp": "19:18:34 UTC",
+      "cycle": 192,
       "symbol": "USD/CHF",
       "timeframe": "4h",
       "action": "STRONG BUY",
@@ -8195,18 +8049,8 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:24:15 UTC",
-      "cycle": 2,
-      "symbol": "BTC/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:24:14 UTC",
-      "cycle": 2,
+      "timestamp": "19:18:32 UTC",
+      "cycle": 192,
       "symbol": "USD/CHF",
       "timeframe": "1h",
       "action": "NEUTRAL (FILTERED)",
@@ -8215,48 +8059,28 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
     },
     {
-      "timestamp": "15:24:14 UTC",
-      "cycle": 2,
-      "symbol": "GBP/AUD",
+      "timestamp": "19:18:31 UTC",
+      "cycle": 192,
+      "symbol": "USD/CHF",
       "timeframe": "30m",
-      "action": "BUY",
-      "pillars": "1/5",
-      "status": "EXECUTION FAILED",
-      "details": "TP1 (lots: 0.01) failed: Market closed (Code: 10018); TP2 (l"
-    },
-    {
-      "timestamp": "15:24:13 UTC",
-      "cycle": 2,
-      "symbol": "GBP/AUD",
-      "timeframe": "30m",
-      "action": "BUY",
-      "pillars": "STRAT",
-      "status": "EXECUTING (NDEMAZEAH_GODLOVE)",
-      "details": "Strategy: Ndemazeah Godlove (GU MVR) | Action: BUY"
-    },
-    {
-      "timestamp": "15:24:12 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "1m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:11 UTC",
-      "cycle": 2,
-      "symbol": "GBP/AUD",
-      "timeframe": "15m",
       "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
+      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
+    },
+    {
+      "timestamp": "19:18:29 UTC",
+      "cycle": 192,
+      "symbol": "BTC/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
       "status": "SKIPPED (Chop Gate)",
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:24:09 UTC",
-      "cycle": 2,
+      "timestamp": "19:18:29 UTC",
+      "cycle": 192,
       "symbol": "GBP/AUD",
       "timeframe": "1m",
       "action": "SELL",
@@ -8265,8 +8089,8 @@
       "details": "Spread: $0.00021 (97.7%) > 18%"
     },
     {
-      "timestamp": "15:24:07 UTC",
-      "cycle": 2,
+      "timestamp": "19:18:26 UTC",
+      "cycle": 192,
       "symbol": "GBP/AUD",
       "timeframe": "3m",
       "action": "NEUTRAL",
@@ -8275,178 +8099,118 @@
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (15.3) "
     },
     {
-      "timestamp": "15:24:07 UTC",
-      "cycle": 2,
-      "symbol": "BTC/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:24:05 UTC",
-      "cycle": 2,
-      "symbol": "XAG/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL",
-      "pillars": "-",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
-    },
-    {
-      "timestamp": "15:24:04 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
-    },
-    {
-      "timestamp": "15:24:03 UTC",
-      "cycle": 2,
-      "symbol": "XAG/USD",
+      "timestamp": "19:18:25 UTC",
+      "cycle": 192,
+      "symbol": "GBP/AUD",
       "timeframe": "5m",
-      "action": "NEUTRAL",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
+      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
     },
     {
-      "timestamp": "15:24:02 UTC",
-      "cycle": 2,
-      "symbol": "XAG/USD",
+      "timestamp": "19:18:24 UTC",
+      "cycle": 192,
+      "symbol": "GBP/AUD",
       "timeframe": "4h",
-      "action": "NEUTRAL",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
       "status": "SKIPPED (Chop Gate)",
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:24:01 UTC",
-      "cycle": 2,
-      "symbol": "XAG/USD",
+      "timestamp": "19:18:23 UTC",
+      "cycle": 192,
+      "symbol": "GBP/AUD",
       "timeframe": "1h",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:23:58 UTC",
-      "cycle": 2,
-      "symbol": "XAG/USD",
-      "timeframe": "30m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:23:56 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "5m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:23:53 UTC",
-      "cycle": 2,
-      "symbol": "BTC/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
       "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (10.0)"
     },
     {
-      "timestamp": "15:23:52 UTC",
-      "cycle": 2,
-      "symbol": "EUR/USD",
+      "timestamp": "19:18:22 UTC",
+      "cycle": 192,
+      "symbol": "GBP/AUD",
       "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
+      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
+    },
+    {
+      "timestamp": "19:18:21 UTC",
+      "cycle": 192,
+      "symbol": "ETH/USD",
+      "timeframe": "1h",
       "action": "NEUTRAL",
       "pillars": "-",
-      "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.3)"
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:23:50 UTC",
-      "cycle": 2,
-      "symbol": "EUR/USD",
+      "timestamp": "19:18:21 UTC",
+      "cycle": 192,
+      "symbol": "BTC/USD",
+      "timeframe": "1h",
+      "action": "BUY",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:18:20 UTC",
+      "cycle": 192,
+      "symbol": "GBP/AUD",
       "timeframe": "15m",
       "action": "NEUTRAL",
       "pillars": "-",
       "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.4) "
-    },
-    {
-      "timestamp": "15:23:49 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "4h",
-      "action": "NEUTRAL",
-      "pillars": "-",
-      "status": "SKIPPED (Chop Gate)",
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:23:48 UTC",
-      "cycle": 2,
-      "symbol": "EUR/USD",
-      "timeframe": "1m",
-      "action": "SELL",
-      "pillars": "-",
-      "status": "SKIPPED (Spread > 18% TP1)",
-      "details": "Spread: $8e-05 (61.6%) > 18%"
-    },
-    {
-      "timestamp": "15:23:45 UTC",
-      "cycle": 2,
-      "symbol": "EUR/USD",
-      "timeframe": "3m",
+      "timestamp": "19:18:18 UTC",
+      "cycle": 192,
+      "symbol": "XAG/USD",
+      "timeframe": "1h",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:23:43 UTC",
-      "cycle": 2,
-      "symbol": "EUR/USD",
-      "timeframe": "5m",
-      "action": "SELL",
-      "pillars": "-",
-      "status": "SKIPPED (Spread > 18% TP1)",
-      "details": "Spread: $8e-05 (61.6%) > 18%"
-    },
-    {
-      "timestamp": "15:23:42 UTC",
-      "cycle": 2,
-      "symbol": "ETH/USD",
-      "timeframe": "1h",
-      "action": "NEUTRAL",
+      "timestamp": "19:18:16 UTC",
+      "cycle": 192,
+      "symbol": "XAG/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:23:39 UTC",
-      "cycle": 2,
-      "symbol": "EUR/USD",
-      "timeframe": "4h",
+      "timestamp": "19:18:15 UTC",
+      "cycle": 192,
+      "symbol": "XAG/USD",
+      "timeframe": "15m",
       "action": "NEUTRAL",
       "pillars": "-",
       "status": "SKIPPED (Chop Gate)",
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:23:38 UTC",
-      "cycle": 2,
+      "timestamp": "19:18:14 UTC",
+      "cycle": 192,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:18:13 UTC",
+      "cycle": 192,
       "symbol": "BTC/USD",
       "timeframe": "30m",
       "action": "STRONG BUY",
@@ -8455,8 +8219,118 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:23:38 UTC",
-      "cycle": 2,
+      "timestamp": "19:18:13 UTC",
+      "cycle": 192,
+      "symbol": "XAG/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:18:11 UTC",
+      "cycle": 192,
+      "symbol": "XAG/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
+    },
+    {
+      "timestamp": "19:18:10 UTC",
+      "cycle": 192,
+      "symbol": "XAG/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:18:09 UTC",
+      "cycle": 192,
+      "symbol": "XAG/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:18:08 UTC",
+      "cycle": 192,
+      "symbol": "EUR/USD",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (17.3)"
+    },
+    {
+      "timestamp": "19:18:07 UTC",
+      "cycle": 192,
+      "symbol": "EUR/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.4) "
+    },
+    {
+      "timestamp": "19:18:05 UTC",
+      "cycle": 192,
+      "symbol": "BTC/USD",
+      "timeframe": "15m",
+      "action": "BUY",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:18:05 UTC",
+      "cycle": 192,
+      "symbol": "EUR/USD",
+      "timeframe": "1m",
+      "action": "SELL",
+      "pillars": "-",
+      "status": "SKIPPED (Spread > 18% TP1)",
+      "details": "Spread: $8e-05 (61.6%) > 18%"
+    },
+    {
+      "timestamp": "19:18:03 UTC",
+      "cycle": 192,
+      "symbol": "EUR/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:18:01 UTC",
+      "cycle": 192,
+      "symbol": "EUR/USD",
+      "timeframe": "5m",
+      "action": "SELL",
+      "pillars": "-",
+      "status": "SKIPPED (Spread > 18% TP1)",
+      "details": "Spread: $8e-05 (61.6%) > 18%"
+    },
+    {
+      "timestamp": "19:18:00 UTC",
+      "cycle": 192,
+      "symbol": "EUR/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:17:59 UTC",
+      "cycle": 192,
       "symbol": "EUR/USD",
       "timeframe": "1h",
       "action": "NEUTRAL",
@@ -8465,9 +8339,69 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:23:35 UTC",
-      "cycle": 2,
+      "timestamp": "19:17:58 UTC",
+      "cycle": 192,
+      "symbol": "BTC/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (19.5)"
+    },
+    {
+      "timestamp": "19:17:56 UTC",
+      "cycle": 192,
+      "symbol": "XAU/USD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:17:54 UTC",
+      "cycle": 192,
+      "symbol": "XAU/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (18.6) "
+    },
+    {
+      "timestamp": "19:17:53 UTC",
+      "cycle": 192,
+      "symbol": "XAU/USD",
+      "timeframe": "1h",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:17:52 UTC",
+      "cycle": 192,
       "symbol": "ETH/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:17:51 UTC",
+      "cycle": 192,
+      "symbol": "BTC/USD",
+      "timeframe": "3m",
+      "action": "BUY",
+      "pillars": "-",
+      "status": "SKIPPED (Spread > 18% TP1)",
+      "details": "Spread: $10.0 (20.7%) > 18%"
+    },
+    {
+      "timestamp": "19:17:50 UTC",
+      "cycle": 192,
+      "symbol": "XAU/USD",
       "timeframe": "30m",
       "action": "NEUTRAL",
       "pillars": "-",
@@ -8475,9 +8409,39 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:23:35 UTC",
-      "cycle": 2,
+      "timestamp": "19:17:48 UTC",
+      "cycle": 192,
       "symbol": "XAU/USD",
+      "timeframe": "15m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:17:47 UTC",
+      "cycle": 192,
+      "symbol": "XAU/USD",
+      "timeframe": "1m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (16.8)"
+    },
+    {
+      "timestamp": "19:17:46 UTC",
+      "cycle": 192,
+      "symbol": "XAU/USD",
+      "timeframe": "3m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:17:28 UTC",
+      "cycle": 191,
+      "symbol": "USD/CHF",
       "timeframe": "1m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
@@ -8485,91 +8449,171 @@
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:23:33 UTC",
-      "cycle": 2,
-      "symbol": "XAU/USD",
+      "timestamp": "19:17:27 UTC",
+      "cycle": 191,
+      "symbol": "USD/CHF",
       "timeframe": "3m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:23:31 UTC",
-      "cycle": 2,
-      "symbol": "XAU/USD",
+      "timestamp": "19:17:27 UTC",
+      "cycle": 191,
+      "symbol": "BTC/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:17:26 UTC",
+      "cycle": 191,
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:17:26 UTC",
+      "cycle": 191,
+      "symbol": "USD/CHF",
       "timeframe": "5m",
       "action": "NEUTRAL",
       "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
     },
     {
-      "timestamp": "15:23:30 UTC",
-      "cycle": 2,
-      "symbol": "BTC/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL",
+      "timestamp": "19:17:24 UTC",
+      "cycle": 191,
+      "symbol": "USD/CHF",
+      "timeframe": "4h",
+      "action": "STRONG BUY",
       "pillars": "-",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:23:29 UTC",
-      "cycle": 2,
-      "symbol": "XAU/USD",
-      "timeframe": "4h",
+      "timestamp": "19:17:23 UTC",
+      "cycle": 191,
+      "symbol": "USD/CHF",
+      "timeframe": "1h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: BB Squeeze await"
+    },
+    {
+      "timestamp": "19:17:21 UTC",
+      "cycle": 191,
+      "symbol": "USD/CHF",
+      "timeframe": "30m",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
+      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
+    },
+    {
+      "timestamp": "19:17:20 UTC",
+      "cycle": 191,
+      "symbol": "USD/CHF",
+      "timeframe": "15m",
       "action": "NEUTRAL",
       "pillars": "-",
       "status": "SKIPPED (Chop Gate)",
-      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (13.2) "
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (10.2) "
     },
     {
-      "timestamp": "15:23:28 UTC",
-      "cycle": 2,
+      "timestamp": "19:17:19 UTC",
+      "cycle": 191,
       "symbol": "ETH/USD",
-      "timeframe": "15m",
-      "action": "NEUTRAL (FILTERED)",
-      "pillars": "-",
-      "status": "No Trade (Waiting Setup)",
-      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
-    },
-    {
-      "timestamp": "15:23:26 UTC",
-      "cycle": 2,
-      "symbol": "XAU/USD",
       "timeframe": "1h",
-      "action": "SELL",
+      "action": "NEUTRAL",
       "pillars": "-",
-      "status": "SKIPPED (Spread > 30% TP1)",
-      "details": "Spread: $2.9 (118.9%) > 30%"
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:23:24 UTC",
-      "cycle": 2,
-      "symbol": "XAU/USD",
+      "timestamp": "19:17:18 UTC",
+      "cycle": 191,
+      "symbol": "GBP/AUD",
+      "timeframe": "3m",
+      "action": "NEUTRAL",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (15.3) "
+    },
+    {
+      "timestamp": "19:17:16 UTC",
+      "cycle": 191,
+      "symbol": "GBP/AUD",
+      "timeframe": "5m",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
+      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
+    },
+    {
+      "timestamp": "19:17:15 UTC",
+      "cycle": 191,
+      "symbol": "GBP/AUD",
+      "timeframe": "4h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
+    },
+    {
+      "timestamp": "19:17:14 UTC",
+      "cycle": 191,
+      "symbol": "GBP/AUD",
+      "timeframe": "1h",
+      "action": "NEUTRAL (FILTERED)",
+      "pillars": "-",
+      "status": "SKIPPED (Chop Gate)",
+      "details": "CHOP: CHOP CONSOLIDATION DETECTED: ADX < 20 (10.0)"
+    },
+    {
+      "timestamp": "19:17:13 UTC",
+      "cycle": 191,
+      "symbol": "GBP/AUD",
       "timeframe": "30m",
-      "action": "SELL",
+      "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
-      "status": "SKIPPED (Spread > 30% TP1)",
-      "details": "Spread: $2.9 (118.9%) > 30%"
+      "status": "SKIPPED (Outside NDEMAZEAH_GODLOVE Session)",
+      "details": "Outside NDEMAZEAH_GODLOVE Killzone/Session (Designated: London & NY Overlap Peak Volume)"
     },
     {
-      "timestamp": "15:23:22 UTC",
-      "cycle": 2,
-      "symbol": "XAU/USD",
-      "timeframe": "15m",
+      "timestamp": "19:17:12 UTC",
+      "cycle": 191,
+      "symbol": "BTC/USD",
+      "timeframe": "30m",
+      "action": "BUY",
+      "pillars": "-",
+      "status": "No Trade (Waiting Setup)",
+      "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
+    },
+    {
+      "timestamp": "19:17:11 UTC",
+      "cycle": 191,
+      "symbol": "ETH/USD",
+      "timeframe": "30m",
       "action": "NEUTRAL (FILTERED)",
       "pillars": "-",
       "status": "No Trade (Waiting Setup)",
       "details": "Active: [VIVEK_YADAV, BERND_SKORUPINSKI, ICT +15 more] | Monitoring price action for valid trigger"
     },
     {
-      "timestamp": "15:23:04 UTC",
-      "cycle": 1,
-      "symbol": "ETH/USD",
-      "timeframe": "3m",
-      "action": "NEUTRAL (FILTERED)",
+      "timestamp": "19:17:11 UTC",
+      "cycle": 191,
+      "symbol": "GBP/AUD",
+      "timeframe": "15m",
+      "action": "NEUTRAL",
       "pillars": "-",
       "status": "SKIPPED (Chop Gate)",
       "details": "CHOP: CHOP CONSOLIDATION DETECTED: Choppiness > 61."
@@ -8578,13 +8622,13 @@
   "next_scan_time": "00:01 remaining",
   "reset_at": null,
   "tf_rotation_indices": {
-    "XAU/USD": 1,
-    "XAG/USD": 0,
-    "ETH/USD": 1,
-    "GBP/AUD": 2,
-    "BTC/USD": 1,
+    "XAU/USD": 6,
+    "XAG/USD": 4,
+    "ETH/USD": 6,
+    "GBP/AUD": 1,
+    "BTC/USD": 6,
     "EUR/USD": 3,
-    "USD/CHF": 2
+    "USD/CHF": 1
   },
   "xau_trades_taken": 0,
   "btc_trades_taken": 0,
