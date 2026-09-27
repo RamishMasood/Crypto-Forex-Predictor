@@ -72,11 +72,16 @@ class VivekYadavSupplyDemandEngine:
                 if c1_green and c2_green and c3_green:
                     # Check expansion strength: 3rd candle close must exceed high of red candle
                     if closes[i + 3] > highs[i]:
+                        # Calculate retest count between zone formation and current bar
+                        # Fresh zone (tested <= 1 time) has highest institutional order density
+                        test_count = sum(1 for k in range(i + 4, n - 1) if lows[k] <= highs[i] and highs[k] >= lows[i])
                         demand_zones.append({
                             'type': 'DEMAND_ZONE',
                             'top': float(highs[i]),
                             'bottom': float(lows[i]),
                             'candle_index': int(i),
+                            'test_count': test_count,
+                            'is_fresh': (test_count <= 1),
                             'source': 'Swing Bottom Demand (3+ Green Expansion)',
                             'active': True
                         })
@@ -95,11 +100,14 @@ class VivekYadavSupplyDemandEngine:
                 if c1_red and c2_red and c3_red:
                     # Check expansion strength: 3rd candle close must be below low of green candle
                     if closes[i + 3] < lows[i]:
+                        test_count = sum(1 for k in range(i + 4, n - 1) if highs[k] >= lows[i] and lows[k] <= highs[i])
                         supply_zones.append({
                             'type': 'SUPPLY_ZONE',
                             'top': float(highs[i]),
                             'bottom': float(lows[i]),
                             'candle_index': int(i),
+                            'test_count': test_count,
+                            'is_fresh': (test_count <= 1),
                             'source': 'Swing Top Supply (3+ Red Drop)',
                             'active': True
                         })
@@ -168,17 +176,17 @@ class VivekYadavSupplyDemandEngine:
 
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
-        # Asset Class Guard: Vivek Yadav (Advance Crypto Trader) operates strictly on Crypto & Gold (XAUUSD)
-        if current_price < 500.0:
+        if n < 20 or current_price <= 0.0:
             return {
                 'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
+                'status': 'INSUFFICIENT_DATA',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': ["Vivek Yadav S&D model is calibrated for Crypto (BTC/ETH) and Gold (XAUUSD)."]
+                'reasons': ["Insufficient bars for Vivek Yadav S&D analysis."]
             }
 
-        min_atr_floor = current_price * 0.0015
+        # Adaptive ATR Floor for Forex Majors, Metals, and Crypto
+        min_atr_floor = (current_price * 0.0003) if current_price < 5.0 else (current_price * 0.0015)
         safe_atr = max(atr, min_atr_floor)
 
         zones_dict = cls.detect_zones(df)
@@ -199,6 +207,13 @@ class VivekYadavSupplyDemandEngine:
         ema_20 = float(closes_s.ewm(span=20, adjust=False).mean().iloc[-1])
         ema_50 = float(closes_s.ewm(span=50, adjust=False).mean().iloc[-1])
 
+        # Volume confirmation: institutional participation at the zone
+        vol_confirmed = True
+        if 'volume' in df.columns and len(df['volume']) >= 10:
+            avg_vol = float(df['volume'].iloc[-10:].mean())
+            if avg_vol > 0:
+                vol_confirmed = (float(df['volume'].iloc[-1]) >= avg_vol * 0.80)
+
         action = 'HOLD'
         status = 'SCANNING_ZONES'
         confidence = 50.0
@@ -206,9 +221,11 @@ class VivekYadavSupplyDemandEngine:
         reasons = []
 
         # 1. TEST DEMAND TRIGGER (BUY):
-        # Allowed strictly in BULLISH trend with price holding above EMA20
+        # Allowed strictly in BULLISH trend with price holding above EMA20 and volume absorption
         if trend == 'BULLISH' and (last_c >= ema_20) and (ema_20 >= ema_50 * 0.998):
-            for dz in reversed(demand_zones):
+            # Sort demand zones: fresh zones first, then most recent
+            sorted_demand = sorted(demand_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)
+            for dz in sorted_demand:
                 z_top = dz['top']
                 z_bot = dz['bottom']
 
@@ -219,7 +236,7 @@ class VivekYadavSupplyDemandEngine:
 
                 if touched and not invalidated:
                     # Confirmation: Green candle with bottom rejection wick >= 38%, price holding above zone bottom, and substantial range
-                    is_green_confirm = (last_c > last_o) and (last_c >= z_bot + 0.05 * safe_atr) and (lower_wick_ratio >= 0.38) and (candle_range >= 0.40 * safe_atr)
+                    is_green_confirm = (last_c > last_o) and (last_c >= z_bot + 0.05 * safe_atr) and (lower_wick_ratio >= 0.38) and (candle_range >= 0.35 * safe_atr) and vol_confirmed
                     # Also permit confirmation if previous candle formed the rejection and current confirms green
                     if not is_green_confirm and n >= 2:
                         prev_o = float(df['open'].iloc[-2])
@@ -227,23 +244,27 @@ class VivekYadavSupplyDemandEngine:
                         prev_l = float(df['low'].iloc[-2])
                         prev_range = max(float(df['high'].iloc[-2]) - prev_l, 1e-9)
                         prev_lower_wick = (min(prev_o, prev_c) - prev_l) / prev_range
-                        if prev_lower_wick >= 0.38 and last_c > last_o and (last_c >= z_bot + 0.05 * safe_atr) and (candle_range >= 0.40 * safe_atr):
+                        if prev_lower_wick >= 0.38 and last_c > last_o and (last_c >= z_bot + 0.05 * safe_atr) and (candle_range >= 0.35 * safe_atr):
                             is_green_confirm = True
 
                     if is_green_confirm:
                         action = 'BUY'
                         status = 'DEMAND_ENTRY_READY'
                         active_zone = dz
-                        confidence = 90.0
-                        reasons.append(f"Vivek Yadav S&D: Valid Demand Zone Touch [{z_bot:.2f} - {z_top:.2f}]")
+                        is_fresh = dz.get('is_fresh', False)
+                        confidence = 92.0 if is_fresh else 88.0
+                        reasons.append(f"Vivek Yadav S&D: {'Fresh ' if is_fresh else ''}Demand Zone Touch [{z_bot:.2f} - {z_top:.2f}]")
                         reasons.append(f"Candle Confirmation: Green Close with {lower_wick_ratio*100:.1f}% Bottom Rejection Wick")
                         reasons.append(f"Trend Filter: {trend} market structure & EMA20 ({ema_20:.2f}) >= EMA50 ({ema_50:.2f})")
+                        if is_fresh:
+                            reasons.append("Zone Quality: High-Priority Unmitigated (Fresh) Institutional Demand")
                         break
 
         # 2. TEST SUPPLY TRIGGER (SELL):
-        # Allowed strictly in BEARISH trend with price holding below EMA20
+        # Allowed strictly in BEARISH trend with price holding below EMA20 and volume absorption
         if action == 'HOLD' and trend == 'BEARISH' and (last_c <= ema_20) and (ema_20 <= ema_50 * 1.002):
-            for sz in reversed(supply_zones):
+            sorted_supply = sorted(supply_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)
+            for sz in sorted_supply:
                 z_top = sz['top']
                 z_bot = sz['bottom']
 
@@ -254,35 +275,36 @@ class VivekYadavSupplyDemandEngine:
 
                 if touched and not invalidated:
                     # Confirmation: Red candle with top rejection wick >= 38%, price holding below zone top, and substantial range
-                    is_red_confirm = (last_c < last_o) and (last_c <= z_top - 0.05 * safe_atr) and (upper_wick_ratio >= 0.38) and (candle_range >= 0.40 * safe_atr)
+                    is_red_confirm = (last_c < last_o) and (last_c <= z_top - 0.05 * safe_atr) and (upper_wick_ratio >= 0.38) and (candle_range >= 0.35 * safe_atr) and vol_confirmed
                     if not is_red_confirm and n >= 2:
                         prev_o = float(df['open'].iloc[-2])
                         prev_c = float(df['close'].iloc[-2])
                         prev_h = float(df['high'].iloc[-2])
                         prev_range = max(prev_h - float(df['low'].iloc[-2]), 1e-9)
                         prev_upper_wick = (prev_h - max(prev_o, prev_c)) / prev_range
-                        if prev_upper_wick >= 0.38 and last_c < last_o and (last_c <= z_top - 0.05 * safe_atr) and (candle_range >= 0.40 * safe_atr):
+                        if prev_upper_wick >= 0.38 and last_c < last_o and (last_c <= z_top - 0.05 * safe_atr) and (candle_range >= 0.35 * safe_atr):
                             is_red_confirm = True
 
                     if is_red_confirm:
                         action = 'SELL'
                         status = 'SUPPLY_ENTRY_READY'
                         active_zone = sz
-                        confidence = 90.0
-                        reasons.append(f"Vivek Yadav S&D: Valid Supply Zone Touch [{z_bot:.2f} - {z_top:.2f}]")
+                        is_fresh = sz.get('is_fresh', False)
+                        confidence = 92.0 if is_fresh else 88.0
+                        reasons.append(f"Vivek Yadav S&D: {'Fresh ' if is_fresh else ''}Supply Zone Touch [{z_bot:.2f} - {z_top:.2f}]")
                         reasons.append(f"Candle Confirmation: Red Close with {upper_wick_ratio*100:.1f}% Top Rejection Wick")
-                        reasons.append(f"Trend Filter: {trend} market structure")
+                        reasons.append(f"Trend Filter: {trend} market structure & EMA20 ({ema_20:.2f}) <= EMA50 ({ema_50:.2f})")
+                        if is_fresh:
+                            reasons.append("Zone Quality: High-Priority Unmitigated (Fresh) Institutional Supply")
                         break
 
         # 3. BUILD TRADE SETUP WITH MANDATORY 1:2 R:R AND GOLDEN SL
         if action != 'HOLD' and active_zone:
             entry_price = current_price
-            base_sl_dist = 1.80 * safe_atr
-            min_sl_dist = 1.50 * safe_atr
 
             if action == 'BUY':
                 zone_bottom = active_zone['bottom']
-                sl_distance = max(1.80 * safe_atr, min(abs(entry_price - zone_bottom) + 0.20 * safe_atr, 2.00 * safe_atr))
+                sl_distance = max(1.80 * safe_atr, abs(entry_price - zone_bottom) + 0.20 * safe_atr)
                 stop_loss = entry_price - sl_distance
                 tp1 = entry_price + (0.38 * safe_atr) # Precision scalp bank -> BE lock
                 tp2 = entry_price + (1.15 * sl_distance) # Mandatory 1:1+ Runner Geometry
@@ -290,7 +312,7 @@ class VivekYadavSupplyDemandEngine:
 
             else:  # SELL
                 zone_top = active_zone['top']
-                sl_distance = max(1.80 * safe_atr, min(abs(zone_top - entry_price) + 0.20 * safe_atr, 2.00 * safe_atr))
+                sl_distance = max(1.80 * safe_atr, abs(zone_top - entry_price) + 0.20 * safe_atr)
                 stop_loss = entry_price + sl_distance
                 tp1 = entry_price - (0.38 * safe_atr)
                 tp2 = entry_price - (1.15 * sl_distance)

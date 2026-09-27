@@ -267,18 +267,6 @@ class ICTStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: ICT model is calibrated for Forex Majors, Index Futures & Crypto (rejects Gold wicks)
-        if current_price > 2000.0 and current_price < 10000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["ICT model is calibrated for Forex Majors, Index Futures & Crypto (avoiding Gold noise)."]
-            }
 
         highs = df['high'].values
         lows = df['low'].values
@@ -420,18 +408,6 @@ class StevenHartStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: Steven Hart Break & Retest model is calibrated for Forex Majors and Crypto (avoiding Gold noise)
-        if current_price > 2000.0 and current_price < 10000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["Steven Hart model is calibrated for Forex Majors and Crypto (avoiding Gold noise)."]
-            }
 
         highs = df['high'].values
         lows = df['low'].values
@@ -563,18 +539,6 @@ class RaynerTeoStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: Rayner Teo model is calibrated for Forex Majors & Crypto (rejects Gold wicks)
-        if current_price > 2000.0 and current_price < 10000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["Rayner Teo Trend & Pullback model is calibrated for Forex Majors and Crypto (avoiding Gold noise)."]
-            }
 
         closes = pd.Series(df['close'].values)
         ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
@@ -706,8 +670,8 @@ class CryptoCredStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: Crypto Cred operates strictly on Crypto (BTC/ETH/SOL) and rejects Gold/Forex noise
-        if current_price < 5000.0:
+        # Asset Guard: Crypto Cred operates on Crypto Majors & Perps (BTC, ETH, Altcoins)
+        if current_price < 10.0:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -716,7 +680,7 @@ class CryptoCredStrategy:
                 'status': 'ASSET_CLASS_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': ["Crypto Cred S/R model is calibrated strictly for major Cryptos (BTC/ETH)."]
+                'reasons': ["Crypto Cred S/R model is calibrated for Crypto assets (BTC/ETH)."]
             }
 
         closes = pd.Series(df['close'].values)
@@ -738,38 +702,57 @@ class CryptoCredStrategy:
         h_sup = float(np.min(lows[-20:-2])) if n >= 20 else float(np.min(lows))
         h_res = float(np.max(highs[-20:-2])) if n >= 20 else float(np.max(highs))
 
+        # True RSI Divergence Detection (Crypto Cred Signature Edge):
+        bull_divergence = False
+        bear_divergence = False
+        if n >= 20 and len(rsi_series) >= 20:
+            past_low = float(np.min(lows[-15:-3]))
+            past_rsi_low = float(rsi_series.iloc[-15:-3].min())
+            past_high = float(np.max(highs[-15:-3]))
+            past_rsi_high = float(rsi_series.iloc[-15:-3].max())
+            # Bullish Divergence: Price retesting/breaking past low, but RSI making higher low
+            if lows[-1] <= past_low * 1.003 and rsi_val >= past_rsi_low + 3.0:
+                bull_divergence = True
+            # Bearish Divergence: Price retesting/breaking past high, but RSI making lower high
+            if highs[-1] >= past_high * 0.997 and rsi_val <= past_rsi_high - 3.0:
+                bear_divergence = True
+
         action = 'HOLD'
         status = 'SCANNING_SR_LEVELS'
         confidence = 50.0
         reasons = []
 
-        # Buy Setup: Testing horizontal support with RSI oversold/exhaustion and bullish reclaim
+        # Buy Setup: Testing horizontal support with RSI oversold/divergence and bullish reclaim
         in_sup_zone = (h_sup - 0.35 * safe_atr <= current_price <= h_sup + 0.45 * safe_atr)
         in_res_zone = (h_res - 0.45 * safe_atr <= current_price <= h_res + 0.35 * safe_atr)
         cand_body = abs(closes.iloc[-1] - df['open'].iloc[-1])
 
-        if in_sup_zone and (closes.iloc[-1] > df['open'].iloc[-1]) and (rsi_val <= 42.0) and (current_price >= sma_200 * 0.995 and ema_20 >= ema_50) and (cand_body >= 0.28 * safe_atr):
+        if in_sup_zone and (closes.iloc[-1] > df['open'].iloc[-1]) and (rsi_val <= 45.0 or bull_divergence) and (current_price >= sma_200 * 0.995 and ema_20 >= ema_50) and (cand_body >= 0.25 * safe_atr):
             action = 'BUY'
             status = 'SUPPORT_RECLAIM_RSI_BUY'
-            confidence = 86.0
+            confidence = 92.0 if bull_divergence else 87.0
             reasons.append(f"Crypto Cred: Horizontal Support [{h_sup:.2f}] successfully tested and reclaimed")
             reasons.append(f"RSI Exhaustion Bounce: RSI(14) = {rsi_val:.1f}")
+            if bull_divergence:
+                reasons.append("Elite Edge: Bullish RSI Divergence confirmed at Support (Higher Low on RSI)")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min(entry_price - (h_sup - 0.20 * safe_atr), 2.00 * safe_atr))
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - (h_sup - 0.20 * safe_atr)))
             stop_loss = entry_price - sl_distance
             tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + max(1.15 * sl_distance, (h_res - entry_price) * 0.5)
             tp3 = entry_price + (2.20 * sl_distance)
 
-        # Sell Setup: Testing horizontal resistance with RSI overbought/exhaustion and bearish reclaim
-        elif in_res_zone and (closes.iloc[-1] < df['open'].iloc[-1]) and (rsi_val >= 58.0) and (current_price <= sma_200 * 1.005 and ema_20 <= ema_50) and (cand_body >= 0.28 * safe_atr):
+        # Sell Setup: Testing horizontal resistance with RSI overbought/divergence and bearish reclaim
+        elif in_res_zone and (closes.iloc[-1] < df['open'].iloc[-1]) and (rsi_val >= 55.0 or bear_divergence) and (current_price <= sma_200 * 1.005 and ema_20 <= ema_50) and (cand_body >= 0.25 * safe_atr):
             action = 'SELL'
             status = 'RESISTANCE_REJECT_RSI_SELL'
-            confidence = 86.0
+            confidence = 92.0 if bear_divergence else 87.0
             reasons.append(f"Crypto Cred: Horizontal Resistance [{h_res:.2f}] successfully tested and rejected")
             reasons.append(f"RSI Exhaustion Rejection: RSI(14) = {rsi_val:.1f}")
+            if bear_divergence:
+                reasons.append("Elite Edge: Bearish RSI Divergence confirmed at Resistance (Lower High on RSI)")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min((h_res + 0.20 * safe_atr) - entry_price, 2.00 * safe_atr))
+            sl_distance = max(1.80 * safe_atr, abs((h_res + 0.20 * safe_atr) - entry_price))
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
             tp2 = entry_price - max(1.15 * sl_distance, (entry_price - h_sup) * 0.5)
@@ -978,18 +961,6 @@ class RossCameronStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: Ross Cameron Warrior Trading model is strictly calibrated for High-Beta Momentum Assets (Crypto, Indices)
-        if current_price < 2000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["Ross Cameron Warrior Trading model is exclusive to High-Beta Crypto & Equities (rejects Forex pairs with synthetic tick volume)."]
-            }
 
         closes = pd.Series(df['close'].values)
         volumes = pd.Series(df['volume'].values) if 'volume' in df.columns else pd.Series(np.ones(n))
@@ -1104,18 +1075,6 @@ class AdamKhooStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: Adam Khoo Multi-EMA trend model is calibrated for Forex Majors, Equities & Crypto (avoiding Gold noise)
-        if current_price > 2000.0 and current_price < 10000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["Adam Khoo Multi-EMA model is calibrated for Forex Majors, Equities & Crypto (avoiding Gold commodity noise)."]
-            }
 
         closes = pd.Series(df['close'].values)
         ema_20_series = closes.ewm(span=20, adjust=False).mean()
@@ -1251,19 +1210,6 @@ class ArielZwecherStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: Ariel Zwecher 15M ORB model is calibrated for Forex & Crypto (rejects Gold wicks)
-        if current_price > 2000.0 and current_price < 10000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["Ariel Zwecher 15M ORB model is calibrated for Forex and Crypto (avoiding Gold noise)."]
-            }
-
         highs = df['high'].values
         lows = df['low'].values
         closes = df['close'].values
@@ -1299,7 +1245,7 @@ class ArielZwecherStrategy:
             confidence = 86.0
             reasons.append(f"Ariel Zwecher: Clean 15M Opening Range Breakout above {orb_high:.2f}")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min(abs(entry_price - orb_low) + 0.20 * safe_atr, 2.00 * safe_atr))
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - orb_low) + 0.20 * safe_atr)
             stop_loss = entry_price - sl_distance
             tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
@@ -1312,7 +1258,7 @@ class ArielZwecherStrategy:
             confidence = 86.0
             reasons.append(f"Ariel Zwecher: Clean 15M Opening Range Breakdown below {orb_low:.2f}")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min(abs(orb_high - entry_price) + 0.20 * safe_atr, 2.00 * safe_atr))
+            sl_distance = max(1.80 * safe_atr, abs(orb_high - entry_price) + 0.20 * safe_atr)
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
@@ -1384,18 +1330,6 @@ class OliverVelezStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: Oliver Velez model is calibrated for Equities, Indices & Forex (rejects Gold wicks)
-        if current_price > 2000.0 and current_price < 10000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["Oliver Velez 20 SMA Elephant Bar model is calibrated for Equities, Indices and Forex (avoiding Gold wicks)."]
-            }
 
         closes = pd.Series(df['close'].values)
         opens = pd.Series(df['open'].values)
@@ -1446,7 +1380,7 @@ class OliverVelezStrategy:
             reasons.append(f"Oliver Velez: {bar_type} formed precisely at 20 SMA Location ({sma_20:.2f})")
             reasons.append(f"Macro Baseline Aligned: Price > 200 SMA ({sma_200:.2f})")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min(entry_price - (lows.iloc[-1] - 0.20 * safe_atr), 2.00 * safe_atr))
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - (lows.iloc[-1] - 0.20 * safe_atr)))
             stop_loss = entry_price - sl_distance
             tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
@@ -1460,7 +1394,7 @@ class OliverVelezStrategy:
             reasons.append(f"Oliver Velez: {bar_type} formed precisely at 20 SMA Location ({sma_20:.2f})")
             reasons.append(f"Macro Baseline Aligned: Price < 200 SMA ({sma_200:.2f})")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min((highs.iloc[-1] + 0.20 * safe_atr) - entry_price, 2.00 * safe_atr))
+            sl_distance = max(1.80 * safe_atr, abs((highs.iloc[-1] + 0.20 * safe_atr) - entry_price))
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
@@ -1533,19 +1467,6 @@ class TradeProStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: Trade Pro Donchian Channel system is mechanically calibrated for Forex Majors and Commodities (Gold/Silver/Crude)
-        # Avoids high-volatility Crypto false breakouts
-        if current_price > 10000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["Trade Pro Donchian 20 model is calibrated for Forex Majors, Metals (Gold) and Index Futures."]
-            }
 
         closes = pd.Series(df['close'].values)
         highs = pd.Series(df['high'].values)
@@ -1687,18 +1608,6 @@ class KristjanQullamaggieStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: Qullamaggie trades high ADR% momentum in Equities and Crypto (avoiding commodities)
-        if current_price > 2000.0 and current_price < 10000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["Qullamaggie model trades high ADR% expansion in Equities and Crypto (BTC/ETH)."]
-            }
 
         if n < 20:
             return {
@@ -1855,18 +1764,6 @@ class GCRStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: GCR trades high-liquidity Crypto (BTC/ETH) and Major Equity Index cycles (avoiding Forex & Gold chop)
-        if current_price < 2000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["GCR behavioral sentiment model is calibrated strictly for Crypto (BTC/ETH) and liquid high-cap cycles."]
-            }
 
         if n < 14:
             return {
@@ -2046,18 +1943,6 @@ class WaqarZakaStrategy:
                 'reasons': ["Insufficient bars for Waqar Zaka liquidity sweep & ATR buffer analysis."]
             }
 
-        # Asset Class Guard: Waqar Zaka model applies strictly to Crypto Futures (BTC, ETH, Altcoins)
-        if current_price < 10000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["Waqar Zaka Off-Exchange Reserve & Liquidation Hunt model is exclusive to Crypto Futures (BTC/ETH)."]
-            }
 
         highs = df['high']
         lows = df['low']
@@ -2401,8 +2286,8 @@ class EugeneNgAhSioStrategy:
                 'reasons': ["Insufficient bars for Eugene Ng Ah Sio relative value spread analysis."]
             }
 
-        # Asset Guard: Eugene Ng Ah Sio strategy is strictly calibrated for Crypto Perps & Spot
-        if current_price < 5000.0:
+        # Asset Guard: Eugene Ng Ah Sio strategy is strictly calibrated for Crypto Perps & Spot (BTC, ETH, Altcoins)
+        if current_price < 10.0:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -2411,7 +2296,7 @@ class EugeneNgAhSioStrategy:
                 'status': 'ASSET_CLASS_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': ["Eugene Ng Ah Sio relative value model is strictly calibrated for Crypto assets."]
+                'reasons': ["Eugene Ng Ah Sio relative value model is strictly calibrated for Crypto assets (BTC/ETH)."]
             }
 
         closes = df['close']
@@ -2430,6 +2315,16 @@ class EugeneNgAhSioStrategy:
         rsi_series = 100 - (100 / (1 + rs))
         rsi_val = float(rsi_series.iloc[-1]) if not np.isnan(rsi_series.iloc[-1]) else 50.0
 
+        # RVOL (Relative Volume) catalyst confirmation:
+        vol_confirmed = True
+        rvol = 1.0
+        if 'volume' in df.columns and len(df['volume']) >= 20:
+            avg_vol = float(df['volume'].iloc[-20:-1].mean())
+            curr_vol = float(df['volume'].iloc[-1])
+            if avg_vol > 0:
+                rvol = curr_vol / avg_vol
+                vol_confirmed = (rvol >= 1.05)
+
         lookback = min(n, 20)
         recent_high = float(highs.iloc[-lookback:-1].max())
         recent_low = float(lows.iloc[-lookback:-1].min())
@@ -2442,34 +2337,34 @@ class EugeneNgAhSioStrategy:
         # Relative Strength Outperformer (Long Leg with Bullish Candle Confirmation & SMA200 trend):
         curr_open = float(df['open'].iloc[-1])
         prev_close = float(closes.iloc[-2])
-        if current_price > sma_200 and current_price > ema_20 and ema_20 > ema_50 and (50.0 <= rsi_val <= 68.0) and current_price >= recent_high * 0.995 and (current_price > curr_open and current_price >= prev_close):
+        if current_price > sma_200 and current_price > ema_20 and ema_20 > ema_50 and (50.0 <= rsi_val <= 68.0) and current_price >= recent_high * 0.995 and (current_price > curr_open and current_price >= prev_close) and vol_confirmed:
             action = 'BUY'
             status = 'ALPHA_CATALYST_LONG'
-            confidence = 86.0
-            reasons.append(f"Eugene Ng: Relative strength outperformance confirmed (RSI {rsi_val:.1f}) with bullish breakout close")
+            confidence = 91.0 if rvol >= 1.25 else 87.0
+            reasons.append(f"Eugene Ng: Relative strength outperformance confirmed (RSI {rsi_val:.1f}, RVOL {rvol:.2f}x) with bullish breakout close")
             reasons.append(f"Price (${current_price:.2f}) leading above 20 EMA (${ema_20:.2f}) and 50 EMA (${ema_50:.2f})")
             reasons.append(f"Breakout of {lookback}-bar relative value consolidation high (${recent_high:.2f})")
         # Relative Weakness Laggard (Hedge Leg with Bearish Candle Confirmation & SMA200 trend):
-        elif current_price < sma_200 and current_price < ema_20 and ema_20 < ema_50 and (32.0 <= rsi_val <= 50.0) and current_price <= recent_low * 1.005 and (current_price < curr_open and current_price <= prev_close):
+        elif current_price < sma_200 and current_price < ema_20 and ema_20 < ema_50 and (32.0 <= rsi_val <= 50.0) and current_price <= recent_low * 1.005 and (current_price < curr_open and current_price <= prev_close) and vol_confirmed:
             action = 'SELL'
             status = 'LAGGARD_HEDGE_SHORT'
-            confidence = 86.0
-            reasons.append(f"Eugene Ng: Structural laggard weakness confirmed (RSI {rsi_val:.1f}) with bearish breakdown close")
+            confidence = 91.0 if rvol >= 1.25 else 87.0
+            reasons.append(f"Eugene Ng: Structural laggard weakness confirmed (RSI {rsi_val:.1f}, RVOL {rvol:.2f}x) with bearish breakdown close")
             reasons.append(f"Price (${current_price:.2f}) breaking below 20/50 EMA moving average band")
             reasons.append(f"Breakdown of {lookback}-bar consolidation support (${recent_low:.2f})")
         else:
-            reasons.append(f"Asset in neutral relative value spread territory (RSI {rsi_val:.1f}). Awaiting alpha divergence.")
+            reasons.append(f"Asset in neutral relative value spread territory (RSI {rsi_val:.1f}, RVOL {rvol:.2f}x). Awaiting alpha divergence.")
 
         if action == 'BUY':
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min(abs(entry_price - recent_low) + 0.20 * safe_atr, 2.00 * safe_atr))
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - recent_low) + 0.20 * safe_atr)
             stop_loss = entry_price - sl_distance
             tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif action == 'SELL':
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min(abs(recent_high - entry_price) + 0.20 * safe_atr, 2.00 * safe_atr))
+            sl_distance = max(1.80 * safe_atr, abs(recent_high - entry_price) + 0.20 * safe_atr)
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
@@ -2540,18 +2435,6 @@ class PaulFTMOStrategy:
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = max(atr, current_price * 0.001)
 
-        # Asset Guard: Paul FTMO Asian Breakout & Divergence model is calibrated strictly for Forex pairs
-        if current_price > 2000.0:
-            return {
-                'strategy_key': cls.KEY,
-                'strategy_name': cls.NAME,
-                'breakeven_mode': cls.BE_MODE,
-                'action': 'HOLD',
-                'status': 'ASSET_CLASS_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': ["Paul FTMO Asian Breakout & Divergence model is calibrated strictly for Forex currency pairs (EUR/USD, GBP/USD, JPY)."]
-            }
 
         if n < 25:
             return {
@@ -2686,11 +2569,1301 @@ class PaulFTMOStrategy:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MASTER STREAMER PLAYBOOK DISPATCHER (EVALUATE ALL 18 STRATEGIES)
+# 19. RICHARD DENNIS & WILLIAM ECKHARDT — THE TURTLE TRADERS (20-DAY BREAKOUT)
+# ─────────────────────────────────────────────────────────────────────────────
+class RichardDennisStrategy:
+    """
+    Trader 19: Richard Dennis & William Eckhardt (The Legendary Turtle Traders)
+    - System: 20-period Donchian Breakout + N-period ATR Trend Filter
+    - Core Rule: Buy on 20-period High breakout if ADX >= 20 and EMA 20 > EMA 50;
+                 Sell on 20-period Low breakout if ADX >= 20 and EMA 20 < EMA 50.
+    - Timeframes: 15m, 30m, 1h, 4h, 1d (Rejects 1m/3m/5m micro noise).
+    - Breakeven: TURTLE_TRAILING_BE (Moves to BE when price breaks 10-bar Donchian in trade direction).
+    """
+    NAME = "Richard Dennis (Turtle Trading System - 20-Day Donchian Breakout)"
+    KEY = "RICHARD_DENNIS"
+    BE_MODE = "TURTLE_TRAILING_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '1h') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Turtle Trading system requires swing/trend timeframes (15m, 30m, 1h, 4h, 1d). '{timeframe}' is too noisy."]
+            }
+
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.001)
+
+        if n < 30:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Turtle Donchian 20-period breakout calculation."]
+            }
+
+        highs = df['high']
+        lows = df['low']
+        closes = df['close']
+
+        donchian_high_20 = float(highs.iloc[-21:-1].max())
+        donchian_low_20 = float(lows.iloc[-21:-1].min())
+
+        ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+        adx_val = float(df['adx_14'].iloc[-1]) if 'adx_14' in df.columns and not pd.isna(df['adx_14'].iloc[-1]) else 25.0
+
+        curr_open = float(df['open'].iloc[-1])
+        prev_close = float(closes.iloc[-2])
+
+        action = 'HOLD'
+        status = 'MONITORING_DONCHIAN'
+        confidence = 50.0
+        reasons = []
+
+        is_bullish_close = (current_price > curr_open and current_price >= prev_close)
+        is_bearish_close = (current_price < curr_open and current_price <= prev_close)
+
+        if (current_price > donchian_high_20) and (ema_20 > ema_50) and (adx_val >= 20.0) and is_bullish_close:
+            action = 'BUY'
+            status = 'TURTLE_DONCHIAN_BREAKOUT_LONG'
+            confidence = 88.0
+            reasons.append(f"Turtle System: Price (${current_price:.2f}) broke 20-bar Donchian High (${donchian_high_20:.2f})")
+            reasons.append(f"Trend Regime Confirmed: EMA 20 (${ema_20:.2f}) > EMA 50 (${ema_50:.2f}) with ADX {adx_val:.1f}")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - ema_50) + 0.20 * safe_atr)
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)
+            tp2 = entry_price + (1.15 * sl_distance)
+            tp3 = entry_price + (2.20 * sl_distance)
+        elif (current_price < donchian_low_20) and (ema_20 < ema_50) and (adx_val >= 20.0) and is_bearish_close:
+            action = 'SELL'
+            status = 'TURTLE_DONCHIAN_BREAKDOWN_SHORT'
+            confidence = 88.0
+            reasons.append(f"Turtle System: Price (${current_price:.2f}) broke 20-bar Donchian Low (${donchian_low_20:.2f})")
+            reasons.append(f"Downtrend Regime Confirmed: EMA 20 (${ema_20:.2f}) < EMA 50 (${ema_50:.2f}) with ADX {adx_val:.1f}")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(ema_50 - entry_price) + 0.20 * safe_atr)
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+            reasons.append(f"Waiting for 20-bar Donchian breakout (H: {donchian_high_20:.2f}, L: {donchian_low_20:.2f})")
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:2.2 Turtle N',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'TURTLE_TRAILING_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 20. MARK MINERVINI — 2X US INVESTING CHAMPION (SEPA & VCP PIVOT BREAKOUT)
+# ─────────────────────────────────────────────────────────────────────────────
+class MarkMinerviniStrategy:
+    """
+    Trader 20: Mark Minervini (2x US Investing Champion)
+    - System: Specific Entry Point Analysis (SEPA) & Volatility Contraction Pattern (VCP)
+    - Filter: Stage 2 Trend Template (Price > 200 SMA, 50 SMA > 200 SMA, 20 EMA > 50 SMA)
+    - Setup: Volatility Contraction Pattern (VCP) where successive waves shrink in range, followed by pivot breakout.
+    - Breakeven: VCP_PIVOT_BE
+    """
+    NAME = "Mark Minervini (SEPA - Volatility Contraction Pattern VCP)"
+    KEY = "MARK_MINERVINI"
+    BE_MODE = "VCP_PIVOT_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '1h') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Mark Minervini SEPA VCP requires 5M, 15M, 30M, 1H or 4H structural base. '{timeframe}' is too noisy."]
+            }
+
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.001)
+
+        if n < 40:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for SEPA trend template and VCP contraction analysis."]
+            }
+
+        closes = df['close']
+        highs = df['high']
+        lows = df['low']
+
+        ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        sma_50 = float(closes.rolling(min(n, 50), min_periods=10).mean().iloc[-1])
+        sma_200 = float(closes.rolling(min(n, 200), min_periods=20).mean().iloc[-1])
+
+        range_prev = float(highs.iloc[-24:-12].max() - lows.iloc[-24:-12].min())
+        range_curr = float(highs.iloc[-12:-1].max() - lows.iloc[-12:-1].min())
+        is_vcp_contraction = (range_curr < range_prev * 0.85)
+
+        pivot_high = float(highs.iloc[-12:-1].max())
+        pivot_low = float(lows.iloc[-12:-1].min())
+
+        curr_open = float(df['open'].iloc[-1])
+        prev_close = float(closes.iloc[-2])
+
+        action = 'HOLD'
+        status = 'SCANNING_VCP_BASE'
+        confidence = 50.0
+        reasons = []
+
+        if (current_price > sma_200) and (current_price > ema_20) and (ema_20 > sma_50) and is_vcp_contraction:
+            if current_price >= pivot_high and (current_price > curr_open and current_price >= prev_close):
+                action = 'BUY'
+                status = 'SEPA_VCP_PIVOT_BREAKOUT_BUY'
+                confidence = 89.0
+                reasons.append(f"Minervini SEPA: Price (${current_price:.2f}) cleared VCP Pivot High (${pivot_high:.2f})")
+                reasons.append(f"Volatility Contraction Confirmed: Contraction range reduced from {range_prev:.2f} to {range_curr:.2f}")
+                reasons.append(f"Stage 2 Trend Template Active: 20 EMA (${ema_20:.2f}) > 50 SMA (${sma_50:.2f}) > 200 SMA")
+                entry_price = current_price
+                sl_distance = max(1.80 * safe_atr, abs(entry_price - pivot_low) + 0.20 * safe_atr)
+                stop_loss = entry_price - sl_distance
+                tp1 = entry_price + (0.38 * safe_atr)
+                tp2 = entry_price + (1.15 * sl_distance)
+                tp3 = entry_price + (2.20 * sl_distance)
+        elif (current_price < sma_200) and (current_price < ema_20) and (ema_20 < sma_50) and is_vcp_contraction:
+            if current_price <= pivot_low and (current_price < curr_open and current_price <= prev_close):
+                action = 'SELL'
+                status = 'SEPA_VCP_PIVOT_BREAKDOWN_SELL'
+                confidence = 89.0
+                reasons.append(f"Minervini SEPA: Price (${current_price:.2f}) broke down below VCP Pivot Low (${pivot_low:.2f})")
+                reasons.append(f"Volatility Contraction Breakdown: Contraction range {range_curr:.2f} < {range_prev:.2f}")
+                reasons.append(f"Stage 4 Downtrend Active: 20 EMA (${ema_20:.2f}) < 50 SMA (${sma_50:.2f}) < 200 SMA")
+                entry_price = current_price
+                sl_distance = max(1.80 * safe_atr, abs(pivot_high - entry_price) + 0.20 * safe_atr)
+                stop_loss = entry_price + sl_distance
+                tp1 = entry_price - (0.38 * safe_atr)
+                tp2 = entry_price - (1.15 * sl_distance)
+                tp3 = entry_price - (2.20 * sl_distance)
+
+        if action == 'HOLD':
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+            reasons.append(f"Waiting for SEPA VCP pivot breakout (Pivot H: {pivot_high:.2f}, L: {pivot_low:.2f})")
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:2.0 VCP',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'VCP_PIVOT_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 21. AL BROOKS — PROFESSIONAL PRICE ACTION (MTR & HIGH/LOW 2 REVERSALS)
+# ─────────────────────────────────────────────────────────────────────────────
+class AlBrooksStrategy:
+    """
+    Trader 21: Al Brooks (Author of Reading Price Charts Bar by Bar)
+    - System: Major Trend Reversal (MTR) & High 2 / Low 2 Pullback at 20 EMA
+    - Focus: Forex, Crypto, Indices across all timeframes (5m, 15m, 1h, 4h)
+    - Signal Bar Quality: Strong bull reversal bar closes in upper 25% of bar; strong bear bar closes in lower 25%.
+    - Breakeven: BROOKS_SIGNAL_BAR_BE
+    """
+    NAME = "Al Brooks (Price Action - Major Trend Reversal & High/Low 2)"
+    KEY = "AL_BROOKS"
+    BE_MODE = "BROOKS_SIGNAL_BAR_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '15m') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Al Brooks Price Action requires >= 5M timeframe (5m, 15m, 1h, 4h). '{timeframe}' is sub-hourly noise."]
+            }
+
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.001)
+
+        if n < 35:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Al Brooks bar-by-bar price action analysis."]
+            }
+
+        closes = df['close']
+        highs = df['high']
+        lows = df['low']
+        opens = df['open']
+
+        ema_20_series = closes.ewm(span=20, adjust=False).mean()
+        ema_20 = float(ema_20_series.iloc[-1])
+        ema_20_prev = float(ema_20_series.iloc[-2]) if len(ema_20_series) >= 2 else ema_20
+        ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+        sma_200 = float(closes.rolling(min(n, 200)).mean().iloc[-1])
+        adx_val = float(df['adx_14'].iloc[-1]) if 'adx_14' in df.columns and not pd.isna(df['adx_14'].iloc[-1]) else 25.0
+
+        # Al Brooks Bar-by-Bar Principle:
+        # Signal bar MUST be the last confirmed/completed candle (iloc[-2]).
+        # Live current candle (iloc[-1]) is the Trigger bar breaking the signal bar's extreme.
+        sig_c = float(closes.iloc[-2])
+        sig_o = float(opens.iloc[-2])
+        sig_h = float(highs.iloc[-2])
+        sig_l = float(lows.iloc[-2])
+        sig_range = max(sig_h - sig_l, 1e-6)
+
+        sig_close_pos = (sig_c - sig_l) / sig_range
+        sig_lower_wick = (min(sig_c, sig_o) - sig_l) / sig_range
+        sig_upper_wick = (sig_h - max(sig_c, sig_o)) / sig_range
+
+        # Retest of 20 EMA on the signal bar or preceding 3 bars
+        tested_ema = any(l <= ema_20 * 1.0020 and h >= ema_20 * 0.9980 for l, h in zip(lows.iloc[-5:-1], highs.iloc[-5:-1]))
+
+        curr_open = float(opens.iloc[-1])
+        is_uptrend_aligned = (current_price > sma_200) and (ema_20 > ema_50) and (ema_20 >= ema_20_prev * 0.9998) and (adx_val >= 18.0)
+        is_downtrend_aligned = (current_price < sma_200) and (ema_20 < ema_50) and (ema_20 <= ema_20_prev * 1.0002) and (adx_val >= 18.0)
+
+        action = 'HOLD'
+        status = 'READING_BARS'
+        confidence = 50.0
+        reasons = []
+
+        # High 2 Bull Signal: Confirmed completed bull rejection bar + live breakout above signal bar high
+        has_bull_sig_bar = tested_ema and (sig_close_pos >= 0.68) and (sig_c >= sig_o) and (sig_range >= 0.35 * safe_atr) and (sig_lower_wick >= 0.18)
+        is_bull_signal = is_uptrend_aligned and has_bull_sig_bar and (current_price >= sig_h * 0.9998) and (current_price >= curr_open)
+
+        # Low 2 Bear Signal: Confirmed completed bear rejection bar + live breakdown below signal bar low
+        has_bear_sig_bar = tested_ema and (sig_close_pos <= 0.32) and (sig_c <= sig_o) and (sig_range >= 0.35 * safe_atr) and (sig_upper_wick >= 0.18)
+        is_bear_signal = is_downtrend_aligned and has_bear_sig_bar and (current_price <= sig_l * 1.0002) and (current_price <= curr_open)
+
+        if is_bull_signal:
+            action = 'BUY'
+            status = 'BROOKS_HIGH2_BULL_SIGNAL_BAR'
+            confidence = 92.0
+            reasons.append(f"Al Brooks: High 2 Bull Signal Bar at 20 EMA (${ema_20:.2f}) with Trend Stack (EMA20 > EMA50, Price > 200 SMA)")
+            reasons.append(f"Confirmed Signal Bar: Closed at {sig_close_pos*100.0:.0f}% of bar range with {sig_lower_wick*100.0:.0f}% buying rejection wick")
+            reasons.append(f"Trigger Confirmed: Price (${current_price:.2f}) took out signal bar high (${sig_h:.2f})")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - sig_l) + 0.20 * safe_atr)
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)
+            tp2 = entry_price + (1.15 * sl_distance)
+            tp3 = entry_price + (2.20 * sl_distance)
+        elif is_bear_signal:
+            action = 'SELL'
+            status = 'BROOKS_LOW2_BEAR_SIGNAL_BAR'
+            confidence = 92.0
+            reasons.append(f"Al Brooks: Low 2 Bear Signal Bar at 20 EMA (${ema_20:.2f}) with Downtrend Stack (EMA20 < EMA50, Price < 200 SMA)")
+            reasons.append(f"Confirmed Signal Bar: Closed at {sig_close_pos*100.0:.0f}% of bar range with {sig_upper_wick*100.0:.0f}% selling rejection wick")
+            reasons.append(f"Trigger Confirmed: Price (${current_price:.2f}) broke below signal bar low (${sig_l:.2f})")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(sig_h - entry_price) + 0.20 * safe_atr)
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+            reasons.append("Waiting for Al Brooks confirmed closed signal bar rejection aligned with 20 EMA & 200 SMA trend")
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:2.0 MTR',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'BROOKS_SIGNAL_BAR_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 22. BOB VOLMAN — FOREX PRICE ACTION SCALPING (PRE-BREAKOUT BUILD-UP & 20 EMA)
+# ─────────────────────────────────────────────────────────────────────────────
+class BobVolmanStrategy:
+    """
+    Trader 22: Bob Volman (Author of Forex Price Action Scalping)
+    - System: Block Breakout (BB) & 20 EMA Pre-Breakout Build-Up
+    - Focus: Micro scalping on 1m, 3m, 5m (EUR/USD, GBP/USD, Gold)
+    - Core Rule: A breakout MUST have a 'Build-Up' (3 to 6 compressed candles hugging the 20 EMA) before breaking.
+    - Breakeven: VOLMAN_BUILDUP_BE
+    """
+    NAME = "Bob Volman (Forex 1M-5M Build-Up Breakout & 20 EMA)"
+    KEY = "BOB_VOLMAN"
+    BE_MODE = "VOLMAN_BUILDUP_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '5m') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean not in ['5m', '15m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Bob Volman requires 5M or 15M execution to eliminate sub-5m noise wicks. Timeframe '{timeframe}' is incompatible."]
+            }
+
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.0005)
+
+        if n < 30:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Bob Volman build-up analysis."]
+            }
+
+        closes = df['close']
+        highs = df['high']
+        lows = df['low']
+        volumes = df['volume'] if 'volume' in df.columns else pd.Series(np.ones(n))
+
+        ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+
+        bu_highs = highs.iloc[-5:-1]
+        bu_lows = lows.iloc[-5:-1]
+        bu_range = float(bu_highs.max() - bu_lows.min())
+        is_buildup = (bu_range <= 0.75 * safe_atr)
+
+        ceiling = float(bu_highs.max())
+        floor = float(bu_lows.min())
+
+        curr_open = float(df['open'].iloc[-1])
+        prev_close = float(closes.iloc[-2])
+        cand_body = abs(current_price - curr_open)
+
+        # Volume confirmation
+        bu_avg_vol = float(volumes.iloc[-5:-1].mean()) if len(volumes) >= 5 else 1.0
+        curr_vol = float(volumes.iloc[-1])
+        vol_surge = (curr_vol >= bu_avg_vol * 1.15) or ('volume' not in df.columns)
+
+        action = 'HOLD'
+        status = 'SCANNING_BUILDUP'
+        confidence = 50.0
+        reasons = []
+
+        is_bull_breakout = is_buildup and (current_price > ceiling) and (ema_20 >= ema_50) and (current_price > curr_open and current_price >= prev_close) and (cand_body >= 0.38 * safe_atr) and vol_surge
+        is_bear_breakdown = is_buildup and (current_price < floor) and (ema_20 <= ema_50) and (current_price < curr_open and current_price <= prev_close) and (cand_body >= 0.38 * safe_atr) and vol_surge
+
+        if is_bull_breakout:
+            action = 'BUY'
+            status = 'VOLMAN_BLOCK_BREAKOUT_LONG'
+            confidence = 90.0
+            reasons.append(f"Bob Volman: Pre-breakout Build-Up formed at 20 EMA (${ema_20:.4f}, range {bu_range:.4f})")
+            reasons.append(f"Explosive Breakout through ceiling (${ceiling:.4f}) with 20/50 EMA trend alignment and volume surge")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - floor) + 0.20 * safe_atr)
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)
+            tp2 = entry_price + (1.15 * sl_distance)
+            tp3 = entry_price + (2.20 * sl_distance)
+        elif is_bear_breakdown:
+            action = 'SELL'
+            status = 'VOLMAN_BLOCK_BREAKDOWN_SHORT'
+            confidence = 90.0
+            reasons.append(f"Bob Volman: Pre-breakdown Build-Up formed at 20 EMA (${ema_20:.4f}, range {bu_range:.4f})")
+            reasons.append(f"Breakdown through floor (${floor:.4f}) with 20/50 EMA downtrend alignment and volume surge")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(ceiling - entry_price) + 0.20 * safe_atr)
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+            reasons.append(f"Monitoring 20 EMA for Volman pre-breakout build-up (Range: {bu_range:.4f})")
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:2.0 BB',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'VOLMAN_BUILDUP_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 23. TOM HOUGAARD — TRADERTOM ("BEST LOSER WINS" TREND EXPANSION & VWAP)
+# ─────────────────────────────────────────────────────────────────────────────
+class TomHougaardStrategy:
+    """
+    Trader 23: Tom Hougaard (TraderTom - WhichTrader / "Best Loser Wins")
+    - System: Institutional Trend Day Expansion & VWAP Momentum
+    - Concept: Identify decisive institutional trend days using VWAP + 5/20/50 EMA stack and ride massive runner expansions.
+    - Breakeven: HOUGAARD_VWAP_TRAIL
+    """
+    NAME = "Tom Hougaard (TraderTom - Institutional Trend Expansion & VWAP)"
+    KEY = "TOM_HOUGAARD"
+    BE_MODE = "HOUGAARD_VWAP_TRAIL"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '15m') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Tom Hougaard Trend Expansion requires >= 5M timeframe (5m, 15m, 1h). '{timeframe}' is sub-hourly noise."]
+            }
+
+        n = len(df)
+        current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
+        safe_atr = max(atr, current_price * 0.001)
+
+        if n < 35:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Tom Hougaard trend day expansion analysis."]
+            }
+
+        closes = df['close']
+        volumes = df['volume'] if 'volume' in df.columns else pd.Series(np.ones(n))
+
+        ema_5 = float(closes.ewm(span=5, adjust=False).mean().iloc[-1])
+        ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+        vwap = float(np.sum(closes * volumes) / max(np.sum(volumes), 1e-6))
+
+        # RSI 14 Sweet Spot Guard
+        delta = closes.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / (loss.replace(0, np.nan) + 1e-9)
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
+
+        curr_open = float(df['open'].iloc[-1])
+        prev_close = float(closes.iloc[-2])
+        cand_body = abs(current_price - curr_open)
+
+        action = 'HOLD'
+        status = 'SCANNING_TREND_DAY'
+        confidence = 50.0
+        reasons = []
+
+        recent_lows = df['low'].iloc[-4:]
+        tested_20_ema_long = any(l <= ema_20 * 1.001 for l in recent_lows)
+        has_ribbon_expansion_long = (ema_5 > ema_20) and (ema_20 > ema_50) and ((ema_20 - ema_50) >= 0.18 * safe_atr)
+        is_bull_candle = (current_price > curr_open and current_price >= prev_close and cand_body >= 0.38 * safe_atr and current_price >= ema_5)
+
+        recent_highs = df['high'].iloc[-4:]
+        tested_20_ema_short = any(h >= ema_20 * 0.999 for h in recent_highs)
+        has_ribbon_expansion_short = (ema_5 < ema_20) and (ema_20 < ema_50) and ((ema_50 - ema_20) >= 0.18 * safe_atr)
+        is_bear_candle = (current_price < curr_open and current_price <= prev_close and cand_body >= 0.38 * safe_atr and current_price <= ema_5)
+
+        if (current_price >= vwap + 0.15 * safe_atr) and has_ribbon_expansion_long and tested_20_ema_long and is_bull_candle and (50.0 <= rsi_val <= 68.0):
+            action = 'BUY'
+            status = 'HOUGAARD_TREND_DAY_LONG'
+            confidence = 92.0
+            reasons.append(f"Tom Hougaard: Institutional Trend Day confirmed above VWAP (${vwap:.2f} + buffer)")
+            reasons.append(f"Bullish Ribbon Stacked: 5 EMA (${ema_5:.2f}) > 20 EMA (${ema_20:.2f}) > 50 EMA (${ema_50:.2f}) with RSI {rsi_val:.1f}")
+            reasons.append("20 EMA pullback kissed & rejected with strong expansion candle closing above 5 EMA")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - min(vwap, ema_20)) + 0.20 * safe_atr)
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)
+            tp2 = entry_price + (1.15 * sl_distance)
+            tp3 = entry_price + (2.20 * sl_distance)
+        elif (current_price <= vwap - 0.15 * safe_atr) and has_ribbon_expansion_short and tested_20_ema_short and is_bear_candle and (32.0 <= rsi_val <= 50.0):
+            action = 'SELL'
+            status = 'HOUGAARD_TREND_DAY_SHORT'
+            confidence = 92.0
+            reasons.append(f"Tom Hougaard: Institutional Trend Day confirmed below VWAP (${vwap:.2f} - buffer)")
+            reasons.append(f"Bearish Ribbon Stacked: 5 EMA (${ema_5:.2f}) < 20 EMA (${ema_20:.2f}) < 50 EMA (${ema_50:.2f}) with RSI {rsi_val:.1f}")
+            reasons.append("20 EMA rally kissed & rejected with bearish breakdown candle closing below 5 EMA")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(max(vwap, ema_20) - entry_price) + 0.20 * safe_atr)
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+            reasons.append(f"Waiting for Tom Hougaard trend day alignment (VWAP: {vwap:.2f}, 20 EMA: {ema_20:.2f}, RSI: {rsi_val:.1f})")
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:2.2 Trend Day',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'HOUGAARD_VWAP_TRAIL'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 24. LARRY WILLIAMS — WORLD CUP TRADING CHAMPION (VOLATILITY BREAKOUT & W%R)
+# ─────────────────────────────────────────────────────────────────────────────
+class LarryWilliamsStrategy:
+    """
+    Trader 24: Larry Williams (World Cup Trading Champion - 11,376% 1-Year Record)
+    - System: Volatility Expansion Breakout & Williams %R Momentum
+    - Filter: 50 SMA Macro Baseline + 20/50 EMA Stack + Williams %R (14) Overbought/Oversold Thrust
+    - Setup: Price breaks Open + (0.50 * Prev Bar Range) in an uptrend (Price > 50 SMA, EMA20 > EMA50)
+             or Open - (0.50 * Prev Bar Range) in a downtrend (Price < 50 SMA, EMA20 < EMA50).
+    - Timeframes: 15m, 30m, 1h, 4h, 1d (Rejects 1m, 2m, 3m, 5m noise)
+    - Breakeven: WILLIAMS_VOLATILITY_BE
+    """
+    NAME = "Larry Williams (Volatility Breakout & Williams %R)"
+    KEY = "LARRY_WILLIAMS"
+    BE_MODE = "WILLIAMS_VOLATILITY_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '15m') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Larry Williams Volatility Expansion requires high-timeframe intraday structure (15m, 30m, 1h, 4h). '{timeframe}' is noise."]
+            }
+
+        n = len(df)
+        if n < 35:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Larry Williams volatility breakout calculation."]
+            }
+
+        current_price = float(df['close'].iloc[-1])
+        safe_atr = max(atr, current_price * 0.001)
+
+        highs = df['high']
+        lows = df['low']
+        closes = df['close']
+        opens = df['open']
+
+        curr_open = float(opens.iloc[-1])
+        curr_close = current_price
+        prev_high = float(highs.iloc[-2])
+        prev_low = float(lows.iloc[-2])
+        prev_range = max(prev_high - prev_low, safe_atr * 0.5)
+
+        # Baseline filters
+        sma_50 = float(closes.rolling(min(n, 50)).mean().iloc[-1])
+        ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+
+        # Williams %R (14-period)
+        hh_14 = float(highs.iloc[-14:].max())
+        ll_14 = float(lows.iloc[-14:].min())
+        wr_denom = max(hh_14 - ll_14, 1e-9)
+        williams_r = ((hh_14 - current_price) / wr_denom) * -100.0
+
+        # Larry Williams Volatility Breakout triggers: k = 0.50
+        buy_trigger = curr_open + (0.50 * prev_range)
+        sell_trigger = curr_open - (0.50 * prev_range)
+
+        cand_body = abs(curr_close - curr_open)
+        has_min_expansion = (prev_range >= 0.80 * safe_atr) and (cand_body >= 0.35 * safe_atr)
+
+        action = 'HOLD'
+        status = 'MONITORING_WILLIAMS_RANGE'
+        confidence = 50.0
+        reasons = []
+
+        is_bullish_thrust = (
+            has_min_expansion
+            and (current_price >= buy_trigger)
+            and (curr_close > curr_open)
+            and (current_price > sma_50)
+            and (ema_20 >= ema_50)
+            and (williams_r >= -30.0)
+        )
+        is_bearish_thrust = (
+            has_min_expansion
+            and (current_price <= sell_trigger)
+            and (curr_close < curr_open)
+            and (current_price < sma_50)
+            and (ema_20 <= ema_50)
+            and (williams_r <= -70.0)
+        )
+
+        if is_bullish_thrust:
+            action = 'BUY'
+            status = 'WILLIAMS_VOLATILITY_EXPANSION_BUY'
+            confidence = 91.0 if williams_r >= -18.0 else 87.0
+            reasons.append(f"Larry Williams Breakout: Price (${current_price:.2f}) broke above Open + 0.50*Range (${buy_trigger:.2f})")
+            reasons.append(f"Trend & Momentum: Price > 50 SMA (${sma_50:.2f}), 20/50 EMA aligned with Williams %R at {williams_r:.1f}")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - (curr_open - 0.25 * prev_range)) + 0.20 * safe_atr)
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)
+            tp2 = entry_price + (1.15 * sl_distance)
+            tp3 = entry_price + (2.20 * sl_distance)
+        elif is_bearish_thrust:
+            action = 'SELL'
+            status = 'WILLIAMS_VOLATILITY_EXPANSION_SELL'
+            confidence = 91.0 if williams_r <= -82.0 else 87.0
+            reasons.append(f"Larry Williams Breakdown: Price (${current_price:.2f}) broke below Open - 0.50*Range (${sell_trigger:.2f})")
+            reasons.append(f"Trend & Momentum: Price < 50 SMA (${sma_50:.2f}), 20/50 EMA aligned with Williams %R at {williams_r:.1f}")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs((curr_open + 0.25 * prev_range) - entry_price) + 0.20 * safe_atr)
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+            reasons.append(f"Waiting for Larry Williams Range Breakout (Buy: ${buy_trigger:.2f}, Sell: ${sell_trigger:.2f}, W%R: {williams_r:.1f})")
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:2.2 Volatility Range',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'WILLIAMS_VOLATILITY_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 25. NICOLAS DARVAS — BOX THEORY PIONEER ($2.25M SYSTEMATIC BREAKOUT)
+# ─────────────────────────────────────────────────────────────────────────────
+class NicolasDarvasStrategy:
+    """
+    Trader 25: Nicolas Darvas ($2.25M Box Theory Pioneer)
+    - System: Darvas Box Theory Breakout with Volume Surge
+    - Filter: 200 SMA + 50 SMA Trend Alignment + Minimum Box Height Requirement
+    - Setup: Identifies an established consolidation box (high ceiling & low floor).
+             Executes when price breaks out of the Darvas Box on above-average volume.
+    - Timeframes: 15m, 30m, 1h, 4h, 1d (Rejects 1m, 2m, 3m, 5m noise)
+    - Breakeven: DARVAS_BOX_TRAIL
+    """
+    NAME = "Nicolas Darvas (Darvas Box Theory Breakout)"
+    KEY = "NICOLAS_DARVAS"
+    BE_MODE = "DARVAS_BOX_TRAIL"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '1h') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Darvas Box Theory requires macro structural consolidation (15m, 30m, 1h, 4h). '{timeframe}' is noise."]
+            }
+
+        n = len(df)
+        if n < 40:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Nicolas Darvas Box calculation."]
+            }
+
+        current_price = float(df['close'].iloc[-1])
+        safe_atr = max(atr, current_price * 0.001)
+
+        highs = df['high']
+        lows = df['low']
+        closes = df['close']
+        opens = df['open']
+        volumes = df['volume'] if 'volume' in df.columns else pd.Series(np.ones(n))
+
+        # Darvas Box lookback: prior 20 bars (excluding current bar)
+        box_lookback = 20
+        box_ceiling = float(highs.iloc[-box_lookback-1:-1].max())
+        box_floor = float(lows.iloc[-box_lookback-1:-1].min())
+        box_height = box_ceiling - box_floor
+
+        # Darvas Box requires meaningful consolidation range (at least 1.2 * ATR)
+        if box_height < 1.20 * safe_atr:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'BOX_COMPRESSED',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Darvas Box height ({box_height:.2f}) is compressed below minimum threshold (1.20x ATR: {1.20 * safe_atr:.2f})."]
+            }
+
+        # Moving averages
+        sma_50 = float(closes.rolling(min(n, 50)).mean().iloc[-1])
+        sma_200 = float(closes.rolling(min(n, 200)).mean().iloc[-1])
+
+        # Volume confirmation
+        avg_vol = float(volumes.iloc[-21:-1].mean()) if len(volumes) >= 21 else float(volumes.mean())
+        curr_vol = float(volumes.iloc[-1])
+        vol_surge = (curr_vol >= avg_vol * 1.20) or ('volume' not in df.columns)
+
+        curr_open = float(opens.iloc[-1])
+        cand_body = abs(current_price - curr_open)
+
+        action = 'HOLD'
+        status = 'MONITORING_DARVAS_BOX'
+        confidence = 50.0
+        reasons = []
+
+        is_bullish_box_break = (
+            (current_price > box_ceiling)
+            and (current_price > curr_open)
+            and (cand_body >= 0.38 * safe_atr)
+            and (current_price > sma_50)
+            and (sma_50 >= sma_200 * 0.998)
+            and vol_surge
+        )
+        is_bearish_box_break = (
+            (current_price < box_floor)
+            and (current_price < curr_open)
+            and (cand_body >= 0.38 * safe_atr)
+            and (current_price < sma_50)
+            and (sma_50 <= sma_200 * 1.002)
+            and vol_surge
+        )
+
+        if is_bullish_box_break:
+            action = 'BUY'
+            status = 'DARVAS_BOX_EXPANSION_BUY'
+            confidence = 90.0 if curr_vol >= avg_vol * 1.50 else 87.0
+            reasons.append(f"Darvas Box Breakout: Price (${current_price:.2f}) broke above Box Ceiling (${box_ceiling:.2f}) with expanding body")
+            reasons.append(f"Trend & Volume Confirmed: 50 SMA (${sma_50:.2f}) >= 200 SMA (${sma_200:.2f}) with volume surge ({curr_vol:.0f} vs avg {avg_vol:.0f})")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - box_floor) + 0.20 * safe_atr)
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)
+            tp2 = entry_price + (1.15 * sl_distance)
+            tp3 = entry_price + (2.20 * sl_distance)
+        elif is_bearish_box_break:
+            action = 'SELL'
+            status = 'DARVAS_BOX_BREAKDOWN_SELL'
+            confidence = 90.0 if curr_vol >= avg_vol * 1.50 else 87.0
+            reasons.append(f"Darvas Box Breakdown: Price (${current_price:.2f}) fell below Box Floor (${box_floor:.2f}) with expanding body")
+            reasons.append(f"Downtrend & Volume Confirmed: 50 SMA (${sma_50:.2f}) <= 200 SMA (${sma_200:.2f}) with volume surge ({curr_vol:.0f} vs avg {avg_vol:.0f})")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(box_ceiling - entry_price) + 0.20 * safe_atr)
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+            reasons.append(f"Inside Darvas Box [{box_floor:.2f} - {box_ceiling:.2f}]. Awaiting confirmed volume breakout.")
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:2.2 Darvas Box',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'DARVAS_BOX_TRAIL'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 26. TOBY CRABEL — NR7 & OPENING RANGE BREAKOUT (ORB) CONTRACTION/EXPANSION
+# ─────────────────────────────────────────────────────────────────────────────
+class TobyCrabelStrategy:
+    """
+    Trader 26: Toby Crabel (Pioneer of NR7 & Opening Range Breakout ORB)
+    - System: NR7 (Narrowest Range of 7 bars) Volatility Contraction & ORB Expansion
+    - Filter: 20 EMA / 50 EMA Directional Alignment + RSI Sweet Spot (45-65)
+    - Setup: Identifies an NR7 bar (range < previous 6 bars' ranges).
+             Triggers on breakout of the contraction bar in the trend direction with expanding candle body.
+    - Timeframes: 5m, 15m, 30m, 1h (Rejects 1m, 2m, 3m micro noise)
+    - Breakeven: CRABEL_NR7_EXPANSION_BE
+    """
+    NAME = "Toby Crabel (NR7 Volatility Contraction & ORB Breakout)"
+    KEY = "TOBY_CRABEL"
+    BE_MODE = "CRABEL_NR7_EXPANSION_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '15m') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Toby Crabel NR7 ORB model requires at least 5m to 1h bars to establish true compression. '{timeframe}' is noise."]
+            }
+
+        n = len(df)
+        if n < 25:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Toby Crabel NR7 calculation."]
+            }
+
+        current_price = float(df['close'].iloc[-1])
+        safe_atr = max(atr, current_price * 0.001)
+
+        highs = df['high']
+        lows = df['low']
+        closes = df['close']
+        opens = df['open']
+
+        ranges = highs - lows
+        curr_range = float(ranges.iloc[-1])
+        prev_ranges_6 = ranges.iloc[-7:-1]
+        is_nr7_setup = (float(ranges.iloc[-2]) <= float(prev_ranges_6.min())) and (float(ranges.iloc[-2]) <= 0.90 * safe_atr)
+
+        ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+
+        # RSI 14
+        delta = closes.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / (loss.replace(0, np.nan) + 1e-9)
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
+
+        nr_high = float(highs.iloc[-2])
+        nr_low = float(lows.iloc[-2])
+
+        curr_open = float(opens.iloc[-1])
+        cand_body = abs(current_price - curr_open)
+
+        action = 'HOLD'
+        status = 'SCANNING_NR7_CONTRACTION'
+        confidence = 50.0
+        reasons = []
+
+        is_bullish_expansion = (
+            is_nr7_setup
+            and (current_price > nr_high)
+            and (current_price > curr_open)
+            and (cand_body >= 0.38 * safe_atr)
+            and (ema_20 >= ema_50)
+            and (current_price >= ema_20)
+            and (48.0 <= rsi_val <= 68.0)
+        )
+        is_bearish_expansion = (
+            is_nr7_setup
+            and (current_price < nr_low)
+            and (current_price < curr_open)
+            and (cand_body >= 0.38 * safe_atr)
+            and (ema_20 <= ema_50)
+            and (current_price <= ema_20)
+            and (32.0 <= rsi_val <= 52.0)
+        )
+
+        if is_bullish_expansion:
+            action = 'BUY'
+            status = 'CRABEL_NR7_ORB_BULLISH_EXPANSION'
+            confidence = 89.0
+            reasons.append(f"Toby Crabel: Volatility expansion out of genuine NR7 narrow range (H: {nr_high:.2f}, Body: {cand_body:.2f})")
+            reasons.append(f"Trend Alignment: EMA 20 (${ema_20:.2f}) >= EMA 50 (${ema_50:.2f}) with RSI {rsi_val:.1f}")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - nr_low) + 0.20 * safe_atr)
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)
+            tp2 = entry_price + (1.15 * sl_distance)
+            tp3 = entry_price + (2.20 * sl_distance)
+        elif is_bearish_expansion:
+            action = 'SELL'
+            status = 'CRABEL_NR7_ORB_BEARISH_EXPANSION'
+            confidence = 89.0
+            reasons.append(f"Toby Crabel: Volatility expansion out of genuine NR7 narrow range (L: {nr_low:.2f}, Body: {cand_body:.2f})")
+            reasons.append(f"Trend Alignment: EMA 20 (${ema_20:.2f}) <= EMA 50 (${ema_50:.2f}) with RSI {rsi_val:.1f}")
+            entry_price = current_price
+            sl_distance = max(1.80 * safe_atr, abs(nr_high - entry_price) + 0.20 * safe_atr)
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+            reasons.append(f"Awaiting Toby Crabel NR7 Contraction/Expansion Breakout (NR High: {nr_high:.2f}, Low: {nr_low:.2f})")
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:2.2 NR7 ORB',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'CRABEL_NR7_EXPANSION_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 27. LINDA RASCHKE — MARKET WIZARD (THE HOLY GRAIL ADX & 20 EMA PULLBACK)
+# ─────────────────────────────────────────────────────────────────────────────
+class LindaRaschkeStrategy:
+    """
+    Trader 27: Linda Bradford Raschke (Market Wizard & LBRGroup CTA)
+    - System: The 'Holy Grail' (14 ADX >= 28 Trend Filter + 20 EMA Pullback)
+    - Filter: 14 ADX >= 28 (+DI > -DI by >= 8.0 for Bullish, -DI > +DI by >= 8.0 for Bearish)
+    - Setup: Powerful directional trend pulls back to touch/penetrate the 20 EMA value zone.
+             Executes as price turns back in the direction of the dominant trend with expanding candle body.
+    - Timeframes: 15m, 30m, 1h, 4h, 1d (Rejects 1m, 2m, 3m, 5m noise)
+    - Breakeven: RASCHKE_GRAIL_BE
+    """
+    NAME = "Linda Raschke (Holy Grail - ADX Trend & 20 EMA Pullback)"
+    KEY = "LINDA_RASCHKE"
+    BE_MODE = "RASCHKE_GRAIL_BE"
+
+    @classmethod
+    def evaluate(cls, df: pd.DataFrame, atr: float, timeframe: str = '15m') -> Dict[str, Any]:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Linda Raschke Holy Grail requires established macro trend structure (15m, 30m, 1h, 4h). '{timeframe}' is noise."]
+            }
+
+        n = len(df)
+        if n < 35:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'INSUFFICIENT_DATA',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Insufficient bars for Linda Raschke Holy Grail calculation."]
+            }
+
+        current_price = float(df['close'].iloc[-1])
+        safe_atr = max(atr, current_price * 0.001)
+
+        highs = df['high']
+        lows = df['low']
+        closes = df['close']
+        opens = df['open']
+
+        # 20 EMA & 50 EMA
+        ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_50 = float(closes.ewm(span=50, adjust=False).mean().iloc[-1])
+
+        # ADX 14 & Directional Movement (+DI, -DI)
+        up_move = highs.diff()
+        down_move = -lows.diff()
+        plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+        minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+
+        tr1 = highs - lows
+        tr2 = (highs - closes.shift(1)).abs()
+        tr3 = (lows - closes.shift(1)).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+        atr_14 = tr.rolling(14).mean().iloc[-1]
+        plus_di = float((pd.Series(plus_dm).rolling(14).mean().iloc[-1] / max(atr_14, 1e-9)) * 100.0)
+        minus_di = float((pd.Series(minus_dm).rolling(14).mean().iloc[-1] / max(atr_14, 1e-9)) * 100.0)
+
+        # ADX calculation
+        dx = (abs(plus_di - minus_di) / max(plus_di + minus_di, 1e-9)) * 100.0
+        adx_val = float(df['adx_14'].iloc[-1]) if 'adx_14' in df.columns and not pd.isna(df['adx_14'].iloc[-1]) else dx
+
+        # Check pullback to 20 EMA within last 3 bars
+        recent_lows = lows.iloc[-4:-1]
+        recent_highs = highs.iloc[-4:-1]
+        touched_ema_from_above = (recent_lows <= ema_20 + 0.20 * safe_atr).any()
+        touched_ema_from_below = (recent_highs >= ema_20 - 0.20 * safe_atr).any()
+
+        curr_open = float(opens.iloc[-1])
+        cand_body = abs(current_price - curr_open)
+
+        action = 'HOLD'
+        status = 'MONITORING_HOLY_GRAIL'
+        confidence = 50.0
+        reasons = []
+
+        is_bullish_grail = (
+            (adx_val >= 28.0)
+            and (plus_di - minus_di >= 8.0)
+            and (ema_20 > ema_50)
+            and touched_ema_from_above
+            and (current_price >= ema_20)
+            and (current_price > curr_open)
+            and (cand_body >= 0.35 * safe_atr)
+        )
+        is_bearish_grail = (
+            (adx_val >= 28.0)
+            and (minus_di - plus_di >= 8.0)
+            and (ema_20 < ema_50)
+            and touched_ema_from_below
+            and (current_price <= ema_20)
+            and (current_price < curr_open)
+            and (cand_body >= 0.35 * safe_atr)
+        )
+
+        if is_bullish_grail:
+            action = 'BUY'
+            status = 'HOLY_GRAIL_BULLISH_PULLBACK_BUY'
+            confidence = 92.0 if adx_val >= 32.0 else 88.0
+            reasons.append(f"Linda Raschke Holy Grail: Bullish trend (ADX {adx_val:.1f}, +DI {plus_di:.1f} vs -DI {minus_di:.1f}) cleanly tested 20 EMA (${ema_20:.2f})")
+            reasons.append(f"Price (${current_price:.2f}) rejected 20 EMA support with strong bullish candle follow-through")
+            entry_price = current_price
+            recent_swing_low = float(lows.iloc[-4:].min())
+            sl_distance = max(1.80 * safe_atr, abs(entry_price - recent_swing_low) + 0.20 * safe_atr)
+            stop_loss = entry_price - sl_distance
+            tp1 = entry_price + (0.38 * safe_atr)
+            tp2 = entry_price + (1.15 * sl_distance)
+            tp3 = entry_price + (2.20 * sl_distance)
+        elif is_bearish_grail:
+            action = 'SELL'
+            status = 'HOLY_GRAIL_BEARISH_PULLBACK_SELL'
+            confidence = 92.0 if adx_val >= 32.0 else 88.0
+            reasons.append(f"Linda Raschke Holy Grail: Bearish trend (ADX {adx_val:.1f}, -DI {minus_di:.1f} vs +DI {plus_di:.1f}) cleanly tested 20 EMA (${ema_20:.2f})")
+            reasons.append(f"Price (${current_price:.2f}) rejected 20 EMA resistance with strong bearish candle follow-through")
+            entry_price = current_price
+            recent_swing_high = float(highs.iloc[-4:].max())
+            sl_distance = max(1.80 * safe_atr, abs(recent_swing_high - entry_price) + 0.20 * safe_atr)
+            stop_loss = entry_price + sl_distance
+            tp1 = entry_price - (0.38 * safe_atr)
+            tp2 = entry_price - (1.15 * sl_distance)
+            tp3 = entry_price - (2.20 * sl_distance)
+        else:
+            entry_price = stop_loss = tp1 = tp2 = tp3 = current_price
+            sl_distance = 0.0
+            reasons.append(f"Awaiting Linda Raschke Holy Grail setup (ADX: {adx_val:.1f}, 20 EMA: ${ema_20:.2f})")
+
+        return {
+            'strategy_key': cls.KEY,
+            'strategy_name': cls.NAME,
+            'breakeven_mode': cls.BE_MODE,
+            'action': action,
+            'status': status,
+            'confidence': float(round(confidence, 1)),
+            'trade_setup': {
+                'action': action,
+                'status': status,
+                'recommended_entry': float(round(entry_price, 5)),
+                'stop_loss': float(round(stop_loss, 5)),
+                'sl_distance_pct': float(round((sl_distance / max(entry_price, 1e-6)) * 100.0, 2)),
+                'tp1': float(round(tp1, 5)),
+                'tp2': float(round(tp2, 5)),
+                'tp3': float(round(tp3, 5)),
+                'risk_reward_ratio': '1:2.2 Holy Grail',
+                'strategy_name': cls.NAME,
+                'breakeven_rule': 'RASCHKE_GRAIL_BE'
+            },
+            'reasons': reasons
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MASTER STREAMER PLAYBOOK DISPATCHER (EVALUATE ALL 27 STREAMER STRATEGIES)
 # ─────────────────────────────────────────────────────────────────────────────
 class MasterStreamerPlaybook:
     """
-    Central dispatcher that evaluates all 18 strategies from the Master Playbooks.
+    Central dispatcher that evaluates all 27 strategies from the Master Playbooks.
     """
     STRATEGY_MAP = {
         'VIVEK_YADAV': VivekYadavPlaybookStrategy,
@@ -2705,13 +3878,22 @@ class MasterStreamerPlaybook:
         'ARIEL_ZWECHER': ArielZwecherStrategy,
         'OLIVER_VELEZ': OliverVelezStrategy,
         'TRADE_PRO': TradeProStrategy,
-        # 6 New Elite Traders from Playbook PDF:
         'KRISTJAN_QULLAMAGGIE': KristjanQullamaggieStrategy,
         'GCR': GCRStrategy,
         'WAQAR_ZAKA': WaqarZakaStrategy,
         'WAQAR_ASIM': WaqarAsimStrategy,
         'EUGENE_NG_AH_SIO': EugeneNgAhSioStrategy,
-        'PAUL_FTMO': PaulFTMOStrategy
+        'PAUL_FTMO': PaulFTMOStrategy,
+        # 9 World-Class Elite Strategies:
+        'RICHARD_DENNIS': RichardDennisStrategy,
+        'MARK_MINERVINI': MarkMinerviniStrategy,
+        'AL_BROOKS': AlBrooksStrategy,
+        'BOB_VOLMAN': BobVolmanStrategy,
+        'TOM_HOUGAARD': TomHougaardStrategy,
+        'LARRY_WILLIAMS': LarryWilliamsStrategy,
+        'NICOLAS_DARVAS': NicolasDarvasStrategy,
+        'TOBY_CRABEL': TobyCrabelStrategy,
+        'LINDA_RASCHKE': LindaRaschkeStrategy
     }
 
     @classmethod
@@ -2723,7 +3905,7 @@ class MasterStreamerPlaybook:
         cot_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Evaluates all 18 strategies simultaneously and identifies all confirmed setups.
+        Evaluates all 23 strategies simultaneously and identifies all confirmed setups.
         """
         results = {}
         active_setups = []
@@ -2835,6 +4017,60 @@ class MasterStreamerPlaybook:
         results['PAUL_FTMO'] = res_pf
         if res_pf['action'] in ['BUY', 'SELL']:
             active_setups.append(res_pf)
+
+        # 19. Richard Dennis (Turtle Trading)
+        res_rd = RichardDennisStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['RICHARD_DENNIS'] = res_rd
+        if res_rd['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_rd)
+
+        # 20. Mark Minervini (SEPA VCP)
+        res_mm = MarkMinerviniStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['MARK_MINERVINI'] = res_mm
+        if res_mm['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_mm)
+
+        # 21. Al Brooks (Price Action MTR)
+        res_ab = AlBrooksStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['AL_BROOKS'] = res_ab
+        if res_ab['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_ab)
+
+        # 22. Bob Volman (Build-Up Breakout)
+        res_bv = BobVolmanStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['BOB_VOLMAN'] = res_bv
+        if res_bv['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_bv)
+
+        # 23. Tom Hougaard (TraderTom Trend Expansion)
+        res_th = TomHougaardStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['TOM_HOUGAARD'] = res_th
+        if res_th['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_th)
+
+        # 24. Larry Williams (Volatility Breakout & Williams %R)
+        res_lw = LarryWilliamsStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['LARRY_WILLIAMS'] = res_lw
+        if res_lw['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_lw)
+
+        # 25. Nicolas Darvas (Darvas Box Theory Breakout)
+        res_nd = NicolasDarvasStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['NICOLAS_DARVAS'] = res_nd
+        if res_nd['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_nd)
+
+        # 26. Toby Crabel (NR7 & Opening Range Breakout ORB)
+        res_tc = TobyCrabelStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['TOBY_CRABEL'] = res_tc
+        if res_tc['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_tc)
+
+        # 27. Linda Raschke (Holy Grail ADX & 20 EMA Pullback)
+        res_lr = LindaRaschkeStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        results['LINDA_RASCHKE'] = res_lr
+        if res_lr['action'] in ['BUY', 'SELL']:
+            active_setups.append(res_lr)
 
         # Best / Highest confidence confirmed setup
         best_setup = None

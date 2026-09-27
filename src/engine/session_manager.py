@@ -130,6 +130,59 @@ class SessionManager:
         # Focus: London & NY Peak Momentum Hours (08:00-17:00 UTC); avoids Asian drift
         "OLIVER_VELEZ": [
             ((8, 0), (17, 0), "London & NY Peak Momentum Hours (08:00-17:00 UTC / Avoid Asian)")
+        ],
+
+        # 16. Richard Dennis (Turtle Trading Donchian Breakout)
+        # Systematic HTF trend following executes 24/7 across any session breakout
+        "RICHARD_DENNIS": "SESSION_INDEPENDENT",
+
+        # 17. Mark Minervini (SEPA VCP Breakout)
+        # Focus: London & NY institutional accumulation & breakout volume
+        "MARK_MINERVINI": [
+            ((7, 0), (17, 0), "London & NY Active Hours (07:00-17:00 UTC / VCP Expansion)")
+        ],
+
+        # 18. Al Brooks (Bar-by-Bar Price Action & Major Trend Reversals)
+        # Focus: European & US liquid sessions for clean bar-by-bar follow-through
+        "AL_BROOKS": [
+            ((7, 0), (18, 0), "London & NY Active Hours (07:00-18:00 UTC / Bar-by-Bar Reversal)")
+        ],
+
+        # 19. Bob Volman (Forex 1M-5M Build-Up Breakout)
+        # Focus: London & NY high-liquidity overlap (tight spreads, no chop)
+        "BOB_VOLMAN": [
+            ((7, 0), (16, 30), "London & NY Peak Scalp Overlap (07:00-16:30 UTC / 1M-5M Build-Up)")
+        ],
+
+        # 20. Tom Hougaard (TraderTom Trend Expansion & VWAP)
+        # Focus: London open through NY session trend waves
+        "TOM_HOUGAARD": [
+            ((7, 0), (16, 30), "European & NY Trend Expansion (07:00-16:30 UTC / TraderTom High Stakes)")
+        ],
+
+        # 21. Larry Williams (Robbins World Cup Volatility Breakout)
+        # Focus: London & NY active volume hours
+        "LARRY_WILLIAMS": [
+            ((7, 0), (17, 0), "London & NY Volatility Expansion (07:00-17:00 UTC / Williams Breakout)")
+        ],
+
+        # 22. Nicolas Darvas (Darvas Box Theory Breakout)
+        # Focus: London & NY volume accumulation hours
+        "NICOLAS_DARVAS": [
+            ((7, 0), (17, 0), "London & NY Volume Breakout Hours (07:00-17:00 UTC / Darvas Box)")
+        ],
+
+        # 23. Toby Crabel (NR7 Contraction & Opening Range Breakout ORB)
+        # Focus: London Open & NY Open ORB Windows
+        "TOBY_CRABEL": [
+            ((7, 0), (11, 0), "London Open NR7 ORB Window (07:00-11:00 UTC)"),
+            ((13, 0), (17, 0), "NY Open NR7 ORB Window (13:00-17:00 UTC)")
+        ],
+
+        # 24. Linda Raschke (Holy Grail ADX & 20 EMA Pullback)
+        # Focus: London & NY high-momentum trend pullback hours
+        "LINDA_RASCHKE": [
+            ((7, 0), (17, 30), "London & NY Holy Grail Trend Pullback (07:00-17:30 UTC / Raschke 20 EMA)")
         ]
     }
 

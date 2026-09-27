@@ -258,12 +258,8 @@ class MT5ExnessProvider:
             elif 'XAG' in upper_clean or 'SILVER' in upper_clean:
                 variants = ['XAGUSDm', 'XAGUSD', 'XAGUSDc', 'XAGUSD.r', 'SILVERm', 'SILVER']
             elif 'XAU' in upper_clean or 'GOLD' in upper_clean:
-                # Normal Gold with automatic weekend 24/7 routing fallback
-                is_weekend = datetime.now(timezone.utc).weekday() in (5, 6)
-                if is_weekend:
-                    variants = ['XAUUSD247m', 'XAUUSDm', 'XAUUSD', 'GOLDm', 'GOLD', 'XAUUSDc', 'XAUUSD.r']
-                else:
-                    variants = ['XAUUSDm', 'XAUUSD', 'GOLDm', 'GOLD', 'XAUUSDc', 'XAUUSD.r', 'XAUUSD247m']
+                # Standard Gold strictly maps to spot Gold variants. Never substitute with XAUUSD247!
+                variants = ['XAUUSDm', 'XAUUSD', 'GOLDm', 'GOLD', 'XAUUSDc', 'XAUUSD.r']
             else:
                 # Try direct name with common Exness suffixes
                 variants = [

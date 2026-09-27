@@ -1,7 +1,7 @@
 {
   "alloc_mode": "\ud83d\udd22 Direct Lots Allocation (Lots)",
-  "tp1_share": 50,
-  "tp2_share": 30,
+  "tp1_share": 65,
+  "tp2_share": 20,
   "enable_direct_exec": true,
   "BTCUSDm": {
     "direct_total": 0.08,

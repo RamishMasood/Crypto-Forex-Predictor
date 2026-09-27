@@ -660,7 +660,7 @@ def render_mt5_execution_panel(symbol, setup, mt5_status, account, risk_pct, ff)
             'tp2_lots': float(tp2_lots_in),
             'tp3_lots': float(tp3_lots_in)
         }
-        tp1_share, tp2_share, tp3_share = 50.0, 30.0, 20.0
+        tp1_share, tp2_share, tp3_share = 65.0, 20.0, 15.0
         override_total_volume = cur_tot
     else:
         lots_mismatch = False
@@ -669,10 +669,10 @@ def render_mt5_execution_panel(symbol, setup, mt5_status, account, risk_pct, ff)
 
         col_tp1, col_tp2, col_tp3 = st.columns([1, 1, 0.8])
         with col_tp1:
-            init_tp1_share = int(st.session_state.get("tp1_share_slider", saved_prefs.get("tp1_share", 50)))
+            init_tp1_share = int(st.session_state.get("tp1_share_slider", saved_prefs.get("tp1_share", 65)))
             tp1_share = st.slider("TP1 % (Profit Lock)", 10, 80, init_tp1_share, 5, key="tp1_share_slider", on_change=_save_lot_settings)
         with col_tp2:
-            init_tp2_share = int(st.session_state.get("tp2_share_slider", saved_prefs.get("tp2_share", 30)))
+            init_tp2_share = int(st.session_state.get("tp2_share_slider", saved_prefs.get("tp2_share", 20)))
             tp2_share = st.slider("TP2 % (Structural)", 10, 60, init_tp2_share, 5, key="tp2_share_slider", on_change=_save_lot_settings)
         with col_tp3:
             rem_share = max(0, 100 - tp1_share - tp2_share)
@@ -1191,13 +1191,13 @@ def render_mt5_autonomous_engine_view(live_exec):
                 help="Autonomous engine checks every selected timeframe for setups. (Locked when Recommended Mode is ON)."
             )
 
-        # ── 2.5 Autonomous Multi-Strategy Selector (19 Strategies: Institutional Core + 18 Streamers) ──
+        # ── 2.5 Autonomous Multi-Strategy Selector (24 Strategies: Institutional Core + 23 Streamers) ──
         from src.engine.autonomous_manager import AVAILABLE_STRATEGIES
         st.markdown("##### 🧠 Autonomous Trading Strategy Selection (Multi-Select Supported):")
         
         strat_preset_col1, strat_preset_col2, strat_preset_col3, strat_preset_col4, strat_preset_col5 = st.columns(5)
         with strat_preset_col1:
-            if st.button("🌟 Select All 19", key="btn_strat_all_auto", use_container_width=True):
+            if st.button("🌟 Select All 28", key="btn_strat_all_auto", use_container_width=True):
                 all_strats = list(AVAILABLE_STRATEGIES.keys())
                 settings['active_strategies'] = all_strats
                 st.session_state["auto_cfg_active_strategies_ms"] = all_strats
@@ -1211,21 +1211,21 @@ def render_mt5_autonomous_engine_view(live_exec):
                 auto_engine.save_settings(settings)
                 st.rerun()
         with strat_preset_col3:
-            if st.button("💎 SMC & Scalp", key="btn_strat_smc_auto", use_container_width=True, help="Vivek, Bernd, ICT, Waqar Asim"):
-                smc_strats = ["DEFAULT", "VIVEK_YADAV", "BERND_SKORUPINSKI", "ICT", "WAQAR_ASIM"]
+            if st.button("💎 SMC & Scalp", key="btn_strat_smc_auto", use_container_width=True, help="Vivek, Bernd, ICT, Waqar Asim, Bob Volman, Al Brooks, Toby Crabel"):
+                smc_strats = ["DEFAULT", "VIVEK_YADAV", "BERND_SKORUPINSKI", "ICT", "WAQAR_ASIM", "BOB_VOLMAN", "AL_BROOKS", "TOBY_CRABEL"]
                 settings['active_strategies'] = smc_strats
                 st.session_state["auto_cfg_active_strategies_ms"] = smc_strats
                 auto_engine.save_settings(settings)
                 st.rerun()
         with strat_preset_col4:
-            if st.button("🌪️ Momentum", key="btn_strat_trend_auto", use_container_width=True, help="Qullamaggie, Paul FTMO, Ross, Rayner, Adam, Trade Pro"):
-                trend_strats = ["KRISTJAN_QULLAMAGGIE", "PAUL_FTMO", "ROSS_CAMERON", "RAYNER_TEO", "ADAM_KHOO", "TRADE_PRO"]
+            if st.button("🌪️ Momentum", key="btn_strat_trend_auto", use_container_width=True, help="Qullamaggie, Paul FTMO, Ross, Rayner, Adam, Trade Pro, Dennis, Minervini, Hougaard, Larry Williams, Nicolas Darvas, Linda Raschke"):
+                trend_strats = ["KRISTJAN_QULLAMAGGIE", "PAUL_FTMO", "ROSS_CAMERON", "RAYNER_TEO", "ADAM_KHOO", "TRADE_PRO", "RICHARD_DENNIS", "MARK_MINERVINI", "TOM_HOUGAARD", "LARRY_WILLIAMS", "NICOLAS_DARVAS", "LINDA_RASCHKE"]
                 settings['active_strategies'] = trend_strats
                 st.session_state["auto_cfg_active_strategies_ms"] = trend_strats
                 auto_engine.save_settings(settings)
                 st.rerun()
         with strat_preset_col5:
-            if st.button("🧠 Crypto/Macro", key="btn_strat_crypto_auto", use_container_width=True, help="GCR, Waqar Zaka, Eugene Ng, Crypto Cred"):
+            if st.button("🧠 Crypto/Macro", key="btn_strat_crypto_auto", use_container_width=True, help="GCR, Waqar Zaka, Eugene Ng, Crypto Cred, Ariel, Oliver"):
                 crypto_strats = ["GCR", "WAQAR_ZAKA", "EUGENE_NG_AH_SIO", "CRYPTO_CRED", "ARIEL_ZWECHER", "OLIVER_VELEZ"]
                 settings['active_strategies'] = crypto_strats
                 st.session_state["auto_cfg_active_strategies_ms"] = crypto_strats
@@ -1238,8 +1238,14 @@ def render_mt5_autonomous_engine_view(live_exec):
             'VIVEK_YADAV', 'CRYPTO_CRED', 'NDEMAZEAH_GODLOVE', 'ROSS_CAMERON',
             'ADAM_KHOO', 'ARIEL_ZWECHER', 'OLIVER_VELEZ', 'TRADE_PRO'
         }
-        # Auto-upgrade: if user had all 13 legacy strategies selected, or none, expand to all 19!
-        if set(saved_active_strats) == legacy_13 or not saved_active_strats:
+        legacy_19 = legacy_13 | {
+            'KRISTJAN_QULLAMAGGIE', 'GCR', 'WAQAR_ZAKA', 'WAQAR_ASIM', 'EUGENE_NG_AH_SIO', 'PAUL_FTMO'
+        }
+        legacy_24 = legacy_19 | {
+            'RICHARD_DENNIS', 'MARK_MINERVINI', 'AL_BROOKS', 'BOB_VOLMAN', 'TOM_HOUGAARD'
+        }
+        # Auto-upgrade: if user had any legacy set selected, or none, expand to all 28!
+        if set(saved_active_strats) in [legacy_13, legacy_19, legacy_24] or not saved_active_strats:
             saved_active_strats = list(AVAILABLE_STRATEGIES.keys())
             settings['active_strategies'] = saved_active_strats
             auto_engine.save_settings(settings)
@@ -1249,10 +1255,10 @@ def render_mt5_autonomous_engine_view(live_exec):
         if not saved_active_strats:
             saved_active_strats = list(AVAILABLE_STRATEGIES.keys())
 
-        # If session_state contains the legacy 13, upgrade session_state as well so the widget re-renders with all 19!
+        # If session_state contains legacy sets, upgrade session_state as well so widget re-renders with all 28!
         if 'auto_cfg_active_strategies_ms' in st.session_state:
             curr_ms = set(st.session_state['auto_cfg_active_strategies_ms'])
-            if curr_ms == legacy_13:
+            if curr_ms in [legacy_13, legacy_19, legacy_24]:
                 st.session_state['auto_cfg_active_strategies_ms'] = list(AVAILABLE_STRATEGIES.keys())
 
         chosen_strats = st.multiselect(
@@ -1261,7 +1267,7 @@ def render_mt5_autonomous_engine_view(live_exec):
             default=saved_active_strats,
             format_func=lambda x: AVAILABLE_STRATEGIES.get(x, x),
             key="auto_cfg_active_strategies_ms",
-            help="Multi-select any combination of the 18 master streamer strategies + institutional default core (19 total). The engine will evaluate all selected strategies on each scan and execute the highest-conviction setup."
+            help="Multi-select any combination of the 27 master streamer strategies + institutional default core (28 total). The engine will evaluate all selected strategies on each scan and execute the highest-conviction setup."
         )
 
         if not chosen_strats:
@@ -1862,7 +1868,7 @@ def render_mt5_autonomous_engine_view(live_exec):
         # ── 8. Strategy Performance Leaderboard & Dynamic Ranking System ───────
         st.divider()
         st.markdown("##### 🏆 Streamer Strategies Performance Leaderboard & Dynamic Ranking")
-        st.caption("Live statistical ranking of all 19 trading strategies evaluated from autonomous trading history and active positions.")
+        st.caption("Live statistical ranking of all 24 trading strategies evaluated from autonomous trading history and active positions.")
 
         sort_label_map = {
             "🏆 Most Profitable (Net PnL $)": "profit",
@@ -2111,7 +2117,7 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
     if strat_pills:
         pills_content = ' '.join(strat_pills)
     else:
-        pills_content = "<span style='color:#64748b;font-size:0.72rem;'>Scanning 19 strategies bar-by-bar...</span>"
+        pills_content = "<span style='color:#64748b;font-size:0.72rem;'>Scanning 24 strategies bar-by-bar...</span>"
     strat_pills_html = f"<div style='display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center;'><span style='color:#94a3b8;font-size:0.70rem;text-transform:uppercase;font-weight:700;'>Trades by Strategy:</span> {pills_content}</div>"
 
     # Open positions rows
@@ -2529,11 +2535,11 @@ def render_mt5_backtest_engine_view():
             key="bt_timeframes_multiselect"
         )
 
-    # 3. 19 Strategies Selector & Presets
-    st.markdown("##### 🧠 19 Strategies Selection (Institutional Core + 18 Streamers):")
+    # 3. 28 Strategies Selector & Presets
+    st.markdown("##### 🧠 28 Strategies Selection (Institutional Core + 27 Streamers):")
     sp_col1, sp_col2, sp_col3, sp_col4, sp_col5 = st.columns(5)
     with sp_col1:
-        if st.button("🌟 Select All 19", key="btn_strat_all_bt", use_container_width=True):
+        if st.button("🌟 Select All 28", key="btn_strat_all_bt", use_container_width=True):
             all_strats = list(AVAILABLE_STRATEGIES.keys())
             bt_settings['active_strategies'] = all_strats
             bt_engine.save_settings(bt_settings)
@@ -2547,21 +2553,21 @@ def render_mt5_backtest_engine_view():
             st.session_state["bt_active_strats_ms"] = def_s
             st.rerun()
     with sp_col3:
-        if st.button("💎 SMC & Scalp", key="btn_strat_smc_bt", use_container_width=True):
-            smc_s = ["DEFAULT", "VIVEK_YADAV", "BERND_SKORUPINSKI", "ICT", "WAQAR_ASIM"]
+        if st.button("💎 SMC & Scalp", key="btn_strat_smc_bt", use_container_width=True, help="Vivek, Bernd, ICT, Waqar Asim, Bob Volman, Al Brooks, Toby Crabel"):
+            smc_s = ["DEFAULT", "VIVEK_YADAV", "BERND_SKORUPINSKI", "ICT", "WAQAR_ASIM", "BOB_VOLMAN", "AL_BROOKS", "TOBY_CRABEL"]
             bt_settings['active_strategies'] = smc_s
             bt_engine.save_settings(bt_settings)
             st.session_state["bt_active_strats_ms"] = smc_s
             st.rerun()
     with sp_col4:
-        if st.button("🌪️ Momentum", key="btn_strat_trend_bt", use_container_width=True):
-            trend_s = ["KRISTJAN_QULLAMAGGIE", "PAUL_FTMO", "ROSS_CAMERON", "RAYNER_TEO", "ADAM_KHOO", "TRADE_PRO"]
+        if st.button("🌪️ Momentum", key="btn_strat_trend_bt", use_container_width=True, help="Qullamaggie, Paul FTMO, Ross, Rayner, Adam, Trade Pro, Dennis, Minervini, Hougaard, Larry Williams, Nicolas Darvas, Linda Raschke"):
+            trend_s = ["KRISTJAN_QULLAMAGGIE", "PAUL_FTMO", "ROSS_CAMERON", "RAYNER_TEO", "ADAM_KHOO", "TRADE_PRO", "RICHARD_DENNIS", "MARK_MINERVINI", "TOM_HOUGAARD", "LARRY_WILLIAMS", "NICOLAS_DARVAS", "LINDA_RASCHKE"]
             bt_settings['active_strategies'] = trend_s
             bt_engine.save_settings(bt_settings)
             st.session_state["bt_active_strats_ms"] = trend_s
             st.rerun()
     with sp_col5:
-        if st.button("🧠 Crypto/Macro", key="btn_strat_crypto_bt", use_container_width=True):
+        if st.button("🧠 Crypto/Macro", key="btn_strat_crypto_bt", use_container_width=True, help="GCR, Waqar Zaka, Eugene Ng, Crypto Cred, Ariel, Oliver"):
             cry_s = ["GCR", "WAQAR_ZAKA", "EUGENE_NG_AH_SIO", "CRYPTO_CRED", "ARIEL_ZWECHER", "OLIVER_VELEZ"]
             bt_settings['active_strategies'] = cry_s
             bt_engine.save_settings(bt_settings)

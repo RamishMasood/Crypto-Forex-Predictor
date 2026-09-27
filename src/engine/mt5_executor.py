@@ -227,16 +227,15 @@ class MT5TradeExecutor:
             actual_risk_usd = total_lots * risk_per_one_lot
             actual_risk_pct = (actual_risk_usd / balance_usd * 100.0) if balance_usd > 0 else risk_pct
 
-            # Exact User Allocation Rules:
-            # - 0.03 lots: TP1=0.01, TP2=0.01, TP3=0.01
-            # - 0.02 lots: TP1=0.01, TP2=0.01, TP3=0.00
-            # - 0.01 lots: TP1=0.01, TP2=0.00, TP3=0.00
-            # - >0.03 lots: TP1 gets major share (65%-70% to bank the win),
-            #   with the remainder split between TP2 (~60%) and TP3 (~40%).
+            # Mandatory 65% TP1 Allocation:
+            # - TP1 receives ~65% of the total position volume to secure high-probability profit.
+            # - Remainder (~35%) is split across runners (TP2 and TP3).
+            # - Clamped to broker minimum lot (vol_min) and step (vol_step).
             if abs(total_lots - round(3 * vol_min, 4)) < 1e-5:
-                lot1 = round(vol_min, 4)
+                # 0.03 lots: TP1 gets 0.02 lots (66.7% ~ 65%), TP2 gets 0.01 lot (33.3%)
+                lot1 = round(2 * vol_min, 4)
                 lot2 = round(vol_min, 4)
-                lot3 = round(vol_min, 4)
+                lot3 = 0.0
             elif abs(total_lots - round(2 * vol_min, 4)) < 1e-5:
                 lot1 = round(vol_min, 4)
                 lot2 = round(vol_min, 4)
@@ -246,7 +245,7 @@ class MT5TradeExecutor:
                 lot2 = 0.0
                 lot3 = 0.0
             elif total_lots > round(3 * vol_min, 4):
-                # Major share for TP1 (65% to lock in highest win probability)
+                # Major share for TP1 (65% to lock in high-probability win)
                 max_lot1 = round(total_lots - 2 * vol_min, 4)
                 raw_lot1 = round(total_lots * 0.65, 4)
                 steps1 = max(1, min(int(round(max_lot1 / vol_step)), int(round(raw_lot1 / vol_step))))
@@ -269,7 +268,9 @@ class MT5TradeExecutor:
             tp3_pct = round((lot3 / total_lots * 100.0), 1) if total_lots > 0 else 0.0
 
         # Compute dollar reward ($) for each TP level accurately
-        tp1_dist = abs(tp1_price - entry_price) if tp1_price is not None else 0.0
+        single_mode = (lot2 <= 0.0 and lot3 <= 0.0)
+        effective_tp1 = tp2_price if (single_mode and tp2_price is not None) else tp1_price
+        tp1_dist = abs(effective_tp1 - entry_price) if effective_tp1 is not None else 0.0
         tp2_dist = abs(tp2_price - entry_price) if tp2_price is not None else 0.0
         tp3_dist = abs(tp3_price - entry_price) if tp3_price is not None else 0.0
 
@@ -287,6 +288,9 @@ class MT5TradeExecutor:
             'actual_risk_usd': round(actual_risk_usd, 2),
             'actual_risk_pct': round(actual_risk_pct, 2),
             'total_lots': total_lots,
+            'tp1_pct': tp1_pct,
+            'tp2_pct': tp2_pct,
+            'tp3_pct': tp3_pct,
             'auto_adjusted_min': auto_adjusted_min if 'auto_adjusted_min' in locals() else False,
             'min_lot_risk_usd': round(min_lot_risk_usd, 2),
             'lot_split': {
@@ -402,11 +406,20 @@ class MT5TradeExecutor:
             type_filling = mt5.ORDER_FILLING_IOC if (filling_mode & 2) else mt5.ORDER_FILLING_FOK
 
             batch_id = int(time.time()) % 1000000  # Unique 6-digit trade batch ID
-            orders_to_place = [
-                ('TP1', lot_split.get('tp1_lots', 0.0), tp1),
-                ('TP2', lot_split.get('tp2_lots', 0.0), tp2),
-                ('TP3', lot_split.get('tp3_lots', 0.0), tp3),
-            ]
+
+            # If only a single order is placed (e.g. broker minimum lot constraint where volume cannot be split),
+            # its target must be the 1:1.15+ R:R target (tp2) rather than a microscopic scalp, ensuring positive expectancy!
+            single_order_mode = (lot_split.get('tp2_lots', 0.0) <= 0 and lot_split.get('tp3_lots', 0.0) <= 0)
+            if single_order_mode:
+                orders_to_place = [
+                    ('TP1', lot_split.get('tp1_lots', 0.0), tp2),
+                ]
+            else:
+                orders_to_place = [
+                    ('TP1', lot_split.get('tp1_lots', 0.0), tp1),
+                    ('TP2', lot_split.get('tp2_lots', 0.0), tp2),
+                    ('TP3', lot_split.get('tp3_lots', 0.0), tp3),
+                ]
 
             placed_tickets = []
             errors = []
@@ -807,28 +820,22 @@ class MT5TradeExecutor:
 
             active_be_mode = str(b_info.get('breakeven_mode') or breakeven_mode).lower().strip()
 
-            # ── 1. STRATEGY-SPECIFIC FIXED R:R TARGET (NO PREMATURE BREAKEVEN) ──
-            # Strategies like Steven Hart, Bernd Skorupinski, Ariel Zwecher, Trade Pro,
-            # and Waqar Zaka (ATR Buffer) require letting the trade breathe without early BE choking.
+            # ── 1. STRATEGY-SPECIFIC FIXED R:R TARGET (BREATHING ROOM WITH EXPANSION / TP1 PROTECTION) ──
+            # Lets the trade breathe without premature choking, but ONCE TP1 is banked OR price expands >= 50% toward TP2,
+            # locks Breakeven so profitable runners NEVER reverse into full 1.80 ATR stop loss losses!
             if active_be_mode in ['fixed_rr_target', 'none', 'hold_target']:
-                continue
-
-            # ── 2. STRATEGY-SPECIFIC MOVING AVERAGE & EXPANSION TRAILING MODES ──
-            # Rayner Teo & Adam Khoo (20 EMA) / Oliver Velez (20 SMA) / Qullamaggie (10/20 EMA) / Paul FTMO (Fib Ext):
-            # Only locks to Breakeven once price expands at least 1.0 ATR (or 50% to TP2 / TP1 hit)
-            if active_be_mode in ['trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be', 'gcr_cycle_be', 'delta_neutral_spread_be', 'atr_buffer_be']:
                 is_expansion_reached = False
                 if pos_type == 'BUY':
                     profit_dist = curr_p - open_p
                     if tp2_p > open_p and profit_dist >= 0.50 * (tp2_p - open_p):
                         is_expansion_reached = True
-                    elif tp1_p > open_p and profit_dist >= (tp1_p - open_p) * 0.95:
+                    elif batch_tp1_hit or symbol_tp1_hit or (tp1_p > open_p and profit_dist >= (tp1_p - open_p) * 0.95):
                         is_expansion_reached = True
                 else:
                     profit_dist = open_p - curr_p
                     if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.50 * (open_p - tp2_p):
                         is_expansion_reached = True
-                    elif tp1_p > 0 and tp1_p < open_p and profit_dist >= (open_p - tp1_p) * 0.95:
+                    elif batch_tp1_hit or symbol_tp1_hit or (tp1_p > 0 and tp1_p < open_p and profit_dist >= (open_p - tp1_p) * 0.95):
                         is_expansion_reached = True
 
                 if is_profitable and is_expansion_reached and not sl_at_be:
@@ -836,16 +843,62 @@ class MT5TradeExecutor:
                     if res.get('success'):
                         results.append({
                             'ticket': pos['ticket'],
-                            'status': 'MOVED_TO_MA_TRAILING_BE',
+                            'status': 'MOVED_TO_EXPANSION_BE',
                             'mode': active_be_mode.upper(),
                             'new_sl': res['new_sl']
                         })
                 continue
 
-            # ── 2.5 WAQAR ASIM 1-MINUTE INSTANT BREAKEVEN ────────────────────────
-            # Waqar Asim: Precision 1m scalper locks Breakeven immediately upon internal structure expansion
-            if active_be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be']:
-                is_expansion_reached = (batch_tp1_hit or symbol_tp1_hit or (is_profitable and pos.get('return_pct', 0) >= 0.05))
+            # ── 2. STRATEGY-SPECIFIC MOVING AVERAGE & EXPANSION TRAILING MODES ──
+            # (Rayner Teo, Oliver Velez, Qullamaggie, Paul FTMO, Turtle, Hougaard, Williams, Darvas, Raschke, Brooks, Volman, Crabel, Minervini)
+            # 2-Stage Breathing Room: Stage 1 sets soft buffer on TP1 hit, Stage 2 locks Hard Breakeven on expansion toward TP2
+            if active_be_mode in [
+                'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be',
+                'gcr_cycle_be', 'delta_neutral_spread_be', 'atr_buffer_be', 'turtle_trailing_be',
+                'hougaard_vwap_trail', 'williams_volatility_be', 'darvas_box_trail', 'raschke_grail_be',
+                'brooks_signal_bar_be', 'volman_buildup_be', 'crabel_nr7_expansion_be', 'vcp_pivot_be'
+            ]:
+                is_expansion_reached = False
+                if pos_type == 'BUY':
+                    profit_dist = curr_p - open_p
+                    if tp2_p > open_p and profit_dist >= 0.45 * (tp2_p - open_p):
+                        is_expansion_reached = True
+                    elif tp1_p > open_p and profit_dist >= 1.8 * (tp1_p - open_p):
+                        is_expansion_reached = True
+                else:
+                    profit_dist = open_p - curr_p
+                    if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.45 * (open_p - tp2_p):
+                        is_expansion_reached = True
+                    elif tp1_p > 0 and tp1_p < open_p and profit_dist >= 1.8 * (open_p - tp1_p):
+                        is_expansion_reached = True
+
+                # Stage 2 Action: Move to Full Hard Breakeven once expansion toward TP2 is confirmed
+                if is_profitable and is_expansion_reached and not sl_at_be:
+                    res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
+                    if res.get('success'):
+                        results.append({
+                            'ticket': pos['ticket'],
+                            'status': 'MOVED_TO_HARD_BREAKEVEN',
+                            'mode': active_be_mode.upper(),
+                            'new_sl': res['new_sl']
+                        })
+                # Stage 1 Action: Move to Soft Buffer on TP1 Hit (leaves 0.45 ATR breathing room below entry)
+                elif is_profitable and (batch_tp1_hit or symbol_tp1_hit) and target_soft_sl:
+                    is_sl_wider_than_soft = (current_sl < target_soft_sl) if pos_type == 'BUY' else (current_sl > target_soft_sl or current_sl <= 0)
+                    if is_sl_wider_than_soft and not sl_at_be:
+                        res = self.move_to_breakeven(pos['ticket'], target_sl=target_soft_sl)
+                        if res.get('success'):
+                            results.append({
+                                'ticket': pos['ticket'],
+                                'status': 'MOVED_TO_SOFT_BUFFER',
+                                'mode': f'{active_be_mode.upper()}_STAGE_1',
+                                'new_sl': res['new_sl']
+                            })
+                continue
+
+            # ── 2.5 WAQAR ASIM & SCALPING QUICK / INSTANT BREAKEVEN ───────────────
+            if active_be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be', 'scalping_quick_be']:
+                is_expansion_reached = (batch_tp1_hit or symbol_tp1_hit or (is_profitable and pos.get('return_pct', 0) >= 0.10))
                 if is_profitable and is_expansion_reached and not sl_at_be:
                     res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
                     if res.get('success'):

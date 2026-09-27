@@ -14,20 +14,18 @@
     "30m",
     "1h",
     "4h",
-    "5m",
-    "3m",
-    "1m"
+    "5m"
   ],
   "risk_pct": 1.0,
-  "scan_interval_sec": 15,
-  "target_trades_per_symbol": 1000,
-  "max_active_batches": 1000,
-  "max_dollar_risk": 15.0,
+  "scan_interval_sec": 60,
+  "target_trades_per_symbol": 10,
+  "max_active_batches": 3,
+  "max_dollar_risk": 20.0,
   "min_pillars_required": 5,
-  "batch_lot_size": 0.4,
+  "batch_lot_size": 0.03,
   "allow_same_tf_trades": false,
-  "allow_diff_strat_same_tf": true,
-  "breakeven_mode": "tight",
+  "allow_diff_strat_same_tf": false,
+  "breakeven_mode": "loose",
   "active_sessions": [
     "24/7 (Any Session)"
   ],
@@ -52,7 +50,16 @@
     "WAQAR_ZAKA",
     "WAQAR_ASIM",
     "EUGENE_NG_AH_SIO",
-    "PAUL_FTMO"
+    "PAUL_FTMO",
+    "RICHARD_DENNIS",
+    "MARK_MINERVINI",
+    "AL_BROOKS",
+    "BOB_VOLMAN",
+    "TOM_HOUGAARD",
+    "LARRY_WILLIAMS",
+    "NICOLAS_DARVAS",
+    "TOBY_CRABEL",
+    "LINDA_RASCHKE"
   ],
   "manual_selected_symbols": [
     "ETH/USD",
@@ -68,8 +75,6 @@
     "30m",
     "1h",
     "4h",
-    "5m",
-    "3m",
-    "1m"
+    "5m"
   ]
 }

@@ -281,9 +281,10 @@ class MT5BacktestEngine:
         """
         total_lots = max(vol_min, round(round(batch_lot_size / vol_step) * vol_step, 4))
         if abs(total_lots - round(3 * vol_min, 4)) < 1e-5:
-            lot1 = round(vol_min, 4)
+            # 0.03 lots: TP1 gets 0.02 lots (66.7% ~ 65%), TP2 gets 0.01 lot (33.3%)
+            lot1 = round(2 * vol_min, 4)
             lot2 = round(vol_min, 4)
-            lot3 = round(vol_min, 4)
+            lot3 = 0.0
         elif abs(total_lots - round(2 * vol_min, 4)) < 1e-5:
             lot1 = round(vol_min, 4)
             lot2 = round(vol_min, 4)

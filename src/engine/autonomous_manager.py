@@ -4,6 +4,7 @@ import time
 import json
 import logging
 import threading
+import concurrent.futures
 from datetime import datetime, timezone, timedelta
 import re
 import pandas as pd
@@ -67,7 +68,17 @@ AVAILABLE_STRATEGIES = {
     "WAQAR_ZAKA": "🛡️ Waqar Zaka (Off-Exchange Capital Reserve & ATR Buffer Model)",
     "WAQAR_ASIM": "🎯 Waqar Asim (Forex 1M S&D Inducement Scalping Model)",
     "EUGENE_NG_AH_SIO": "⚖️ Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)",
-    "PAUL_FTMO": "👑 Paul (Record FTMO Leaderboard Trader - Macro & Divergence)"
+    "PAUL_FTMO": "👑 Paul (Record FTMO Leaderboard Trader - Macro & Divergence)",
+    # 9 World-Class Trading Master Strategies:
+    "RICHARD_DENNIS": "🐢 Richard Dennis (Turtle 20-Day Donchian Breakout & 2N SL)",
+    "MARK_MINERVINI": "📉 Mark Minervini (SEPA Volatility Contraction Pattern VCP)",
+    "AL_BROOKS": "📊 Al Brooks (Price Action Bar-by-Bar Major Trend Reversal & 20 EMA)",
+    "BOB_VOLMAN": "⚡ Bob Volman (Forex 1M-5M Build-Up Breakout & 20 EMA BB)",
+    "TOM_HOUGAARD": "🎯 Tom Hougaard (TraderTom High-Stake Trend Expansion & VWAP)",
+    "LARRY_WILLIAMS": "🏆 Larry Williams (Robbins World Cup 11,376% - Volatility Breakout & W%R)",
+    "NICOLAS_DARVAS": "📦 Nicolas Darvas ($2.25M Box Theory Breakout & Volume Surge)",
+    "TOBY_CRABEL": "💥 Toby Crabel (NR7 Volatility Contraction & Opening Range Breakout ORB)",
+    "LINDA_RASCHKE": "🧙 Linda Raschke (Market Wizard Holy Grail - 14 ADX & 20 EMA Pullback)"
 }
 
 _SCAN_STOP_EVENT = threading.Event()
@@ -284,14 +295,23 @@ class AutonomousTraderEngine:
             'WAQAR_ZAKA': {'default_tfs': '15m, 1h, 4h', 'default_pairs': 'BTC/USD, ETH/USD, Perps'},
             'WAQAR_ASIM': {'default_tfs': '1m, 1h', 'default_pairs': 'EUR/USD, GBP/USD'},
             'EUGENE_NG_AH_SIO': {'default_tfs': '1h, 4h, Daily', 'default_pairs': 'Crypto Spot & Perps'},
-            'PAUL_FTMO': {'default_tfs': '15m, 5m, 1h, 4h', 'default_pairs': 'EUR/JPY, GBP/JPY, EUR/USD, S&P 500'}
+            'PAUL_FTMO': {'default_tfs': '15m, 5m, 1h, 4h', 'default_pairs': 'EUR/JPY, GBP/JPY, EUR/USD, S&P 500'},
+            'RICHARD_DENNIS': {'default_tfs': '4h, 1h, Daily', 'default_pairs': 'BTC/USD, Gold, Forex Majors'},
+            'MARK_MINERVINI': {'default_tfs': '1h, 4h, Daily', 'default_pairs': 'Crypto, High-Beta Stocks, Gold'},
+            'AL_BROOKS': {'default_tfs': '5m, 15m, 1h', 'default_pairs': 'Forex Majors, S&P 500, BTC/USD'},
+            'BOB_VOLMAN': {'default_tfs': '1m, 5m', 'default_pairs': 'EUR/USD, GBP/USD, USD/JPY'},
+            'TOM_HOUGAARD': {'default_tfs': '5m, 15m, 1h', 'default_pairs': 'DAX, FTSE, Gold, EUR/USD, BTC/USD'},
+            'LARRY_WILLIAMS': {'default_tfs': '15m, 1h, Daily', 'default_pairs': 'Gold, Forex Majors, S&P 500, BTC/USD'},
+            'NICOLAS_DARVAS': {'default_tfs': '1h, 4h, Daily', 'default_pairs': 'BTC/USD, ETH/USD, Gold, High-Beta'},
+            'TOBY_CRABEL': {'default_tfs': '5m, 15m, 1h', 'default_pairs': 'EUR/USD, GBP/USD, Gold, BTC/USD'},
+            'LINDA_RASCHKE': {'default_tfs': '15m, 1h, 4h', 'default_pairs': 'Forex Majors, Gold, S&P 500, BTC/USD'}
         }
 
         # Initialize stats bucket strictly for the target strategies
         stats_map: Dict[str, Dict[str, Any]] = {}
-        strat_tfs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in target_strategies}
-        strat_pairs: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in target_strategies}
-        strat_sym_breakdown: Dict[str, Dict[str, Dict[str, Any]]] = {k: {} for k in target_strategies}
+        strat_tfs: Dict[str, Dict[str, Any]] = {k: {} for k in target_strategies}
+        strat_pairs: Dict[str, Dict[str, Any]] = {k: {} for k in target_strategies}
+        strat_sym_breakdown: Dict[str, Dict[str, Any]] = {k: {} for k in target_strategies}
 
         for strat_key, strat_full_name in target_strategies.items():
             stats_map[strat_key] = {
@@ -328,7 +348,7 @@ class AutonomousTraderEngine:
                 try:
                     bid = str(stt.split('Batch #')[1].split(')')[0].strip())
                     for k, fname in AVAILABLE_STRATEGIES.items():
-                        clean_fn = fname.split('(')[0].replace('🏛️', '').replace('🎯', '').replace('🏆', '').replace('⚡', '').replace('📐', '').replace('🌊', '').replace('📊', '').replace('🚀', '').replace('📈', '').replace('⏰', '').replace('🐘', '').replace('🤖', '').replace('🌪️', '').replace('🧠', '').replace('🛡️', '').replace('⚖️', '').replace('👑', '').strip().upper()
+                        clean_fn = fname.split('(')[0].replace('🏛️', '').replace('🎯', '').replace('🏆', '').replace('⚡', '').replace('📐', '').replace('🌊', '').replace('📊', '').replace('🚀', '').replace('📈', '').replace('⏰', '').replace('🐘', '').replace('🤖', '').replace('🌪️', '').replace('🧠', '').replace('🛡️', '').replace('⚖️', '').replace('👑', '').replace('🐢', '').replace('📉', '').strip().upper()
                         if k in det.upper() or (len(clean_fn) > 3 and clean_fn in det.upper()):
                             log_strategy_map[bid] = k
                             break
@@ -384,7 +404,26 @@ class AutonomousTraderEngine:
                 'ASIM': 'WAQAR_ASIM',
                 'EUGENE': 'EUGENE_NG_AH_SIO',
                 'AH SIO': 'EUGENE_NG_AH_SIO',
-                'DELTA_NEUTRAL': 'EUGENE_NG_AH_SIO'
+                'DELTA_NEUTRAL': 'EUGENE_NG_AH_SIO',
+                'DENNIS': 'RICHARD_DENNIS',
+                'TURTLE': 'RICHARD_DENNIS',
+                'MINERVINI': 'MARK_MINERVINI',
+                'VCP': 'MARK_MINERVINI',
+                'BROOKS': 'AL_BROOKS',
+                'AL BROOKS': 'AL_BROOKS',
+                'VOLMAN': 'BOB_VOLMAN',
+                'BUILDUP': 'BOB_VOLMAN',
+                'HOUGAARD': 'TOM_HOUGAARD',
+                'TRADERTOM': 'TOM_HOUGAARD',
+                'WILLIAMS': 'LARRY_WILLIAMS',
+                'LARRY': 'LARRY_WILLIAMS',
+                'DARVAS': 'NICOLAS_DARVAS',
+                'BOX': 'NICOLAS_DARVAS',
+                'CRABEL': 'TOBY_CRABEL',
+                'NR7': 'TOBY_CRABEL',
+                'RASCHKE': 'LINDA_RASCHKE',
+                'GRAIL': 'LINDA_RASCHKE',
+                'HOLY_GRAIL': 'LINDA_RASCHKE'
             }
             for token, target_k in alias_map.items():
                 if (token in raw_k or token in raw_n) and target_k in target_strategies:
@@ -1476,9 +1515,24 @@ class AutonomousTraderEngine:
                                 total_batch_profit += pnl_contrib
                                 matched_deal_ids.add(deal_id)
 
-                    # If no exit deals found yet in MT5, position might still be executing close; wait next cycle
+                    # If no exit deals found yet in MT5, position might still be executing close;
+                    # Or if tickets were on an older demo account/session (> 30 min ago), reconcile cleanly
                     if not matched_deal_ids:
-                        continue
+                        exec_time_str = trade.get('executed_at')
+                        is_stale = False
+                        if exec_time_str:
+                            try:
+                                exec_dt = datetime.fromisoformat(exec_time_str)
+                                if (now_utc - exec_dt).total_seconds() > 1800:
+                                    is_stale = True
+                            except Exception:
+                                is_stale = True
+                        if is_stale:
+                            logger.warning(f"Reconciling stale orphaned batch #{batch_id} ({trade.get('symbol')}): tickets {batch_tickets} no longer exist in MT5. Marking closed.")
+                            outcome = 'BREAKEVEN'
+                            total_batch_profit = 0.0
+                        else:
+                            continue
 
                     # Exact outcome classification directly mirroring MetaTrader5 result:
                     # Clear profit (> +$0.15) = WIN
@@ -1663,12 +1717,33 @@ class AutonomousTraderEngine:
         if not timeframes:
             return None
 
-        asset_type = 'crypto' if any(c in symbol.upper() for c in ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE']) else 'forex'
+        # Check if symbol is a traditional forex/metals market that is closed on weekends
+        is_crypto = any(c in symbol.upper() for c in ['BTC', 'ETH', 'SOL', 'XRP', 'DOGE'])
+        is_247 = '247' in symbol.upper()
+        if not is_crypto and not is_247:
+            now_utc = datetime.now(timezone.utc)
+            # Weekend: Saturday all day (5) or Sunday (6) before 22:00 UTC
+            if now_utc.weekday() == 5 or (now_utc.weekday() == 6 and now_utc.hour < 22):
+                logger.info(f"Traditional market closed for {symbol} (Weekend: Sat-Sun < 22:00 UTC). Skipping scan.")
+                self._append_activity_log({
+                    "timestamp": now_utc.strftime("%H:%M:%S UTC"),
+                    "cycle": cycle,
+                    "symbol": symbol,
+                    "timeframe": "-",
+                    "action": "HOLD",
+                    "pillars": "-",
+                    "status": "MARKET CLOSED (Weekend)",
+                    "details": f"Traditional market for {symbol} is closed on weekends. Reopens Sunday 22:00 UTC."
+                })
+                return None
+
+        asset_type = 'crypto' if is_crypto else 'forex'
 
         # Load rotation pointer so scan order rotates across timeframes
         state = self.load_state()
         tf_rotation = state.get('tf_rotation_indices', {})
         start_idx = int(tf_rotation.get(symbol, 0)) % len(timeframes)
+        ordered_tfs = timeframes[start_idx:] + timeframes[:start_idx]
 
         # Check Institutional Recommended Auto-Pilot Mode
         curr_settings = self.load_settings()
@@ -1890,7 +1965,21 @@ class AutonomousTraderEngine:
                         # Standard execution safety guards (news spikes, high spread)
                         # WAQAR_ZAKA is explicitly designed to trade High-Volatility News Events & Liquidation Sweeps (Playbook PDF)
                         is_news_blocked = is_news_blackout and (strat_key != 'WAQAR_ZAKA')
-                        if not is_spread_fail and not is_news_blocked:
+
+                        # UNIVERSAL HTF (Higher Timeframe) Trend Confluence Guard
+                        # Ensures lower timeframe executions (5m, 15m, 30m) strictly align with dominant macro trend (1h, 4h)
+                        # Blocks taking trades directly against the institutional market trend
+                        htf_filter_enabled = bool(curr_settings.get('htf_filter_enabled', True))
+                        is_htf_blocked = False
+                        if htf_filter_enabled and strat_key != 'GCR':
+                            clean_dir = 'BUY' if 'BUY' in st_act else ('SELL' if 'SELL' in st_act else '')
+                            if clean_dir:
+                                is_htf_ok, htf_detail, _ = HTFConfluenceChecker.check_alignment(symbol, tf, clean_dir)
+                                if not is_htf_ok:
+                                    is_htf_blocked = True
+                                    logger.info(f"[HTFGuard] Blocked {strat_key} ({clean_dir}) on {symbol} ({tf}): {htf_detail}")
+
+                        if not is_spread_fail and not is_news_blocked and not is_htf_blocked:
                             candidates.append({
                                 'strategy_key': strat_key,
                                 'strategy_name': st_res.get('strategy_name', AVAILABLE_STRATEGIES.get(strat_key, strat_key)),
@@ -2035,8 +2124,18 @@ class AutonomousTraderEngine:
             strategy_used = setup_data.get('strategy_used', 'DEFAULT')
             strategy_name = setup_data.get('strategy_name') or setup.get('strategy_name', strategy_used)
 
-            # HARD GUARD: Unselected strategies must NEVER execute trades
-            active_strats = self.load_settings().get('active_strategies', [])
+            settings = self.load_settings()
+
+            # HARD GUARD 1: Unselected symbols must NEVER execute trades
+            selected_symbols = settings.get('selected_symbols', DEFAULT_SYMBOLS)
+            norm_symbol = self.normalize_symbol(symbol).replace('/', '').upper()
+            norm_selected = [self.normalize_symbol(s).replace('/', '').upper() for s in selected_symbols]
+            if norm_symbol not in norm_selected:
+                logger.warning(f"BLOCKED EXECUTION: Symbol '{symbol}' (norm: {norm_symbol}) is NOT in active selected symbols {selected_symbols}. Aborting trade.")
+                return False
+
+            # HARD GUARD 2: Unselected strategies must NEVER execute trades
+            active_strats = settings.get('active_strategies', [])
             if active_strats and strategy_used not in active_strats:
                 logger.warning(f"BLOCKED EXECUTION: Strategy '{strategy_used}' ({strategy_name}) is NOT in active strategies {active_strats}. Aborting trade.")
                 return False
@@ -2072,6 +2171,24 @@ class AutonomousTraderEngine:
             from src.data.forex_feeds import MT5ExnessProvider
             ex_p = MT5ExnessProvider()
             broker_sym = ex_p.get_exness_symbol(symbol) or (self.normalize_symbol(symbol).replace('/', '') + 'm')
+
+            # HARD GUARD 3: Cross-Instrument Contamination Safeguard
+            # If the user did NOT explicitly select a 24/7 instrument, ensure broker_sym does NOT trade 247
+            if '247' not in norm_symbol and '247' in broker_sym.upper():
+                logger.warning(f"BLOCKED EXECUTION: Broker symbol '{broker_sym}' is a 24/7 instrument but user selected '{symbol}'. Aborting cross-instrument contamination.")
+                return False
+
+            # HARD GUARD 4: Strict 1 Active Batch Per Symbol Limit & Capital Guard
+            curr_st = self.load_state()
+            curr_open_batches = curr_st.get('open_batches', {})
+            active_on_sym = [
+                b for b in curr_open_batches.values()
+                if self.normalize_symbol(b.get('symbol', '')).replace('/', '').upper() == norm_symbol
+                or self.normalize_symbol(b.get('broker_sym', '')).replace('/', '').upper() == norm_symbol
+            ]
+            if active_on_sym:
+                logger.warning(f"BLOCKED EXECUTION: Symbol '{symbol}' already has active batch running (Tickets: {[b.get('tickets') for b in active_on_sym]}). Multi-batch stacking blocked.")
+                return False
 
             # 2. Get live account balance from MT5
             self.executor._ensure_connection()
@@ -2211,6 +2328,14 @@ class AutonomousTraderEngine:
                     'strategy_used': strategy_used,
                     'strategy_name': strategy_name
                 }
+
+                if 'symbol_last_trade_time' not in state:
+                    state['symbol_last_trade_time'] = {}
+                now_epoch = time.time()
+                state['symbol_last_trade_time'][norm_symbol] = now_epoch
+                state['symbol_last_trade_time'][self.normalize_symbol(symbol).replace('/', '').upper()] = now_epoch
+                state['symbol_last_trade_time'][self.normalize_symbol(broker_sym).replace('/', '').upper()] = now_epoch
+
                 self.save_state(state)
 
                 m_pil = setup_data.get('matched_pillars', 5)
@@ -2308,7 +2433,8 @@ class AutonomousTraderEngine:
                 risk_pct = float(settings.get('risk_pct', 1.0))
                 target_per_sym = int(settings.get('target_trades_per_symbol', 10))
                 interval = int(settings.get('scan_interval_sec', 180))
-                max_active_batches = int(settings.get('max_active_batches', 1))
+                # Clamp active batches to safe maximum 3 to protect capital against runaway exposure
+                max_active_batches = min(max(int(settings.get('max_active_batches', 3)), 1), 3)
                 max_dollar_risk = float(settings.get('max_dollar_risk', 10.0))
                 min_pillars_required = int(settings.get('min_pillars_required', 5))
                 batch_lot_size = float(settings.get('batch_lot_size', 0.03))
@@ -2363,10 +2489,33 @@ class AutonomousTraderEngine:
                     if _SCAN_STOP_EVENT.is_set() or not self.load_settings().get('enabled', False):
                         return None
 
-                    # Check max active batches before scanning
+                    norm_s = self.normalize_symbol(sym).replace('/', '').upper()
+
+                    # Check max active batches, per-symbol limit, and cooldown before initiating heavy scan
                     with _TRADE_EXEC_LOCK:
                         curr_st = self.load_state()
-                        if len(curr_st.get('open_batches', {})) >= max_active_batches:
+                        curr_open = curr_st.get('open_batches', {})
+                        if len(curr_open) >= max_active_batches:
+                            return None
+
+                        # PER-SYMBOL BATCH CAP: strictly 1 active batch per symbol
+                        active_on_sym = [
+                            b for b in curr_open.values()
+                            if self.normalize_symbol(b.get('symbol', '')).replace('/', '').upper() == norm_s
+                            or self.normalize_symbol(b.get('broker_sym', '')).replace('/', '').upper() == norm_s
+                        ]
+                        if active_on_sym:
+                            logger.info(f"[SymbolGuard] Skipping scan for {sym}: already has {len(active_on_sym)} active batch running.")
+                            return None
+
+                        # COOLDOWN GUARD: 10-minute (600s) cooldown per symbol after batch entry
+                        last_trades = curr_st.get('symbol_last_trade_time', {})
+                        last_t = float(last_trades.get(norm_s, 0.0))
+                        cooldown_sec = 600
+                        time_elapsed = time.time() - last_t
+                        if time_elapsed < cooldown_sec:
+                            rem = int(cooldown_sec - time_elapsed)
+                            logger.info(f"[CooldownGuard] Skipping scan for {sym}: In cooldown ({rem}s remaining).")
                             return None
 
                     try:
@@ -2376,7 +2525,13 @@ class AutonomousTraderEngine:
                         if setup and not _SCAN_STOP_EVENT.is_set() and self.load_settings().get('enabled', False):
                             with _TRADE_EXEC_LOCK:
                                 curr_st = self.load_state()
-                                if len(curr_st.get('open_batches', {})) < max_active_batches:
+                                curr_open = curr_st.get('open_batches', {})
+                                active_on_sym = [
+                                    b for b in curr_open.values()
+                                    if self.normalize_symbol(b.get('symbol', '')).replace('/', '').upper() == norm_s
+                                    or self.normalize_symbol(b.get('broker_sym', '')).replace('/', '').upper() == norm_s
+                                ]
+                                if len(curr_open) < max_active_batches and not active_on_sym:
                                     traded = self.execute_trade_batch(
                                         setup,
                                         risk_pct=risk_pct,
