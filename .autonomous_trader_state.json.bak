@@ -7778,7 +7778,7 @@
   "breakevens": 103,
   "last_scan_time": "2026-09-27T13:54:24.761572+00:00",
   "last_scanned_symbol": null,
-  "engine_status": "MANAGING_ACTIVE",
+  "engine_status": "RUNNING",
   "cycle_count": 1,
   "current_scan": {
     "cycle": 1498,

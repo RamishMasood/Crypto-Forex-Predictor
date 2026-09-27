@@ -7,7 +7,7 @@ import threading
 from datetime import datetime, timezone, timedelta
 import re
 import pandas as pd
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if ROOT_DIR not in sys.path:
@@ -181,47 +181,112 @@ class AutonomousTraderEngine:
             "next_scan_time": None,
             "reset_at": None
         }
+        bak_file = STATE_FILE + ".bak"
         with _STATE_LOCK:
+            # 1. Primary load with retry backoff (up to 10 attempts, ~0.8s)
             if os.path.exists(STATE_FILE):
-                for _ in range(3):
+                for _ in range(10):
                     try:
-                        with open(STATE_FILE, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                            for k, v in default_state.items():
-                                if k not in data:
-                                    data[k] = v
-                            return data
+                        if os.path.getsize(STATE_FILE) > 5:
+                            with open(STATE_FILE, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                                if isinstance(data, dict):
+                                    for k, v in default_state.items():
+                                        if k not in data:
+                                            data[k] = v
+                                    return data
                     except Exception:
-                        time.sleep(0.04)
+                        time.sleep(0.08)
+
+            # 2. Resilient Fallback: If primary file is corrupted or locked, load from backup
+            if os.path.exists(bak_file):
+                for _ in range(5):
+                    try:
+                        if os.path.getsize(bak_file) > 5:
+                            with open(bak_file, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                                if isinstance(data, dict):
+                                    for k, v in default_state.items():
+                                        if k not in data:
+                                            data[k] = v
+                                    logger.warning("Loaded state from backup file (.bak) due to primary state file contention.")
+                                    return data
+                    except Exception:
+                        time.sleep(0.08)
+
         return default_state
 
     @staticmethod
     def save_state(state: Dict[str, Any]):
+        bak_file = STATE_FILE + ".bak"
         with _STATE_LOCK:
             try:
+                # Anti-erasure guard:
+                # If disk state has closed batches and incoming state has empty closed batches without recent explicit reset, preserve history!
+                if os.path.exists(STATE_FILE) and os.path.getsize(STATE_FILE) > 5:
+                    try:
+                        with open(STATE_FILE, 'r', encoding='utf-8') as f_prev:
+                            prev_data = json.load(f_prev)
+                        prev_closed = prev_data.get('closed_batches', [])
+                        in_closed = state.get('closed_batches', [])
+                        reset_at = state.get('reset_at')
+                        is_explicit_reset = False
+                        if reset_at:
+                            try:
+                                reset_dt = datetime.fromisoformat(reset_at)
+                                if (datetime.now(timezone.utc) - reset_dt).total_seconds() < 120:
+                                    is_explicit_reset = True
+                            except Exception:
+                                pass
+                        if prev_closed and not in_closed and not is_explicit_reset:
+                            logger.warning(f"ANTI-ERASURE GUARD: Preserving {len(prev_closed)} closed batches against accidental overwrite.")
+                            state['closed_batches'] = prev_closed
+                            state['wins'] = max(state.get('wins', 0), prev_data.get('wins', 0))
+                            state['losses'] = max(state.get('losses', 0), prev_data.get('losses', 0))
+                            state['breakevens'] = max(state.get('breakevens', 0), prev_data.get('breakevens', 0))
+                            state['total_trades_taken'] = max(state.get('total_trades_taken', 0), prev_data.get('total_trades_taken', 0))
+                            if not state.get('symbol_stats') and prev_data.get('symbol_stats'):
+                                state['symbol_stats'] = prev_data.get('symbol_stats')
+                    except Exception:
+                        pass
+
                 # Write to temp file first
                 tmp_file = STATE_FILE + ".tmp"
                 with open(tmp_file, 'w', encoding='utf-8') as f:
                     json.dump(state, f, indent=2)
+
+                # Keep a backup copy of current valid state before replacing
+                if os.path.exists(STATE_FILE) and os.path.getsize(STATE_FILE) > 10:
+                    try:
+                        import shutil
+                        shutil.copy2(STATE_FILE, bak_file)
+                    except Exception:
+                        pass
+
                 # On Windows, os.replace can fail if target file is opened by another thread.
-                # Retry replace up to 5 times.
+                # Retry replace up to 10 times with backoff.
                 replaced = False
-                for _ in range(5):
+                for _ in range(10):
                     try:
                         os.replace(tmp_file, STATE_FILE)
                         replaced = True
                         break
                     except OSError:
-                        time.sleep(0.05)
+                        time.sleep(0.08)
+
                 if not replaced:
-                    # Fallback: direct write
-                    with open(STATE_FILE, 'w', encoding='utf-8') as f:
-                        json.dump(state, f, indent=2)
-                    if os.path.exists(tmp_file):
-                        try:
-                            os.remove(tmp_file)
-                        except OSError:
-                            pass
+                    try:
+                        import shutil
+                        shutil.copy2(tmp_file, STATE_FILE)
+                        replaced = True
+                    except Exception:
+                        pass
+
+                if os.path.exists(tmp_file):
+                    try:
+                        os.remove(tmp_file)
+                    except OSError:
+                        pass
             except Exception as e:
                 logger.error(f"Error saving state: {e}")
 
@@ -814,6 +879,13 @@ class AutonomousTraderEngine:
 
     def reset_progress(self, clear_journal: bool = False):
         """Reset target progress, executed counts, and symbol stats back to 0."""
+        # Create an automatic pre-reset snapshot so data is never unrecoverable
+        try:
+            if os.path.exists(STATE_FILE) and os.path.getsize(STATE_FILE) > 10:
+                import shutil
+                shutil.copy2(STATE_FILE, STATE_FILE + ".bak_reset")
+        except Exception:
+            pass
         state = self.load_state()
         state["total_trades_taken"] = 0
         state["trades_by_symbol"] = {}
@@ -868,6 +940,63 @@ class AutonomousTraderEngine:
             self.save_state(state)
         except Exception:
             pass
+
+    def _recover_batch_strategy(self, batch_id: Any, ticket: Optional[int] = None, symbol: Optional[str] = None) -> Tuple[str, str]:
+        """
+        Self-healing heuristic to recover the exact strategy key and name for a batch
+        by cross-referencing autonomous_trader.log, state activity feed, and active strategies.
+        """
+        bid_str = str(batch_id) if batch_id is not None else ""
+        tkt_str = str(ticket) if ticket is not None else None
+
+        # 1. Search autonomous_trader.log in reverse
+        log_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "autonomous_trader.log")
+        if not os.path.exists(log_file):
+            log_file = "autonomous_trader.log"
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+                    lines = f.readlines()
+                target_idx = -1
+                for i in range(len(lines) - 1, -1, -1):
+                    line = lines[i]
+                    if (bid_str and f"Batch #{bid_str}:" in line) or (tkt_str and tkt_str in line and "Tickets:" in line):
+                        target_idx = i
+                        break
+                if target_idx != -1:
+                    start_idx = max(0, target_idx - 35)
+                    for j in range(target_idx, start_idx - 1, -1):
+                        line = lines[j]
+                        m = re.search(r'TARGET SETUP CONFIRMED \(([A-Z0-9_]+):\s*(.*?)\)!\s*([A-Za-z0-9/]+)\s*on\s*(\w+)', line)
+                        if m:
+                            return m.group(1).strip(), m.group(2).strip()
+                        m2 = re.search(r'EXECUTING AUTONOMOUS TRADE \((.*?)\):', line)
+                        if m2:
+                            s_name = m2.group(1).strip()
+                            s_key = s_name.split('(')[0].strip().upper().replace(' ', '_')
+                            return s_key, s_name
+            except Exception:
+                pass
+
+        # 2. Search state activity log
+        try:
+            state = self.load_state()
+            for entry in state.get('scan_activity_log', []):
+                e_det = str(entry.get('details', ''))
+                e_stat = str(entry.get('status', ''))
+                if (bid_str and f"Batch #{bid_str}" in e_stat) or (symbol and self.normalize_symbol(entry.get('symbol', '')) == self.normalize_symbol(symbol)):
+                    if 'Strategy:' in e_det:
+                        try:
+                            s_name = e_det.split('Strategy:')[1].split('|')[0].strip()
+                            s_key = e_stat.replace('🎯 Executing (', '').replace(')', '').strip() or s_name.split('(')[0].strip().upper().replace(' ', '_')
+                            return s_key, s_name
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        # 3. Fallback
+        return "AUTONOMOUS", "Autonomous Strategy"
 
     def evaluate_5_pillars(self, pred_res: Dict[str, Any]) -> Dict[str, Any]:
         conf = pred_res['confluence']
@@ -1372,19 +1501,10 @@ class AutonomousTraderEngine:
                             if not pos_tf:
                                 pos_tf = "15m"  # Standard default execution timeframe
 
-                            # Recover strategy name from activity feed
-                            resolved_strat_name = "Streamer Strategy (MT5 Sync)"
-                            resolved_strat_key = "STREAMER"
-                            for entry in state.get('scan_activity_log', []):
-                                e_sym = self.normalize_symbol(entry.get('symbol', ''))
-                                det = str(entry.get('details', ''))
-                                if e_sym == norm_s and 'Strategy:' in det:
-                                    try:
-                                        resolved_strat_name = det.split('Strategy:')[1].split('|')[0].strip()
-                                        resolved_strat_key = entry.get('status', '').replace('🎯 Executing (', '').replace(')', '').strip() or 'STREAMER'
-                                        break
-                                    except Exception:
-                                        pass
+                            # Recover strategy name from activity feed, execution log, or tickets
+                            rec_k, rec_n = self._recover_batch_strategy(pos_batch, ticket=int(p.ticket), symbol=norm_s)
+                            resolved_strat_key = rec_k or "AUTONOMOUS"
+                            resolved_strat_name = rec_n or "Autonomous Strategy"
 
                             open_batches[str(pos_batch)] = {
                                 'batch_id': pos_batch,
@@ -1429,6 +1549,15 @@ class AutonomousTraderEngine:
                                 tkts.append(int(p.ticket))
                                 open_batches[str(pos_batch)]['tickets'] = tkts
                                 state_changed = True
+                            
+                            # Self-healing: if strategy is STREAMER or generic placeholder, recover the real strategy name
+                            b_curr = open_batches[str(pos_batch)]
+                            if b_curr.get('strategy_used') in ['STREAMER', 'DEFAULT', None] or 'Streamer' in str(b_curr.get('strategy_name', '')):
+                                rec_key, rec_name = self._recover_batch_strategy(pos_batch, ticket=int(p.ticket), symbol=b_curr.get('symbol'))
+                                if rec_key and rec_key != 'STREAMER':
+                                    b_curr['strategy_used'] = rec_key
+                                    b_curr['strategy_name'] = rec_name
+                                    state_changed = True
 
             # Check open batches for completion
             for batch_id, trade in list(open_batches.items()):
@@ -1545,6 +1674,15 @@ class AutonomousTraderEngine:
                     else:
                         s_stat['losses'] = s_stat.get('losses', 0) + 1
 
+                    # Ensure true strategy attribution before closing
+                    rec_k = trade.get('strategy_used', 'DEFAULT_CONFLUENCE')
+                    rec_n = trade.get('strategy_name', 'Default Confluence (5-Pillars)')
+                    if rec_k in ['STREAMER', 'DEFAULT', 'DEFAULT_CONFLUENCE', None] or 'Streamer' in str(rec_n):
+                        k_found, n_found = self._recover_batch_strategy(batch_id, ticket=list(batch_tickets)[0] if batch_tickets else None, symbol=sym)
+                        if k_found and k_found != 'STREAMER':
+                            rec_k = k_found
+                            rec_n = n_found
+
                     # Record in closed_batches ledger (Requirement 4)
                     closed_record = {
                         'batch_id': batch_id,
@@ -1568,8 +1706,8 @@ class AutonomousTraderEngine:
                         'status': outcome,
                         'p1_score': trade.get('p1_score'),
                         'p1_prob': trade.get('p1_prob'),
-                        'strategy_used': trade.get('strategy_used', 'DEFAULT_CONFLUENCE'),
-                        'strategy_name': trade.get('strategy_name', 'Default Confluence (5-Pillars)')
+                        'strategy_used': rec_k,
+                        'strategy_name': rec_n
                     }
                     if 'closed_batches' not in state:
                         state['closed_batches'] = []
@@ -1669,6 +1807,7 @@ class AutonomousTraderEngine:
         state = self.load_state()
         tf_rotation = state.get('tf_rotation_indices', {})
         start_idx = int(tf_rotation.get(symbol, 0)) % len(timeframes)
+        ordered_tfs = timeframes[start_idx:] + timeframes[:start_idx]
 
         # Check Institutional Recommended Auto-Pilot Mode
         curr_settings = self.load_settings()
