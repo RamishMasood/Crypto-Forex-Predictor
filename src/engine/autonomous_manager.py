@@ -4,6 +4,7 @@ import time
 import json
 import logging
 import threading
+import concurrent.futures
 from datetime import datetime, timezone, timedelta
 import re
 import pandas as pd
@@ -2528,12 +2529,15 @@ class AutonomousTraderEngine:
                         logger.error(f"Error in parallel scan/trade for {sym}: {s_err}", exc_info=True)
                         return False
 
-                # Execute all eligible symbols in PARALLEL threads
-                num_workers = min(len(eligible_symbols), 6)
+                # Execute eligible symbols concurrently with balanced worker pool (prevents MT5 IPC contention)
+                num_workers = min(len(eligible_symbols), 3)
                 logger.info(f"[ParallelScanner] Launching concurrent scan for {len(eligible_symbols)} symbols: {eligible_symbols} with {num_workers} threads.")
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers, thread_name_prefix="PairScanner") as pool:
-                    future_to_sym = {pool.submit(_scan_and_trade_single_symbol, s): s for s in eligible_symbols}
+                    future_to_sym = {}
+                    for s in eligible_symbols:
+                        future_to_sym[pool.submit(_scan_and_trade_single_symbol, s)] = s
+                        time.sleep(0.05)  # micro-stagger to prevent simultaneous MT5 socket query collision
                     for fut in concurrent.futures.as_completed(future_to_sym):
                         s_name = future_to_sym[fut]
                         try:

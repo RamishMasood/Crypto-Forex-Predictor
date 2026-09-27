@@ -1135,9 +1135,10 @@ def render_mt5_autonomous_engine_view(live_exec):
         st.markdown("##### ⚙️ Scanner & Pair Selection:")
         p_col1, p_col2 = st.columns([2.2, 1.8])
 
-        # Audit active trades & closed MT5 deals so metrics are always fresh
+        # Audit active trades & closed MT5 deals so metrics are always fresh (Worker loop audits when running)
         try:
-            auto_engine.audit_active_trades_and_learn()
+            if not is_scan_active and has_active_trades:
+                auto_engine.audit_active_trades_and_learn()
             state = auto_engine.load_state()
         except Exception:
             pass
@@ -1774,10 +1775,8 @@ def render_mt5_autonomous_engine_view(live_exec):
         with led_toggle_col:
             batch_view = st.radio(
                 "Select Ledger View:",
-                options=[
-                    f"🟢 Active Running Batches ({len(open_batches)})",
-                    f"📜 Closed Batches History ({len(closed_batches)})"
-                ],
+                options=["Active", "Closed"],
+                format_func=lambda x: f"🟢 Active Running Batches ({len(open_batches)})" if x == "Active" else f"📜 Closed Batches History ({len(closed_batches)})",
                 horizontal=True,
                 label_visibility="collapsed",
                 key="auto_batches_ledger_view_radio"
@@ -2066,9 +2065,6 @@ def render_mt5_autonomous_engine_view(live_exec):
         lb_table_container = st.empty()
         with lb_table_container:
             render_html(lb_table_html)
-
-        # ── 9. Dedicated MT5 Multi-Timeframe Historical Backtesting Engine ─────────
-        render_mt5_backtest_engine_view()
 
 def render_live_backtest_dashboard(live_monitor, stats: dict):
     if not stats:
