@@ -2433,8 +2433,8 @@ class AutonomousTraderEngine:
                 risk_pct = float(settings.get('risk_pct', 1.0))
                 target_per_sym = int(settings.get('target_trades_per_symbol', 10))
                 interval = int(settings.get('scan_interval_sec', 180))
-                # Clamp active batches to safe maximum 3 to protect capital against runaway exposure
-                max_active_batches = min(max(int(settings.get('max_active_batches', 3)), 1), 3)
+                # Max active concurrent batches as configured by user in settings
+                max_active_batches = max(int(settings.get('max_active_batches', 1)), 1)
                 max_dollar_risk = float(settings.get('max_dollar_risk', 10.0))
                 min_pillars_required = int(settings.get('min_pillars_required', 5))
                 batch_lot_size = float(settings.get('batch_lot_size', 0.03))

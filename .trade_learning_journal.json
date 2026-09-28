@@ -284,7 +284,12 @@
     "On BTC/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On ETH/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On ETH/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On ETH/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On XAG/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAG/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAG/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On ETH/USD (4h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On XAG/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On ETH/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
@@ -3128,13 +3133,63 @@
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     },
     {
-      "timestamp": "2026-09-27T18:48:12.921041+00:00",
-      "symbol": "ETH/USD",
-      "timeframe": "15m",
+      "timestamp": "2026-09-28T08:26:22.696963+00:00",
+      "symbol": "XAG/USD",
+      "timeframe": "5m",
       "action": "SELL",
-      "entry": 2684.15,
-      "sl": 2699.65314,
-      "loss_usd": 1.53,
+      "entry": 61.08,
+      "sl": 61.30989,
+      "loss_usd": 3.6,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-28T08:41:54.257734+00:00",
+      "symbol": "XAG/USD",
+      "timeframe": "5m",
+      "action": "SELL",
+      "entry": 60.973,
+      "sl": 61.21973,
+      "loss_usd": 46.4,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-28T08:52:29.300721+00:00",
+      "symbol": "XAG/USD",
+      "timeframe": "15m",
+      "action": "BUY",
+      "entry": 61.177,
+      "sl": 60.76339,
+      "loss_usd": 12.5,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-28T09:07:22.952188+00:00",
+      "symbol": "ETH/USD",
+      "timeframe": "4h",
+      "action": "BUY",
+      "entry": 2648.42,
+      "sl": 2606.53786,
+      "loss_usd": 7.6,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-28T09:07:23.011759+00:00",
+      "symbol": "XAG/USD",
+      "timeframe": "30m",
+      "action": "SELL",
+      "entry": 60.986,
+      "sl": 61.47676,
+      "loss_usd": 11.9,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-28T09:14:19.770953+00:00",
+      "symbol": "ETH/USD",
+      "timeframe": "5m",
+      "action": "SELL",
+      "entry": 2640.59,
+      "sl": 2662.70582,
+      "loss_usd": 0.53,
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     }
   ],
