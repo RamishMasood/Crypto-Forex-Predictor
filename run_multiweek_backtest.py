@@ -5,9 +5,9 @@ from collections import defaultdict
 from src.engine.backtest_engine import MT5BacktestEngine
 
 def run_test(d_from: str, d_to: str, label: str):
-    print(f"\n=======================================================")
-    print(f"Running Test for {label}: {d_from} -> {d_to}")
-    print(f"=======================================================")
+    print(f"\n=======================================================", flush=True)
+    print(f"Running Test for {label}: {d_from} -> {d_to}", flush=True)
+    print(f"=======================================================", flush=True)
     
     engine = MT5BacktestEngine()
     state = json.load(open('.backtest_engine_state.json'))
@@ -15,13 +15,16 @@ def run_test(d_from: str, d_to: str, label: str):
     cfg['date_from'] = d_from
     cfg['date_to'] = d_to
     
-    res = engine.run_backtest(cfg)
+    def on_prog(pct, msg):
+        print(f"[{pct*100:5.1f}%] {msg}", flush=True)
+
+    res = engine.run_backtest(cfg, progress_callback=on_prog)
     
     net_pnl = res.get('net_profit', 0.0)
     win_rate = res.get('win_rate', 0.0)
     total_trades = res.get('total_trades', 0)
     
-    print(f"Result [{label}]: Net Profit = ${net_pnl:.2f} | Win Rate = {win_rate:.1f}% | Total Trades = {total_trades}")
+    print(f"Result [{label}]: Net Profit = ${net_pnl:.2f} | Win Rate = {win_rate:.1f}% | Total Trades = {total_trades}", flush=True)
     
     trades = res.get('closed_batches', [])
     s_pnl = defaultdict(float)
@@ -39,7 +42,7 @@ def run_test(d_from: str, d_to: str, label: str):
         else:
             s_cnt[s]['be'] += 1
             
-    print(f"Strategy Performance ({len(s_pnl)} active strategies):")
+    print(f"Strategy Performance ({len(s_pnl)} active strategies):", flush=True)
     negative_count = 0
     for s, p in sorted(s_pnl.items(), key=lambda x: x[1]):
         c = s_cnt[s]
@@ -47,12 +50,12 @@ def run_test(d_from: str, d_to: str, label: str):
         if p < 0:
             negative_count += 1
             # find which symbols / TFs caused the losses
-            loss_details = [f"{t.get('symbol')} {t.get('timeframe')} (${t.get('profit', 0):.2f})" for t in trades if t.get('strategy_used') == s and t.get('profit', 0) < 0]
-            print(f"  {s:22}: PnL = ${p:7.2f} [{status_flag:6}] | W:{c['w']:3} L:{c['l']:3} BE:{c['be']:3} | Losers: {', '.join(loss_details[:5])}")
+            loss_details = [f"{t.get('symbol')} {t.get('timeframe')} {t.get('action')} {t.get('open_time')} (${t.get('profit', 0):.2f}) {t.get('exit_reason')}" for t in trades if t.get('strategy_used') == s and t.get('profit', 0) < 0]
+            print(f"  {s:22}: PnL = ${p:7.2f} [{status_flag:6}] | W:{c['w']:3} L:{c['l']:3} BE:{c['be']:3} | Losers: {', '.join(loss_details[:5])}", flush=True)
         else:
-            print(f"  {s:22}: PnL = ${p:7.2f} [{status_flag:6}] | W:{c['w']:3} L:{c['l']:3} BE:{c['be']:3}")
+            print(f"  {s:22}: PnL = ${p:7.2f} [{status_flag:6}] | W:{c['w']:3} L:{c['l']:3} BE:{c['be']:3}", flush=True)
         
-    print(f"Summary for {label}: Negative Strategies = {negative_count}")
+    print(f"Summary for {label}: Negative Strategies = {negative_count}", flush=True)
     return res, s_pnl
 
 if __name__ == '__main__':

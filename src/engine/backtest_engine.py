@@ -36,6 +36,7 @@ import numpy as np
 
 from ..strategies.streamer_playbook import MasterStreamerPlaybook
 from ..engine.session_manager import SessionManager
+from ..engine.htf_confluence import HTFConfluenceChecker
 from ..engine.autonomous_manager import AVAILABLE_STRATEGIES
 
 logger = logging.getLogger("MT5BacktestEngine")
@@ -558,70 +559,28 @@ class MT5BacktestEngine:
 
                 # BUY Trade Management
                 if act == 'BUY':
-                    # ── Check Strategy-Specific Breakeven / Trailing Trigger (Matching MT5Executor) ──
                     profit_dist = cur_high - entry_p
                     tp2_dist = tp2_p - entry_p if tp2_p > entry_p else (1.15 * (entry_p - sl_p))
                     tp1_dist = tp1_p - entry_p if tp1_p > entry_p else (0.38 * cur_atr)
 
-                    should_trigger_be = False
-                    new_be_sl = None
-
-                    # Strategy-specific early breakeven triggers matching MT5Executor:
-                    if be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be']:
-                        if b['tp1_hit'] or (entry_p > 0 and profit_dist / entry_p >= 0.0005) or profit_dist >= (0.38 * cur_atr):
-                            should_trigger_be = True
-                            new_be_sl = entry_p
-                    elif be_mode in ['trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be', 'gcr_cycle_be', 'delta_neutral_spread_be', 'atr_buffer_be']:
-                        if b['tp1_hit'] or profit_dist >= (0.50 * tp2_dist) or profit_dist >= (0.95 * tp1_dist):
-                            should_trigger_be = True
-                            new_be_sl = entry_p
-                    elif be_mode in ['fixed_rr_target', 'none', 'hold_target']:
-                        # Only moves to BE if TP1 was specifically banked
-                        if b['tp1_hit']:
-                            should_trigger_be = True
-                            new_be_sl = entry_p
-                    else:
-                        # Standard & Loose BE Modes
-                        if b['tp1_hit']:
-                            should_trigger_be = True
-                            if profit_dist >= (0.50 * tp2_dist):
-                                new_be_sl = entry_p + (0.20 * cur_atr) # Lock in profit on runner
-                            elif be_mode == 'loose':
-                                if profit_dist >= (0.85 * cur_atr):
-                                    new_be_sl = entry_p + (0.02 * cur_atr) # Stage 2: Hard BE once expansion proven
-                                else:
-                                    new_be_sl = entry_p - (0.45 * cur_atr) # Stage 1: Soft risk reduction buffer
-                            else:
-                                new_be_sl = entry_p # Risk-free breakeven for runner
-
-                    if should_trigger_be and new_be_sl is not None:
-                        if new_be_sl > b['sl_price']:
-                            b['sl_price'] = round(new_be_sl, 5)
-                            b['is_breakeven'] = True
-
-                    # 1. Check Stop Loss Hit (Initial SL or Breakeven SL)
-                    if cur_low <= b['sl_price']:
-                        exit_price = b['sl_price']
-                        exit_pnl = (exit_price - entry_p) * lots_rem * contract_size
-                        if is_jpy and cur_close > 0:
-                            exit_pnl /= cur_close
-                        b['accumulated_pnl'] += exit_pnl
-                        closed_this_bar = True
-                        if b['is_breakeven'] or abs(b['accumulated_pnl']) <= 0.15:
-                            exit_reason = "TP1_BANKED_BE_EXIT" if b['tp1_hit'] else "BREAKEVEN_SL"
-                            b['status'] = "BREAKEVEN"
-                        elif b['accumulated_pnl'] > 0.15:
-                            exit_reason = "BREAKEVEN_PROFIT"
-                            b['status'] = "BREAKEVEN"
-                        else:
+                    # ── Trade Progression Logic ──
+                    if not b['tp1_hit']:
+                        # 1. Initial Stop Loss Check (before TP1 is hit)
+                        if cur_low <= b['sl_price']:
+                            exit_price = b['sl_price']
+                            exit_pnl = (exit_price - entry_p) * b['remaining_lots'] * contract_size
+                            if is_jpy and cur_close > 0:
+                                exit_pnl /= cur_close
+                            b['accumulated_pnl'] += exit_pnl
+                            closed_this_bar = True
                             exit_reason = "FULL_SL"
                             b['status'] = "LOSS"
-                    else:
                         # 2. Check TP1 Hit (Major Scalp Lock - 65%)
-                        if not b['tp1_hit'] and cur_high >= tp1_p:
+                        elif cur_high >= tp1_p:
                             b['tp1_hit'] = True
-                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - lot_p1), 4)
-                            p1_pnl = (tp1_p - entry_p) * lot_p1 * contract_size
+                            p1_lots = min(lot_p1, b['remaining_lots'])
+                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p1_lots), 4)
+                            p1_pnl = (tp1_p - entry_p) * p1_lots * contract_size
                             if is_jpy and cur_close > 0:
                                 p1_pnl /= cur_close
                             b['accumulated_pnl'] += p1_pnl
@@ -641,17 +600,46 @@ class MT5BacktestEngine:
                                 b['status'] = "WIN"
                                 exit_price = tp1_p
 
-                        # 3. Check TP2 Hit (Structural Runner 1:1+)
-                        if not closed_this_bar and b['tp1_hit'] and not b['tp2_hit'] and lot_p2 > 0 and cur_high >= tp2_p:
+                    if not closed_this_bar and b['tp1_hit']:
+                        # ── Runner Management (TP1 already locked in bank) ──
+                        # Stage 2 Trailing Breakeven advancement on expansion toward TP2
+                        if be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be', 'scalping_quick_be']:
+                            b['sl_price'] = max(b['sl_price'], entry_p)
+                        elif profit_dist >= (0.45 * tp2_dist):
+                            b['sl_price'] = max(b['sl_price'], entry_p + (0.02 * cur_atr))
+                        elif be_mode != 'loose':
+                            b['sl_price'] = max(b['sl_price'], entry_p)
+
+                        # Check Runner Stop (Breakeven or Trailing Stop)
+                        if cur_low <= b['sl_price']:
+                            exit_price = b['sl_price']
+                            exit_pnl = (exit_price - entry_p) * b['remaining_lots'] * contract_size
+                            if is_jpy and cur_close > 0:
+                                exit_pnl /= cur_close
+                            b['accumulated_pnl'] += exit_pnl
+                            b['remaining_lots'] = 0.0
+                            closed_this_bar = True
+                            if b['accumulated_pnl'] > 0.15:
+                                exit_reason = "TP1_BANKED_BE_EXIT"
+                                b['status'] = "WIN"
+                            elif b['accumulated_pnl'] < -0.15:
+                                exit_reason = "STOP_LOSS"
+                                b['status'] = "LOSS"
+                            else:
+                                exit_reason = "BREAKEVEN_SL"
+                                b['status'] = "BREAKEVEN"
+
+                        # Check TP2 Hit (Structural Runner 1:1+)
+                        if not closed_this_bar and not b['tp2_hit'] and lot_p2 > 0 and cur_high >= tp2_p:
                             b['tp2_hit'] = True
-                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - lot_p2), 4)
-                            p2_pnl = (tp2_p - entry_p) * lot_p2 * contract_size
+                            p2_lots = min(lot_p2, b['remaining_lots'])
+                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p2_lots), 4)
+                            p2_pnl = (tp2_p - entry_p) * p2_lots * contract_size
                             if is_jpy and cur_close > 0:
                                 p2_pnl /= cur_close
                             b['accumulated_pnl'] += p2_pnl
                             balance += p2_pnl
                             b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p2_pnl
-                            # Lock in TP1 mark as trailing stop
                             b['sl_price'] = max(b['sl_price'], tp1_p)
 
                             if b['remaining_lots'] <= 0.0001:
@@ -660,7 +648,7 @@ class MT5BacktestEngine:
                                 b['status'] = "WIN"
                                 exit_price = tp2_p
 
-                        # 4. Check TP3 Hit (Macro Runner 2.20R)
+                        # Check TP3 Hit (Macro Runner 2.20R)
                         if not closed_this_bar and b['tp2_hit'] and b['remaining_lots'] > 0.0001 and cur_high >= tp3_p:
                             p3_pnl = (tp3_p - entry_p) * b['remaining_lots'] * contract_size
                             if is_jpy and cur_close > 0:
@@ -680,65 +668,24 @@ class MT5BacktestEngine:
                     tp2_dist = entry_p - tp2_p if (tp2_p > 0 and tp2_p < entry_p) else (1.15 * (sl_p - entry_p))
                     tp1_dist = entry_p - tp1_p if (tp1_p > 0 and tp1_p < entry_p) else (0.38 * cur_atr)
 
-                    should_trigger_be = False
-                    new_be_sl = None
-
-                    # Strategy-specific early breakeven triggers matching MT5Executor:
-                    if be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be']:
-                        if b['tp1_hit'] or (entry_p > 0 and profit_dist / entry_p >= 0.0005) or profit_dist >= (0.38 * cur_atr):
-                            should_trigger_be = True
-                            new_be_sl = entry_p
-                    elif be_mode in ['trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be', 'gcr_cycle_be', 'delta_neutral_spread_be', 'atr_buffer_be']:
-                        if b['tp1_hit'] or profit_dist >= (0.50 * tp2_dist) or profit_dist >= (0.95 * tp1_dist):
-                            should_trigger_be = True
-                            new_be_sl = entry_p
-                    elif be_mode in ['fixed_rr_target', 'none', 'hold_target']:
-                        # Only moves to BE if TP1 was specifically banked
-                        if b['tp1_hit']:
-                            should_trigger_be = True
-                            new_be_sl = entry_p
-                    else:
-                        # Standard & Loose BE Modes
-                        if b['tp1_hit']:
-                            should_trigger_be = True
-                            if profit_dist >= (0.50 * tp2_dist):
-                                new_be_sl = entry_p - (0.20 * cur_atr) # Lock in profit on runner
-                            elif be_mode == 'loose':
-                                if profit_dist >= (0.85 * cur_atr):
-                                    new_be_sl = entry_p - (0.02 * cur_atr) # Stage 2: Hard BE once expansion proven
-                                else:
-                                    new_be_sl = entry_p + (0.45 * cur_atr) # Stage 1: Soft risk reduction buffer
-                            else:
-                                new_be_sl = entry_p # Risk-free breakeven for runner
-
-                    if should_trigger_be and new_be_sl is not None:
-                        if b['sl_price'] <= 0 or new_be_sl < b['sl_price']:
-                            b['sl_price'] = round(new_be_sl, 5)
-                            b['is_breakeven'] = True
-
-                    # 1. Check Stop Loss Hit (Initial SL or Breakeven SL)
-                    if cur_high >= b['sl_price']:
-                        exit_price = b['sl_price']
-                        exit_pnl = (entry_p - exit_price) * lots_rem * contract_size
-                        if is_jpy and cur_close > 0:
-                            exit_pnl /= cur_close
-                        b['accumulated_pnl'] += exit_pnl
-                        closed_this_bar = True
-                        if b['is_breakeven'] or abs(b['accumulated_pnl']) <= 0.15:
-                            exit_reason = "TP1_BANKED_BE_EXIT" if b['tp1_hit'] else "BREAKEVEN_SL"
-                            b['status'] = "BREAKEVEN"
-                        elif b['accumulated_pnl'] > 0.15:
-                            exit_reason = "BREAKEVEN_PROFIT"
-                            b['status'] = "BREAKEVEN"
-                        else:
+                    # ── Trade Progression Logic ──
+                    if not b['tp1_hit']:
+                        # 1. Initial Stop Loss Check (before TP1 is hit)
+                        if cur_high >= b['sl_price']:
+                            exit_price = b['sl_price']
+                            exit_pnl = (entry_p - exit_price) * b['remaining_lots'] * contract_size
+                            if is_jpy and cur_close > 0:
+                                exit_pnl /= cur_close
+                            b['accumulated_pnl'] += exit_pnl
+                            closed_this_bar = True
                             exit_reason = "FULL_SL"
                             b['status'] = "LOSS"
-                    else:
                         # 2. Check TP1 Hit (Major Scalp Lock - 65%)
-                        if not b['tp1_hit'] and cur_low <= tp1_p:
+                        elif cur_low <= tp1_p:
                             b['tp1_hit'] = True
-                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - lot_p1), 4)
-                            p1_pnl = (entry_p - tp1_p) * lot_p1 * contract_size
+                            p1_lots = min(lot_p1, b['remaining_lots'])
+                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p1_lots), 4)
+                            p1_pnl = (entry_p - tp1_p) * p1_lots * contract_size
                             if is_jpy and cur_close > 0:
                                 p1_pnl /= cur_close
                             b['accumulated_pnl'] += p1_pnl
@@ -758,11 +705,41 @@ class MT5BacktestEngine:
                                 b['status'] = "WIN"
                                 exit_price = tp1_p
 
-                        # 3. Check TP2 Hit (Structural Runner 1:1+)
-                        if not closed_this_bar and b['tp1_hit'] and not b['tp2_hit'] and lot_p2 > 0 and cur_low <= tp2_p:
+                    if not closed_this_bar and b['tp1_hit']:
+                        # ── Runner Management (TP1 already locked in bank) ──
+                        # Stage 2 Trailing Breakeven advancement on expansion toward TP2
+                        if be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be', 'scalping_quick_be']:
+                            b['sl_price'] = min(b['sl_price'], entry_p)
+                        elif profit_dist >= (0.45 * tp2_dist):
+                            b['sl_price'] = min(b['sl_price'], entry_p - (0.02 * cur_atr))
+                        elif be_mode != 'loose':
+                            b['sl_price'] = min(b['sl_price'], entry_p)
+
+                        # Check Runner Stop (Breakeven or Trailing Stop)
+                        if cur_high >= b['sl_price']:
+                            exit_price = b['sl_price']
+                            exit_pnl = (entry_p - exit_price) * b['remaining_lots'] * contract_size
+                            if is_jpy and cur_close > 0:
+                                exit_pnl /= cur_close
+                            b['accumulated_pnl'] += exit_pnl
+                            b['remaining_lots'] = 0.0
+                            closed_this_bar = True
+                            if b['accumulated_pnl'] > 0.15:
+                                exit_reason = "TP1_BANKED_BE_EXIT"
+                                b['status'] = "WIN"
+                            elif b['accumulated_pnl'] < -0.15:
+                                exit_reason = "STOP_LOSS"
+                                b['status'] = "LOSS"
+                            else:
+                                exit_reason = "BREAKEVEN_SL"
+                                b['status'] = "BREAKEVEN"
+
+                        # Check TP2 Hit (Structural Runner 1:1+)
+                        if not closed_this_bar and not b['tp2_hit'] and lot_p2 > 0 and cur_low <= tp2_p:
                             b['tp2_hit'] = True
-                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - lot_p2), 4)
-                            p2_pnl = (entry_p - tp2_p) * lot_p2 * contract_size
+                            p2_lots = min(lot_p2, b['remaining_lots'])
+                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p2_lots), 4)
+                            p2_pnl = (entry_p - tp2_p) * p2_lots * contract_size
                             if is_jpy and cur_close > 0:
                                 p2_pnl /= cur_close
                             b['accumulated_pnl'] += p2_pnl
@@ -776,7 +753,7 @@ class MT5BacktestEngine:
                                 b['status'] = "WIN"
                                 exit_price = tp2_p
 
-                        # 4. Check TP3 Hit (Macro Runner 2.20R)
+                        # Check TP3 Hit (Macro Runner 2.20R)
                         if not closed_this_bar and b['tp2_hit'] and b['remaining_lots'] > 0.0001 and cur_low <= tp3_p:
                             p3_pnl = (entry_p - tp3_p) * b['remaining_lots'] * contract_size
                             if is_jpy and cur_close > 0:
@@ -823,6 +800,7 @@ class MT5BacktestEngine:
                 if can_open:
                     slice_start = max(0, idx - 250)
                     historical_slice = df.iloc[slice_start:idx + 1].copy()
+                    historical_slice.attrs['symbol'] = sym
 
                     # Evaluate only the active strategies selected in settings
                     triggered_candidates = []
@@ -924,6 +902,30 @@ class MT5BacktestEngine:
                         if not is_sess_ok:
                             continue
 
+                        # UNIVERSAL HTF (Higher Timeframe) Trend Confluence Guard (Matching Autonomous Engine)
+                        if htf_filter_enabled and s_k != 'GCR':
+                            clean_dir = 'BUY' if 'BUY' in str(st_res.get('action', '')).upper() else ('SELL' if 'SELL' in str(st_res.get('action', '')).upper() else '')
+                            if clean_dir:
+                                htf_tf = HTFConfluenceChecker.get_htf_timeframe(tf)
+                                df_htf_feed = data_feeds.get(sym, {}).get(htf_tf)
+                                if df_htf_feed is None:
+                                    for alt_htf in ['4h', '1h']:
+                                        if alt_htf in data_feeds.get(sym, {}) and alt_htf != tf:
+                                            df_htf_feed = data_feeds[sym][alt_htf]
+                                            break
+                                if df_htf_feed is not None and len(df_htf_feed) > 0:
+                                    htf_slice = df_htf_feed[df_htf_feed['timestamp'] <= cur_time]
+                                    if len(htf_slice) >= 15:
+                                        is_htf_ok, _, _ = HTFConfluenceChecker.check_alignment(sym, tf, clean_dir, df_htf=htf_slice)
+                                        if not is_htf_ok:
+                                            continue
+                                elif len(historical_slice) >= 40:
+                                    c_sma200 = float(historical_slice['close'].rolling(min(len(historical_slice), 200), min_periods=20).mean().iloc[-1])
+                                    if clean_dir == 'BUY' and cur_close < c_sma200 * 0.995:
+                                        continue
+                                    elif clean_dir == 'SELL' and cur_close > c_sma200 * 1.005:
+                                        continue
+
                         # Check Diff-Strat Same-TF Rule
                         if allow_diff_strat:
                             already_running_strat = any(b['strategy_used'] == s_k for b in batches_on_sym_tf)
@@ -999,6 +1001,12 @@ class MT5BacktestEngine:
 
                         lot_p1, lot_p2, lot_p3 = self.compute_batch_lot_split(effective_batch_lot, vol_min=sym_vol_min, vol_step=sym_vol_min)
                         tot_lots = round(lot_p1 + lot_p2 + lot_p3, 4)
+
+                        # Single undivided orders (e.g. broker minimum lot constraint like ETHUSDm 0.10)
+                        # target TP2 (1:1.15+ R:R) rather than a microscopic scalp, ensuring positive expectancy!
+                        # (Matching MT5TradeExecutor lines 412-422)
+                        if lot_p2 <= 0 and lot_p3 <= 0:
+                            c_tp1 = c_tp2
 
                         # Calculate Dollar Risk with effective lots
                         dollar_risk = tot_lots * unit_risk
@@ -1194,20 +1202,11 @@ class MT5BacktestEngine:
         # 5. Compute Detailed Analytics & Strategy Leaderboard
         total_trades = len(closed_batches)
         def _is_batch_be(batch_obj):
-            st = str(batch_obj.get('status', '')).upper()
-            ex = str(batch_obj.get('exit_reason', '')).upper()
             p = float(batch_obj.get('profit', 0.0))
-            return (
-                st in ['BREAKEVEN', 'BE'] or
-                'BREAKEVEN' in st or
-                'BREAKEVEN' in ex or
-                ex in ['TP1_BANKED_BE_EXIT', 'BREAKEVEN_SL', 'BREAKEVEN_PROFIT'] or
-                (batch_obj.get('is_breakeven') and 'SL' in ex) or
-                (abs(p) <= 0.15 and st != 'LOSS')
-            )
+            return abs(p) <= 0.15
 
-        wins = sum(1 for b in closed_batches if not _is_batch_be(b) and (b.get('profit', 0.0) > 0.15 or b.get('status') == 'WIN'))
-        losses = sum(1 for b in closed_batches if not _is_batch_be(b) and (b.get('profit', 0.0) < -0.15 or b.get('status') == 'LOSS'))
+        wins = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15 or b.get('status') == 'WIN')
+        losses = sum(1 for b in closed_batches if b.get('profit', 0.0) < -0.15 and b.get('status') != 'WIN')
         breakevens = sum(1 for b in closed_batches if _is_batch_be(b))
         win_rate = round((wins / max(wins + losses, 1)) * 100.0, 1) if (wins + losses) > 0 else 0.0
 
@@ -1253,7 +1252,7 @@ class MT5BacktestEngine:
             'sl_hits': sl_hits,
             'equity_curve': equity_curve,
             'leaderboard': leaderboard,
-            'closed_batches': closed_batches[:500], # Keep top 500 in state
+            'closed_batches': closed_batches,
             'settings_used': cfg
         }
 
@@ -1322,38 +1321,22 @@ class MT5BacktestEngine:
             stats_map[k]['total_trades'] += 1
             stats_map[k]['net_pnl'] += pnl
 
-            is_be = (
-                stt in ['BREAKEVEN', 'BE'] or
-                'BREAKEVEN' in stt or
-                'BREAKEVEN' in exit_r.upper() or
-                exit_r.upper() in ['TP1_BANKED_BE_EXIT', 'BREAKEVEN_SL', 'BREAKEVEN_PROFIT'] or
-                (b.get('is_breakeven') and 'SL' in exit_r.upper()) or
-                (abs(pnl) <= 0.15 and stt != 'LOSS')
-            )
+            is_win = (pnl > 0.15) or (stt == 'WIN' and pnl >= -0.15)
+            is_loss = (pnl < -0.15) and not is_win
+            is_be = not is_win and not is_loss
 
-            if is_be:
-                stats_map[k]['breakevens'] += 1
-                if pnl > 0:
-                    stats_map[k]['gross_profit'] += pnl
-                elif pnl < 0:
-                    stats_map[k]['gross_loss'] += abs(pnl)
-            elif pnl > 0.15 or stt == 'WIN':
+            if is_win:
                 stats_map[k]['wins'] += 1
                 stats_map[k]['gross_profit'] += pnl
-                # Track TP hits from exit_reason
                 if 'TP' in exit_r.upper():
                     stats_map[k]['tp_hits'] += 1
-                # Also count from tp1_hit/tp2_hit flags
-                if b.get('tp1_hit'):
-                    pass  # already counted via exit_reason above
-                # Biggest TP win
                 if pnl > stats_map[k]['biggest_tp']:
                     stats_map[k]['biggest_tp'] = round(pnl, 2)
-            elif pnl < -0.15 or stt == 'LOSS':
+            elif is_loss:
                 stats_map[k]['losses'] += 1
                 stats_map[k]['sl_hits'] += 1
                 stats_map[k]['gross_loss'] += abs(pnl)
-                stats_map[k]['net_loss'] += pnl  # negative value
+                stats_map[k]['net_loss'] += pnl
                 if abs(pnl) > stats_map[k]['biggest_sl_loss']:
                     stats_map[k]['biggest_sl_loss'] = round(abs(pnl), 2)
             else:

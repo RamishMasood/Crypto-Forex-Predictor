@@ -160,6 +160,7 @@ class PredictorOrchestrator:
         # STEP 2: QUANTITATIVE INDICATORS
         # ────────────────────────────────────────────────────
         df_indicators = QuantitativeIndicators.add_all_indicators(df_ohlcv)
+        df_indicators.attrs['symbol'] = symbol
         latest_ind    = df_indicators.iloc[-1]
         atr_val       = float(latest_ind.get('atr_14', current_price * 0.015))
 
