@@ -1,5 +1,5 @@
 {
-  "status": "AUTHENTICATED",
+  "status": "STOPPED",
   "active_signal_trades": {},
   "activity_log": [
     {
@@ -473,8 +473,8 @@
     },
     "timestamp": "19:41:48 UTC"
   },
-  "connected_channel": "@ramish_masood",
-  "qr_updated_at": "2026-09-29T15:34:27.654373+00:00",
+  "connected_channel": null,
+  "qr_updated_at": "2026-09-29T20:17:21.628724+00:00",
   "followed_channels": [
     "Tradingpapa.com crypto",
     "Tradingpapa.com forex (gold and silver)",

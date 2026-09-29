@@ -22,6 +22,33 @@ QR_IMAGE_PATH = ".whatsapp_qr.png"
 STATE_FILE = ".whatsapp_signal_state.json"
 SETTINGS_FILE = ".whatsapp_signal_settings.json"
 
+def cleanup_orphaned_sessions(session_dir: str = SESSION_DIR):
+    """
+    Kills any lingering chrome/playwright processes holding the session directory lock
+    and cleanly removes singleton lock files to guarantee a fast, unblocked start.
+    """
+    try:
+        import psutil
+        for p in psutil.process_iter(['pid', 'name']):
+            try:
+                name = (p.info.get('name') or '').lower()
+                if 'chrome' in name:
+                    cmd = " ".join(p.cmdline() or [])
+                    if session_dir in cmd or 'ms-playwright' in cmd:
+                        p.kill()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    for lock_file in ["SingletonLock", "SingletonCookie", "SingletonSocket"]:
+        lf_path = os.path.join(session_dir, lock_file)
+        if os.path.exists(lf_path):
+            try:
+                os.remove(lf_path)
+            except Exception:
+                pass
+
 class WhatsAppListenerEngine:
     """
     Background worker managing Playwright browser session for WhatsApp Web.
@@ -42,6 +69,7 @@ class WhatsAppListenerEngine:
         self._initialized = True
         self.parser = WhatsAppSignalParser()
         self.executor = WhatsAppSignalExecutor()
+        self.worker_process = None
         self.thread: Optional[threading.Thread] = None
         self.stop_event = threading.Event()
         self.sync_channels_event = threading.Event()
@@ -58,7 +86,7 @@ class WhatsAppListenerEngine:
         If background worker is active, signals live Playwright page.
         If stopped, launches a brief standalone discovery thread.
         """
-        if self.is_running:
+        if self.worker_process and self.worker_process.poll() is None:
             self.sync_channels_event.set()
             return {"success": True, "mode": "online", "message": "Channel sync signaled to running listener"}
         else:
@@ -90,7 +118,6 @@ class WhatsAppListenerEngine:
         settings["selected_channel"] = clean_name
         self.executor.save_settings(settings)
 
-
     def _sync_settings(self):
         settings = self.executor.load_settings()
         api_key = settings.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
@@ -98,76 +125,60 @@ class WhatsAppListenerEngine:
 
     def get_status(self) -> Dict[str, Any]:
         state = self.executor.load_state()
-        state["is_worker_running"] = self.is_running
+        is_alive = bool(self.worker_process and self.worker_process.poll() is None)
+        self.is_running = is_alive
+        state["is_worker_running"] = is_alive
         state["has_qr"] = os.path.exists(QR_IMAGE_PATH)
         return state
 
     def start(self):
-        """Starts background monitoring thread."""
+        """Starts dedicated WhatsApp worker subprocess with isolated Proactor loop."""
         with self._lock:
-            if self.is_running:
-                logger.info("WhatsApp listener is already running.")
+            if self.worker_process and self.worker_process.poll() is None:
+                logger.info("WhatsApp worker process is already running.")
+                self.is_running = True
                 return
             self.stop_event.clear()
             self._sync_settings()
-            
-            # Clean up any lingering orphaned chrome processes from previous runs to prevent profile locks
-            try:
-                import subprocess
-                subprocess.run(
-                    ["powershell", "-Command", "Get-Process -Name 'chrome' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*ms-playwright*' } | Stop-Process -Force"],
-                    capture_output=True, timeout=5
-                )
-            except Exception:
-                pass
+            cleanup_orphaned_sessions(SESSION_DIR)
 
-            self.thread = threading.Thread(target=self._worker_loop, daemon=True, name="WhatsAppListenerWorker")
-            self.thread.start()
+            import subprocess
+            import sys
+            worker_path = os.path.join(os.path.dirname(__file__), "whatsapp_worker.py")
+            self.worker_process = subprocess.Popen([sys.executable, "-u", worker_path])
             self.is_running = True
-            logger.info("WhatsApp listener thread started.")
+            logger.info(f"WhatsApp worker process started (PID {self.worker_process.pid}).")
 
     def open_desktop_login_window(self) -> Dict[str, Any]:
         """
-        Launches Chromium in visible mode (headless=False) so the user can scan the official
-        WhatsApp Web QR code on their desktop screen with zero latency, no camera glare, and automatic refresh.
-        Once authenticated, it saves the session to .whatsapp_web_session/ and closes.
+        Launches WhatsApp Web login window on desktop so the user can scan the official
+        WhatsApp Web QR code directly on their screen with zero latency and automatic refresh.
         """
-        if self.is_running:
-            self.stop()
-            time.sleep(1.0)
-
-        # Make sure no lingering playwright chrome holds session lock
-        try:
-            import subprocess
-            subprocess.run(
-                ["powershell", "-Command", "Get-Process -Name 'chrome' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*ms-playwright*' } | Stop-Process -Force"],
-                capture_output=True, timeout=5
-            )
-        except Exception:
-            pass
-
-        import subprocess
-        import sys
-        script_path = os.path.join(os.path.dirname(__file__), "whatsapp_desktop_login.py")
-        creationflags = subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
-        subprocess.Popen([sys.executable, script_path], creationflags=creationflags)
-
-        state = self.executor.load_state()
-        state["status"] = "AWAITING_DESKTOP_LOGIN"
-        self.executor.save_state(state)
-        return {"success": True, "message": "Desktop WhatsApp login window launched"}
+        self.stop()
+        time.sleep(0.6)
+        self.start()
+        return {"success": True, "message": "WhatsApp desktop login window launched"}
 
     def stop(self):
-        """Stops background monitoring thread."""
+        """Stops WhatsApp worker subprocess and cleanly terminates browser sessions."""
         with self._lock:
-            if not self.is_running:
-                return
-            self.stop_event.set()
+            if self.worker_process:
+                try:
+                    self.worker_process.terminate()
+                    self.worker_process.wait(timeout=2.0)
+                except Exception:
+                    try:
+                        self.worker_process.kill()
+                    except Exception:
+                        pass
+                self.worker_process = None
             self.is_running = False
             state = self.executor.load_state()
             state["status"] = "STOPPED"
             self.executor.save_state(state)
             logger.info("WhatsApp listener stopping...")
+
+        cleanup_orphaned_sessions(SESSION_DIR)
 
     def reset_session(self) -> Dict[str, Any]:
         """
@@ -175,15 +186,7 @@ class WhatsAppListenerEngine:
         so a clean, unlocked QR pairing handshake can succeed immediately.
         """
         self.stop()
-        time.sleep(1.0)
-        try:
-            import subprocess
-            subprocess.run(
-                ["powershell", "-Command", "Get-Process -Name 'chrome' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*ms-playwright*' } | Stop-Process -Force"],
-                capture_output=True, timeout=5
-            )
-        except Exception:
-            pass
+        cleanup_orphaned_sessions(SESSION_DIR)
 
         import shutil
         if os.path.exists(SESSION_DIR):
@@ -210,16 +213,7 @@ class WhatsAppListenerEngine:
         """
         logger.info("Logging out from WhatsApp Web...")
         self.stop()
-        time.sleep(1.0)
-        
-        try:
-            import subprocess
-            subprocess.run(
-                ["powershell", "-Command", "Get-Process -Name 'chrome' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*ms-playwright*' } | Stop-Process -Force"],
-                capture_output=True, timeout=5
-            )
-        except Exception:
-            pass
+        cleanup_orphaned_sessions(SESSION_DIR)
 
         import shutil
         if os.path.exists(SESSION_DIR):
@@ -323,12 +317,12 @@ class WhatsAppListenerEngine:
         try:
             # Check for expired QR reload button overlay and auto-click it immediately
             reload_selectors = [
+                "button:has-text('Reload')",
+                "[role='button']:has-text('Reload')",
                 "span[data-icon='reload']",
                 "span[data-icon='refresh']",
                 "button:has-text('reload')",
-                "button:has-text('Reload')",
                 "[role='button']:has-text('reload')",
-                "[role='button']:has-text('Reload')",
                 "div[data-ref] button",
                 "div[data-ref] [role='button']",
                 "div._akav button",
@@ -346,17 +340,15 @@ class WhatsAppListenerEngine:
 
             captured = False
             # Method 1: Capture the exact, crisp live canvas rendered by WhatsApp
-            canvas_elem = page.locator("div[data-ref] canvas, div[data-testid='qrcode'] canvas, canvas[aria-label*='Scan']").first
-            if canvas_elem.count() == 0:
-                # Fallback to general canvas only if in login/pairing view
-                if page.locator("div[data-ref], div[data-testid='qrcode']").count() > 0:
-                    canvas_elem = page.locator("canvas").first
+            canvas_elem = page.locator("canvas[aria-label*='Scan'], div[data-ref] canvas, div[data-testid='qrcode'] canvas, canvas").first
             if canvas_elem.count() > 0 and canvas_elem.is_visible():
-                try:
-                    canvas_elem.screenshot(path=QR_IMAGE_PATH)
-                    captured = True
-                except Exception as c_err:
-                    logger.debug(f"Canvas screenshot error: {c_err}")
+                box = canvas_elem.bounding_box()
+                if box and box.get("width", 0) > 50:
+                    try:
+                        canvas_elem.screenshot(path=QR_IMAGE_PATH)
+                        captured = True
+                    except Exception as c_err:
+                        logger.debug(f"Canvas screenshot error: {c_err}")
 
             # Method 2: If canvas screenshot failed, extract data-ref and generate via qrcode
             if not captured:
@@ -382,7 +374,7 @@ class WhatsAppListenerEngine:
 
             if captured:
                 state = self.executor.load_state()
-                if state.get("status") != "AWAITING_QR_SCAN":
+                if state.get("status") not in ["AUTHENTICATED", "CONNECTED"]:
                     state["status"] = "AWAITING_QR_SCAN"
                 state["qr_updated_at"] = datetime.now(timezone.utc).isoformat()
                 self.executor.save_state(state)
@@ -392,7 +384,17 @@ class WhatsAppListenerEngine:
         return False
 
     def _worker_loop(self):
-        """Main Playwright loop running in background with official Chrome and anti-bot stealth."""
+        """Main Playwright loop running with clean Chromium context and live QR streaming."""
+        import sys
+        import asyncio
+        if sys.platform == 'win32':
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+            try:
+                asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
         state = self.executor.load_state()
         state["status"] = "INITIALIZING"
         self.executor.save_state(state)
@@ -408,8 +410,6 @@ class WhatsAppListenerEngine:
 
         with sync_playwright() as p:
             os.makedirs(SESSION_DIR, exist_ok=True)
-            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
-
             browser_args = [
                 "--no-sandbox",
                 "--disable-blink-features=AutomationControlled",
@@ -417,106 +417,55 @@ class WhatsAppListenerEngine:
                 "--disable-dev-shm-usage",
                 "--no-first-run",
                 "--no-default-browser-check",
-                "--window-position=-3000,-3000",
-                "--window-size=1280,850"
+                "--window-size=1100,800"
             ]
 
-            try:
-                browser_context = p.chromium.launch_persistent_context(
-                    user_data_dir=SESSION_DIR,
-                    channel="chrome",
-                    headless=False,
-                    user_agent=user_agent,
-                    args=browser_args,
-                    viewport={"width": 1280, "height": 850}
-                )
-            except Exception as launch_err:
-                logger.warning(f"Could not launch channel=chrome ({launch_err}), falling back to bundled chromium")
-                browser_context = p.chromium.launch_persistent_context(
-                    user_data_dir=SESSION_DIR,
-                    headless=False,
-                    user_agent=user_agent,
-                    args=browser_args,
-                    viewport={"width": 1280, "height": 850}
-                )
-
-            # Mask navigator.webdriver and inject modern Chrome 133 userAgentData to avoid 'Update Chrome' and 'Couldn't link device'
-            browser_context.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
-                if (!navigator.userAgentData) {
-                    navigator.userAgentData = {
-                        brands: [
-                            { brand: 'Not(A:Brand', version: '99' },
-                            { brand: 'Google Chrome', version: '133' },
-                            { brand: 'Chromium', version: '133' }
-                        ],
-                        mobile: false,
-                        platform: 'Windows'
-                    };
-                }
-                window.navigator.chrome = {
-                    runtime: {},
-                    loadTimes: function() {},
-                    csi: function() {},
-                    app: {}
-                };
-                Object.defineProperty(navigator, 'plugins', {
-                    get: () => [1, 2, 3, 4, 5]
-                });
-                Object.defineProperty(navigator, 'languages', {
-                    get: () => ['en-US', 'en']
-                });
-            """)
+            browser_context = p.chromium.launch_persistent_context(
+                user_data_dir=SESSION_DIR,
+                headless=False,
+                args=browser_args,
+                viewport={"width": 1100, "height": 800}
+            )
 
             try:
                 page = browser_context.pages[0] if browser_context.pages else browser_context.new_page()
-                page.goto("https://web.whatsapp.com", wait_until="load", timeout=45000)
+                page.goto("https://web.whatsapp.com", wait_until="domcontentloaded", timeout=45000)
 
-                # Wait for either QR Canvas/data-ref or Chat Pane
                 logged_in = False
-                qr_rendered = False
+                spinner_cycles = 0
+                reloaded = False
 
-                for _ in range(40):
-                    if self.stop_event.is_set():
-                        break
-
-                    # Check if already authenticated (chat list or pane-side)
+                while not self.stop_event.is_set():
+                    # Check if authenticated
                     if page.locator("div#pane-side, div[data-testid='chat-list']").count() > 0:
                         logged_in = True
                         break
 
-                    # Check for QR canvas / data-ref and capture
-                    if page.locator("div[data-ref]").count() > 0 or page.locator("div[data-testid='qrcode']").count() > 0:
-                        if self._capture_and_generate_qr(page):
-                            qr_rendered = True
+                    # Check if phone scanned and connecting
+                    if page.locator("[data-icon='connecting']").count() > 0:
+                        state = self.executor.load_state()
+                        if state.get("status") != "CONNECTING":
+                            state["status"] = "CONNECTING"
+                            self.executor.save_state(state)
+
+                    # Capture / refresh live QR canvas
+                    qr_captured = self._capture_and_generate_qr(page)
+                    if not qr_captured:
+                        spinner_cycles += 1
+                        # If loading spinner persists for ~15 seconds without a QR canvas, reload once to unstick WebSocket
+                        if spinner_cycles >= 10 and not reloaded:
+                            logger.info("WhatsApp Web loading spinner held. Refreshing page...")
+                            reloaded = True
+                            try:
+                                page.reload(wait_until="domcontentloaded")
+                            except Exception:
+                                pass
+                            time.sleep(2.0)
+                            spinner_cycles = 0
+                    else:
+                        spinner_cycles = 0
 
                     time.sleep(1.5)
-
-                if self.stop_event.is_set():
-                    browser_context.close()
-                    return
-
-                # Wait for user scan if not yet logged in
-                if not logged_in and qr_rendered:
-                    logger.info("Awaiting QR code scan by user from WhatsApp mobile...")
-                    while not self.stop_event.is_set():
-                        # Check if logged in: chat list or pane-side
-                        if page.locator("div#pane-side, div[data-testid='chat-list']").count() > 0:
-                            logged_in = True
-                            break
-
-                        # Check if connecting splash screen is showing
-                        if page.locator("div[role='progressbar'], progress, [data-icon='connecting']").count() > 0:
-                            state = self.executor.load_state()
-                            if state.get("status") != "CONNECTING":
-                                state["status"] = "CONNECTING"
-                                self.executor.save_state(state)
-
-                        # Continuously refresh QR every 1.5 seconds so it NEVER expires and rotates live
-                        self._capture_and_generate_qr(page)
-                        time.sleep(1.5)
 
                 if logged_in:
                     logger.info("WhatsApp Web Authenticated successfully!")

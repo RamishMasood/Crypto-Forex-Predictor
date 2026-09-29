@@ -3113,14 +3113,13 @@ def render_whatsapp_signal_engine_view(live_exec):
             st.rerun(scope="fragment")
 
     # ── 2. Loading & QR Code Login Section ───────────────
-    if status_str in ["INITIALIZING", "STARTING"]:
-        st.info("🔄 **WhatsApp Web is starting in background & loading your session...** (Connecting in ~3-5 seconds)")
-
-    show_qr_section = status_str in ["AWAITING_QR_SCAN", "AWAITING_DESKTOP_LOGIN"]
+    show_qr_section = (status_str != "CONNECTED")
     if show_qr_section:
         st.markdown("---")
         if status_str == "CONNECTING":
             st.info("📲 **Phone detected QR scan!** Establishing secure WhatsApp Web connection... (Connecting in ~2-4 seconds)")
+        elif status_str in ["INITIALIZING", "STARTING"] and not os.path.exists(QR_IMAGE_PATH):
+            st.info("🔄 **WhatsApp Web is starting in background & generating live QR code...** (Takes ~2-4 seconds)")
 
         qr_col1, qr_col2 = st.columns([1.3, 2.0])
         with qr_col1:
@@ -3148,7 +3147,10 @@ def render_whatsapp_signal_engine_view(live_exec):
                 </div>
                 """)
             else:
-                st.info("⌛ Starting Google Chrome & generating live QR code... (Takes ~3-5 seconds)")
+                if status_str in ["STOPPED", "DISCONNECTED"]:
+                    st.info("💡 **Ready to connect:** Click **'▶️ START WHATSAPP WEB'** above to generate the live QR code, or click **'🖥️ LOGIN VIA DESKTOP'**.")
+                else:
+                    st.info("⌛ Starting Google Chrome & generating live QR code... (Takes ~2-4 seconds)")
 
         with qr_col2:
             render_html("""
