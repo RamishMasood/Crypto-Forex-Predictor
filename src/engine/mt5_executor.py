@@ -538,9 +538,10 @@ class MT5TradeExecutor:
         except Exception:
             return []
 
-    def close_position(self, ticket: int) -> Dict[str, Any]:
+    def close_position(self, ticket: int, volume: Optional[float] = None) -> Dict[str, Any]:
         """
         Closes an open position by ticket number immediately at market.
+        If volume is specified and < pos.volume, performs a partial close of the specified volume.
         """
         if not self._ensure_connection():
             return {'success': False, 'error': 'MT5 terminal not connected'}
@@ -562,23 +563,39 @@ class MT5TradeExecutor:
             filling_mode = specs.get('filling_mode', 3)
             type_filling = mt5.ORDER_FILLING_IOC if (filling_mode & 2) else mt5.ORDER_FILLING_FOK
 
+            pos_vol = float(pos.volume)
+            close_vol = pos_vol
+            if volume is not None and 0.0 < float(volume) < pos_vol:
+                vol_step = float(specs.get('volume_step', 0.01))
+                vol_min = float(specs.get('volume_min', 0.01))
+                steps = round(float(volume) / vol_step)
+                close_vol = max(vol_min, round(steps * vol_step, 2))
+                if close_vol >= pos_vol:
+                    close_vol = pos_vol
+
             request = {
                 'action': mt5.TRADE_ACTION_DEAL,
                 'position': ticket,
                 'symbol': pos.symbol,
-                'volume': float(pos.volume),
+                'volume': close_vol,
                 'type': close_type,
                 'price': price,
                 'deviation': 20,
                 'magic': self.MAGIC_NUMBER,
-                'comment': 'QuantSniper_Close',
+                'comment': 'QuantSniper_Close' if close_vol >= pos_vol else 'QuantSniper_Partial',
                 'type_time': mt5.ORDER_TIME_GTC,
                 'type_filling': type_filling
             }
 
             result = mt5.order_send(request)
             if result is not None and result.retcode == mt5.TRADE_RETCODE_DONE:
-                return {'success': True, 'ticket': ticket, 'close_price': result.price}
+                return {
+                    'success': True,
+                    'ticket': ticket,
+                    'close_price': result.price,
+                    'closed_volume': close_vol,
+                    'remaining_volume': round(pos_vol - close_vol, 2)
+                }
             else:
                 comment = getattr(result, 'comment', 'Close failed')
                 retcode = getattr(result, 'retcode', -1)

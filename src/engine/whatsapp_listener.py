@@ -65,7 +65,15 @@ class WhatsAppListenerEngine:
             def _standalone_task():
                 self.is_syncing_channels = True
                 try:
+                    import sys
+                    import asyncio
+                    if sys.platform == 'win32':
+                        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
                     self._discover_channels_standalone()
+                except Exception as task_err:
+                    logger.error(f"Error in standalone channel discovery thread: {task_err}")
                 finally:
                     self.is_syncing_channels = False
             t = threading.Thread(target=_standalone_task, daemon=True, name="WhatsAppStandaloneChannelSync")
@@ -102,6 +110,17 @@ class WhatsAppListenerEngine:
                 return
             self.stop_event.clear()
             self._sync_settings()
+            
+            # Clean up any lingering orphaned chrome processes from previous runs to prevent profile locks
+            try:
+                import subprocess
+                subprocess.run(
+                    ["powershell", "-Command", "Get-Process -Name 'chrome' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*ms-playwright*' } | Stop-Process -Force"],
+                    capture_output=True, timeout=5
+                )
+            except Exception:
+                pass
+
             self.thread = threading.Thread(target=self._worker_loop, daemon=True, name="WhatsAppListenerWorker")
             self.thread.start()
             self.is_running = True
@@ -183,35 +202,91 @@ class WhatsAppListenerEngine:
         self.executor.save_state(state)
         return {"success": True, "message": "WhatsApp session cleanly reset."}
 
+    def logout(self) -> Dict[str, Any]:
+        """
+        Logs out of the current WhatsApp Web account, kills running browser sessions,
+        wipes saved credentials from .whatsapp_web_session/, removes any stale QR file,
+        and cleanly sets status to STOPPED.
+        """
+        logger.info("Logging out from WhatsApp Web...")
+        self.stop()
+        time.sleep(1.0)
+        
+        try:
+            import subprocess
+            subprocess.run(
+                ["powershell", "-Command", "Get-Process -Name 'chrome' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*ms-playwright*' } | Stop-Process -Force"],
+                capture_output=True, timeout=5
+            )
+        except Exception:
+            pass
+
+        import shutil
+        if os.path.exists(SESSION_DIR):
+            try:
+                shutil.rmtree(SESSION_DIR, ignore_errors=True)
+            except Exception as e:
+                logger.warning(f"Error removing session dir: {e}")
+        if os.path.exists(QR_IMAGE_PATH):
+            try:
+                os.remove(QR_IMAGE_PATH)
+            except Exception:
+                pass
+
+        state = self.executor.load_state()
+        state["status"] = "STOPPED"
+        state["connected_channel"] = None
+        self.executor.save_state(state)
+        logger.info("WhatsApp logout complete.")
+        return {"success": True, "message": "Successfully logged out from WhatsApp."}
 
 
-    def process_message_now(self, message_text: str, quoted_text: Optional[str] = None, msg_time: Optional[str] = None) -> Dict[str, Any]:
+
+    def process_message_now(
+        self,
+        message_text: str,
+        quoted_text: Optional[str] = None,
+        msg_time: Optional[str] = None,
+        image_path: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Public method to parse and execute a message immediately (Live or Simulated)
-        with full quoted reply context and channel history.
+        with full quoted reply context, channel history, channel name, and optional multimodal screenshot.
         """
         self._sync_settings()
-        clean_text = message_text.strip()
-        if not clean_text:
+        clean_text = (message_text or "").strip()
+        has_image = bool(image_path and os.path.exists(image_path))
+
+        if not clean_text and not has_image:
             return {"success": False, "error": "Empty message"}
 
-        # Fetch live MT5 open positions for context
-        open_positions = self.executor.executor.get_open_positions()
+        if not clean_text and has_image:
+            clean_text = "[Screenshot / Image Attachment]"
 
-        # Send to Gemini Flash AI Parser with quoted context & history
+        state = self.executor.load_state()
+        settings = self.executor.load_settings()
+        channel_name = settings.get("selected_channel") or state.get("connected_channel") or ""
+
+        # Fetch live MT5 open WhatsApp positions for context (strictly isolated from Autonomous Engine)
+        open_positions = self.executor.get_open_whatsapp_positions()
+
+        # Send to Gemini Flash AI Parser with quoted context, history, channel name & image
         parsed = self.parser.parse_message(
             message_text=clean_text,
             quoted_text=quoted_text,
             recent_history=self.recent_channel_messages,
-            open_trades=open_positions
+            open_trades=open_positions,
+            channel_name=channel_name,
+            image_path=image_path
         )
 
-        # Store in rolling history buffer with time and reply links
+        # Store in rolling history buffer with time, reply links, and image flag
         now_time_str = msg_time or datetime.now(timezone.utc).strftime("%H:%M")
         self.recent_channel_messages.append({
             "time": now_time_str,
             "text": clean_text,
-            "quoted_text": quoted_text
+            "quoted_text": quoted_text,
+            "has_image": has_image
         })
         if len(self.recent_channel_messages) > 30:
             self.recent_channel_messages.pop(0)
@@ -224,6 +299,7 @@ class WhatsAppListenerEngine:
         state["last_message_processed"] = {
             "text": clean_text,
             "quoted_text": quoted_text,
+            "image_path": image_path,
             "parsed": parsed,
             "result": exec_res,
             "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
@@ -240,53 +316,74 @@ class WhatsAppListenerEngine:
         """
         Captures the live WhatsApp Web QR code with maximum clarity and zero expiration lag:
         1. Auto-clicks reload button if expired.
-        2. Extracts raw cryptographic `data-ref` token from DOM and generates a mathematically
-           lossless, pixel-perfect PNG via `qrcode.QRCode`.
-        3. Falls back to direct high-res screenshot of the canvas.
+        2. Direct pixel-perfect screenshot of the live WhatsApp Web canvas.
+        3. Fallback to extracting data-ref token and generating lossless QR image.
         4. Updates state with `qr_updated_at` timestamp.
         """
         try:
-            # Check for expired QR reload button overlay and auto-click it
-            reload_btn = page.locator("div[data-ref] button, div[data-ref] [role='button'], span[data-icon='reload'], span[data-icon='refresh']").first
-            if reload_btn.count() > 0 and reload_btn.is_visible():
-                try:
-                    reload_btn.click()
-                    time.sleep(1.0)
-                except Exception:
-                    pass
+            # Check for expired QR reload button overlay and auto-click it immediately
+            reload_selectors = [
+                "span[data-icon='reload']",
+                "span[data-icon='refresh']",
+                "button:has-text('reload')",
+                "button:has-text('Reload')",
+                "[role='button']:has-text('reload')",
+                "[role='button']:has-text('Reload')",
+                "div[data-ref] button",
+                "div[data-ref] [role='button']",
+                "div._akav button",
+                "div._akav [role='button']"
+            ]
+            for sel in reload_selectors:
+                btn = page.locator(sel).first
+                if btn.count() > 0 and btn.is_visible():
+                    try:
+                        btn.click()
+                        time.sleep(0.6)
+                        break
+                    except Exception:
+                        pass
 
             captured = False
-            # Method A: Extract data-ref from div[data-ref]
-            data_ref_elem = page.locator("div[data-ref]").first
-            if data_ref_elem.count() > 0:
-                data_ref = data_ref_elem.get_attribute("data-ref")
-                if data_ref and len(data_ref) > 15:
-                    try:
-                        import qrcode
-                        qr = qrcode.QRCode(
-                            version=None,
-                            error_correction=qrcode.constants.ERROR_CORRECT_M,
-                            box_size=10,
-                            border=2,
-                        )
-                        qr.add_data(data_ref)
-                        qr.make(fit=True)
-                        img = qr.make_image(fill_color="black", back_color="white")
-                        img.save(QR_IMAGE_PATH)
-                        captured = True
-                    except Exception as qr_err:
-                        logger.debug(f"Direct QR code generation fallback: {qr_err}")
-
-            # Method B: Fallback to high-res canvas screenshot
-            if not captured:
-                canvas_elem = page.locator("canvas").first
-                if canvas_elem.count() > 0 and canvas_elem.is_visible():
+            # Method 1: Capture the exact, crisp live canvas rendered by WhatsApp
+            canvas_elem = page.locator("div[data-ref] canvas, div[data-testid='qrcode'] canvas, canvas[aria-label*='Scan']").first
+            if canvas_elem.count() == 0:
+                # Fallback to general canvas only if in login/pairing view
+                if page.locator("div[data-ref], div[data-testid='qrcode']").count() > 0:
+                    canvas_elem = page.locator("canvas").first
+            if canvas_elem.count() > 0 and canvas_elem.is_visible():
+                try:
                     canvas_elem.screenshot(path=QR_IMAGE_PATH)
                     captured = True
+                except Exception as c_err:
+                    logger.debug(f"Canvas screenshot error: {c_err}")
+
+            # Method 2: If canvas screenshot failed, extract data-ref and generate via qrcode
+            if not captured:
+                data_ref_elem = page.locator("div[data-ref]").first
+                if data_ref_elem.count() > 0:
+                    data_ref = data_ref_elem.get_attribute("data-ref")
+                    if data_ref and len(data_ref) > 15:
+                        try:
+                            import qrcode
+                            qr = qrcode.QRCode(
+                                version=None,
+                                error_correction=qrcode.constants.ERROR_CORRECT_M,
+                                box_size=10,
+                                border=2,
+                            )
+                            qr.add_data(data_ref)
+                            qr.make(fit=True)
+                            img = qr.make_image(fill_color="black", back_color="white")
+                            img.save(QR_IMAGE_PATH)
+                            captured = True
+                        except Exception as qr_err:
+                            logger.debug(f"Direct QR code generation fallback: {qr_err}")
 
             if captured:
                 state = self.executor.load_state()
-                state["status"] = "AWAITING_QR_SCAN"
+                if state.get("status") != "AWAITING_QR_SCAN":
+                    state["status"] = "AWAITING_QR_SCAN"
                 state["qr_updated_at"] = datetime.now(timezone.utc).isoformat()
                 self.executor.save_state(state)
                 return True
@@ -319,16 +416,29 @@ class WhatsAppListenerEngine:
                 "--disable-infobars",
                 "--disable-dev-shm-usage",
                 "--no-first-run",
-                "--no-default-browser-check"
+                "--no-default-browser-check",
+                "--window-position=-3000,-3000",
+                "--window-size=1280,850"
             ]
 
-            browser_context = p.chromium.launch_persistent_context(
-                user_data_dir=SESSION_DIR,
-                headless=True,
-                user_agent=user_agent,
-                args=browser_args,
-                viewport={"width": 1280, "height": 850}
-            )
+            try:
+                browser_context = p.chromium.launch_persistent_context(
+                    user_data_dir=SESSION_DIR,
+                    channel="chrome",
+                    headless=False,
+                    user_agent=user_agent,
+                    args=browser_args,
+                    viewport={"width": 1280, "height": 850}
+                )
+            except Exception as launch_err:
+                logger.warning(f"Could not launch channel=chrome ({launch_err}), falling back to bundled chromium")
+                browser_context = p.chromium.launch_persistent_context(
+                    user_data_dir=SESSION_DIR,
+                    headless=False,
+                    user_agent=user_agent,
+                    args=browser_args,
+                    viewport={"width": 1280, "height": 850}
+                )
 
             # Mask navigator.webdriver and inject modern Chrome 133 userAgentData to avoid 'Update Chrome' and 'Couldn't link device'
             browser_context.add_init_script("""
@@ -368,17 +478,17 @@ class WhatsAppListenerEngine:
                 logged_in = False
                 qr_rendered = False
 
-                for _ in range(35):
+                for _ in range(40):
                     if self.stop_event.is_set():
                         break
 
-                    # Check if already authenticated
-                    if page.locator("div#pane-side, div[data-testid='chat-list'], header").count() > 0:
+                    # Check if already authenticated (chat list or pane-side)
+                    if page.locator("div#pane-side, div[data-testid='chat-list']").count() > 0:
                         logged_in = True
                         break
 
                     # Check for QR canvas / data-ref and capture
-                    if page.locator("canvas, div[data-ref]").count() > 0:
+                    if page.locator("div[data-ref]").count() > 0 or page.locator("div[data-testid='qrcode']").count() > 0:
                         if self._capture_and_generate_qr(page):
                             qr_rendered = True
 
@@ -392,11 +502,19 @@ class WhatsAppListenerEngine:
                 if not logged_in and qr_rendered:
                     logger.info("Awaiting QR code scan by user from WhatsApp mobile...")
                     while not self.stop_event.is_set():
-                        if page.locator("div#pane-side, div[data-testid='chat-list'], header").count() > 0:
+                        # Check if logged in: chat list or pane-side
+                        if page.locator("div#pane-side, div[data-testid='chat-list']").count() > 0:
                             logged_in = True
                             break
 
-                        # Continuously refresh QR every 1.5 seconds so it NEVER expires
+                        # Check if connecting splash screen is showing
+                        if page.locator("div[role='progressbar'], progress, [data-icon='connecting']").count() > 0:
+                            state = self.executor.load_state()
+                            if state.get("status") != "CONNECTING":
+                                state["status"] = "CONNECTING"
+                                self.executor.save_state(state)
+
+                        # Continuously refresh QR every 1.5 seconds so it NEVER expires and rotates live
                         self._capture_and_generate_qr(page)
                         time.sleep(1.5)
 
@@ -409,26 +527,31 @@ class WhatsAppListenerEngine:
                             pass
 
                     settings = self.executor.load_settings()
-                    target_channel = settings.get("selected_channel", "Tradingpapa.com forex (gold and silver)")
+                    target_channel = settings.get("selected_channel", "Tradingpapa.com crypto")
 
+                    # IMMEDIATELY write CONNECTED state so Streamlit UI updates instantly!
                     state = self.executor.load_state()
                     state["status"] = "CONNECTED"
                     state["connected_channel"] = target_channel
                     self.executor.save_state(state)
 
-                    # 1. Automatically discover followed channels on connect
+                    # Discover followed channels if not already cached (sequential, safe in same thread)
+                    if len(state.get("followed_channels", [])) == 0:
+                        try:
+                            self._discover_followed_channels(page)
+                        except Exception as disc_err:
+                            logger.warning(f"Initial channel discovery error: {disc_err}")
+
+                    # Open target channel / chat
                     try:
-                        self._discover_followed_channels(page)
-                    except Exception as disc_err:
-                        logger.warning(f"Initial channel discovery error: {disc_err}")
+                        self._open_channel(page, target_channel)
+                    except Exception as open_err:
+                        logger.warning(f"Error opening channel {target_channel}: {open_err}")
 
-                    # 2. Open target channel / chat
-                    self._open_channel(page, target_channel)
-
-                    # Continuous message polling loop (1.0s fast polling for zero latency)
+                    # Continuous message polling loop (0.4s fast polling for near-instant message detection)
                     while not self.stop_event.is_set():
-                        # Live check: if session disconnected or logged out
-                        if page.locator("canvas, div[data-ref]").count() > 0:
+                        # Live check: strictly check if QR pairing container reappeared (meaning session was logged out from phone)
+                        if page.locator("div[data-ref]").count() > 0 or page.locator("div[data-testid='qrcode']").count() > 0:
                             logger.warning("WhatsApp Web session disconnected / awaiting QR scan!")
                             self._capture_and_generate_qr(page)
                             break
@@ -451,7 +574,7 @@ class WhatsAppListenerEngine:
                             self._open_channel(page, target)
 
                         self._poll_channel_messages(page)
-                        time.sleep(1.0)
+                        time.sleep(0.4)
 
             except Exception as e:
                 logger.error(f"Error in WhatsApp worker: {e}", exc_info=True)
@@ -659,6 +782,15 @@ class WhatsAppListenerEngine:
     def _discover_channels_standalone(self) -> List[str]:
         """Quick standalone discovery pass when listener is stopped."""
         try:
+            import sys
+            import asyncio
+            if sys.platform == 'win32':
+                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+                try:
+                    asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
             from playwright.sync_api import sync_playwright
             with sync_playwright() as p:
                 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -688,10 +820,9 @@ class WhatsAppListenerEngine:
 
 
     def _poll_channel_messages(self, page):
-        """Scrapes newly arrived messages (including quoted reply text and timestamps) from open chat/channel pane."""
         try:
-            # Check if session got disconnected or logged out
-            if page.locator("canvas, div[data-ref]").count() > 0:
+            # Check if session got disconnected or logged out (strictly QR container)
+            if page.locator("div[data-ref]").count() > 0 or page.locator("div[data-testid='qrcode']").count() > 0:
                 logger.warning("WhatsApp Web session disconnected / awaiting QR scan!")
                 self._capture_and_generate_qr(page)
                 return
@@ -707,8 +838,25 @@ class WhatsAppListenerEngine:
                     # Selectable text in broadcast channels or chats
                     text_elem = container.locator("span.selectable-text, span[dir='ltr'], span[dir='rtl'], div.copyable-text").first
                     txt = text_elem.inner_text().strip() if text_elem.count() > 0 else ""
-                    if not txt or len(txt) < 3:
+
+                    # Detect image element inside container
+                    img_elem = container.locator("img[src*='blob:'], img[src*='data:'], div[data-testid='image-thumb'] img, div._ak8l img, div._ak8o img, div[role='button'] img, div._amk4 img").first
+                    has_image = img_elem.count() > 0 and img_elem.is_visible()
+                    image_path = None
+
+                    if not txt and not has_image:
                         continue
+
+                    # If image is attached, capture lossless screenshot for Gemini Flash Multimodal inspection
+                    if has_image:
+                        try:
+                            os.makedirs(".whatsapp_media", exist_ok=True)
+                            image_path = os.path.abspath(f".whatsapp_media/wa_msg_{int(time.time()*1000)}.png")
+                            img_elem.screenshot(path=image_path)
+                            if not txt:
+                                txt = "[Screenshot / Image Attachment]"
+                        except Exception as img_err:
+                            logger.debug(f"Failed to capture image snapshot: {img_err}")
 
                     # Extract quoted reply text if this message is a reply to an earlier setup
                     quote_elem = container.locator("div[data-testid='quoted-message'], div[aria-label*='Quoted'], div._amkd").first
@@ -719,12 +867,13 @@ class WhatsAppListenerEngine:
                     msg_time = time_elem.inner_text().strip() if time_elem.count() > 0 else ""
 
                     q_snippet = quoted_text[:20] if quoted_text else ""
-                    msg_hash = f"{txt[:60]}_{len(txt)}_{q_snippet}"
+                    has_img_flag = "1" if image_path else "0"
+                    msg_hash = f"{txt[:60]}_{len(txt)}_{q_snippet}_{has_img_flag}"
                     if msg_hash not in self.seen_messages:
                         self.seen_messages.add(msg_hash)
-                        logger.info(f"⚡ Live incoming WhatsApp message detected: {txt[:70]} (Quoted: {q_snippet})...")
-                        # Process message with full reply context immediately
-                        self.process_message_now(txt, quoted_text=quoted_text, msg_time=msg_time)
+                        logger.info(f"⚡ Live incoming WhatsApp message detected: {txt[:70]} (Image: {has_image}, Quoted: {q_snippet})...")
+                        # Process message with full reply context & image attachment immediately
+                        self.process_message_now(txt, quoted_text=quoted_text, msg_time=msg_time, image_path=image_path)
                 except Exception:
                     pass
         except Exception as e:

@@ -1,7 +1,439 @@
 {
-  "status": "AWAITING_QR_SCAN",
+  "status": "AUTHENTICATED",
   "active_signal_trades": {},
   "activity_log": [
+    {
+      "action": "CLOSE_ALL",
+      "symbol": "ALL",
+      "status": "ALL BOOKED",
+      "details": "Closed 3 WhatsApp signal positions for ALL. Autonomous positions untouched.",
+      "raw_message": "Close all positions",
+      "timestamp": "19:41:47 UTC"
+    },
+    {
+      "action": "ENTER",
+      "symbol": "ETHUSDm",
+      "status": "SKIPPED (Risk Cap)",
+      "details": "Risk $65.78 exceeds Max Dollar Risk Cap ($50.00). Skipped.",
+      "raw_message": "Enter ETHUSD short now SL 3350 TP1 3200 TP2 3100",
+      "timestamp": "19:41:11 UTC"
+    },
+    {
+      "action": "ENTER BUY",
+      "symbol": "BTCUSDm",
+      "status": "EXECUTED",
+      "details": "Executed BUY BTCUSDm @ 83551.17000 | SL: 83400.0 | TP1: 83700.0 | Tickets: [{'label': 'TP1', 'ticket': 2469412041, 'volume': 0.03, 'price': 83551.17, 'sl': 83400.0, 'tp': 83700.0}, {'label': 'TP2', 'ticket': 2469412051, 'volume': 0.01, 'price': 83551.17, 'sl': 83400.0, 'tp': 83800.0}, {'label': 'TP3', 'ticket': 2469412059, 'volume': 0.01, 'price': 83550.98, 'sl': 83400.0, 'tp': 83900.0}]",
+      "raw_message": "Bhai btc mein enter horahy hain long, sl hoga 83400 aur TP1 hoga 83700 aur TP2 83800, TP3 83900, TP4 83950",
+      "timestamp": "19:35:48 UTC"
+    },
+    {
+      "action": "CLOSE_ALL",
+      "symbol": "BTCUSD",
+      "status": "ALL BOOKED",
+      "details": "Closed 5 WhatsApp signal positions for BTCUSD. Autonomous positions untouched.",
+      "raw_message": "Close all btc positions",
+      "timestamp": "19:33:08 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "XAUUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: 4154.0, SL: 4162.0, TP1: 4144.0, TP2: 4131.0 [Condition: Wait for confirmation otherwise don't enter skip this signal] (Awaiting confirmation)",
+      "raw_message": "Sell Gold 4154 SL 4162 TP1 4144 TP2 4131. Wait for confirmation otherwise don't enter skip this signal",
+      "timestamp": "19:32:37 UTC"
+    },
+    {
+      "action": "ENTER BUY",
+      "symbol": "BTCUSDm",
+      "status": "EXECUTED",
+      "details": "Executed BUY BTCUSDm @ 83560.85000 | SL: 83400.0 | TP1: 83700.0 | Tickets: [{'label': 'TP1', 'ticket': 2469400471, 'volume': 0.03, 'price': 83560.38, 'sl': 83400.0, 'tp': 83700.0}, {'label': 'TP2', 'ticket': 2469400503, 'volume': 0.01, 'price': 83560.38, 'sl': 83400.0, 'tp': 83800.0}, {'label': 'TP3', 'ticket': 2469400527, 'volume': 0.01, 'price': 83560.38, 'sl': 83400.0, 'tp': 83584.85}]",
+      "raw_message": "Bhai btc mein enter horahy hain long, sl hoga 83400 aur TP1 hoga 83700 aur TP2 83800",
+      "timestamp": "19:32:33 UTC"
+    },
+    {
+      "action": "ENTER BUY",
+      "symbol": "BTCUSDm",
+      "status": "EXECUTED",
+      "details": "Executed BUY BTCUSDm @ 83558.25000 | SL: 83400.0 | TP1: 83700.0 | Tickets: [{'label': 'TP1', 'ticket': 2469396174, 'volume': 0.03, 'price': 83561.21, 'sl': 83400.0, 'tp': 83700.0}, {'label': 'TP2', 'ticket': 2469396186, 'volume': 0.01, 'price': 83561.21, 'sl': 83400.0, 'tp': 83800.0}, {'label': 'TP3', 'ticket': 2469396211, 'volume': 0.01, 'price': 83561.21, 'sl': 83400.0, 'tp': 83900.0}]",
+      "raw_message": "Bhai btc mein enter horahy hain long, sl hoga 83400 aur TP1 hoga 83700 aur TP2 83800, TP3 83900, TP4 83950",
+      "timestamp": "19:31:11 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "BTCUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: None, SL: 83400.0, TP1: 83700.0, TP2: 83800.0, TP3: 83900.0 [Condition: wait for confirmation] (Awaiting confirmation)",
+      "raw_message": "Bhai btc mein enter horahy hain long, sl hoga 83400 aur TP1 hoga 83700 aur TP2 83800, TP3 83900, TP4 83950",
+      "timestamp": "19:27:37 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "BTCUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: 83500.0, SL: 83400.0, TP1: 83700.0, TP2: 83800.0, TP3: 83900.0 [Condition: wait for confirmation] (Awaiting confirmation)",
+      "raw_message": "Bhai btc mein enter horahy hain long, sl hoga 83400 aur TP1 hoga 83700 aur TP2 83800, TP3 83900, TP4 83950",
+      "timestamp": "19:24:38 UTC"
+    },
+    {
+      "action": "ENTER",
+      "symbol": "BTCUSDm",
+      "status": "SKIPPED (Risk Cap)",
+      "details": "Risk $235.93 exceeds Max Dollar Risk Cap ($50.00). Skipped.",
+      "raw_message": "Bhai btc hum enter karengay 62000 par long sl hoga 60000 aur TP1 hoga 65000 aur TP2 66000.",
+      "timestamp": "19:20:28 UTC"
+    },
+    {
+      "action": "ENTER",
+      "symbol": "BTCUSDm",
+      "status": "SKIPPED (Risk Cap)",
+      "details": "Risk $235.93 exceeds Max Dollar Risk Cap ($50.00). Skipped.",
+      "raw_message": "Bhai btc hum enter karengay 62000 par long sl hoga 60000 aur TP1 hoga 65000 aur TP2 66000.",
+      "timestamp": "19:19:35 UTC"
+    },
+    {
+      "action": "CANCEL_SETUP",
+      "symbol": "BTCUSD",
+      "status": "SETUP CANCELLED",
+      "details": "Pending setup cancelled and invalidated as commanded by admin",
+      "raw_message": "Ignore kar do btc trade that I told you before, Invalid now",
+      "timestamp": "19:18:43 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "BTCUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: 62000.0, SL: 60000.0, TP1: 65000.0, TP2: 66000.0 [Condition: Wait karo meri confirmation ka] (Awaiting confirmation)",
+      "raw_message": "Bhai btc hum enter karengay 62000 par long sl hoga 60000 aur TP1 hoga 65000 aur TP2 66000. Wait karo meri confirmation ka",
+      "timestamp": "19:14:24 UTC"
+    },
+    {
+      "action": "ENTER",
+      "symbol": "ETHUSDm",
+      "status": "SKIPPED (Risk Cap)",
+      "details": "Risk $58.37 exceeds Max Dollar Risk Cap ($50.00). Skipped.",
+      "raw_message": "Entered",
+      "timestamp": "19:13:00 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "BTCUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: 62000.0, SL: 60000.0, TP1: 65000.0, TP2: 66000.0 [Condition: wait for confirmation] (Awaiting confirmation)",
+      "raw_message": "Bhai btc hum enter karengay 62000 par long sl hoga 60000 aur TP1 hoga 65000 aur TP2 66000. Wait karo meri confirmation ka",
+      "timestamp": "19:12:32 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "BTCUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: 62000.0, SL: 60000.0, TP1: 65000.0, TP2: 66000.0, TP3: None (Awaiting confirmation)",
+      "raw_message": "Bhai btc hum enter karengay 62000 par long sl hoga 60000 aur TP1 hoga 65000 aur TP2 66000. Wait karo meri confirmation ka",
+      "timestamp": "18:59:51 UTC"
+    },
+    {
+      "action": "BLOCKED",
+      "symbol": "BTCUSD",
+      "status": "REJECTED (Missing SL/TP)",
+      "details": null,
+      "raw_message": "Bhai btc hum enter karengay 62000 par long sl hoga 60000 aur TP1 hoga 65000 aur TP2 66000. Wait karo meri confirmation ka",
+      "timestamp": "18:56:28 UTC"
+    },
+    {
+      "action": "BLOCKED",
+      "symbol": "BTCUSD",
+      "status": "REJECTED (Missing SL/TP)",
+      "details": "STRICT SAFETY GATE: Missing Stop-Loss (SL) or Take-Profit (TP). Trade execution blocked.",
+      "raw_message": "Buy btc now!",
+      "timestamp": "18:54:56 UTC"
+    },
+    {
+      "action": "CANCEL_SETUP",
+      "symbol": "US100",
+      "status": "SETUP CANCELLED",
+      "details": "Pending setup cancelled and invalidated as commanded by admin",
+      "raw_message": "Ignore US100 trade I told you before, Invalid now",
+      "timestamp": "18:54:27 UTC"
+    },
+    {
+      "action": "CANCEL_SETUP",
+      "symbol": "US100",
+      "status": "SETUP CANCELLED",
+      "details": "Pending setup cancelled and invalidated as commanded by admin",
+      "raw_message": "Ignore US100 trade I told you before, Invalid now",
+      "timestamp": "18:51:43 UTC"
+    },
+    {
+      "action": "PARTIAL_CLOSE",
+      "symbol": "XAUUSD",
+      "status": "BOOKED 50.0%",
+      "details": "Booked 50.0% WhatsApp profits on XAUUSD (Target: 0.02 lots). Actions: ['Ticket #101 full (0.02 lots)']",
+      "raw_message": "50% nikal lo",
+      "timestamp": "17:35:46 UTC"
+    },
+    {
+      "action": "CLOSE_ALL",
+      "symbol": "XAUUSD",
+      "status": "ALL BOOKED",
+      "details": "Closed 0 WhatsApp signal positions for XAUUSD. Autonomous positions untouched.",
+      "raw_message": "BTC USD ka SL band kar do aur Gold ka trade cut kar do",
+      "timestamp": "17:35:46 UTC"
+    },
+    {
+      "action": "MODIFY_SL",
+      "symbol": "BTCUSD",
+      "status": "SL TO BE",
+      "details": "Updated Stop-Loss / Early Cut (BE) for 0 WhatsApp positions of BTCUSD.",
+      "raw_message": "BTC USD ka SL band kar do aur Gold ka trade cut kar do",
+      "timestamp": "17:35:46 UTC"
+    },
+    {
+      "action": "CLOSE_ALL",
+      "symbol": "XAUUSD",
+      "status": "ALL BOOKED",
+      "details": "Closed 0 WhatsApp signal positions for XAUUSD. Autonomous positions untouched.",
+      "raw_message": "Cut krdo yrr",
+      "timestamp": "17:35:46 UTC"
+    },
+    {
+      "action": "MODIFY_SL",
+      "symbol": "XAUUSD",
+      "status": "SL TO 4159.0",
+      "details": "Updated Stop-Loss / Early Cut (4159.0) for 0 WhatsApp positions of XAUUSD.",
+      "raw_message": "Cut the trade if it reach 4159",
+      "timestamp": "17:35:44 UTC"
+    },
+    {
+      "action": "HOLD",
+      "symbol": "XAUUSD",
+      "status": "HOLD POSITIONS",
+      "details": "Admin market commentary / risk advisory (HOLD position).",
+      "raw_message": "Trade Zara risky haii low risk m rehna",
+      "timestamp": "17:35:42 UTC"
+    },
+    {
+      "action": "ENTER SELL",
+      "symbol": "XAUUSDm",
+      "status": "EXECUTED",
+      "details": "Executed SELL XAUUSDm @ 4147.31500 | SL: 4162.706 | TP1: 4144.002 | Tickets: [99901, 99902]",
+      "raw_message": "Entered",
+      "timestamp": "17:35:40 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "XAUUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: 4154.873, SL: 4162.706, TP1: 4144.002, TP2: 4131.297, TP3: None (Awaiting confirmation)",
+      "raw_message": "Sell\nBest Entry Zones 4154.873\nTP1 4144.002\nTP2 4131.297\nWait for confirmation otherwise don't enter skip this signal\nSL 4162.706",
+      "timestamp": "17:35:38 UTC"
+    },
+    {
+      "action": "PARTIAL_CLOSE",
+      "symbol": "XAUUSD",
+      "status": "BOOKED 50.0%",
+      "details": "Booked 50.0% WhatsApp profits on XAUUSD (Target: 0.02 lots). Actions: ['Ticket #101 full (0.02 lots)']",
+      "raw_message": "50% nikal lo",
+      "timestamp": "17:31:10 UTC"
+    },
+    {
+      "action": "CLOSE_ALL",
+      "symbol": "XAUUSD",
+      "status": "ALL BOOKED",
+      "details": "Closed 0 WhatsApp signal positions for XAUUSD. Autonomous positions untouched.",
+      "raw_message": "BTC USD ka SL band kar do aur Gold ka trade cut kar do",
+      "timestamp": "17:31:10 UTC"
+    },
+    {
+      "action": "MODIFY_SL",
+      "symbol": "BTCUSD",
+      "status": "SL TO BE",
+      "details": "Updated Stop-Loss / Early Cut (BE) for 0 WhatsApp positions of BTCUSD.",
+      "raw_message": "BTC USD ka SL band kar do aur Gold ka trade cut kar do",
+      "timestamp": "17:31:10 UTC"
+    },
+    {
+      "action": "CLOSE_ALL",
+      "symbol": "XAUUSD",
+      "status": "ALL BOOKED",
+      "details": "Closed 0 WhatsApp signal positions for XAUUSD. Autonomous positions untouched.",
+      "raw_message": "Cut krdo yrr",
+      "timestamp": "17:31:10 UTC"
+    },
+    {
+      "action": "MODIFY_SL",
+      "symbol": "XAUUSD",
+      "status": "SL TO 4159.0",
+      "details": "Updated Stop-Loss / Early Cut (4159.0) for 0 WhatsApp positions of XAUUSD.",
+      "raw_message": "Cut the trade if it reach 4159",
+      "timestamp": "17:31:08 UTC"
+    },
+    {
+      "action": "HOLD",
+      "symbol": "XAUUSD",
+      "status": "HOLD POSITIONS",
+      "details": "Admin market commentary / risk advisory (HOLD position).",
+      "raw_message": "Trade Zara risky haii low risk m rehna",
+      "timestamp": "17:31:06 UTC"
+    },
+    {
+      "action": "ENTER SELL",
+      "symbol": "XAUUSDm",
+      "status": "EXECUTED",
+      "details": "Executed SELL XAUUSDm @ 4148.29700 | SL: 4162.706 | TP1: 4144.002 | Tickets: [99901, 99902]",
+      "raw_message": "Entered",
+      "timestamp": "17:31:05 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "XAUUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: 4154.873, SL: 4162.706, TP1: 4144.002, TP2: 4131.297, TP3: None (Awaiting confirmation)",
+      "raw_message": "Sell\nBest Entry Zones 4154.873\nTP1 4144.002\nTP2 4131.297\nWait for confirmation otherwise don't enter skip this signal\nSL 4162.706",
+      "timestamp": "17:31:03 UTC"
+    },
+    {
+      "action": "CLOSE_ALL",
+      "symbol": "XAUUSD",
+      "status": "ALL BOOKED",
+      "details": "Closed 2 WhatsApp signal positions for XAUUSD. Autonomous positions untouched.",
+      "raw_message": "Clean up test",
+      "timestamp": "17:19:18 UTC"
+    },
+    {
+      "action": "CLOSE_ALL",
+      "symbol": "USDCHF",
+      "status": "ALL BOOKED",
+      "details": "Closed 0 WhatsApp signal positions for USDCHF. Autonomous positions untouched.",
+      "raw_message": "Cut krdo yrr",
+      "timestamp": "17:17:32 UTC"
+    },
+    {
+      "action": "MODIFY_SL",
+      "symbol": "XAUUSD",
+      "status": "SL TO 4159.0",
+      "details": "Updated Stop-Loss / Early Cut (4159.0) for 2 WhatsApp positions of XAUUSD.",
+      "raw_message": "Cut the trade if it reach 4159",
+      "timestamp": "17:17:31 UTC"
+    },
+    {
+      "action": "HOLD",
+      "symbol": "XAUUSD",
+      "status": "HOLD POSITIONS",
+      "details": "Admin market commentary / risk advisory: Trade is risky, maintain low risk.",
+      "raw_message": "Trade Zara risky haii low risk m rehna",
+      "timestamp": "17:17:13 UTC"
+    },
+    {
+      "action": "ENTER SELL",
+      "symbol": "XAUUSDm",
+      "status": "EXECUTED",
+      "details": "Executed SELL XAUUSDm @ 4147.01800 | SL: 4162.706 | TP1: 4144.002 | Tickets: [{'label': 'TP1', 'ticket': 2468357949, 'volume': 0.02, 'price': 4147.018, 'sl': 4162.706, 'tp': 4144.002}, {'label': 'TP2', 'ticket': 2468357955, 'volume': 0.01, 'price': 4147.018, 'sl': 4162.706, 'tp': 4131.297}]",
+      "raw_message": "Entered",
+      "timestamp": "17:17:09 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "XAUUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: 4154.873, SL: 4162.706, TP1: 4144.002, TP2: 4131.297, TP3: None (Awaiting confirmation)",
+      "raw_message": "Sell\nBest Entry Zones 4154.873\nTP1 4144.002\nTP2 4131.297\nWait for confirmation otherwise don't enter skip this signal\nSL 4162.706",
+      "timestamp": "17:17:04 UTC"
+    },
+    {
+      "action": "CLOSE_ALL",
+      "symbol": "XAUUSD",
+      "status": "ALL BOOKED",
+      "details": "Closed 2 WhatsApp signal positions for XAUUSD. Autonomous positions untouched.",
+      "raw_message": "Cut krdo yrr",
+      "timestamp": "17:10:26 UTC"
+    },
+    {
+      "action": "MODIFY_SL",
+      "symbol": "XAUUSD",
+      "status": "SL TO 4159.0",
+      "details": "Updated Stop-Loss / Early Cut (4159.0) for 2 WhatsApp positions of XAUUSD.",
+      "raw_message": "Cut the trade if it reach 4159",
+      "timestamp": "17:10:20 UTC"
+    },
+    {
+      "action": "HOLD",
+      "symbol": "ALL",
+      "status": "HOLD POSITIONS",
+      "details": "Admin market commentary / risk advisory: Trade is risky, maintain low risk.",
+      "raw_message": "Trade Zara risky haii low risk m rehna",
+      "timestamp": "17:10:13 UTC"
+    },
+    {
+      "action": "ENTER SELL",
+      "symbol": "XAUUSDm",
+      "status": "EXECUTED",
+      "details": "Executed SELL XAUUSDm @ 4145.55700 | SL: 4162.706 | TP1: 4144.002 | Tickets: [{'label': 'TP1', 'ticket': 2468318758, 'volume': 0.01, 'price': 4145.557, 'sl': 4162.706, 'tp': 4144.002}, {'label': 'TP2', 'ticket': 2468318762, 'volume': 0.01, 'price': 4145.557, 'sl': 4162.706, 'tp': 4131.297}]",
+      "raw_message": "Entered",
+      "timestamp": "17:10:09 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "XAUUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: 4154.873, SL: 4162.706, TP1: 4144.002, TP2: 4131.297, TP3: None (Awaiting confirmation)",
+      "raw_message": "Sell\nBest Entry Zones 4154.873\nTP1 4144.002\nTP2 4131.297\nWait for confirmation otherwise don't enter skip this signal\nSL 4162.706",
+      "timestamp": "17:10:02 UTC"
+    },
+    {
+      "action": "CLOSE_ALL",
+      "symbol": "XAUUSD",
+      "status": "ALL BOOKED",
+      "details": "Closed 2 WhatsApp signal positions for XAUUSD. Autonomous positions untouched.",
+      "raw_message": "Cut krdo yrr",
+      "timestamp": "17:06:09 UTC"
+    },
+    {
+      "action": "MODIFY_SL",
+      "symbol": "XAUUSD",
+      "status": "SL TO 4159.0",
+      "details": "Updated Stop-Loss / Early Cut (4159.0) for 2 WhatsApp positions of XAUUSD.",
+      "raw_message": "Cut the trade if it reach 4159",
+      "timestamp": "17:06:04 UTC"
+    },
+    {
+      "action": "HOLD",
+      "symbol": "ALL",
+      "status": "HOLD POSITIONS",
+      "details": "Admin market commentary / risk advisory: Trade is risky, maintain low risk.",
+      "raw_message": "Trade Zara risky haii low risk m rehna",
+      "timestamp": "17:05:58 UTC"
+    },
+    {
+      "action": "ENTER SELL",
+      "symbol": "XAUUSDm",
+      "status": "EXECUTED",
+      "details": "Executed SELL XAUUSDm @ 4147.15200 | SL: 4162.706 | TP1: 4144.002 | Tickets: [{'label': 'TP1', 'ticket': 2468290290, 'volume': 0.02, 'price': 4147.147, 'sl': 4162.706, 'tp': 4144.002}, {'label': 'TP2', 'ticket': 2468290295, 'volume': 0.01, 'price': 4147.147, 'sl': 4162.706, 'tp': 4131.297}]",
+      "raw_message": "Entered",
+      "timestamp": "17:05:54 UTC"
+    },
+    {
+      "action": "SETUP_SAVED",
+      "symbol": "XAUUSD",
+      "status": "SAVED TO MEMORY",
+      "details": "Entry: 4154.873, SL: 4162.706, TP1: 4144.002, TP2: 4131.297, TP3: None (Awaiting confirmation)",
+      "raw_message": "Sell\nBest Entry Zones 4154.873\nTP1 4144.002\nTP2 4131.297\nWait for confirmation otherwise don't enter skip this signal\nSL 4162.706",
+      "timestamp": "17:05:48 UTC"
+    },
+    {
+      "action": "BLOCKED",
+      "symbol": "BTC",
+      "status": "REJECTED (Missing SL/TP)",
+      "details": "STRICT SAFETY GATE: Missing Stop-Loss (SL) or Take-Profit (TP). Trade execution blocked.",
+      "raw_message": "Buy BTC now",
+      "timestamp": "16:27:16 UTC"
+    },
+    {
+      "action": "ENTER",
+      "symbol": "BTCUSDm",
+      "status": "SKIPPED (Risk Cap)",
+      "details": "Risk $164.45 exceeds Max Dollar Risk Cap ($50.00). Skipped.",
+      "raw_message": "Buy Btcusd now",
+      "timestamp": "15:58:59 UTC"
+    },
     {
       "action": "BLOCKED",
       "symbol": "EURGBP",
@@ -12,25 +444,37 @@
     }
   ],
   "last_message_processed": {
-    "text": "EURGBP enter ho jao buy",
+    "text": "Close all positions",
+    "quoted_text": null,
+    "image_path": null,
     "parsed": {
-      "is_actionable": false,
-      "action": "BLOCKED",
-      "symbol": "EURGBP",
-      "direction": "BUY",
-      "explanation": "Trigger execution on EURGBP BUY",
-      "safety_gate_passed": false,
-      "blocked_reason": "STRICT SAFETY GATE: Missing Stop-Loss (SL) or Take-Profit (TP). Trade execution blocked."
+      "is_actionable": true,
+      "action": "CLOSE_ALL",
+      "symbol": null,
+      "direction": null,
+      "entry_price": null,
+      "stop_loss": null,
+      "tp1": null,
+      "tp2": null,
+      "tp3": null,
+      "tp4": null,
+      "tp5": null,
+      "volume_pct": null,
+      "confirmation_required": false,
+      "safety_gate_passed": true,
+      "condition": null,
+      "blocked_reason": null,
+      "explanation": "Admin commanded to close all currently running positions."
     },
     "result": {
-      "success": false,
-      "status": "BLOCKED",
-      "reason": "STRICT SAFETY GATE: Missing Stop-Loss (SL) or Take-Profit (TP). Trade execution blocked."
+      "success": true,
+      "status": "ALL_CLOSED",
+      "details": "Closed 3 WhatsApp signal positions for ALL. Autonomous positions untouched."
     },
-    "timestamp": "07:41:19 UTC"
+    "timestamp": "19:41:48 UTC"
   },
-  "connected_channel": null,
-  "qr_updated_at": "2026-09-29T11:50:22.331444+00:00",
+  "connected_channel": "@ramish_masood",
+  "qr_updated_at": "2026-09-29T15:34:27.654373+00:00",
   "followed_channels": [
     "Tradingpapa.com crypto",
     "Tradingpapa.com forex (gold and silver)",

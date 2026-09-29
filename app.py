@@ -11,6 +11,7 @@ import warnings
 warnings.filterwarnings('ignore')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from typing import List, Dict, Any, Optional
+from datetime import datetime, timezone
 
 import streamlit as st
 
@@ -3032,7 +3033,7 @@ def render_mt5_backtest_engine_view():
                 key="dl_bt_batches_csv"
             )
 
-@st.fragment(run_every=4)
+@st.fragment(run_every=2)
 def render_whatsapp_signal_engine_view(live_exec):
     from src.engine.whatsapp_listener import WhatsAppListenerEngine, QR_IMAGE_PATH
     import html
@@ -3046,19 +3047,23 @@ def render_whatsapp_signal_engine_view(live_exec):
     # Header Card
     render_html("""
     <div style="background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); border: 1px solid #10b981; border-radius: 12px; padding: 18px 24px; margin-bottom: 20px;">
-        <h3 style="color:#34d399; margin:0 0 6px 0;">📱 WhatsApp AI Signal Auto-Trader (Gemini Flash + Context Memory)</h3>
+        <h3 style="color:#34d399; margin:0 0 6px 0;">📱 WhatsApp AI Signal Auto-Trader (Gemini 3.8/3.7/3.6/3.5/3.0/2.5 Flash Cascade)</h3>
         <div style="color:#d1fae5; font-size:0.9rem;">
-            Real-time WhatsApp Web Channel Listener &bull; Natural Language Hinglish/Urdu AI Parsing &bull; Persistent Symbol Setup Memory Across Days &bull; Strict SL/TP Safety Gates &bull; MT5 Auto-Execution
+            Real-time WhatsApp Web Channel Listener &bull; Official Chrome Companion Pairing &bull; Natural Language AI Parsing &bull; Persistent Setup Memory Across Days &bull; Strict SL/TP Safety Gates &bull; MT5 Auto-Execution
         </div>
     </div>
     """)
 
-    # ── 1. Top Control Bar: Status, Start/Stop Listener, Desktop Login, QR Refresh, Reset ─
-    top_c1, top_c2, top_c3, top_c4, top_c5 = st.columns([1.4, 1.1, 1.1, 0.9, 0.9])
+    # ── 1. Top Control Bar: Status, Start/Stop Listener, Logout, QR Refresh, Reset ─
+    top_c1, top_c2, top_c3, top_c4, top_c5 = st.columns([1.5, 1.1, 1.1, 0.9, 0.9])
     with top_c1:
         if status_str == "CONNECTED":
             chan_name = state.get("connected_channel") or settings.get("selected_channel", "Channel")
             st.markdown(f"##### Status: <span style='background:#064e3b;color:#34d399;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #059669;'>🟢 CONNECTED</span> <span style='color:#a1a1aa;font-size:0.85rem;'>({html.escape(chan_name[:25])})</span>", unsafe_allow_html=True)
+        elif status_str in ["INITIALIZING", "STARTING"]:
+            st.markdown("##### Status: <span style='background:#1e3a8a;color:#93c5fd;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #3b82f6;'>🔵 STARTING WHATSAPP WEB...</span>", unsafe_allow_html=True)
+        elif status_str == "CONNECTING":
+            st.markdown("##### Status: <span style='background:#1e3a8a;color:#93c5fd;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #3b82f6;'>🔵 CONNECTING (Scanning Successful)...</span>", unsafe_allow_html=True)
         elif status_str == "AUTHENTICATED":
             st.markdown("##### Status: <span style='background:#064e3b;color:#34d399;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #059669;'>🟢 AUTHENTICATED (Ready to Start)</span>", unsafe_allow_html=True)
         elif status_str == "AWAITING_DESKTOP_LOGIN":
@@ -3083,13 +3088,19 @@ def render_whatsapp_signal_engine_view(live_exec):
                 st.rerun(scope="fragment")
 
     with top_c3:
-        if st.button("🖥️ LOGIN VIA DESKTOP", key="btn_desktop_whatsapp_login", type="secondary", use_container_width=True, help="Opens a genuine desktop Chrome window on your screen to scan WhatsApp QR code with zero lag and 100% reliability."):
-            res = engine.open_desktop_login_window()
-            if res.get("success"):
-                st.toast("🖥️ WhatsApp Login Window opened on desktop! Scan there with phone.", icon="🚀")
-            else:
-                st.error(f"Could not open desktop login: {res.get('error')}")
-            st.rerun(scope="fragment")
+        if status_str in ["CONNECTED", "AUTHENTICATED"]:
+            if st.button("🚪 LOG OUT", key="btn_logout_whatsapp", type="secondary", use_container_width=True, help="Logs out of WhatsApp account and clears session."):
+                res = engine.logout()
+                st.toast("🚪 Logged out from WhatsApp successfully!", icon="👋")
+                st.rerun(scope="fragment")
+        else:
+            if st.button("🖥️ LOGIN VIA DESKTOP", key="btn_desktop_whatsapp_login", type="secondary", use_container_width=True, help="Opens a genuine desktop Chrome window on your screen to scan WhatsApp QR code with zero lag and 100% reliability."):
+                res = engine.open_desktop_login_window()
+                if res.get("success"):
+                    st.toast("🖥️ WhatsApp Login Window opened on desktop! Scan there with phone.", icon="🚀")
+                else:
+                    st.error(f"Could not open desktop login: {res.get('error')}")
+                st.rerun(scope="fragment")
 
     with top_c4:
         if st.button("🔄 REFRESH STATUS", key="btn_refresh_whatsapp_status", use_container_width=True):
@@ -3098,13 +3109,19 @@ def render_whatsapp_signal_engine_view(live_exec):
     with top_c5:
         if st.button("🧹 RESET", key="btn_reset_whatsapp_session", use_container_width=True, help="Wipes stale locks and resets session to allow a clean QR login."):
             engine.reset_session()
-            st.toast("🧹 WhatsApp session cleanly reset! Click 'LOGIN VIA DESKTOP' to scan fresh.", icon="🧼")
+            st.toast("🧹 WhatsApp session cleanly reset! Click 'START WHATSAPP WEB' to scan fresh.", icon="🧼")
             st.rerun(scope="fragment")
 
-    # ── 2. QR Code Login Section (Rendered when awaiting scan) ───────────────
-    show_qr_section = (status_str in ["AWAITING_QR_SCAN", "INITIALIZING", "AWAITING_DESKTOP_LOGIN"]) or os.path.exists(QR_IMAGE_PATH)
-    if show_qr_section and status_str != "CONNECTED" and status_str != "AUTHENTICATED":
+    # ── 2. Loading & QR Code Login Section ───────────────
+    if status_str in ["INITIALIZING", "STARTING"]:
+        st.info("🔄 **WhatsApp Web is starting in background & loading your session...** (Connecting in ~3-5 seconds)")
+
+    show_qr_section = status_str in ["AWAITING_QR_SCAN", "AWAITING_DESKTOP_LOGIN"]
+    if show_qr_section:
         st.markdown("---")
+        if status_str == "CONNECTING":
+            st.info("📲 **Phone detected QR scan!** Establishing secure WhatsApp Web connection... (Connecting in ~2-4 seconds)")
+
         qr_col1, qr_col2 = st.columns([1.3, 2.0])
         with qr_col1:
             qr_b64 = ""
@@ -3122,16 +3139,16 @@ def render_whatsapp_signal_engine_view(live_exec):
                 render_html(f"""
                 <div style="text-align: center; margin-bottom: 8px;">
                     <div style="background: #ffffff; padding: 14px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 16px rgba(0,0,0,0.6); border: 2px solid #10b981;">
-                        <img src="data:image/png;base64,{qr_b64}" width="250" height="250" style="display: block; margin: 0 auto; image-rendering: pixelated;" />
+                        <img src="data:image/png;base64,{qr_b64}" width="260" height="260" style="display: block; margin: 0 auto; image-rendering: pixelated;" />
                         <div style="color: #064e3b; font-size: 0.78rem; font-weight: 800; margin-top: 6px; letter-spacing: 0.5px;">
-                            ✨ ULTRA-CRISP LIVE QR CODE
+                            ✨ OFFICIAL LIVE WHATSAPP QR CODE
                         </div>
                     </div>
-                    <div style="color: #34d399; font-size: 0.82rem; margin-top: 8px; font-weight: 600;">⚡ {time_str}</div>
+                    <div style="color: #34d399; font-size: 0.82rem; margin-top: 8px; font-weight: 600;">⚡ {time_str} (Auto-rotates every 2s)</div>
                 </div>
                 """)
             else:
-                st.info("⌛ Starting Google Chrome & generating fresh live QR code... (Takes ~3-5 seconds)")
+                st.info("⌛ Starting Google Chrome & generating live QR code... (Takes ~3-5 seconds)")
 
         with qr_col2:
             render_html("""
@@ -3143,11 +3160,11 @@ def render_whatsapp_signal_engine_view(live_exec):
                     <li><b>Link a Device</b> dabayein aur camera is screen par QR code par point karein.</li>
                 </ol>
                 <div style="background:#064e3b; border-left:4px solid #10b981; padding:10px 12px; border-radius:4px; font-size:0.86rem; color:#d1fae5; margin-bottom:10px;">
-                    🛡️ <b>Anti-Bot & Webdriver Stealth Enabled:</b><br/>
-                    Official Google Chrome binary ke sath <code>navigator.webdriver</code> mask kar diya gaya hai, taake WhatsApp server connection reject ("Couldn't link device") na kare aur 1 second mein successfully link ho jaye.
+                    🛡️ <b>Anti-Bot & Official Chrome Stealth Active:</b><br/>
+                    Genuine Google Chrome engine ke sath companion device handshake verify ho chuka hai, taake mobile phone par "Couldn't link device" reject na ho aur instant connect ho jaye.
                 </div>
                 <div style="background:#1e1b4b; border-left:4px solid #6366f1; padding:8px 12px; border-radius:4px; font-size:0.84rem; color:#e0e7ff;">
-                    💡 <b>Tip:</b> Agar QR code scan na ho raha ho, toh phone ka brightness badha kar camera ko 10-15 cm door rakhein. Yeh QR code har 1.5s baad automatically live update hota rehta hai.
+                    💡 <b>Live Auto-Refresh:</b> WhatsApp Web ke jaise yeh QR code real-time auto-refresh hota rehta hai. Scan hote hi screen foran <b>🟢 CONNECTED</b> ho jayegi.
                 </div>
             </div>
             """)
@@ -3299,33 +3316,74 @@ def render_whatsapp_signal_engine_view(live_exec):
 
     # ── 4. Manual Signal Simulator / Ingestion Box ─────────────────────────────
     with st.expander("🧪 Test Signal Message Parser & Execution (Simulate Channel Message)", expanded=False):
-        st.caption("Paste any raw unformatted message from WhatsApp to see how the AI parses it, resolves quoted replies, checks persistent setups, and validates the strict SL/TP safety gate:")
+        st.caption("Paste any raw unformatted message or upload a screenshot from WhatsApp to see how the AI parses it, correlates confirmation triggers, and validates the strict SL/TP safety gate:")
         test_msg_input = st.text_area(
             "Signal Message:",
-            placeholder="e.g. BTC trade active now\nor\nUS100 mein enter ho jao sabhi Short ki side\nor\nTP2 book karlo sabhi 95% position ko",
+            placeholder="e.g. Sell Best Entry Zones 4154.873 TP1 4144.002 ... Wait for confirmation\nor\nEntered\nor\nCut the trade if it reach 4159\nor\nCut krdo yrr",
             key="wapp_test_signal_textarea",
             height=85
         )
         test_quoted_input = st.text_input(
             "💬 Quoted / Replied-To Message (Optional - if admin replied to a setup):",
-            placeholder="e.g. BTC Short Entry 65000 SL 66000 TP 63000 (Enter after confirmation)",
+            placeholder="e.g. Sell Best Entry Zones 4154.873 SL 4162.706 TP1 4144.002",
             key="wapp_test_quoted_input"
         )
+        test_img_file = st.file_uploader(
+            "🖼️ Attach Channel Screenshot (Optional - MT5 position or TradingView chart):",
+            type=["png", "jpg", "jpeg"],
+            key="wapp_sim_test_img"
+        )
+
         if st.button("🚀 Parse & Execute Signal Now", key="btn_run_test_signal", type="primary"):
-            if test_msg_input.strip():
-                with st.spinner("AI analyzing message context, thread replies & checking safety gates..."):
+            sim_img_path = None
+            if test_img_file is not None:
+                os.makedirs(".whatsapp_media", exist_ok=True)
+                sim_img_path = os.path.abspath(f".whatsapp_media/sim_{int(time.time()*1000)}.png")
+                with open(sim_img_path, "wb") as f_out:
+                    f_out.write(test_img_file.getbuffer())
+
+            if test_msg_input.strip() or sim_img_path:
+                with st.spinner("AI analyzing message context, thread replies, screenshot & checking safety gates..."):
                     q_text = test_quoted_input.strip() if test_quoted_input.strip() else None
-                    res = engine.process_message_now(test_msg_input.strip(), quoted_text=q_text)
+                    res = engine.process_message_now(test_msg_input.strip(), quoted_text=q_text, image_path=sim_img_path)
                     p = res.get("parsed", {})
                     ex = res.get("execution", {})
+                    st.session_state["wapp_sim_last_result"] = {
+                        "parsed": p,
+                        "execution": ex,
+                        "res": res,
+                        "msg": test_msg_input.strip(),
+                        "time": datetime.now().strftime("%H:%M:%S")
+                    }
                     if p.get("action") == "BLOCKED":
-                        st.error(f"🛑 **TRADE BLOCKED BY STRICT SAFETY GATE**: {p.get('blocked_reason')}")
+                        st.toast(f"🛑 Trade blocked: {p.get('blocked_reason')}", icon="🛑")
+                    elif p.get("action") == "CANCEL_SETUP":
+                        st.toast(f"🗑️ Setup for {p.get('symbol')} invalidated & cleared!", icon="🗑️")
                     elif res.get("success"):
-                        st.success(f"✅ **Signal Executed**: Action: `{p.get('action')}` | Symbol: `{p.get('symbol')}` | Status: `{ex.get('status')}`")
+                        st.toast(f"⚡ Signal executed: {p.get('action')} on {p.get('symbol')}", icon="✅")
                     else:
-                        st.info(f"ℹ️ **Signal Processed**: Action: `{p.get('action')}` | Details: `{ex.get('details', p.get('explanation'))}`")
+                        st.toast(f"ℹ️ Processed: {p.get('action')}", icon="ℹ️")
             else:
-                st.warning("Please enter a signal message to test.")
+                st.warning("Please enter a signal message or upload an image to test.")
+
+        sim_res = st.session_state.get("wapp_sim_last_result")
+        if sim_res:
+            p = sim_res.get("parsed", {})
+            ex = sim_res.get("execution", {})
+            r_action = p.get("action", "UNKNOWN")
+            r_sym = p.get("symbol", "N/A")
+            r_expl = p.get("explanation", "") or ex.get("details", "")
+            r_time = sim_res.get("time", "")
+            r_msg = sim_res.get("msg", "")
+
+            if r_action == "BLOCKED":
+                st.error(f"🛑 **[Last Sim @ {r_time}] TRADE BLOCKED BY SAFETY GATE**: {p.get('blocked_reason')} (Msg: *'{r_msg}'*)")
+            elif r_action == "CANCEL_SETUP":
+                st.warning(f"🗑️ **[Last Sim @ {r_time}] SETUP CANCELLED / INVALIDATED**: `{r_sym}` removed from pending setups. (Msg: *'{r_msg}'*)")
+            elif sim_res.get("res", {}).get("success"):
+                st.success(f"✅ **[Last Sim @ {r_time}] Signal Executed**: Action: `{r_action}` | Symbol: `{r_sym}` | Status: `{ex.get('status')}` (Msg: *'{r_msg}'*)")
+            else:
+                st.info(f"ℹ️ **[Last Sim @ {r_time}] Signal Processed**: Action: `{r_action}` | Symbol: `{r_sym}` | Details: `{r_expl}` (Msg: *'{r_msg}'*)")
 
     # ── 5. Persistent Symbol Setup Memory Inspector ───────────────────────────
     st.markdown("##### 💾 Persistent Symbol Setup Memory (Across Hours/Days):")
@@ -3333,14 +3391,26 @@ def render_whatsapp_signal_engine_view(live_exec):
     if cached_setups:
         setup_cards = []
         for sym, s_data in cached_setups.items():
+            status_val = str(s_data.get('status', 'PENDING_CONFIRMATION')).upper()
+            status_badge_color = "#f59e0b" if "PENDING" in status_val else "#10b981"
+            border_accent = "#f59e0b" if "PENDING" in status_val else "#3b82f6"
+            cond_str = f" | <i style='color:#a1a1aa;'>Condition: {html.escape(str(s_data.get('condition', '')))}</i>" if s_data.get('condition') else ""
+            tps_str = f"<b style='color:#34d399;'>TP1:</b> {s_data.get('tp1')} | <b style='color:#34d399;'>TP2:</b> {s_data.get('tp2')}"
+            if s_data.get('tp3'):
+                tps_str += f" | <b style='color:#34d399;'>TP3:</b> {s_data.get('tp3')}"
+            if s_data.get('tp4'):
+                tps_str += f" | <b style='color:#34d399;'>TP4:</b> {s_data.get('tp4')}"
+            if s_data.get('tp5'):
+                tps_str += f" | <b style='color:#34d399;'>TP5:</b> {s_data.get('tp5')}"
+
             setup_cards.append(f"""
-            <div style="background:#18181b; border:1px solid #27272a; border-left:4px solid #3b82f6; border-radius:8px; padding:10px 14px; margin-bottom:8px;">
+            <div style="background:#18181b; border:1px solid #27272a; border-left:4px solid {border_accent}; border-radius:8px; padding:10px 14px; margin-bottom:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <b style="color:#60a5fa; font-size:1.05rem;">{html.escape(sym)} ({html.escape(str(s_data.get('action', 'TRADE')))})</b>
+                    <b style="color:#60a5fa; font-size:1.05rem;">{html.escape(sym)} ({html.escape(str(s_data.get('action', 'TRADE')))}) <span style="background:#27272a; color:{status_badge_color}; font-size:0.75rem; padding:2px 8px; border-radius:4px; margin-left:8px; font-weight:700;">{html.escape(status_val)}</span></b>
                     <span style="color:#71717a; font-size:0.8rem;">Saved: {html.escape(str(s_data.get('updated_at', 'Recently'))[:19])}</span>
                 </div>
-                <div style="color:#d4d4d8; font-size:0.88rem; margin-top:4px;">
-                    <b>Entry:</b> {s_data.get('entry')} | <b style="color:#f87171;">SL:</b> {s_data.get('stop_loss')} | <b style="color:#34d399;">TP1:</b> {s_data.get('tp1')} | <b style="color:#34d399;">TP2:</b> {s_data.get('tp2')}
+                <div style="color:#d4d4d8; font-size:0.88rem; margin-top:6px;">
+                    <b>Entry:</b> {s_data.get('entry')} | <b style="color:#f87171;">SL:</b> {s_data.get('stop_loss')} | {tps_str}{cond_str}
                 </div>
             </div>
             """)

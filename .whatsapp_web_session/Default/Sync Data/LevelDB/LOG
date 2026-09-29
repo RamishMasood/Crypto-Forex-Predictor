@@ -1,2 +1,3 @@
-2026/09/29-16:44:15.816 17c8 Creating DB D:\softwareProjects\Crypto-Forex-Predictor\.whatsapp_web_session\Default\Sync Data\LevelDB since it was missing.
-2026/09/29-16:44:15.842 17c8 Reusing MANIFEST D:\softwareProjects\Crypto-Forex-Predictor\.whatsapp_web_session\Default\Sync Data\LevelDB/MANIFEST-000001
+2026/09/30-00:47:37.968 6104 Reusing MANIFEST D:\Documents\GitUpload\Crypto Forex Predictor\.whatsapp_web_session\Default\Sync Data\LevelDB/MANIFEST-000001
+2026/09/30-00:47:37.968 6104 Recovering log #3
+2026/09/30-00:47:37.969 6104 Reusing old log D:\Documents\GitUpload\Crypto Forex Predictor\.whatsapp_web_session\Default\Sync Data\LevelDB/000003.log 

@@ -1,7 +1,7 @@
 {
   "enabled": true,
-  "selected_channel": "Tradingpapa.com crypto",
-  "gemini_api_key": "AIzaSyDvvjXJgyWGlU8pGGbyV61Xx45JcD7Z_hw",
+  "selected_channel": "FastEnd Technologies",
+  "gemini_api_key": "AIzaSyDFAyqxo_4asmSvzaN9olcsau38d4m07HA",
   "max_dollar_risk": 50.0,
   "batch_lot_size": 0.05,
   "max_active_signal_trades": 5,
