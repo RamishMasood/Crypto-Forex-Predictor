@@ -1,3 +1,2 @@
-2026/09/29-14:37:30.150 73ec Reusing MANIFEST D:\softwareProjects\Crypto-Forex-Predictor\.whatsapp_web_session\Default\Local Storage\leveldb/MANIFEST-000001
-2026/09/29-14:37:30.510 73ec Recovering log #3
-2026/09/29-14:37:30.511 73ec Reusing old log D:\softwareProjects\Crypto-Forex-Predictor\.whatsapp_web_session\Default\Local Storage\leveldb/000003.log 
+2026/09/29-16:44:16.261 7490 Creating DB D:\softwareProjects\Crypto-Forex-Predictor\.whatsapp_web_session\Default\Local Storage\leveldb since it was missing.
+2026/09/29-16:44:16.300 7490 Reusing MANIFEST D:\softwareProjects\Crypto-Forex-Predictor\.whatsapp_web_session\Default\Local Storage\leveldb/MANIFEST-000001

@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "selected_channel": "Tradingpapa.com forex (gold and silver)",
+  "selected_channel": "Tradingpapa.com crypto",
   "gemini_api_key": "AIzaSyDvvjXJgyWGlU8pGGbyV61Xx45JcD7Z_hw",
   "max_dollar_risk": 50.0,
   "batch_lot_size": 0.05,

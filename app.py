@@ -3053,8 +3053,8 @@ def render_whatsapp_signal_engine_view(live_exec):
     </div>
     """)
 
-    # ── 1. Top Control Bar: Status, Start/Stop Listener, Desktop Login, QR Refresh ─
-    top_c1, top_c2, top_c3, top_c4 = st.columns([1.5, 1.2, 1.2, 1.1])
+    # ── 1. Top Control Bar: Status, Start/Stop Listener, Desktop Login, QR Refresh, Reset ─
+    top_c1, top_c2, top_c3, top_c4, top_c5 = st.columns([1.4, 1.1, 1.1, 0.9, 0.9])
     with top_c1:
         if status_str == "CONNECTED":
             chan_name = state.get("connected_channel") or settings.get("selected_channel", "Channel")
@@ -3095,8 +3095,15 @@ def render_whatsapp_signal_engine_view(live_exec):
         if st.button("🔄 REFRESH STATUS", key="btn_refresh_whatsapp_status", use_container_width=True):
             st.rerun(scope="fragment")
 
+    with top_c5:
+        if st.button("🧹 RESET", key="btn_reset_whatsapp_session", use_container_width=True, help="Wipes stale locks and resets session to allow a clean QR login."):
+            engine.reset_session()
+            st.toast("🧹 WhatsApp session cleanly reset! Click 'LOGIN VIA DESKTOP' to scan fresh.", icon="🧼")
+            st.rerun(scope="fragment")
+
     # ── 2. QR Code Login Section (Rendered when awaiting scan) ───────────────
-    if (os.path.exists(QR_IMAGE_PATH) and status_str == "AWAITING_QR_SCAN") or status_str == "AWAITING_DESKTOP_LOGIN":
+    show_qr_section = (status_str in ["AWAITING_QR_SCAN", "INITIALIZING", "AWAITING_DESKTOP_LOGIN"]) or os.path.exists(QR_IMAGE_PATH)
+    if show_qr_section and status_str != "CONNECTED" and status_str != "AUTHENTICATED":
         st.markdown("---")
         qr_col1, qr_col2 = st.columns([1.3, 2.0])
         with qr_col1:
@@ -3111,36 +3118,36 @@ def render_whatsapp_signal_engine_view(live_exec):
 
             if qr_b64:
                 qr_updated = state.get("qr_updated_at", "")
-                time_str = f"Live Auto-Refresh: {qr_updated[11:19]} UTC" if len(qr_updated) >= 19 else "Live Auto-Refreshing"
+                time_str = f"Live Auto-Refreshed: {qr_updated[11:19]} UTC" if len(qr_updated) >= 19 else "Live Auto-Refreshing"
                 render_html(f"""
                 <div style="text-align: center; margin-bottom: 8px;">
-                    <div style="background: #ffffff; padding: 16px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 14px rgba(0,0,0,0.5);">
-                        <img src="data:image/png;base64,{qr_b64}" width="260" height="260" style="display: block; margin: 0 auto; image-rendering: -webkit-optimize-contrast;" />
-                        <div style="color: #09090b; font-size: 0.76rem; font-weight: bold; margin-top: 6px; letter-spacing: 0.5px;">
-                            HIGH-RES LIVE QR CODE
+                    <div style="background: #ffffff; padding: 14px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 16px rgba(0,0,0,0.6); border: 2px solid #10b981;">
+                        <img src="data:image/png;base64,{qr_b64}" width="250" height="250" style="display: block; margin: 0 auto; image-rendering: pixelated;" />
+                        <div style="color: #064e3b; font-size: 0.78rem; font-weight: 800; margin-top: 6px; letter-spacing: 0.5px;">
+                            ✨ ULTRA-CRISP LIVE QR CODE
                         </div>
                     </div>
-                    <div style="color: #a1a1aa; font-size: 0.8rem; margin-top: 6px;">⚡ {time_str}</div>
+                    <div style="color: #34d399; font-size: 0.82rem; margin-top: 8px; font-weight: 600;">⚡ {time_str}</div>
                 </div>
                 """)
             else:
-                st.info("⌛ Generating fresh high-res QR code... Click 'REFRESH STATUS' in a few seconds.")
+                st.info("⌛ Starting Google Chrome & generating fresh live QR code... (Takes ~3-5 seconds)")
 
         with qr_col2:
             render_html("""
             <div style="background:#18181b; border:1px solid #3f3f46; border-radius:10px; padding:16px;">
                 <h4 style="color:#fde047; margin-top:0;">📲 WhatsApp Linked Device Setup</h4>
-                <ol style="color:#d4d4d8; font-size:0.93rem; line-height:1.7; margin-bottom:10px;">
+                <ol style="color:#d4d4d8; font-size:0.93rem; line-height:1.7; margin-bottom:12px;">
                     <li>Apne mobile phone par <b>WhatsApp</b> open karein.</li>
                     <li><b>Settings</b> (ya 3 dots) &rarr; <b>Linked Devices</b> par tap karein.</li>
-                    <li><b>Link a Device</b> dabayein aur camera is QR code par point karein.</li>
+                    <li><b>Link a Device</b> dabayein aur camera is screen par QR code par point karein.</li>
                 </ol>
-                <div style="background:#1e1b4b; border-left:4px solid #6366f1; padding:10px 12px; border-radius:4px; font-size:0.86rem; color:#e0e7ff; margin-bottom:10px;">
-                    <b>💡 Best & Most Reliable Option:</b><br/>
-                    Agar mobile camera screen se QR scan karne mein "Invalid" bole, toh upar diye gaye <b>'🖥️ LOGIN VIA DESKTOP'</b> button par click karein. Yeh direct Google Chrome window open karega jahan 1 second mein bina kisi camera issue ke scan ho jata hai.
+                <div style="background:#064e3b; border-left:4px solid #10b981; padding:10px 12px; border-radius:4px; font-size:0.86rem; color:#d1fae5; margin-bottom:10px;">
+                    🛡️ <b>Anti-Bot & Webdriver Stealth Enabled:</b><br/>
+                    Official Google Chrome binary ke sath <code>navigator.webdriver</code> mask kar diya gaya hai, taake WhatsApp server connection reject ("Couldn't link device") na kare aur 1 second mein successfully link ho jaye.
                 </div>
-                <div style="background:#092e20; border-left:4px solid #10b981; padding:8px 12px; border-radius:4px; font-size:0.84rem; color:#a7f3d0;">
-                    🔒 <b>Zero Ban Risk:</b> Yeh official WhatsApp Web session use karta hai. Aik dafa login hone ke baad session permanently save ho jata hai taake dobara scan na karna paday.
+                <div style="background:#1e1b4b; border-left:4px solid #6366f1; padding:8px 12px; border-radius:4px; font-size:0.84rem; color:#e0e7ff;">
+                    💡 <b>Tip:</b> Agar QR code scan na ho raha ho, toh phone ka brightness badha kar camera ko 10-15 cm door rakhein. Yeh QR code har 1.5s baad automatically live update hota rehta hai.
                 </div>
             </div>
             """)
@@ -3151,17 +3158,22 @@ def render_whatsapp_signal_engine_view(live_exec):
     cfg_row1_c1, cfg_row1_c2 = st.columns([2.1, 1.5])
     with cfg_row1_c1:
         followed_channels = state.get("followed_channels", [])
+        followed_groups = state.get("followed_groups", [])
         saved_channel = settings.get("selected_channel", "Tradingpapa.com forex (gold and silver)")
+        clean_saved = saved_channel.replace("📢 [Channel] ", "").replace("👥 [Group] ", "").replace("📢 ", "").replace("👥 ", "").strip()
 
-        # Prepare selectbox options from followed channels
+        # Prepare selectbox options with Channels (📢) and Groups (👥)
         channel_options = []
         if followed_channels:
-            channel_options.extend(followed_channels)
-        if "Tradingpapa.com forex (gold and silver)" not in channel_options:
-            channel_options.append("Tradingpapa.com forex (gold and silver)")
-        if saved_channel and saved_channel not in channel_options:
-            channel_options.append(saved_channel)
-        
+            for ch in followed_channels:
+                channel_options.append(f"📢 {ch}")
+        else:
+            channel_options.append("📢 Tradingpapa.com forex (gold and silver)")
+            
+        if followed_groups:
+            for grp in followed_groups:
+                channel_options.append(f"👥 {grp}")
+
         custom_opt = "✏️ Custom / Other Channel (Manual Input)"
         channel_options.append(custom_opt)
 
@@ -3173,33 +3185,40 @@ def render_whatsapp_signal_engine_view(live_exec):
                 seen_chans.add(ch)
                 dedup_chans.append(ch)
 
-        curr_idx = dedup_chans.index(saved_channel) if saved_channel in dedup_chans else 0
+        curr_idx = 0
+        for i, opt in enumerate(dedup_chans):
+            opt_clean = opt.replace("📢 ", "").replace("👥 ", "").strip()
+            if opt_clean == clean_saved or opt == saved_channel:
+                curr_idx = i
+                break
 
         sel_c1, sel_c2 = st.columns([2.4, 1.1])
         with sel_c1:
             chosen_channel = st.selectbox(
-                "🎯 Target WhatsApp Channel to Track:",
+                "🎯 Target WhatsApp Channel / Group to Track:",
                 options=dedup_chans,
                 index=curr_idx,
                 key="wapp_cfg_target_channel_select",
-                help="Select from followed channels fetched directly from your WhatsApp account, or enter a custom name."
+                help="Select any followed Channel (📢) or Group (👥) fetched directly from WhatsApp, or enter a custom name."
             )
         with sel_c2:
             st.write("")
             st.write("")
-            if st.button("🔄 Sync Channels", key="btn_sync_followed_channels", use_container_width=True, help="Scan WhatsApp Web and update all followed channels"):
+            if st.button("🔄 Sync Channels", key="btn_sync_followed_channels", use_container_width=True, help="Scan WhatsApp Web and update both Channels and Groups"):
                 res = engine.request_channel_sync()
-                st.toast("🔄 Scanning WhatsApp Web for followed channels...", icon="📲")
+                st.toast("🔄 Scanning WhatsApp for Channels & Groups...", icon="📲")
                 st.rerun(scope="fragment")
 
         if chosen_channel == custom_opt:
             target_channel_cfg = st.text_input(
-                "Enter Exact Channel Name:",
-                value=saved_channel if saved_channel not in followed_channels else "",
+                "Enter Exact Channel or Group Name:",
+                value=clean_saved,
                 key="wapp_cfg_custom_channel_name"
             ).strip() or "Tradingpapa.com forex (gold and silver)"
         else:
-            target_channel_cfg = chosen_channel
+            target_channel_cfg = chosen_channel.replace("📢 ", "").replace("👥 ", "").strip()
+
+        st.caption("✨ **Channels (📢)** aur **Groups (👥)** dono live WhatsApp account se synced hain.")
 
     with cfg_row1_c2:
         gemini_key_cfg = st.text_input(

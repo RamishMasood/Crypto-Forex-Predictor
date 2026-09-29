@@ -115,70 +115,27 @@ class WhatsAppListenerEngine:
         """
         if self.is_running:
             self.stop()
-            time.sleep(1.5)
+            time.sleep(1.0)
 
+        # Make sure no lingering playwright chrome holds session lock
         try:
-            from playwright.sync_api import sync_playwright
-        except ImportError:
-            return {"success": False, "error": "Playwright is not installed."}
+            import subprocess
+            subprocess.run(
+                ["powershell", "-Command", "Get-Process -Name 'chrome' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*ms-playwright*' } | Stop-Process -Force"],
+                capture_output=True, timeout=5
+            )
+        except Exception:
+            pass
+
+        import subprocess
+        import sys
+        script_path = os.path.join(os.path.dirname(__file__), "whatsapp_desktop_login.py")
+        creationflags = subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
+        subprocess.Popen([sys.executable, script_path], creationflags=creationflags)
 
         state = self.executor.load_state()
         state["status"] = "AWAITING_DESKTOP_LOGIN"
         self.executor.save_state(state)
-
-        def _desktop_thread():
-            logger.info("Opening desktop visible WhatsApp login window...")
-            try:
-                with sync_playwright() as p:
-                    os.makedirs(SESSION_DIR, exist_ok=True)
-                    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                    ctx = p.chromium.launch_persistent_context(
-                        user_data_dir=SESSION_DIR,
-                        headless=False,
-                        user_agent=user_agent,
-                        args=["--disable-blink-features=AutomationControlled"],
-                        viewport={"width": 1100, "height": 800}
-                    )
-                    try:
-                        page = ctx.pages[0] if ctx.pages else ctx.new_page()
-                        page.goto("https://web.whatsapp.com", wait_until="domcontentloaded", timeout=60000)
-
-                        logged_in = False
-                        # Wait up to 180 seconds for user to scan
-                        for _ in range(90):
-                            if page.locator("div#pane-side, div[data-testid='chat-list'], header").count() > 0:
-                                logged_in = True
-                                break
-                            time.sleep(2)
-
-                        if logged_in:
-                            logger.info("WhatsApp Authenticated via desktop window! Flushing session...")
-                            time.sleep(3)
-                            s = self.executor.load_state()
-                            s["status"] = "AUTHENTICATED"
-                            self.executor.save_state(s)
-                            if os.path.exists(QR_IMAGE_PATH):
-                                try:
-                                    os.remove(QR_IMAGE_PATH)
-                                except Exception:
-                                    pass
-                        else:
-                            s = self.executor.load_state()
-                            s["status"] = "LOGIN_TIMED_OUT"
-                            self.executor.save_state(s)
-                    finally:
-                        try:
-                            ctx.close()
-                        except Exception:
-                            pass
-            except Exception as e:
-                logger.error(f"Error in desktop WhatsApp login: {e}")
-                s = self.executor.load_state()
-                s["status"] = f"DESKTOP_LOGIN_ERROR: {str(e)[:60]}"
-                self.executor.save_state(s)
-
-        t = threading.Thread(target=_desktop_thread, daemon=True, name="WhatsAppDesktopLogin")
-        t.start()
         return {"success": True, "message": "Desktop WhatsApp login window launched"}
 
     def stop(self):
@@ -192,6 +149,40 @@ class WhatsAppListenerEngine:
             state["status"] = "STOPPED"
             self.executor.save_state(state)
             logger.info("WhatsApp listener stopping...")
+
+    def reset_session(self) -> Dict[str, Any]:
+        """
+        Kills any orphaned Playwright processes, wipes corrupt locks, and removes stale session data
+        so a clean, unlocked QR pairing handshake can succeed immediately.
+        """
+        self.stop()
+        time.sleep(1.0)
+        try:
+            import subprocess
+            subprocess.run(
+                ["powershell", "-Command", "Get-Process -Name 'chrome' -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*ms-playwright*' } | Stop-Process -Force"],
+                capture_output=True, timeout=5
+            )
+        except Exception:
+            pass
+
+        import shutil
+        if os.path.exists(SESSION_DIR):
+            try:
+                shutil.rmtree(SESSION_DIR, ignore_errors=True)
+            except Exception as e:
+                logger.warning(f"Error removing session dir: {e}")
+        if os.path.exists(QR_IMAGE_PATH):
+            try:
+                os.remove(QR_IMAGE_PATH)
+            except Exception:
+                pass
+        state = self.executor.load_state()
+        state["status"] = "STOPPED"
+        state["connected_channel"] = None
+        self.executor.save_state(state)
+        return {"success": True, "message": "WhatsApp session cleanly reset."}
+
 
 
     def process_message_now(self, message_text: str, quoted_text: Optional[str] = None, msg_time: Optional[str] = None) -> Dict[str, Any]:
@@ -245,8 +236,66 @@ class WhatsAppListenerEngine:
             "execution": exec_res
         }
 
+    def _capture_and_generate_qr(self, page) -> bool:
+        """
+        Captures the live WhatsApp Web QR code with maximum clarity and zero expiration lag:
+        1. Auto-clicks reload button if expired.
+        2. Extracts raw cryptographic `data-ref` token from DOM and generates a mathematically
+           lossless, pixel-perfect PNG via `qrcode.QRCode`.
+        3. Falls back to direct high-res screenshot of the canvas.
+        4. Updates state with `qr_updated_at` timestamp.
+        """
+        try:
+            # Check for expired QR reload button overlay and auto-click it
+            reload_btn = page.locator("div[data-ref] button, div[data-ref] [role='button'], span[data-icon='reload'], span[data-icon='refresh']").first
+            if reload_btn.count() > 0 and reload_btn.is_visible():
+                try:
+                    reload_btn.click()
+                    time.sleep(1.0)
+                except Exception:
+                    pass
+
+            captured = False
+            # Method A: Extract data-ref from div[data-ref]
+            data_ref_elem = page.locator("div[data-ref]").first
+            if data_ref_elem.count() > 0:
+                data_ref = data_ref_elem.get_attribute("data-ref")
+                if data_ref and len(data_ref) > 15:
+                    try:
+                        import qrcode
+                        qr = qrcode.QRCode(
+                            version=None,
+                            error_correction=qrcode.constants.ERROR_CORRECT_M,
+                            box_size=10,
+                            border=2,
+                        )
+                        qr.add_data(data_ref)
+                        qr.make(fit=True)
+                        img = qr.make_image(fill_color="black", back_color="white")
+                        img.save(QR_IMAGE_PATH)
+                        captured = True
+                    except Exception as qr_err:
+                        logger.debug(f"Direct QR code generation fallback: {qr_err}")
+
+            # Method B: Fallback to high-res canvas screenshot
+            if not captured:
+                canvas_elem = page.locator("canvas").first
+                if canvas_elem.count() > 0 and canvas_elem.is_visible():
+                    canvas_elem.screenshot(path=QR_IMAGE_PATH)
+                    captured = True
+
+            if captured:
+                state = self.executor.load_state()
+                state["status"] = "AWAITING_QR_SCAN"
+                state["qr_updated_at"] = datetime.now(timezone.utc).isoformat()
+                self.executor.save_state(state)
+                return True
+        except Exception as e:
+            logger.debug(f"Error capturing QR: {e}")
+        return False
+
     def _worker_loop(self):
-        """Main Playwright loop running in background."""
+        """Main Playwright loop running in background with official Chrome and anti-bot stealth."""
         state = self.executor.load_state()
         state["status"] = "INITIALIZING"
         self.executor.save_state(state)
@@ -262,22 +311,60 @@ class WhatsAppListenerEngine:
 
         with sync_playwright() as p:
             os.makedirs(SESSION_DIR, exist_ok=True)
-            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+
+            browser_args = [
+                "--no-sandbox",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-infobars",
+                "--disable-dev-shm-usage",
+                "--no-first-run",
+                "--no-default-browser-check"
+            ]
 
             browser_context = p.chromium.launch_persistent_context(
                 user_data_dir=SESSION_DIR,
                 headless=True,
                 user_agent=user_agent,
-                args=["--disable-blink-features=AutomationControlled"],
-                viewport={"width": 1280, "height": 850},
-                device_scale_factor=2
+                args=browser_args,
+                viewport={"width": 1280, "height": 850}
             )
+
+            # Mask navigator.webdriver and inject modern Chrome 133 userAgentData to avoid 'Update Chrome' and 'Couldn't link device'
+            browser_context.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+                if (!navigator.userAgentData) {
+                    navigator.userAgentData = {
+                        brands: [
+                            { brand: 'Not(A:Brand', version: '99' },
+                            { brand: 'Google Chrome', version: '133' },
+                            { brand: 'Chromium', version: '133' }
+                        ],
+                        mobile: false,
+                        platform: 'Windows'
+                    };
+                }
+                window.navigator.chrome = {
+                    runtime: {},
+                    loadTimes: function() {},
+                    csi: function() {},
+                    app: {}
+                };
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5]
+                });
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en']
+                });
+            """)
 
             try:
                 page = browser_context.pages[0] if browser_context.pages else browser_context.new_page()
-                page.goto("https://web.whatsapp.com", wait_until="domcontentloaded", timeout=45000)
+                page.goto("https://web.whatsapp.com", wait_until="load", timeout=45000)
 
-                # Wait for either QR Canvas or Chat Pane
+                # Wait for either QR Canvas/data-ref or Chat Pane
                 logged_in = False
                 qr_rendered = False
 
@@ -290,30 +377,12 @@ class WhatsAppListenerEngine:
                         logged_in = True
                         break
 
-                    # Check for reload button overlay if QR expired
-                    reload_btn = page.locator("div[data-ref] button, div[data-ref] [role='button'], span[data-icon='reload'], span[data-icon='refresh']").first
-                    if reload_btn.count() > 0 and reload_btn.is_visible():
-                        try:
-                            reload_btn.click()
-                            logger.info("Auto-clicked WhatsApp QR reload button overlay.")
-                            time.sleep(1.5)
-                        except Exception:
-                            pass
-
-                    # Check for QR canvas
-                    canvas_locator = page.locator("canvas")
-                    if canvas_locator.count() > 0:
-                        try:
-                            canvas_locator.first.screenshot(path=QR_IMAGE_PATH)
+                    # Check for QR canvas / data-ref and capture
+                    if page.locator("canvas, div[data-ref]").count() > 0:
+                        if self._capture_and_generate_qr(page):
                             qr_rendered = True
-                            state = self.executor.load_state()
-                            state["status"] = "AWAITING_QR_SCAN"
-                            state["qr_updated_at"] = datetime.now(timezone.utc).isoformat()
-                            self.executor.save_state(state)
-                        except Exception as qr_err:
-                            logger.debug(f"QR screenshot capture retry: {qr_err}")
 
-                    time.sleep(2)
+                    time.sleep(1.5)
 
                 if self.stop_event.is_set():
                     browser_context.close()
@@ -327,27 +396,9 @@ class WhatsAppListenerEngine:
                             logged_in = True
                             break
 
-                        # Auto-click reload overlay if expired
-                        try:
-                            reload_btn = page.locator("div[data-ref] button, div[data-ref] [role='button'], span[data-icon='reload'], span[data-icon='refresh']").first
-                            if reload_btn.count() > 0 and reload_btn.is_visible():
-                                reload_btn.click()
-                                logger.info("Clicked QR reload overlay in wait loop.")
-                                time.sleep(2)
-                        except Exception:
-                            pass
-
-                        # Periodically refresh QR screenshot
-                        try:
-                            canvas_el = page.locator("canvas").first
-                            if canvas_el.count() > 0 and canvas_el.is_visible():
-                                canvas_el.screenshot(path=QR_IMAGE_PATH)
-                                state = self.executor.load_state()
-                                state["qr_updated_at"] = datetime.now(timezone.utc).isoformat()
-                                self.executor.save_state(state)
-                        except Exception:
-                            pass
-                        time.sleep(2.5)
+                        # Continuously refresh QR every 1.5 seconds so it NEVER expires
+                        self._capture_and_generate_qr(page)
+                        time.sleep(1.5)
 
                 if logged_in:
                     logger.info("WhatsApp Web Authenticated successfully!")
@@ -374,8 +425,14 @@ class WhatsAppListenerEngine:
                     # 2. Open target channel / chat
                     self._open_channel(page, target_channel)
 
-                    # Continuous message polling loop
+                    # Continuous message polling loop (1.0s fast polling for zero latency)
                     while not self.stop_event.is_set():
+                        # Live check: if session disconnected or logged out
+                        if page.locator("canvas, div[data-ref]").count() > 0:
+                            logger.warning("WhatsApp Web session disconnected / awaiting QR scan!")
+                            self._capture_and_generate_qr(page)
+                            break
+
                         # Handle live on-demand channel sync
                         if self.sync_channels_event.is_set():
                             self.sync_channels_event.clear()
@@ -394,7 +451,7 @@ class WhatsAppListenerEngine:
                             self._open_channel(page, target)
 
                         self._poll_channel_messages(page)
-                        time.sleep(3)
+                        time.sleep(1.0)
 
             except Exception as e:
                 logger.error(f"Error in WhatsApp worker: {e}", exc_info=True)
@@ -408,35 +465,94 @@ class WhatsAppListenerEngine:
                     pass
                 self.is_running = False
 
-    def _open_channel(self, page, channel_name: str):
-        """Searches or clicks on the specified channel."""
+    def _scroll_chat_to_bottom(self, page):
+        """Scrolls open conversation pane to bottom so newest live messages are in DOM."""
         try:
-            time.sleep(2)
-            # Try finding the chat in the sidebar list directly
-            channel_locator = page.locator(f"span[title*='{channel_name[:15]}'], div[title*='{channel_name[:15]}']").first
+            page.evaluate("""() => {
+                const pane = document.querySelector('div[data-testid="conversation-panel-messages"], div[role="region"], div[tabindex="-1"], div._amkc');
+                if (pane) pane.scrollTop = pane.scrollHeight;
+            }""")
+        except Exception:
+            pass
+
+    def _open_channel(self, page, channel_name: str):
+        """Searches or clicks on the specified channel or group and scrolls to bottom."""
+        clean_target = (
+            channel_name.replace("📢 [Channel] ", "")
+            .replace("👥 [Group] ", "")
+            .replace("📢 ", "")
+            .replace("👥 ", "")
+            .strip()
+        )
+        try:
+            time.sleep(1)
+            # 1. Try finding in current sidebar list
+            channel_locator = page.locator(f"span[title*='{clean_target[:15]}'], div[title*='{clean_target[:15]}']").first
             if channel_locator.count() > 0:
-                channel_locator.click()
-                logger.info(f"Opened channel: {channel_name}")
+                channel_locator.click(force=True)
+                logger.info(f"Opened channel/group directly: {clean_target}")
                 state = self.executor.load_state()
-                state["connected_channel"] = channel_name
+                state["connected_channel"] = clean_target
                 self.executor.save_state(state)
+                time.sleep(1.5)
+                self._scroll_chat_to_bottom(page)
                 return
 
-            # Use search bar
-            search_box = page.locator("div[contenteditable='true'][data-tab='3'], div[contenteditable='true']").first
+            # 2. Try Channels tab if not found on current tab
+            chan_tab_btn = page.locator("button[aria-label='Channels'], [data-navbar-item='true'][aria-label*='Channel']").first
+            if chan_tab_btn.count() > 0:
+                chan_tab_btn.click(force=True)
+                time.sleep(1.5)
+                chan_item = page.locator(f"span[title*='{clean_target[:15]}'], div[title*='{clean_target[:15]}']").first
+                if chan_item.count() > 0:
+                    chan_item.click(force=True)
+                    logger.info(f"Opened channel via Channels tab: {clean_target}")
+                    state = self.executor.load_state()
+                    state["connected_channel"] = clean_target
+                    self.executor.save_state(state)
+                    time.sleep(1.5)
+                    self._scroll_chat_to_bottom(page)
+                    return
+
+            # 3. Use search box
+            search_box = page.locator("div[contenteditable='true']").first
             if search_box.count() > 0:
                 search_box.click()
-                search_box.fill(channel_name)
+                search_box.fill(clean_target)
                 time.sleep(2)
-                result_item = page.locator(f"span[title*='{channel_name[:15]}'], div[role='listitem']").first
+                result_item = page.locator(f"span[title*='{clean_target[:15]}'], div[role='listitem']").first
                 if result_item.count() > 0:
-                    result_item.click()
-                    logger.info(f"Successfully found and opened channel: {channel_name}")
+                    result_item.click(force=True)
+                    logger.info(f"Successfully found and opened channel/group via search: {clean_target}")
                     state = self.executor.load_state()
-                    state["connected_channel"] = channel_name
+                    state["connected_channel"] = clean_target
                     self.executor.save_state(state)
+                    time.sleep(1.5)
+                    self._scroll_chat_to_bottom(page)
         except Exception as e:
-            logger.warning(f"Could not automatically open channel '{channel_name}': {e}")
+            logger.warning(f"Could not automatically open channel '{clean_target}': {e}")
+
+    def _is_valid_channel_or_chat_name(self, name: str) -> bool:
+        if not name or len(name) < 3 or len(name) > 75:
+            return False
+        low = name.lower().strip()
+        if "unread message" in low or "unread messages" in low:
+            return False
+        system_words = {
+            "(you)", "archived", "channels", "chats", "status", "photo", "video", 
+            "sticker", "audio", "document", "pinned", "draft", "find channels", 
+            "stay updated", "explore", "search", "directory", "updates", "communities", 
+            "settings", "new chat", "menu", "unread", "typing...", "online"
+        }
+        if low in system_words:
+            return False
+        if name.startswith("\u202a") or name.startswith("+") or " added " in low or " left" in low:
+            return False
+        if "http://" in low or "https://" in low or "\n" in name:
+            return False
+        if name.strip().isdigit() or not any(c.isalnum() for c in name):
+            return False
+        return True
 
     def _extract_channel_names_from_page(self, page) -> List[str]:
         """Helper to extract clean channel titles from current WhatsApp Web DOM."""
@@ -449,23 +565,13 @@ class WhatsAppListenerEngine:
             "div[role='listitem'] span[dir='auto']",
             "header span[title]"
         ]
-        system_words = {
-            "channels", "find channels", "stay updated", "explore", "search", 
-            "directory", "updates", "status", "chats", "communities", "settings",
-            "new chat", "menu", "unread", "draft", "typing...", "online"
-        }
         for sel in locators_to_try:
             try:
                 for el in page.locator(sel).all():
                     try:
                         t = (el.get_attribute("title") or el.inner_text() or "").strip()
-                        if not t or len(t) < 2 or len(t) > 75:
-                            continue
-                        if t.isdigit() or (":" in t and len(t) <= 8):
-                            continue
-                        if t.lower() in system_words:
-                            continue
-                        names.add(t)
+                        if self._is_valid_channel_or_chat_name(t):
+                            names.add(t)
                     except Exception:
                         pass
             except Exception:
@@ -474,46 +580,61 @@ class WhatsAppListenerEngine:
 
     def _discover_followed_channels(self, page) -> List[str]:
         """
-        Discovers all followed channels in WhatsApp Web by:
-        1. Checking existing visible chat/channel items.
-        2. Clicking the Channels/Newsletters navigation tab if available.
-        3. Extracting all channel names from the Channels pane.
-        4. Switching back to Chats tab.
+        Discovers all followed channels AND groups from WhatsApp Web:
+        1. Navigates to Channels tab, scrolls down, and extracts broadcast channels.
+        2. Navigates to Chats tab, scrolls down, and extracts trading groups.
+        3. Saves both categories separately and in combined list.
         """
-        all_channels = set()
-        
-        # 1. Collect currently visible channels/chats
-        try:
-            initial_names = self._extract_channel_names_from_page(page)
-            all_channels.update(initial_names)
-        except Exception as e:
-            logger.debug(f"Initial channel extraction: {e}")
+        channels_set = set()
+        groups_set = set()
 
-        # 2. Click Channels / Newsletters tab on the left navigation rail
+        # Dismiss any overlay dialogs
+        for _ in range(3):
+            try:
+                page.keyboard.press("Escape")
+                time.sleep(0.2)
+            except Exception:
+                pass
+
+        # 1. Channels tab discovery
         try:
-            channels_tab = page.locator("button[aria-label*='Channel'], button[aria-label*='channel'], button[title*='Channel'], span[data-icon*='newsletter'], button[aria-label*='Newsletter'], span[data-icon='newsletter-outline']").first
-            if channels_tab.count() > 0:
-                channels_tab.click()
+            chan_btn = page.locator("button[aria-label='Channels'], [data-navbar-item='true'][aria-label*='Channel']").first
+            if chan_btn.count() > 0:
+                chan_btn.click(force=True)
                 time.sleep(2.5)
-                
-                # Extract names in the Channels pane
-                channel_names = self._extract_channel_names_from_page(page)
-                all_channels.update(channel_names)
-                
-                # Switch back to Chats tab
-                chats_tab = page.locator("button[aria-label*='Chat'], button[aria-label*='chat'], button[title*='Chats'], span[data-icon*='chats'], span[data-icon='chat']").first
-                if chats_tab.count() > 0:
-                    chats_tab.click()
-                    time.sleep(1.5)
-        except Exception as e:
-            logger.warning(f"Error navigating to Channels tab: {e}")
+                pane = page.locator("div#pane-side").first
+                for _ in range(4):
+                    for name in self._extract_channel_names_from_page(page):
+                        channels_set.add(name)
+                    try:
+                        pane.evaluate("el => el.scrollTop += 600")
+                    except Exception:
+                        pass
+                    time.sleep(0.8)
+        except Exception as ce:
+            logger.warning(f"Error extracting from Channels tab: {ce}")
 
-        # Ensure tradingpapa and current setting are preserved
-        settings = self.executor.load_settings()
-        curr = settings.get("selected_channel")
-        if curr:
-            all_channels.add(curr)
-        all_channels.add("Tradingpapa.com forex (gold and silver)")
+        # 2. Chats / Groups tab discovery
+        try:
+            chats_btn = page.locator("button[aria-label='Chats'], [data-navbar-item='true'][aria-label*='Chat']").first
+            if chats_btn.count() > 0:
+                chats_btn.click(force=True)
+                time.sleep(2.0)
+                pane = page.locator("div#pane-side").first
+                for _ in range(3):
+                    for name in self._extract_channel_names_from_page(page):
+                        if name not in channels_set:
+                            groups_set.add(name)
+                    try:
+                        pane.evaluate("el => el.scrollTop += 600")
+                    except Exception:
+                        pass
+                    time.sleep(0.8)
+        except Exception as ge:
+            logger.warning(f"Error extracting from Chats tab: {ge}")
+
+        # Ensure tradingpapa is always included in channels
+        channels_set.add("Tradingpapa.com forex (gold and silver)")
 
         def _sort_key(c_name):
             low = c_name.lower()
@@ -523,12 +644,16 @@ class WhatsAppListenerEngine:
                 return (1, low)
             return (2, low)
 
-        sorted_channels = sorted(list(all_channels), key=_sort_key)
-        
+        sorted_channels = sorted(list(channels_set), key=_sort_key)
+        sorted_groups = sorted(list(groups_set), key=_sort_key)
+
         state = self.executor.load_state()
         state["followed_channels"] = sorted_channels
+        state["followed_groups"] = sorted_groups
+        state["all_targets"] = [f"📢 [Channel] {c}" for c in sorted_channels] + [f"👥 [Group] {g}" for g in sorted_groups]
         self.executor.save_state(state)
-        logger.info(f"Discovered {len(sorted_channels)} WhatsApp channels/chats: {sorted_channels}")
+
+        logger.info(f"Discovered {len(sorted_channels)} channels and {len(sorted_groups)} groups!")
         return sorted_channels
 
     def _discover_channels_standalone(self) -> List[str]:
@@ -563,19 +688,26 @@ class WhatsAppListenerEngine:
 
 
     def _poll_channel_messages(self, page):
-        """Scrapes newly arrived messages (including quoted reply text and timestamps) from open chat pane."""
+        """Scrapes newly arrived messages (including quoted reply text and timestamps) from open chat/channel pane."""
         try:
-            # Query message container elements
-            containers = page.locator("div[data-testid='msg-container'], div.message-in").all()
+            # Check if session got disconnected or logged out
+            if page.locator("canvas, div[data-ref]").count() > 0:
+                logger.warning("WhatsApp Web session disconnected / awaiting QR scan!")
+                self._capture_and_generate_qr(page)
+                return
+
+            # Support BOTH regular chats AND broadcast channels (Newsletters)
+            containers = page.locator("div[data-testid='msg-container'], div[role='row'], div._amk4, div[data-id], div.message-in").all()
             if not containers:
                 return
 
             # Read latest 15 containers
             for container in containers[-15:]:
                 try:
-                    text_elem = container.locator("span.selectable-text").first
+                    # Selectable text in broadcast channels or chats
+                    text_elem = container.locator("span.selectable-text, span[dir='ltr'], span[dir='rtl'], div.copyable-text").first
                     txt = text_elem.inner_text().strip() if text_elem.count() > 0 else ""
-                    if not txt:
+                    if not txt or len(txt) < 3:
                         continue
 
                     # Extract quoted reply text if this message is a reply to an earlier setup
@@ -583,15 +715,15 @@ class WhatsAppListenerEngine:
                     quoted_text = quote_elem.inner_text().strip() if quote_elem.count() > 0 else None
 
                     # Extract timestamp
-                    time_elem = container.locator("div[data-testid='msg-meta'] span, span[data-testid='msg-meta']").first
+                    time_elem = container.locator("div[data-testid='msg-meta'] span, span[data-testid='msg-meta'], div._amkd").first
                     msg_time = time_elem.inner_text().strip() if time_elem.count() > 0 else ""
 
                     q_snippet = quoted_text[:20] if quoted_text else ""
-                    msg_hash = f"{txt[:50]}_{len(txt)}_{q_snippet}"
+                    msg_hash = f"{txt[:60]}_{len(txt)}_{q_snippet}"
                     if msg_hash not in self.seen_messages:
                         self.seen_messages.add(msg_hash)
-                        logger.info(f"New incoming WhatsApp message detected: {txt[:60]} (Quoted: {q_snippet})...")
-                        # Process message with full reply context
+                        logger.info(f"⚡ Live incoming WhatsApp message detected: {txt[:70]} (Quoted: {q_snippet})...")
+                        # Process message with full reply context immediately
                         self.process_message_now(txt, quoted_text=quoted_text, msg_time=msg_time)
                 except Exception:
                     pass
