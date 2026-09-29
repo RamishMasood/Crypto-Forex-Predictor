@@ -326,7 +326,9 @@ class MT5TradeExecutor:
         lot_split: Dict[str, float],
         deviation_points: int = 20,
         timeframe: str = '15m',
-        strategy_tag: str = 'DEFAULT'
+        strategy_tag: str = 'DEFAULT',
+        custom_magic: Optional[int] = None,
+        custom_comment_prefix: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Executes multi-target orders on Exness MT5:
@@ -444,8 +446,8 @@ class MT5TradeExecutor:
                     'sl': sl,
                     'tp': tp_target,
                     'deviation': deviation_points,
-                    'magic': self.MAGIC_NUMBER,
-                    'comment': f'QS_{batch_id}_{str(timeframe).lower()[:4]}_{label}',
+                    'magic': custom_magic if custom_magic is not None else self.MAGIC_NUMBER,
+                    'comment': f"{custom_comment_prefix if custom_comment_prefix else 'QS'}_{batch_id}_{str(timeframe).lower()[:4]}_{label}",
                     'type_time': mt5.ORDER_TIME_GTC,
                     'type_filling': type_filling,
                 }

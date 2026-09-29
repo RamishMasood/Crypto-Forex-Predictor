@@ -987,6 +987,14 @@ def render_mt5_active_positions_view(live_exec):
             else:
                 b_badge = ""
 
+            p_magic = int(p.get('magic', 0))
+            if p_magic == 777666 or str(cmt).startswith('WAPP'):
+                source_badge = "<span style='background:#064e3b;color:#34d399;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #059669;'>📱 WhatsApp Signal</span>"
+            elif p_magic == live_exec.MAGIC_NUMBER or 'QS_' in str(cmt):
+                source_badge = "<span style='background:#1e1b4b;color:#a5b4fc;padding:1px 6px;border-radius:4px;font-weight:700;font-size:.72rem;border:1px solid #4338ca;'>🤖 Autonomous Radar</span>"
+            else:
+                source_badge = "<span style='background:#27272a;color:#a1a1aa;padding:1px 6px;border-radius:4px;font-size:.72rem;'>Manual / Other</span>"
+
             cards_html.append(f"""
             <div style='background:#161b22;border:1px solid #30363d;border-left:4px solid {p_side_col};border-radius:8px;padding:12px 14px;'>
                 <div style='display:flex;justify-content:space-between;align-items:center;'>
@@ -1000,8 +1008,9 @@ def render_mt5_active_positions_view(live_exec):
                         <div style='color:#8b949e;font-size:0.72rem;'>{p['return_pct']:+.2f}%</div>
                     </div>
                 </div>
-                <div style='margin-top:8px;font-size:0.76rem;color:#8b949e;'>
-                    {b_badge} Ticket: <b>#{p['ticket']}</b> | {p['time']}
+                <div style='margin-top:8px;font-size:0.76rem;color:#8b949e;display:flex;justify-content:space-between;align-items:center;'>
+                    <div>{source_badge} {b_badge} Ticket: <b>#{p['ticket']}</b></div>
+                    <div>{p['time']}</div>
                 </div>
                 <div style='display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:8px;background:#0d1117;padding:8px;border-radius:6px;font-size:0.78rem;'>
                     <div>Open: <b style='color:#c9d1d9;'>${p['price_open']:,.4f}</b></div>
@@ -3023,6 +3032,347 @@ def render_mt5_backtest_engine_view():
                 key="dl_bt_batches_csv"
             )
 
+@st.fragment(run_every=4)
+def render_whatsapp_signal_engine_view(live_exec):
+    from src.engine.whatsapp_listener import WhatsAppListenerEngine, QR_IMAGE_PATH
+    import html
+
+    engine = WhatsAppListenerEngine()
+    settings = engine.executor.load_settings()
+    state = engine.executor.load_state()
+    status_str = state.get("status", "STOPPED")
+    is_worker_running = engine.is_running
+
+    # Header Card
+    render_html("""
+    <div style="background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); border: 1px solid #10b981; border-radius: 12px; padding: 18px 24px; margin-bottom: 20px;">
+        <h3 style="color:#34d399; margin:0 0 6px 0;">📱 WhatsApp AI Signal Auto-Trader (Gemini Flash + Context Memory)</h3>
+        <div style="color:#d1fae5; font-size:0.9rem;">
+            Real-time WhatsApp Web Channel Listener &bull; Natural Language Hinglish/Urdu AI Parsing &bull; Persistent Symbol Setup Memory Across Days &bull; Strict SL/TP Safety Gates &bull; MT5 Auto-Execution
+        </div>
+    </div>
+    """)
+
+    # ── 1. Top Control Bar: Status, Start/Stop Listener, Desktop Login, QR Refresh ─
+    top_c1, top_c2, top_c3, top_c4 = st.columns([1.5, 1.2, 1.2, 1.1])
+    with top_c1:
+        if status_str == "CONNECTED":
+            chan_name = state.get("connected_channel") or settings.get("selected_channel", "Channel")
+            st.markdown(f"##### Status: <span style='background:#064e3b;color:#34d399;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #059669;'>🟢 CONNECTED</span> <span style='color:#a1a1aa;font-size:0.85rem;'>({html.escape(chan_name[:25])})</span>", unsafe_allow_html=True)
+        elif status_str == "AUTHENTICATED":
+            st.markdown("##### Status: <span style='background:#064e3b;color:#34d399;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #059669;'>🟢 AUTHENTICATED (Ready to Start)</span>", unsafe_allow_html=True)
+        elif status_str == "AWAITING_DESKTOP_LOGIN":
+            st.markdown("##### Status: <span style='background:#1e3a8a;color:#93c5fd;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #3b82f6;'>🔵 DESKTOP LOGIN WINDOW OPEN</span>", unsafe_allow_html=True)
+        elif status_str == "AWAITING_QR_SCAN":
+            st.markdown("##### Status: <span style='background:#78350f;color:#fde047;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #b45309;'>🟡 AWAITING QR SCAN (Scan with Phone)</span>", unsafe_allow_html=True)
+        elif "ERROR" in status_str:
+            st.markdown(f"##### Status: <span style='background:#7f1d1d;color:#f87171;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #ef4444;'>🔴 {html.escape(status_str[:25])}</span>", unsafe_allow_html=True)
+        else:
+            st.markdown("##### Status: <span style='background:#3f3f46;color:#e4e4e7;padding:4px 10px;border-radius:8px;font-weight:bold;border:1px solid #71717a;'>⚪ DISCONNECTED / STOPPED</span>", unsafe_allow_html=True)
+
+    with top_c2:
+        if is_worker_running:
+            if st.button("⏹️ STOP LISTENER", key="btn_stop_whatsapp_listener", type="secondary", use_container_width=True):
+                engine.stop()
+                st.toast("⏹️ WhatsApp Listener Stopped!", icon="🛑")
+                st.rerun(scope="fragment")
+        else:
+            if st.button("▶️ START WHATSAPP WEB", key="btn_start_whatsapp_listener", type="primary", use_container_width=True):
+                engine.start()
+                st.toast("🚀 WhatsApp Web launching in background...", icon="📲")
+                st.rerun(scope="fragment")
+
+    with top_c3:
+        if st.button("🖥️ LOGIN VIA DESKTOP", key="btn_desktop_whatsapp_login", type="secondary", use_container_width=True, help="Opens a genuine desktop Chrome window on your screen to scan WhatsApp QR code with zero lag and 100% reliability."):
+            res = engine.open_desktop_login_window()
+            if res.get("success"):
+                st.toast("🖥️ WhatsApp Login Window opened on desktop! Scan there with phone.", icon="🚀")
+            else:
+                st.error(f"Could not open desktop login: {res.get('error')}")
+            st.rerun(scope="fragment")
+
+    with top_c4:
+        if st.button("🔄 REFRESH STATUS", key="btn_refresh_whatsapp_status", use_container_width=True):
+            st.rerun(scope="fragment")
+
+    # ── 2. QR Code Login Section (Rendered when awaiting scan) ───────────────
+    if (os.path.exists(QR_IMAGE_PATH) and status_str == "AWAITING_QR_SCAN") or status_str == "AWAITING_DESKTOP_LOGIN":
+        st.markdown("---")
+        qr_col1, qr_col2 = st.columns([1.3, 2.0])
+        with qr_col1:
+            qr_b64 = ""
+            if os.path.exists(QR_IMAGE_PATH):
+                try:
+                    import base64
+                    with open(QR_IMAGE_PATH, "rb") as f:
+                        qr_b64 = base64.b64encode(f.read()).decode("utf-8")
+                except Exception:
+                    pass
+
+            if qr_b64:
+                qr_updated = state.get("qr_updated_at", "")
+                time_str = f"Live Auto-Refresh: {qr_updated[11:19]} UTC" if len(qr_updated) >= 19 else "Live Auto-Refreshing"
+                render_html(f"""
+                <div style="text-align: center; margin-bottom: 8px;">
+                    <div style="background: #ffffff; padding: 16px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 14px rgba(0,0,0,0.5);">
+                        <img src="data:image/png;base64,{qr_b64}" width="260" height="260" style="display: block; margin: 0 auto; image-rendering: -webkit-optimize-contrast;" />
+                        <div style="color: #09090b; font-size: 0.76rem; font-weight: bold; margin-top: 6px; letter-spacing: 0.5px;">
+                            HIGH-RES LIVE QR CODE
+                        </div>
+                    </div>
+                    <div style="color: #a1a1aa; font-size: 0.8rem; margin-top: 6px;">⚡ {time_str}</div>
+                </div>
+                """)
+            else:
+                st.info("⌛ Generating fresh high-res QR code... Click 'REFRESH STATUS' in a few seconds.")
+
+        with qr_col2:
+            render_html("""
+            <div style="background:#18181b; border:1px solid #3f3f46; border-radius:10px; padding:16px;">
+                <h4 style="color:#fde047; margin-top:0;">📲 WhatsApp Linked Device Setup</h4>
+                <ol style="color:#d4d4d8; font-size:0.93rem; line-height:1.7; margin-bottom:10px;">
+                    <li>Apne mobile phone par <b>WhatsApp</b> open karein.</li>
+                    <li><b>Settings</b> (ya 3 dots) &rarr; <b>Linked Devices</b> par tap karein.</li>
+                    <li><b>Link a Device</b> dabayein aur camera is QR code par point karein.</li>
+                </ol>
+                <div style="background:#1e1b4b; border-left:4px solid #6366f1; padding:10px 12px; border-radius:4px; font-size:0.86rem; color:#e0e7ff; margin-bottom:10px;">
+                    <b>💡 Best & Most Reliable Option:</b><br/>
+                    Agar mobile camera screen se QR scan karne mein "Invalid" bole, toh upar diye gaye <b>'🖥️ LOGIN VIA DESKTOP'</b> button par click karein. Yeh direct Google Chrome window open karega jahan 1 second mein bina kisi camera issue ke scan ho jata hai.
+                </div>
+                <div style="background:#092e20; border-left:4px solid #10b981; padding:8px 12px; border-radius:4px; font-size:0.84rem; color:#a7f3d0;">
+                    🔒 <b>Zero Ban Risk:</b> Yeh official WhatsApp Web session use karta hai. Aik dafa login hone ke baad session permanently save ho jata hai taake dobara scan na karna paday.
+                </div>
+            </div>
+            """)
+        st.markdown("---")
+
+    # ── 3. Strategy & Risk Configuration Controls (Customizers) ───────────────
+    st.markdown("##### 🎛️ WhatsApp Signal Engine Strategy & Risk Controls:")
+    cfg_row1_c1, cfg_row1_c2 = st.columns([2.1, 1.5])
+    with cfg_row1_c1:
+        followed_channels = state.get("followed_channels", [])
+        saved_channel = settings.get("selected_channel", "Tradingpapa.com forex (gold and silver)")
+
+        # Prepare selectbox options from followed channels
+        channel_options = []
+        if followed_channels:
+            channel_options.extend(followed_channels)
+        if "Tradingpapa.com forex (gold and silver)" not in channel_options:
+            channel_options.append("Tradingpapa.com forex (gold and silver)")
+        if saved_channel and saved_channel not in channel_options:
+            channel_options.append(saved_channel)
+        
+        custom_opt = "✏️ Custom / Other Channel (Manual Input)"
+        channel_options.append(custom_opt)
+
+        # Deduplicate while preserving order
+        seen_chans = set()
+        dedup_chans = []
+        for ch in channel_options:
+            if ch not in seen_chans:
+                seen_chans.add(ch)
+                dedup_chans.append(ch)
+
+        curr_idx = dedup_chans.index(saved_channel) if saved_channel in dedup_chans else 0
+
+        sel_c1, sel_c2 = st.columns([2.4, 1.1])
+        with sel_c1:
+            chosen_channel = st.selectbox(
+                "🎯 Target WhatsApp Channel to Track:",
+                options=dedup_chans,
+                index=curr_idx,
+                key="wapp_cfg_target_channel_select",
+                help="Select from followed channels fetched directly from your WhatsApp account, or enter a custom name."
+            )
+        with sel_c2:
+            st.write("")
+            st.write("")
+            if st.button("🔄 Sync Channels", key="btn_sync_followed_channels", use_container_width=True, help="Scan WhatsApp Web and update all followed channels"):
+                res = engine.request_channel_sync()
+                st.toast("🔄 Scanning WhatsApp Web for followed channels...", icon="📲")
+                st.rerun(scope="fragment")
+
+        if chosen_channel == custom_opt:
+            target_channel_cfg = st.text_input(
+                "Enter Exact Channel Name:",
+                value=saved_channel if saved_channel not in followed_channels else "",
+                key="wapp_cfg_custom_channel_name"
+            ).strip() or "Tradingpapa.com forex (gold and silver)"
+        else:
+            target_channel_cfg = chosen_channel
+
+    with cfg_row1_c2:
+        gemini_key_cfg = st.text_input(
+            "🔑 Google Gemini API Key (Free Tier Supported):",
+            value=settings.get("gemini_api_key", ""),
+            type="password",
+            key="wapp_cfg_gemini_key",
+            help="Free Gemini API Key from Google AI Studio (15 RPM / 1,500 RPD). If blank, built-in intelligent heuristic parser activates as fallback."
+        )
+
+    cfg_row2_c1, cfg_row2_c2, cfg_row2_c3, cfg_row2_c4 = st.columns([1.1, 1.1, 1.1, 1.2])
+    with cfg_row2_c1:
+        max_risk_usd_cfg = st.number_input(
+            "🛡️ Max Risk Cap ($ USD):",
+            min_value=0.0,
+            max_value=2000.0,
+            value=float(settings.get("max_dollar_risk", 50.0)),
+            step=5.0,
+            key="wapp_cfg_max_risk_usd",
+            help="Maximum allowable dollar loss for a signal trade. If actual stop-loss risk exceeds this cap, lot is auto-scaled down or trade is skipped."
+        )
+
+    with cfg_row2_c2:
+        lot_size_cfg = st.number_input(
+            "📦 Batch Lot Size:",
+            min_value=0.01,
+            max_value=20.0,
+            value=float(settings.get("batch_lot_size", 0.05)),
+            step=0.01,
+            format="%.2f",
+            key="wapp_cfg_lot_size",
+            help="Volume per trade batch allocated to the signal order."
+        )
+
+    with cfg_row2_c3:
+        max_trades_cfg = st.number_input(
+            "🔒 Max Active Trades:",
+            min_value=1,
+            max_value=50,
+            value=int(settings.get("max_active_signal_trades", 5)),
+            step=1,
+            key="wapp_cfg_max_active_trades",
+            help="Maximum concurrent signal trades open simultaneously."
+        )
+
+    with cfg_row2_c4:
+        st.write("")
+        st.write("")
+        auto_be_cfg = st.toggle(
+            "⚡ Auto-BE on TP1",
+            value=bool(settings.get("auto_be_on_tp1", True)),
+            key="wapp_cfg_auto_be",
+            help="Automatically move Stop Loss to Breakeven once TP1 is fulfilled."
+        )
+
+    # Persist settings if changed
+    settings_changed = (
+        target_channel_cfg != settings.get("selected_channel")
+        or gemini_key_cfg != settings.get("gemini_api_key")
+        or max_risk_usd_cfg != settings.get("max_dollar_risk")
+        or abs(lot_size_cfg - float(settings.get("batch_lot_size", 0.05))) > 1e-4
+        or max_trades_cfg != settings.get("max_active_signal_trades")
+        or auto_be_cfg != settings.get("auto_be_on_tp1", True)
+    )
+    if settings_changed:
+        old_channel = settings.get("selected_channel")
+        settings["selected_channel"] = target_channel_cfg
+        settings["gemini_api_key"] = gemini_key_cfg
+        settings["max_dollar_risk"] = max_risk_usd_cfg
+        settings["batch_lot_size"] = round(lot_size_cfg, 2)
+        settings["max_active_signal_trades"] = max_trades_cfg
+        settings["auto_be_on_tp1"] = auto_be_cfg
+        engine.executor.save_settings(settings)
+        engine._sync_settings()
+        if old_channel != target_channel_cfg:
+            engine.switch_channel(target_channel_cfg)
+        st.toast("⚙️ WhatsApp Signal Controls Updated & Synced!", icon="✅")
+
+    # ── 4. Manual Signal Simulator / Ingestion Box ─────────────────────────────
+    with st.expander("🧪 Test Signal Message Parser & Execution (Simulate Channel Message)", expanded=False):
+        st.caption("Paste any raw unformatted message from WhatsApp to see how the AI parses it, resolves quoted replies, checks persistent setups, and validates the strict SL/TP safety gate:")
+        test_msg_input = st.text_area(
+            "Signal Message:",
+            placeholder="e.g. BTC trade active now\nor\nUS100 mein enter ho jao sabhi Short ki side\nor\nTP2 book karlo sabhi 95% position ko",
+            key="wapp_test_signal_textarea",
+            height=85
+        )
+        test_quoted_input = st.text_input(
+            "💬 Quoted / Replied-To Message (Optional - if admin replied to a setup):",
+            placeholder="e.g. BTC Short Entry 65000 SL 66000 TP 63000 (Enter after confirmation)",
+            key="wapp_test_quoted_input"
+        )
+        if st.button("🚀 Parse & Execute Signal Now", key="btn_run_test_signal", type="primary"):
+            if test_msg_input.strip():
+                with st.spinner("AI analyzing message context, thread replies & checking safety gates..."):
+                    q_text = test_quoted_input.strip() if test_quoted_input.strip() else None
+                    res = engine.process_message_now(test_msg_input.strip(), quoted_text=q_text)
+                    p = res.get("parsed", {})
+                    ex = res.get("execution", {})
+                    if p.get("action") == "BLOCKED":
+                        st.error(f"🛑 **TRADE BLOCKED BY STRICT SAFETY GATE**: {p.get('blocked_reason')}")
+                    elif res.get("success"):
+                        st.success(f"✅ **Signal Executed**: Action: `{p.get('action')}` | Symbol: `{p.get('symbol')}` | Status: `{ex.get('status')}`")
+                    else:
+                        st.info(f"ℹ️ **Signal Processed**: Action: `{p.get('action')}` | Details: `{ex.get('details', p.get('explanation'))}`")
+            else:
+                st.warning("Please enter a signal message to test.")
+
+    # ── 5. Persistent Symbol Setup Memory Inspector ───────────────────────────
+    st.markdown("##### 💾 Persistent Symbol Setup Memory (Across Hours/Days):")
+    cached_setups = engine.parser.setups_cache
+    if cached_setups:
+        setup_cards = []
+        for sym, s_data in cached_setups.items():
+            setup_cards.append(f"""
+            <div style="background:#18181b; border:1px solid #27272a; border-left:4px solid #3b82f6; border-radius:8px; padding:10px 14px; margin-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <b style="color:#60a5fa; font-size:1.05rem;">{html.escape(sym)} ({html.escape(str(s_data.get('action', 'TRADE')))})</b>
+                    <span style="color:#71717a; font-size:0.8rem;">Saved: {html.escape(str(s_data.get('updated_at', 'Recently'))[:19])}</span>
+                </div>
+                <div style="color:#d4d4d8; font-size:0.88rem; margin-top:4px;">
+                    <b>Entry:</b> {s_data.get('entry')} | <b style="color:#f87171;">SL:</b> {s_data.get('stop_loss')} | <b style="color:#34d399;">TP1:</b> {s_data.get('tp1')} | <b style="color:#34d399;">TP2:</b> {s_data.get('tp2')}
+                </div>
+            </div>
+            """)
+        render_html("".join(setup_cards))
+    else:
+        st.caption("No persistent setups currently stored in memory. When the channel posts entry/SL/TP levels, they will automatically be cached here.")
+
+    # ── 6. Live Activity Log Feed (Atomic HTML Block compliant with Rule 3) ───
+    st.markdown("##### 📜 Real-Time WhatsApp Signal Feed & Execution Log:")
+    activity_logs = state.get("activity_log", [])
+
+    if activity_logs:
+        rows = []
+        for log in activity_logs[:20]:
+            action_col = log.get("action", "-")
+            status_col = log.get("status", "-")
+            badge_color = "#10b981" if "EXECUTED" in status_col or "BOOKED" in status_col else ("#ef4444" if "REJECTED" in status_col or "BLOCKED" in action_col else "#f59e0b")
+            rows.append(f"""
+            <tr style="border-bottom: 1px solid #27272a; font-size: 0.88rem;">
+                <td style="padding: 8px 10px; color: #a1a1aa; white-space: nowrap;">{html.escape(str(log.get('timestamp', '')))}</td>
+                <td style="padding: 8px 10px; font-weight: bold; color: #ffffff;">{html.escape(str(log.get('symbol', '-')))}</td>
+                <td style="padding: 8px 10px;"><span style="background:#27272a; color:#e4e4e7; padding:2px 8px; border-radius:4px; font-weight:600;">{html.escape(str(action_col))}</span></td>
+                <td style="padding: 8px 10px;"><span style="color:{badge_color}; font-weight:bold;">{html.escape(str(status_col))}</span></td>
+                <td style="padding: 8px 10px; color: #d4d4d8;">{html.escape(str(log.get('details', '-')))}</td>
+                <td style="padding: 8px 10px; color: #71717a; font-style:italic; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{html.escape(str(log.get('raw_message', '')))}</td>
+            </tr>
+            """)
+
+        table_html = f"""
+        <div style="overflow-x:auto; border: 1px solid #27272a; border-radius: 8px; background: #09090b;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="background: #18181b; border-bottom: 1px solid #27272a; color: #a1a1aa; font-size: 0.82rem;">
+                        <th style="padding: 8px 10px;">TIME</th>
+                        <th style="padding: 8px 10px;">SYMBOL</th>
+                        <th style="padding: 8px 10px;">ACTION</th>
+                        <th style="padding: 8px 10px;">STATUS</th>
+                        <th style="padding: 8px 10px;">DETAILS</th>
+                        <th style="padding: 8px 10px;">RAW MESSAGE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(rows)}
+                </tbody>
+            </table>
+        </div>
+        """
+        render_html(table_html)
+    else:
+        st.caption("No WhatsApp signal activity logged yet. Connect to WhatsApp or run a test signal above.")
+
 def render_mt5_position_tracker():
     st.divider()
     st.subheader("📊 Exness MT5 Live Trade Tracker & History")
@@ -3036,6 +3386,7 @@ def render_mt5_position_tracker():
             "🟢 Active Open Positions", 
             "📜 Closed Trades History (7 Days)",
             "🤖 Autonomous 5/5 Pillar Scanner & AI Journal",
+            "📱 WhatsApp AI Signal Auto-Trader",
             "🧪 Dedicated MT5 Multi-TF Backtesting Engine"
         ],
         horizontal=True,
@@ -3049,6 +3400,8 @@ def render_mt5_position_tracker():
         render_mt5_closed_history_view(live_exec)
     elif "Autonomous" in selected_tracker_tab:
         render_mt5_autonomous_engine_view(live_exec)
+    elif "WhatsApp" in selected_tracker_tab:
+        render_whatsapp_signal_engine_view(live_exec)
     else:
         render_mt5_backtest_engine_view()
 

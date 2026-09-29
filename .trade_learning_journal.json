@@ -289,7 +289,8 @@
     "On XAG/USD (15m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On ETH/USD (4h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
     "On XAG/USD (30m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
-    "On ETH/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
+    "On ETH/USD (5m): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks.",
+    "On USD/CHF (4h): Stop loss triggered. Buffer refined to prevent liquidity hunt wicks."
   ],
   "sl_post_mortems": [
     {
@@ -3191,10 +3192,20 @@
       "sl": 2662.70582,
       "loss_usd": 0.53,
       "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
+    },
+    {
+      "timestamp": "2026-09-29T06:03:26.309449+00:00",
+      "symbol": "USD/CHF",
+      "timeframe": "4h",
+      "action": "BUY",
+      "entry": 0.83354,
+      "sl": 0.82992,
+      "loss_usd": 13.6,
+      "action_taken": "Reinforced entry confluence filter and expanded wick breathing room."
     }
   ],
   "optimal_adjustments": {
     "min_confluence_score": 35.0,
-    "min_calibrated_prob": 84.5
+    "min_calibrated_prob": 84.0
   }
 }

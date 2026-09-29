@@ -1,0 +1,80 @@
+{
+  "status": "CONNECTED",
+  "active_signal_trades": {},
+  "activity_log": [
+    {
+      "action": "BLOCKED",
+      "symbol": "EURGBP",
+      "status": "REJECTED (Missing SL/TP)",
+      "details": "STRICT SAFETY GATE: Missing Stop-Loss (SL) or Take-Profit (TP). Trade execution blocked.",
+      "raw_message": "EURGBP enter ho jao buy",
+      "timestamp": "07:41:19 UTC"
+    }
+  ],
+  "last_message_processed": {
+    "text": "EURGBP enter ho jao buy",
+    "parsed": {
+      "is_actionable": false,
+      "action": "BLOCKED",
+      "symbol": "EURGBP",
+      "direction": "BUY",
+      "explanation": "Trigger execution on EURGBP BUY",
+      "safety_gate_passed": false,
+      "blocked_reason": "STRICT SAFETY GATE: Missing Stop-Loss (SL) or Take-Profit (TP). Trade execution blocked."
+    },
+    "result": {
+      "success": false,
+      "status": "BLOCKED",
+      "reason": "STRICT SAFETY GATE: Missing Stop-Loss (SL) or Take-Profit (TP). Trade execution blocked."
+    },
+    "timestamp": "07:41:19 UTC"
+  },
+  "connected_channel": "Tradingpapa.com forex (gold and silver)",
+  "qr_updated_at": "2026-09-29T09:29:10.974570+00:00",
+  "followed_channels": [
+    "Tradingpapa.com forex (gold and silver)",
+    "SBC BOT-COPY TRADING \u2708\ufe0f\ud83e\udd16",
+    "(You)",
+    "1 unread message",
+    "11 unread messages",
+    "18 unread messages",
+    "2 unread messages",
+    "2026 Scholarship Aspirant iCodeGuru",
+    "2026-1 Scholarship Aspirants",
+    "5 unread messages",
+    "54 unread messages",
+    "62 unread messages",
+    "8 unread messages",
+    "9 unread messages",
+    "@ramish_masood",
+    "Adil Uni",
+    "Ai web 3.0 Group",
+    "Archived",
+    "Artificial Intelligence web 3.0 (Boys Group)",
+    "Bazaar",
+    "Code with Subhan (GIAIC Edition)",
+    "Friday Evening 6-9",
+    "GIAIC All Slots Discussion",
+    "Gulistan -e- Johar",
+    "IMPACT Stock Master PSX",
+    "Kamran Bhai Office",
+    "Mama",
+    "Masood family",
+    "Quarter 05",
+    "Scholarship Vault",
+    "SECTION A (Tuesday 07:00PM to 10:00PM) GIAIC Student Q3",
+    "SUNDAY 2 TO 5 ( SIR ANAS & SIR HAMZA)",
+    "Teeeedal IT",
+    "We 3 \ud83d\udca5",
+    "\u202a+92 325 3355815 added \u202c",
+    "\u202a+92 335 2276668 added \u202c",
+    "\u202aDarul sehet and online available\u202c",
+    "\u202ahttps://lnkd.in/p/dqNBC97N\u202c",
+    "\u202aLaooo LOTTE \ud83d\udd25\ud83d\ude80\n\nLOTCHEM shoots 27+ \ud83d\udcc8\u202c",
+    "\u202aPhoto\u202c",
+    "\u202aProfessor/Course Instructor\u202c",
+    "\u202astart ke 40sec mai hi mil jayega wo masla\u202c",
+    "\u202aTrap kese hote pehle btate to\u202c",
+    "\u202aVideo\u202c"
+  ]
+}

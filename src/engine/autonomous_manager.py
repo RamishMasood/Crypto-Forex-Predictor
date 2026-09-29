@@ -1380,6 +1380,13 @@ class AutonomousTraderEngine:
                     # Ignore positions opened before the latest system reset
                     if reset_at_ts is not None and getattr(p, 'time', 0) < reset_at_ts:
                         continue
+
+                    # HARD ISOLATION GUARD: Strictly ignore WhatsApp Signal trades (Magic 777666 or WAPP_ prefix)
+                    p_magic = getattr(p, 'magic', 0)
+                    p_cmt = str(getattr(p, 'comment', ''))
+                    if p_magic == 777666 or p_cmt.startswith('WAPP'):
+                        continue
+
                     if getattr(p, 'magic', 0) == self.executor.MAGIC_NUMBER or 'QS_' in str(getattr(p, 'comment', '')):
                         cmt = str(getattr(p, 'comment', ''))
                         pos_batch = None
