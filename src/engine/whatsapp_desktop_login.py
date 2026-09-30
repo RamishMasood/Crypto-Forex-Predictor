@@ -71,6 +71,7 @@ def run_desktop_login():
     os.makedirs(SESSION_DIR, exist_ok=True)
 
     with sync_playwright() as p:
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
         browser_args = [
             "--no-sandbox",
             "--disable-blink-features=AutomationControlled",
@@ -78,15 +79,38 @@ def run_desktop_login():
             "--disable-dev-shm-usage",
             "--no-first-run",
             "--no-default-browser-check",
-            "--window-size=1100,800"
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+            "--window-size=1280,850"
         ]
 
         ctx = p.chromium.launch_persistent_context(
             user_data_dir=SESSION_DIR,
             headless=False,
+            user_agent=user_agent,
             args=browser_args,
-            viewport={"width": 1100, "height": 800}
+            viewport={"width": 1280, "height": 850}
         )
+
+        # Mask webdriver and inject modern Chrome 133 Client Hints
+        ctx.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            if (!navigator.userAgentData) {
+                navigator.userAgentData = {
+                    brands: [
+                        { brand: 'Not(A:Brand', version: '99' },
+                        { brand: 'Google Chrome', version: '133' },
+                        { brand: 'Chromium', version: '133' }
+                    ],
+                    mobile: false,
+                    platform: 'Windows'
+                };
+            }
+            window.navigator.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+        """)
 
         try:
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
@@ -103,14 +127,62 @@ def run_desktop_login():
 
             # Wait up to 180 seconds (3 minutes) for user to scan
             for _ in range(120):
-                # Check if authenticated
-                if page.locator("div#pane-side, div[data-testid='chat-list'], header").count() > 0:
+                # 1. Multi-attribute check for authenticated state
+                is_auth = False
+                try:
+                    is_auth = page.evaluate("""() => Boolean(
+                        document.querySelector('div#pane-side') ||
+                        document.querySelector('header') ||
+                        document.querySelector('[data-testid="chat-list"]') ||
+                        document.querySelector('[data-testid="conversation-panel-wrapper"]') ||
+                        (window.localStorage && (window.localStorage.getItem('last-wid') || window.localStorage.getItem('last-wid-md')))
+                    )""")
+                except Exception:
+                    pass
+
+                if is_auth:
                     logged_in = True
                     break
 
+                # 2. Check if phone scanned and connecting / syncing messages
+                is_connecting = False
+                try:
+                    is_connecting = page.evaluate("""() => {
+                        const text = document.body ? document.body.innerText : '';
+                        return Boolean(
+                            document.querySelector('[data-icon="connecting"]') ||
+                            document.querySelector('div[role="progressbar"]') ||
+                            document.querySelector('progress') ||
+                            text.includes('Loading your chats') ||
+                            text.includes('Organizing messages') ||
+                            text.includes('Connecting')
+                        );
+                    }""")
+                except Exception:
+                    pass
+
+                if is_connecting:
+                    if os.path.exists(STATE_FILE):
+                        try:
+                            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                                s = json.load(f)
+                            if s.get("status") != "CONNECTING":
+                                s["status"] = "CONNECTING"
+                                with open(STATE_FILE, "w", encoding="utf-8") as f:
+                                    json.dump(s, f, indent=2, ensure_ascii=False)
+                        except Exception:
+                            pass
+                    if os.path.exists(QR_IMAGE_PATH):
+                        try:
+                            os.remove(QR_IMAGE_PATH)
+                        except Exception:
+                            pass
+                    time.sleep(1.5)
+                    continue
+
                 # Auto-click reload button if QR expired
                 try:
-                    reload_btn = page.locator("button:has-text('Reload'), [role='button']:has-text('Reload'), span[data-icon='reload'], span[data-icon='refresh'], div[data-ref] button, div._akav button").first
+                    reload_btn = page.locator("button:has-text('Reload'), [role='button']:has-text('Reload'), span[data-icon='reload'], span[data-icon='refresh'], div[data-testid='link-device-qr-code'] button, div[data-ref] button").first
                     if reload_btn.count() > 0 and reload_btn.is_visible():
                         reload_btn.click()
                         time.sleep(1.0)
@@ -118,39 +190,22 @@ def run_desktop_login():
                     pass
 
                 # Save fresh QR screenshot for Streamlit UI sync
-                captured = False
                 try:
-                    canvas_elem = page.locator("canvas[aria-label*='Scan'], div[data-ref] canvas, div[data-testid='qrcode'] canvas, canvas").first
-                    if canvas_elem.count() > 0 and canvas_elem.is_visible():
-                        box = canvas_elem.bounding_box()
-                        if box and box.get("width", 0) > 50:
-                            canvas_elem.screenshot(path=QR_IMAGE_PATH)
-                            captured = True
+                    qr_box = page.locator("div[data-testid='link-device-qr-code'], div[data-testid='link-device-qr-code'] canvas, canvas").first
+                    if qr_box.count() > 0 and qr_box.is_visible():
+                        box = qr_box.bounding_box()
+                        if box and box.get("width", 0) > 60:
+                            qr_box.screenshot(path=QR_IMAGE_PATH)
                             if os.path.exists(STATE_FILE):
                                 with open(STATE_FILE, "r", encoding="utf-8") as f:
                                     s = json.load(f)
                                 s["qr_updated_at"] = datetime.now(timezone.utc).isoformat()
-                                if s.get("status") not in ["AUTHENTICATED", "CONNECTED"]:
+                                if s.get("status") not in ["AUTHENTICATED", "CONNECTED", "CONNECTING"]:
                                     s["status"] = "AWAITING_QR_SCAN"
                                 with open(STATE_FILE, "w", encoding="utf-8") as f:
                                     json.dump(s, f, indent=2, ensure_ascii=False)
                 except Exception:
                     pass
-
-                if not captured:
-                    spinner_cycles += 1
-                    # If spinner is stuck for ~15 seconds without a QR canvas, reload once to unstick WebSocket
-                    if spinner_cycles >= 10 and not reloaded:
-                        logger.info("WhatsApp Web loading spinner held. Refreshing page...")
-                        reloaded = True
-                        try:
-                            page.reload(wait_until="domcontentloaded")
-                        except Exception:
-                            pass
-                        time.sleep(2.0)
-                        spinner_cycles = 0
-                else:
-                    spinner_cycles = 0
 
                 time.sleep(1.5)
 

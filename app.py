@@ -13,6 +13,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 
+try:
+    from src.utils.env_loader import load_env
+    load_env()
+except Exception:
+    pass
+
 import streamlit as st
 
 st.set_page_config(
@@ -3206,10 +3212,16 @@ def render_whatsapp_signal_engine_view(live_exec):
 
         curr_idx = 0
         for i, opt in enumerate(dedup_chans):
-            opt_clean = opt.replace("📢 ", "").replace("👥 ", "").strip()
-            if opt_clean == clean_saved or opt == saved_channel:
+            if opt == saved_channel:
                 curr_idx = i
                 break
+            opt_clean = opt.replace("📢 ", "").replace("👥 ", "").strip()
+            if opt_clean == clean_saved or opt_clean.lower() == clean_saved.lower():
+                curr_idx = i
+                break
+
+        if state.get("is_syncing_channels"):
+            st.info("⏳ WhatsApp Web se Channels (📢) aur Groups (👥) scan ho rahay hain... Page update hotay hi dropdown refresh hojaega.")
 
         sel_c1, sel_c2 = st.columns([2.4, 1.1])
         with sel_c1:
@@ -3226,7 +3238,7 @@ def render_whatsapp_signal_engine_view(live_exec):
             if st.button("🔄 Sync Channels", key="btn_sync_followed_channels", use_container_width=True, help="Scan WhatsApp Web and update both Channels and Groups"):
                 res = engine.request_channel_sync()
                 st.toast("🔄 Scanning WhatsApp for Channels & Groups...", icon="📲")
-                st.rerun(scope="fragment")
+                st.rerun()
 
         if chosen_channel == custom_opt:
             target_channel_cfg = st.text_input(
@@ -3235,14 +3247,24 @@ def render_whatsapp_signal_engine_view(live_exec):
                 key="wapp_cfg_custom_channel_name"
             ).strip() or "Tradingpapa.com forex (gold and silver)"
         else:
-            target_channel_cfg = chosen_channel.replace("📢 ", "").replace("👥 ", "").strip()
+            # Always strip emoji prefix – store only the clean name so worker matches correctly
+            target_channel_cfg = (
+                chosen_channel
+                .replace("📢 [Channel] ", "")
+                .replace("👥 [Group] ", "")
+                .replace("📢 ", "")
+                .replace("👥 ", "")
+                .strip()
+            )
 
-        st.caption("✨ **Channels (📢)** aur **Groups (👥)** dono live WhatsApp account se synced hain.")
+        chan_count = len(followed_channels)
+        grp_count = len(followed_groups)
+        st.caption(f"✨ **{chan_count} Channels (📢)** aur **{grp_count} Groups (👥)** live WhatsApp account se synced hain.")
 
     with cfg_row1_c2:
         gemini_key_cfg = st.text_input(
             "🔑 Google Gemini API Key (Free Tier Supported):",
-            value=settings.get("gemini_api_key", ""),
+            value=settings.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", ""),
             type="password",
             key="wapp_cfg_gemini_key",
             help="Free Gemini API Key from Google AI Studio (15 RPM / 1,500 RPD). If blank, built-in intelligent heuristic parser activates as fallback."

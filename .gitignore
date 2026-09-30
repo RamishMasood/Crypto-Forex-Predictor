@@ -1,9 +1,50 @@
-﻿__pycache__/
-*.pyc
+# ==============================================================================
+# Python & Bytecode
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# ==============================================================================
+# Environment Variables & Secrets
+# ==============================================================================
 .env
 .env.*
-test_err.log
+!.env.example
+
+# ==============================================================================
+# WhatsApp Web Sessions, Tokens, Media & Runtime State
+# (Keeps user accounts, credentials, and live caches strictly private)
+# ==============================================================================
+.whatsapp_web_session/
+.whatsapp_test_session*/
+.whatsapp_test_qr_session*/
+.whatsapp_media/
+.whatsapp_qr.png
+.whatsapp_signal_state.json
+.whatsapp_pending_setups.json
+
+# ==============================================================================
+# Scratch, Debug Logs & Temporary Testing Files
+# ==============================================================================
+scratch/
+scratch_*
 *.log
+test_err.log
+
+# ==============================================================================
+# Build & Packaging Artifacts
+# ==============================================================================
 build/
 dist/
 packaging/quant_terminal.ico
+*.spec
+
+# ==============================================================================
+# OS Generated Files
+# ==============================================================================
+Thumbs.db
+Desktop.ini
+.DS_Store

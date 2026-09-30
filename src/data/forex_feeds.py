@@ -17,6 +17,12 @@ import yfinance as yf
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
+try:
+    from src.utils.env_loader import load_env
+    load_env()
+except Exception:
+    pass
+
 FOREX_PAIRS_MAP = {
     'EUR/USD': 'EURUSD=X',
     'GBP/USD': 'GBPUSD=X',

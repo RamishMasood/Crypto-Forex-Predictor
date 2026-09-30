@@ -12,6 +12,12 @@ from datetime import datetime, timezone
 from src.engine.mt5_executor import MT5TradeExecutor
 from src.data.forex_feeds import MT5ExnessProvider
 
+try:
+    from src.utils.env_loader import load_env
+    load_env()
+except Exception:
+    pass
+
 logger = logging.getLogger("WhatsAppSignalExecutor")
 
 SETTINGS_FILE = ".whatsapp_signal_settings.json"
@@ -44,16 +50,24 @@ class WhatsAppSignalExecutor:
         self.state = self.load_state()
 
     def load_settings(self) -> Dict[str, Any]:
+        res = DEFAULT_SETTINGS.copy()
+        env_key = os.environ.get("GEMINI_API_KEY", "")
+        if env_key:
+            res["gemini_api_key"] = env_key
+
         if os.path.exists(SETTINGS_FILE):
             try:
                 with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    res = DEFAULT_SETTINGS.copy()
                     res.update(data)
-                    return res
             except Exception as e:
                 logger.error(f"Error loading {SETTINGS_FILE}: {e}")
-        return DEFAULT_SETTINGS.copy()
+
+        # If settings had empty key, seamlessly fallback to environment key
+        if not res.get("gemini_api_key") and env_key:
+            res["gemini_api_key"] = env_key
+
+        return res
 
     def save_settings(self, new_settings: Dict[str, Any]):
         try:
@@ -274,13 +288,21 @@ class WhatsAppSignalExecutor:
         # 3. IGNORE / Noise
         if action == "IGNORE":
             expl = parsed.get("explanation", "Non-actionable message")
-            self._append_log({
-                "action": "IGNORE",
-                "symbol": symbol or "-",
-                "status": "IGNORED (Chat/Noise)",
-                "details": expl,
-                "raw_message": raw_message
-            })
+            trading_keywords = [
+                "buy", "sell", "long", "short", "tp", "tp1", "tp2", "tp3", "sl",
+                "entry", "gold", "xau", "btc", "eth", "forex", "crypto", "zone",
+                "pip", "target", "close", "cut", "lot", "leverage", "trade", "signal"
+            ]
+            raw_low = (raw_message or "").lower()
+            # Only append to user-facing activity log if message has trading keywords but was ignored/filtered
+            if any(k in raw_low for k in trading_keywords):
+                self._append_log({
+                    "action": "IGNORE",
+                    "symbol": symbol or "-",
+                    "status": "IGNORED (Noise Filter)",
+                    "details": expl,
+                    "raw_message": raw_message
+                })
             return {"success": True, "status": "IGNORED", "details": expl}
 
         # If blocked by safety gate for live market entry, log and exit

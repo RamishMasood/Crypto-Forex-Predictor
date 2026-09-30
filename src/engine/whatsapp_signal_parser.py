@@ -15,6 +15,12 @@ import subprocess
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
+try:
+    from src.utils.env_loader import load_env
+    load_env()
+except Exception:
+    pass
+
 logger = logging.getLogger("WhatsAppSignalParser")
 
 SETUPS_CACHE_FILE = ".whatsapp_pending_setups.json"

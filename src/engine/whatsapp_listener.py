@@ -5,6 +5,7 @@ monitors selected signal channel, and routes incoming messages to the AI Parser 
 """
 
 import os
+import sys
 import time
 import json
 import logging
@@ -15,6 +16,12 @@ from datetime import datetime, timezone
 from src.engine.whatsapp_signal_parser import WhatsAppSignalParser
 from src.engine.whatsapp_signal_executor import WhatsAppSignalExecutor
 
+try:
+    from src.utils.env_loader import load_env
+    load_env()
+except Exception:
+    pass
+
 logger = logging.getLogger("WhatsAppListener")
 
 SESSION_DIR = ".whatsapp_web_session"
@@ -24,30 +31,40 @@ SETTINGS_FILE = ".whatsapp_signal_settings.json"
 
 def cleanup_orphaned_sessions(session_dir: str = SESSION_DIR):
     """
-    Kills any lingering chrome/playwright processes holding the session directory lock
-    and cleanly removes singleton lock files to guarantee a fast, unblocked start.
+    Kills any lingering chrome, chrome-headless-shell, whatsapp_worker, or whatsapp_desktop_login processes holding
+    the session directory lock and cleanly removes singleton lock files to guarantee a fast, unblocked start.
     """
     try:
         import psutil
-        for p in psutil.process_iter(['pid', 'name']):
+        current_pid = os.getpid()
+        for p in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
+                pid = p.info.get('pid')
+                if pid == current_pid:
+                    continue
                 name = (p.info.get('name') or '').lower()
-                if 'chrome' in name:
-                    cmd = " ".join(p.cmdline() or [])
-                    if session_dir in cmd or 'ms-playwright' in cmd:
-                        p.kill()
+                cmd = ""
+                try:
+                    cmd = " ".join(p.info.get('cmdline') or []).lower()
+                except Exception:
+                    pass
+                if 'whatsapp_worker' in cmd or 'whatsapp_desktop_login' in cmd:
+                    p.kill()
+                elif 'chrome-headless-shell' in name or ('chrome' in name and (session_dir.lower() in cmd or 'ms-playwright' in cmd or 'playwright' in cmd)):
+                    p.kill()
             except Exception:
                 pass
     except Exception:
         pass
 
-    for lock_file in ["SingletonLock", "SingletonCookie", "SingletonSocket"]:
-        lf_path = os.path.join(session_dir, lock_file)
-        if os.path.exists(lf_path):
-            try:
-                os.remove(lf_path)
-            except Exception:
-                pass
+    if os.path.exists(session_dir):
+        for root, dirs, files in os.walk(session_dir):
+            for f in files:
+                if f in ["SingletonLock", "SingletonCookie", "SingletonSocket", "LOCK"] or f.endswith(".lock"):
+                    try:
+                        os.remove(os.path.join(root, f))
+                    except Exception:
+                        pass
 
 class WhatsAppListenerEngine:
     """
@@ -75,38 +92,59 @@ class WhatsAppListenerEngine:
         self.sync_channels_event = threading.Event()
         self.pending_channel_switch: Optional[str] = None
         self.is_syncing_channels = False
-        self.is_running = False
         self.seen_messages = set()
         self.recent_channel_messages: List[str] = []
         self._sync_settings()
 
+    @property
+    def is_running(self) -> bool:
+        if self.worker_process and self.worker_process.poll() is None:
+            return True
+        state = self.executor.load_state()
+        pid = state.get("worker_pid")
+        if pid:
+            try:
+                import psutil
+                if psutil.pid_exists(pid):
+                    p = psutil.Process(pid)
+                    if p.is_running() and p.status() != psutil.STATUS_ZOMBIE:
+                        return True
+            except Exception:
+                pass
+            if sys.platform == "win32":
+                try:
+                    import ctypes
+                    handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, int(pid))
+                    if handle:
+                        code = ctypes.c_ulong()
+                        ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+                        ctypes.windll.kernel32.CloseHandle(handle)
+                        if code.value == 259:
+                            return True
+                except Exception:
+                    pass
+        return False
+
     def request_channel_sync(self) -> Dict[str, Any]:
         """
         Triggers followed channels discovery.
-        If background worker is active, signals live Playwright page.
-        If stopped, launches a brief standalone discovery thread.
+        Signals live worker via state file, or runs brief standalone discovery if stopped.
         """
-        if self.worker_process and self.worker_process.poll() is None:
+        if self.is_running:
             self.sync_channels_event.set()
+            state = self.executor.load_state()
+            state["request_channel_sync"] = True
+            self.executor.save_state(state)
             return {"success": True, "mode": "online", "message": "Channel sync signaled to running listener"}
         else:
-            def _standalone_task():
-                self.is_syncing_channels = True
-                try:
-                    import sys
-                    import asyncio
-                    if sys.platform == 'win32':
-                        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                    self._discover_channels_standalone()
-                except Exception as task_err:
-                    logger.error(f"Error in standalone channel discovery thread: {task_err}")
-                finally:
-                    self.is_syncing_channels = False
-            t = threading.Thread(target=_standalone_task, daemon=True, name="WhatsAppStandaloneChannelSync")
-            t.start()
-            return {"success": True, "mode": "offline", "message": "Offline channel discovery started"}
+            import subprocess
+            import sys
+            sync_script = os.path.join(os.path.dirname(__file__), "whatsapp_standalone_sync.py")
+            subprocess.Popen([sys.executable, "-u", sync_script])
+            state = self.executor.load_state()
+            state["is_syncing_channels"] = True
+            self.executor.save_state(state)
+            return {"success": True, "mode": "standalone", "message": "Offline channel discovery subprocess launched"}
 
     def switch_channel(self, channel_name: str):
         """Switches active channel to monitor."""
@@ -125,8 +163,7 @@ class WhatsAppListenerEngine:
 
     def get_status(self) -> Dict[str, Any]:
         state = self.executor.load_state()
-        is_alive = bool(self.worker_process and self.worker_process.poll() is None)
-        self.is_running = is_alive
+        is_alive = self.is_running
         state["is_worker_running"] = is_alive
         state["has_qr"] = os.path.exists(QR_IMAGE_PATH)
         return state
@@ -134,9 +171,8 @@ class WhatsAppListenerEngine:
     def start(self):
         """Starts dedicated WhatsApp worker subprocess with isolated Proactor loop."""
         with self._lock:
-            if self.worker_process and self.worker_process.poll() is None:
+            if self.is_running:
                 logger.info("WhatsApp worker process is already running.")
-                self.is_running = True
                 return
             self.stop_event.clear()
             self._sync_settings()
@@ -146,7 +182,10 @@ class WhatsAppListenerEngine:
             import sys
             worker_path = os.path.join(os.path.dirname(__file__), "whatsapp_worker.py")
             self.worker_process = subprocess.Popen([sys.executable, "-u", worker_path])
-            self.is_running = True
+            state = self.executor.load_state()
+            state["worker_pid"] = self.worker_process.pid
+            state["status"] = "INITIALIZING"
+            self.executor.save_state(state)
             logger.info(f"WhatsApp worker process started (PID {self.worker_process.pid}).")
 
     def open_desktop_login_window(self) -> Dict[str, Any]:
@@ -155,13 +194,37 @@ class WhatsAppListenerEngine:
         WhatsApp Web QR code directly on their screen with zero latency and automatic refresh.
         """
         self.stop()
-        time.sleep(0.6)
-        self.start()
+        time.sleep(0.8)
+        import subprocess
+        import sys
+        desktop_script = os.path.join(os.path.dirname(__file__), "whatsapp_desktop_login.py")
+        proc = subprocess.Popen([sys.executable, "-u", desktop_script])
+        state = self.executor.load_state()
+        state["desktop_pid"] = proc.pid
+        state["status"] = "AWAITING_DESKTOP_LOGIN"
+        self.executor.save_state(state)
         return {"success": True, "message": "WhatsApp desktop login window launched"}
 
     def stop(self):
         """Stops WhatsApp worker subprocess and cleanly terminates browser sessions."""
         with self._lock:
+            state = self.executor.load_state()
+            for pid_key in ["worker_pid", "desktop_pid"]:
+                pid = state.get(pid_key)
+                if pid:
+                    try:
+                        import psutil
+                        if psutil.pid_exists(pid):
+                            p = psutil.Process(pid)
+                            p.terminate()
+                            p.wait(timeout=2.0)
+                    except Exception:
+                        try:
+                            p.kill()
+                        except Exception:
+                            pass
+                    state[pid_key] = None
+
             if self.worker_process:
                 try:
                     self.worker_process.terminate()
@@ -172,8 +235,7 @@ class WhatsAppListenerEngine:
                     except Exception:
                         pass
                 self.worker_process = None
-            self.is_running = False
-            state = self.executor.load_state()
+
             state["status"] = "STOPPED"
             self.executor.save_state(state)
             logger.info("WhatsApp listener stopping...")
@@ -315,44 +377,56 @@ class WhatsAppListenerEngine:
         4. Updates state with `qr_updated_at` timestamp.
         """
         try:
+            # If already logged in, do not capture QR
+            is_auth = False
+            try:
+                is_auth = page.evaluate("""() => Boolean(
+                    document.querySelector('div#pane-side') ||
+                    document.querySelector('header') ||
+                    document.querySelector('[data-testid="chat-list"]') ||
+                    (window.localStorage && (window.localStorage.getItem('last-wid') || window.localStorage.getItem('last-wid-md')))
+                )""")
+            except Exception:
+                pass
+            if is_auth:
+                return False
+
             # Check for expired QR reload button overlay and auto-click it immediately
             reload_selectors = [
                 "button:has-text('Reload')",
                 "[role='button']:has-text('Reload')",
                 "span[data-icon='reload']",
                 "span[data-icon='refresh']",
-                "button:has-text('reload')",
-                "[role='button']:has-text('reload')",
+                "div[data-testid='link-device-qr-code'] button",
+                "div[data-testid='link-device-qr-code'] [role='button']",
                 "div[data-ref] button",
-                "div[data-ref] [role='button']",
-                "div._akav button",
-                "div._akav [role='button']"
+                "div[data-ref] [role='button']"
             ]
             for sel in reload_selectors:
                 btn = page.locator(sel).first
                 if btn.count() > 0 and btn.is_visible():
                     try:
                         btn.click()
-                        time.sleep(0.6)
+                        time.sleep(0.8)
                         break
                     except Exception:
                         pass
 
             captured = False
-            # Method 1: Capture the exact, crisp live canvas rendered by WhatsApp
-            canvas_elem = page.locator("canvas[aria-label*='Scan'], div[data-ref] canvas, div[data-testid='qrcode'] canvas, canvas").first
-            if canvas_elem.count() > 0 and canvas_elem.is_visible():
-                box = canvas_elem.bounding_box()
-                if box and box.get("width", 0) > 50:
+            # Method 1: Capture the exact, crisp live canvas / QR container rendered by WhatsApp
+            qr_box = page.locator("div[data-testid='link-device-qr-code'], div[data-testid='link-device-qr-code'] canvas, canvas").first
+            if qr_box.count() > 0 and qr_box.is_visible():
+                box = qr_box.bounding_box()
+                if box and box.get("width", 0) > 60:
                     try:
-                        canvas_elem.screenshot(path=QR_IMAGE_PATH)
+                        qr_box.screenshot(path=QR_IMAGE_PATH)
                         captured = True
                     except Exception as c_err:
-                        logger.debug(f"Canvas screenshot error: {c_err}")
+                        logger.debug(f"QR screenshot error: {c_err}")
 
-            # Method 2: If canvas screenshot failed, extract data-ref and generate via qrcode
+            # Method 2: If screenshot failed, extract data-ref and generate via qrcode
             if not captured:
-                data_ref_elem = page.locator("div[data-ref]").first
+                data_ref_elem = page.locator("div[data-testid='link-device-qr-code'], div[data-ref]").first
                 if data_ref_elem.count() > 0:
                     data_ref = data_ref_elem.get_attribute("data-ref")
                     if data_ref and len(data_ref) > 15:
@@ -420,55 +494,118 @@ class WhatsAppListenerEngine:
                 "--window-size=1100,800"
             ]
 
+            user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+            browser_args = [
+                "--no-sandbox",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-infobars",
+                "--disable-dev-shm-usage",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-renderer-backgrounding",
+                "--window-size=1280,850"
+            ]
+
             browser_context = p.chromium.launch_persistent_context(
                 user_data_dir=SESSION_DIR,
-                headless=False,
+                headless=True,
+                user_agent=user_agent,
                 args=browser_args,
-                viewport={"width": 1100, "height": 800}
+                viewport={"width": 1280, "height": 850}
             )
+
+            # Mask webdriver and inject modern Chrome 133 userAgentData
+            browser_context.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                if (!navigator.userAgentData) {
+                    navigator.userAgentData = {
+                        brands: [
+                            { brand: 'Not(A:Brand', version: '99' },
+                            { brand: 'Google Chrome', version: '133' },
+                            { brand: 'Chromium', version: '133' }
+                        ],
+                        mobile: false,
+                        platform: 'Windows'
+                    };
+                }
+                window.navigator.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+            """)
 
             try:
                 page = browser_context.pages[0] if browser_context.pages else browser_context.new_page()
-                page.goto("https://web.whatsapp.com", wait_until="domcontentloaded", timeout=45000)
+                page.goto("https://web.whatsapp.com", wait_until="load", timeout=45000)
 
                 logged_in = False
-                spinner_cycles = 0
-                reloaded = False
 
                 while not self.stop_event.is_set():
-                    # Check if authenticated
-                    if page.locator("div#pane-side, div[data-testid='chat-list']").count() > 0:
+                    # 1. Multi-attribute check for authenticated state
+                    is_authenticated = False
+                    try:
+                        is_authenticated = page.evaluate("""() => Boolean(
+                            document.querySelector('div#pane-side') ||
+                            document.querySelector('header') ||
+                            document.querySelector('[data-testid="chat-list"]') ||
+                            document.querySelector('[data-testid="conversation-panel-wrapper"]') ||
+                            (window.localStorage && (window.localStorage.getItem('last-wid') || window.localStorage.getItem('last-wid-md')))
+                        )""")
+                    except Exception:
+                        pass
+
+                    if is_authenticated:
                         logged_in = True
                         break
 
-                    # Check if phone scanned and connecting
-                    if page.locator("[data-icon='connecting']").count() > 0:
+                    # 2. Capture / refresh live QR code first whenever visible
+                    qr_captured = self._capture_and_generate_qr(page)
+                    if qr_captured:
+                        time.sleep(1.2)
+                        continue
+
+                    # 3. Only if no QR is on screen, check if phone scanned and chats are syncing
+                    is_connecting = False
+                    try:
+                        is_connecting = page.evaluate("""() => {
+                            const hasQr = Boolean(
+                                document.querySelector('canvas') ||
+                                document.querySelector('[data-testid="link-device-qr-code"]') ||
+                                document.querySelector('div[data-ref]')
+                            );
+                            if (hasQr) return false;
+
+                            const text = document.body ? document.body.innerText : '';
+                            return Boolean(
+                                text.includes('Loading your chats') ||
+                                text.includes('Organizing messages') ||
+                                text.includes('Chats loading') ||
+                                document.querySelector('[data-icon="connecting"]') ||
+                                document.querySelector('div[role="progressbar"]') ||
+                                document.querySelector('progress')
+                            );
+                        }""")
+                    except Exception:
+                        pass
+
+                    if is_connecting:
                         state = self.executor.load_state()
                         if state.get("status") != "CONNECTING":
                             state["status"] = "CONNECTING"
                             self.executor.save_state(state)
-
-                    # Capture / refresh live QR canvas
-                    qr_captured = self._capture_and_generate_qr(page)
-                    if not qr_captured:
-                        spinner_cycles += 1
-                        # If loading spinner persists for ~15 seconds without a QR canvas, reload once to unstick WebSocket
-                        if spinner_cycles >= 10 and not reloaded:
-                            logger.info("WhatsApp Web loading spinner held. Refreshing page...")
-                            reloaded = True
+                        if os.path.exists(QR_IMAGE_PATH):
                             try:
-                                page.reload(wait_until="domcontentloaded")
+                                os.remove(QR_IMAGE_PATH)
                             except Exception:
                                 pass
-                            time.sleep(2.0)
-                            spinner_cycles = 0
-                    else:
-                        spinner_cycles = 0
+                        time.sleep(1.2)
+                        continue
 
-                    time.sleep(1.5)
+                    time.sleep(1.0)
 
                 if logged_in:
-                    logger.info("WhatsApp Web Authenticated successfully!")
+                    logger.info("🎉 WhatsApp Web Authenticated successfully!")
                     if os.path.exists(QR_IMAGE_PATH):
                         try:
                             os.remove(QR_IMAGE_PATH)
@@ -499,8 +636,28 @@ class WhatsAppListenerEngine:
 
                     # Continuous message polling loop (0.4s fast polling for near-instant message detection)
                     while not self.stop_event.is_set():
-                        # Live check: strictly check if QR pairing container reappeared (meaning session was logged out from phone)
-                        if page.locator("div[data-ref]").count() > 0 or page.locator("div[data-testid='qrcode']").count() > 0:
+                        # Strict disconnect check: ONLY trigger if chat list is GONE AND QR canvas is VISIBLE
+                        is_chat_list_present = False
+                        try:
+                            is_chat_list_present = page.evaluate("""() => Boolean(
+                                document.querySelector('div#pane-side') ||
+                                document.querySelector('header') ||
+                                document.querySelector('[data-testid="chat-list"]') ||
+                                (window.localStorage && (window.localStorage.getItem('last-wid') || window.localStorage.getItem('last-wid-md')))
+                            )""")
+                        except Exception:
+                            pass
+
+                        qr_visible = False
+                        try:
+                            qr_visible = (
+                                page.locator("div[data-testid='link-device-qr-code'] canvas").is_visible()
+                                or page.locator("canvas[aria-label*='Scan']").is_visible()
+                            )
+                        except Exception:
+                            pass
+
+                        if not is_chat_list_present and qr_visible:
                             logger.warning("WhatsApp Web session disconnected / awaiting QR scan!")
                             self._capture_and_generate_qr(page)
                             break
@@ -605,50 +762,8 @@ class WhatsAppListenerEngine:
             logger.warning(f"Could not automatically open channel '{clean_target}': {e}")
 
     def _is_valid_channel_or_chat_name(self, name: str) -> bool:
-        if not name or len(name) < 3 or len(name) > 75:
-            return False
-        low = name.lower().strip()
-        if "unread message" in low or "unread messages" in low:
-            return False
-        system_words = {
-            "(you)", "archived", "channels", "chats", "status", "photo", "video", 
-            "sticker", "audio", "document", "pinned", "draft", "find channels", 
-            "stay updated", "explore", "search", "directory", "updates", "communities", 
-            "settings", "new chat", "menu", "unread", "typing...", "online"
-        }
-        if low in system_words:
-            return False
-        if name.startswith("\u202a") or name.startswith("+") or " added " in low or " left" in low:
-            return False
-        if "http://" in low or "https://" in low or "\n" in name:
-            return False
-        if name.strip().isdigit() or not any(c.isalnum() for c in name):
-            return False
-        return True
-
-    def _extract_channel_names_from_page(self, page) -> List[str]:
-        """Helper to extract clean channel titles from current WhatsApp Web DOM."""
-        names = set()
-        locators_to_try = [
-            "div#pane-side span[title]",
-            "div[role='listitem'] span[title]",
-            "div[data-testid='cell-frame-title'] span",
-            "div[role='gridcell'] span[title]",
-            "div[role='listitem'] span[dir='auto']",
-            "header span[title]"
-        ]
-        for sel in locators_to_try:
-            try:
-                for el in page.locator(sel).all():
-                    try:
-                        t = (el.get_attribute("title") or el.inner_text() or "").strip()
-                        if self._is_valid_channel_or_chat_name(t):
-                            names.add(t)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-        return list(names)
+        from src.engine.whatsapp_worker import is_valid_channel_or_chat_name
+        return is_valid_channel_or_chat_name(name)
 
     def _discover_followed_channels(self, page) -> List[str]:
         """
@@ -657,76 +772,8 @@ class WhatsAppListenerEngine:
         2. Navigates to Chats tab, scrolls down, and extracts trading groups.
         3. Saves both categories separately and in combined list.
         """
-        channels_set = set()
-        groups_set = set()
-
-        # Dismiss any overlay dialogs
-        for _ in range(3):
-            try:
-                page.keyboard.press("Escape")
-                time.sleep(0.2)
-            except Exception:
-                pass
-
-        # 1. Channels tab discovery
-        try:
-            chan_btn = page.locator("button[aria-label='Channels'], [data-navbar-item='true'][aria-label*='Channel']").first
-            if chan_btn.count() > 0:
-                chan_btn.click(force=True)
-                time.sleep(2.5)
-                pane = page.locator("div#pane-side").first
-                for _ in range(4):
-                    for name in self._extract_channel_names_from_page(page):
-                        channels_set.add(name)
-                    try:
-                        pane.evaluate("el => el.scrollTop += 600")
-                    except Exception:
-                        pass
-                    time.sleep(0.8)
-        except Exception as ce:
-            logger.warning(f"Error extracting from Channels tab: {ce}")
-
-        # 2. Chats / Groups tab discovery
-        try:
-            chats_btn = page.locator("button[aria-label='Chats'], [data-navbar-item='true'][aria-label*='Chat']").first
-            if chats_btn.count() > 0:
-                chats_btn.click(force=True)
-                time.sleep(2.0)
-                pane = page.locator("div#pane-side").first
-                for _ in range(3):
-                    for name in self._extract_channel_names_from_page(page):
-                        if name not in channels_set:
-                            groups_set.add(name)
-                    try:
-                        pane.evaluate("el => el.scrollTop += 600")
-                    except Exception:
-                        pass
-                    time.sleep(0.8)
-        except Exception as ge:
-            logger.warning(f"Error extracting from Chats tab: {ge}")
-
-        # Ensure tradingpapa is always included in channels
-        channels_set.add("Tradingpapa.com forex (gold and silver)")
-
-        def _sort_key(c_name):
-            low = c_name.lower()
-            if "tradingpapa" in low:
-                return (0, low)
-            if any(k in low for k in ["forex", "gold", "crypto", "trading", "signal"]):
-                return (1, low)
-            return (2, low)
-
-        sorted_channels = sorted(list(channels_set), key=_sort_key)
-        sorted_groups = sorted(list(groups_set), key=_sort_key)
-
-        state = self.executor.load_state()
-        state["followed_channels"] = sorted_channels
-        state["followed_groups"] = sorted_groups
-        state["all_targets"] = [f"📢 [Channel] {c}" for c in sorted_channels] + [f"👥 [Group] {g}" for g in sorted_groups]
-        self.executor.save_state(state)
-
-        logger.info(f"Discovered {len(sorted_channels)} channels and {len(sorted_groups)} groups!")
-        return sorted_channels
+        from src.engine.whatsapp_worker import discover_followed_channels
+        return discover_followed_channels(page, self.executor)
 
     def _discover_channels_standalone(self) -> List[str]:
         """Quick standalone discovery pass when listener is stopped."""
@@ -741,23 +788,36 @@ class WhatsAppListenerEngine:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
             from playwright.sync_api import sync_playwright
+            from src.engine.whatsapp_worker import discover_followed_channels
+            browser_args = [
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-infobars",
+                "--window-size=1280,850",
+                "--disable-session-crashed-bubble",
+                "--disable-features=Translate,OptimizationHints,MediaRouter"
+            ]
             with sync_playwright() as p:
-                user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
                 ctx = p.chromium.launch_persistent_context(
                     user_data_dir=SESSION_DIR,
                     headless=True,
                     user_agent=user_agent,
-                    args=["--disable-blink-features=AutomationControlled"],
+                    args=browser_args,
                     viewport={"width": 1280, "height": 850}
                 )
                 try:
                     page = ctx.pages[0] if ctx.pages else ctx.new_page()
-                    page.goto("https://web.whatsapp.com", wait_until="domcontentloaded", timeout=45000)
+                    page.goto("https://web.whatsapp.com", wait_until="load", timeout=45000)
                     for _ in range(15):
                         if page.locator("div#pane-side, div[data-testid='chat-list'], header").count() > 0:
                             break
                         time.sleep(1)
-                    return self._discover_followed_channels(page)
+                    return discover_followed_channels(page, self.executor)
                 finally:
                     try:
                         ctx.close()
@@ -770,14 +830,66 @@ class WhatsAppListenerEngine:
 
     def _poll_channel_messages(self, page):
         try:
-            # Check if session got disconnected or logged out (strictly QR container)
-            if page.locator("div[data-ref]").count() > 0 or page.locator("div[data-testid='qrcode']").count() > 0:
+            # Check for real disconnect: ONLY trigger if chat list is GONE AND QR canvas is VISIBLE
+            is_chat_list_present = False
+            try:
+                is_chat_list_present = page.evaluate("""() => Boolean(
+                    document.querySelector('div#pane-side') ||
+                    document.querySelector('header') ||
+                    document.querySelector('[data-testid="chat-list"]') ||
+                    (window.localStorage && (window.localStorage.getItem('last-wid') || window.localStorage.getItem('last-wid-md')))
+                )""")
+            except Exception:
+                pass
+
+            qr_visible = False
+            try:
+                qr_visible = (
+                    page.locator("div[data-testid='link-device-qr-code'] canvas").is_visible()
+                    or page.locator("canvas[aria-label*='Scan']").is_visible()
+                )
+            except Exception:
+                pass
+
+            if not is_chat_list_present and qr_visible:
                 logger.warning("WhatsApp Web session disconnected / awaiting QR scan!")
                 self._capture_and_generate_qr(page)
                 return
 
-            # Support BOTH regular chats AND broadcast channels (Newsletters)
-            containers = page.locator("div[data-testid='msg-container'], div[role='row'], div._amk4, div[data-id], div.message-in").all()
+            # 1. STRICT ACTIVE HEADER VERIFICATION:
+            settings = self.executor.load_settings()
+            target_channel = settings.get("selected_channel", "")
+            active_title = ""
+            try:
+                active_title = page.evaluate("""() => {
+                    const mainHeader = document.querySelector('#main header, div[data-testid="conversation-header"], header._amie, header');
+                    if (!mainHeader) return "";
+                    const titleEl = mainHeader.querySelector('span[title], div[role="button"] span[title], [data-testid="conversation-info-header"] span, span[dir="auto"]');
+                    return titleEl ? (titleEl.getAttribute('title') || titleEl.innerText || '').trim() : "";
+                }""") or ""
+            except Exception:
+                pass
+
+            if target_channel:
+                clean_target = (
+                    target_channel.replace("📢 [Channel] ", "")
+                    .replace("👥 [Group] ", "")
+                    .replace("📢 ", "")
+                    .replace("👥 ", "")
+                    .strip()
+                    .lower()
+                )
+                act = active_title.strip().lower()
+                if clean_target not in act and act not in clean_target:
+                    return
+
+            # 2. STRICT CONVERSATION SCOPING:
+            # ONLY locate message containers INSIDE active conversation pane (#main)!
+            main_pane = page.locator("div#main, div[data-testid='conversation-panel-wrapper'], div[data-testid='conversation-panel-messages']").first
+            if main_pane.count() == 0:
+                return
+
+            containers = main_pane.locator("div[data-testid='msg-container'], div.message-in, div.message-out").all()
             if not containers:
                 return
 
