@@ -3411,7 +3411,17 @@ def render_whatsapp_signal_engine_view(live_exec):
 
     # ── 5. Persistent Symbol Setup Memory Inspector ───────────────────────────
     st.markdown("##### 💾 Persistent Symbol Setup Memory (Across Hours/Days):")
-    cached_setups = engine.parser.setups_cache
+    cached_setups = {}
+    if hasattr(engine, "parser") and hasattr(engine.parser, "get_all_setups"):
+        cached_setups = engine.parser.get_all_setups()
+    else:
+        try:
+            if os.path.exists(".whatsapp_pending_setups.json"):
+                with open(".whatsapp_pending_setups.json", "r", encoding="utf-8") as f:
+                    cached_setups = json.load(f)
+        except Exception:
+            cached_setups = {}
+
     if cached_setups:
         setup_cards = []
         for sym, s_data in cached_setups.items():
@@ -3459,7 +3469,7 @@ def render_whatsapp_signal_engine_view(live_exec):
                 <td style="padding: 8px 10px;"><span style="background:#27272a; color:#e4e4e7; padding:2px 8px; border-radius:4px; font-weight:600;">{html.escape(str(action_col))}</span></td>
                 <td style="padding: 8px 10px;"><span style="color:{badge_color}; font-weight:bold;">{html.escape(str(status_col))}</span></td>
                 <td style="padding: 8px 10px; color: #d4d4d8;">{html.escape(str(log.get('details', '-')))}</td>
-                <td style="padding: 8px 10px; color: #71717a; font-style:italic; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{html.escape(str(log.get('raw_message', '')))}</td>
+                <td style="padding: 8px 10px; color: #cbd5e1; font-size: 0.84rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; min-width: 280px; max-width: 480px;">{html.escape(str(log.get('raw_message', '')))}</td>
             </tr>
             """)
 
@@ -3468,12 +3478,12 @@ def render_whatsapp_signal_engine_view(live_exec):
             <table style="width: 100%; border-collapse: collapse; text-align: left;">
                 <thead>
                     <tr style="background: #18181b; border-bottom: 1px solid #27272a; color: #a1a1aa; font-size: 0.82rem;">
-                        <th style="padding: 8px 10px;">TIME</th>
-                        <th style="padding: 8px 10px;">SYMBOL</th>
-                        <th style="padding: 8px 10px;">ACTION</th>
-                        <th style="padding: 8px 10px;">STATUS</th>
-                        <th style="padding: 8px 10px;">DETAILS</th>
-                        <th style="padding: 8px 10px;">RAW MESSAGE</th>
+                        <th style="padding: 8px 10px; white-space: nowrap;">TIME</th>
+                        <th style="padding: 8px 10px; white-space: nowrap;">SYMBOL</th>
+                        <th style="padding: 8px 10px; white-space: nowrap;">ACTION</th>
+                        <th style="padding: 8px 10px; white-space: nowrap;">STATUS</th>
+                        <th style="padding: 8px 10px; min-width: 220px;">DETAILS</th>
+                        <th style="padding: 8px 10px; min-width: 280px;">RAW MESSAGE</th>
                     </tr>
                 </thead>
                 <tbody>

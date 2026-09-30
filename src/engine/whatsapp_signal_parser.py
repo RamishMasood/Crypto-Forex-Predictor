@@ -66,6 +66,11 @@ class WhatsAppSignalParser:
         except Exception as e:
             logger.error(f"Error saving {SETUPS_CACHE_FILE}: {e}")
 
+    def get_all_setups(self) -> Dict[str, Any]:
+        """Always reloads the latest setups from disk to guarantee cross-process synchronization."""
+        self.setups_cache = self._load_setups_cache()
+        return self.setups_cache.copy()
+
     def get_cached_setup(self, symbol: str) -> Optional[Dict[str, Any]]:
         self.setups_cache = self._load_setups_cache()
         if not symbol:
