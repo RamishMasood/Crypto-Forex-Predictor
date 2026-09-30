@@ -3269,6 +3269,10 @@ def render_whatsapp_signal_engine_view(live_exec):
             key="wapp_cfg_gemini_key",
             help="Free Gemini API Key from Google AI Studio (15 RPM / 1,500 RPD). If blank, built-in intelligent heuristic parser activates as fallback."
         )
+        if (gemini_key_cfg or "").strip():
+            st.caption("🟢 **Gemini AI Active** (Multi-model cascade: 3.8 ➔ 3.7 ➔ 3.6 ➔ 3.5 Flash)")
+        else:
+            st.caption("🟡 *Enter API key and press Enter / Tab to activate Gemini AI parsing.*")
 
     cfg_row2_c1, cfg_row2_c2, cfg_row2_c3, cfg_row2_c4 = st.columns([1.1, 1.1, 1.1, 1.2])
     with cfg_row2_c1:

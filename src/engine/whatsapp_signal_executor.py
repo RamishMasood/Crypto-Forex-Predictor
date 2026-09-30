@@ -74,6 +74,22 @@ class WhatsAppSignalExecutor:
             self.settings = new_settings
             with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
                 json.dump(new_settings, f, indent=2)
+            
+            # Sync to environment variable and .env file for universal persistence
+            api_key = new_settings.get("gemini_api_key", "").strip()
+            if api_key:
+                os.environ["GEMINI_API_KEY"] = api_key
+                try:
+                    env_lines = []
+                    if os.path.exists(".env"):
+                        with open(".env", "r", encoding="utf-8") as ef:
+                            env_lines = [l for l in ef.readlines() if not l.startswith("GEMINI_API_KEY=")]
+                    env_lines.append(f"GEMINI_API_KEY={api_key}\n")
+                    with open(".env", "w", encoding="utf-8") as ef:
+                        ef.writelines(env_lines)
+                except Exception as env_err:
+                    logger.debug(f"Could not write to .env: {env_err}")
+
             logger.info("WhatsApp Signal settings saved successfully.")
         except Exception as e:
             logger.error(f"Error saving {SETTINGS_FILE}: {e}")

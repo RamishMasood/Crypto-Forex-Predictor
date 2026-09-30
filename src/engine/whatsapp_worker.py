@@ -53,10 +53,11 @@ def cleanup_orphaned_sessions(session_dir: str = SESSION_DIR):
     try:
         import psutil
         current_pid = os.getpid()
+        parent_pid = os.getppid() if hasattr(os, 'getppid') else None
         for p in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
                 pid = p.info.get('pid')
-                if pid == current_pid:
+                if pid in [current_pid, parent_pid]:
                     continue
                 name = (p.info.get('name') or '').lower()
                 cmd = ""
@@ -64,7 +65,7 @@ def cleanup_orphaned_sessions(session_dir: str = SESSION_DIR):
                     cmd = " ".join(p.info.get('cmdline') or []).lower()
                 except Exception:
                     pass
-                if 'whatsapp_worker' in cmd or 'whatsapp_desktop_login' in cmd:
+                if 'python' in name and ('whatsapp_worker' in cmd or 'whatsapp_desktop_login' in cmd):
                     p.kill()
                 elif 'chrome-headless-shell' in name or ('chrome' in name and (session_dir.lower() in cmd or 'ms-playwright' in cmd or 'playwright' in cmd)):
                     p.kill()
@@ -980,11 +981,11 @@ def run_worker():
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
         except Exception:
             pass
-        try:
-            asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    except Exception:
+        pass
 
     parser = WhatsAppSignalParser()
     executor = WhatsAppSignalExecutor()
@@ -1179,6 +1180,11 @@ def run_worker():
                                 snapshot_existing_messages(page, seen_messages)
 
                         curr_settings = executor.load_settings()
+                        curr_key = (curr_settings.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")).strip()
+                        if curr_key and curr_key != parser.api_key:
+                            parser.set_api_key(curr_key)
+                            logger.info("🔑 Gemini API key dynamically synchronized in WhatsApp worker.")
+
                         _raw_curr = curr_settings.get("selected_channel", target_channel)
                         curr_target = (
                             _raw_curr

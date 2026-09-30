@@ -37,10 +37,11 @@ def cleanup_orphaned_sessions(session_dir: str = SESSION_DIR):
     try:
         import psutil
         current_pid = os.getpid()
+        parent_pid = os.getppid() if hasattr(os, 'getppid') else None
         for p in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
                 pid = p.info.get('pid')
-                if pid == current_pid:
+                if pid in [current_pid, parent_pid]:
                     continue
                 name = (p.info.get('name') or '').lower()
                 cmd = ""
@@ -48,7 +49,7 @@ def cleanup_orphaned_sessions(session_dir: str = SESSION_DIR):
                     cmd = " ".join(p.info.get('cmdline') or []).lower()
                 except Exception:
                     pass
-                if 'whatsapp_worker' in cmd or 'whatsapp_desktop_login' in cmd:
+                if 'python' in name and ('whatsapp_worker' in cmd or 'whatsapp_desktop_login' in cmd):
                     p.kill()
                 elif 'chrome-headless-shell' in name or ('chrome' in name and (session_dir.lower() in cmd or 'ms-playwright' in cmd or 'playwright' in cmd)):
                     p.kill()
@@ -181,7 +182,8 @@ class WhatsAppListenerEngine:
             import subprocess
             import sys
             worker_path = os.path.join(os.path.dirname(__file__), "whatsapp_worker.py")
-            self.worker_process = subprocess.Popen([sys.executable, "-u", worker_path])
+            cflags = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+            self.worker_process = subprocess.Popen([sys.executable, "-u", worker_path], creationflags=cflags)
             state = self.executor.load_state()
             state["worker_pid"] = self.worker_process.pid
             state["status"] = "INITIALIZING"

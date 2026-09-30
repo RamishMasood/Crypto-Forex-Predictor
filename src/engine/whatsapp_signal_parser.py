@@ -291,6 +291,19 @@ Or for multiple actions/pairs in one message:
             clean_text = "[Screenshot / Image Attachment]"
 
         if not self.api_key:
+            # Dynamically reload from settings file or environment before giving up
+            try:
+                if os.path.exists(os.path.abspath(".whatsapp_signal_settings.json")):
+                    with open(os.path.abspath(".whatsapp_signal_settings.json"), "r", encoding="utf-8") as f:
+                        k = json.load(f).get("gemini_api_key", "").strip()
+                        if k:
+                            self.api_key = k
+            except Exception:
+                pass
+            if not self.api_key:
+                self.api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+
+        if not self.api_key:
             logger.info("No Gemini API Key provided. Using intelligent heuristic signal parser.")
             return self._heuristic_fallback_parse(clean_text, quoted_text, open_trades, channel_name, image_path)
 
@@ -353,10 +366,11 @@ Or for multiple actions/pairs in one message:
             "gemini-3.7-flash",
             "gemini-3.6-flash",
             "gemini-3.5-flash",
+            "gemini-2.5-flash",
             "gemini-3.5-flash-lite",
-            "gemini-flash-lite-latest",
             "gemini-2.5-flash-lite",
-            "gemini-flash-latest"
+            "gemini-flash-latest",
+            "gemini-flash-lite-latest"
         ]
         if self.preferred_model and self.preferred_model in models:
             models.remove(self.preferred_model)
@@ -373,10 +387,10 @@ Or for multiple actions/pairs in one message:
             # Primary: curl.exe (uses Windows Schannel, immune to OpenSSL SSLEOFError, fast & reliable)
             try:
                 res = subprocess.run(
-                    ["curl.exe", "--ssl-no-revoke", "-4", "-s", "--max-time", "6", "-X", "POST", url, "-H", "Content-Type: application/json", "-d", "@-"],
+                    ["curl.exe", "--ssl-no-revoke", "-4", "-s", "--max-time", "14", "-X", "POST", url, "-H", "Content-Type: application/json", "-d", "@-"],
                     input=payload_bytes,
                     capture_output=True,
-                    timeout=8
+                    timeout=16
                 )
                 if res.returncode == 0 and res.stdout:
                     out = res.stdout.decode("utf-8", errors="ignore").strip()
@@ -399,7 +413,7 @@ Or for multiple actions/pairs in one message:
             # Fallback: python requests
             if not res_json and not api_error_encountered:
                 try:
-                    resp = requests.post(url, json=payload, timeout=6)
+                    resp = requests.post(url, json=payload, timeout=14)
                     if resp.status_code == 200:
                         res_json = resp.json()
                     else:
