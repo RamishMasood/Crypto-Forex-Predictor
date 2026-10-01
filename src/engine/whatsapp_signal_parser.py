@@ -36,15 +36,14 @@ class WhatsAppSignalParser:
     """
 
     def __init__(self, api_key: Optional[str] = None):
-        if not api_key and not os.environ.get("GEMINI_API_KEY"):
-            if os.path.exists(".whatsapp_signal_settings.json"):
-                try:
-                    with open(".whatsapp_signal_settings.json", "r", encoding="utf-8") as f:
-                        s_data = json.load(f)
-                        api_key = s_data.get("gemini_api_key", "")
-                except Exception:
-                    pass
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY", "")
+        if not api_key:
+            try:
+                from src.utils.env_loader import load_env
+                load_env()
+            except Exception:
+                pass
+            api_key = os.environ.get("GEMINI_API_KEY", "")
+        self.api_key = (api_key or os.environ.get("GEMINI_API_KEY", "")).strip()
         self.setups_cache = self._load_setups_cache()
         self.preferred_model: Optional[str] = "gemini-3.8-flash"
 
@@ -400,17 +399,13 @@ Or for multiple actions/pairs in one message:
             clean_text = "[Screenshot / Image Attachment]"
 
         if not self.api_key:
-            # Dynamically reload from settings file or environment before giving up
+            # Dynamically reload from environment / .env before giving up
             try:
-                if os.path.exists(os.path.abspath(".whatsapp_signal_settings.json")):
-                    with open(os.path.abspath(".whatsapp_signal_settings.json"), "r", encoding="utf-8") as f:
-                        k = json.load(f).get("gemini_api_key", "").strip()
-                        if k:
-                            self.api_key = k
+                from src.utils.env_loader import load_env
+                load_env()
             except Exception:
                 pass
-            if not self.api_key:
-                self.api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+            self.api_key = os.environ.get("GEMINI_API_KEY", "").strip()
 
         if not self.api_key:
             logger.info("No Gemini API Key provided. Using intelligent heuristic signal parser.")

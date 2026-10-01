@@ -1247,6 +1247,15 @@ def run_worker():
                         time.sleep(0.8)
                         continue
 
+                    # Periodic live MT5 trade and setup synchronization (every ~2s)
+                    now_ts = time.time()
+                    if now_ts - getattr(run_worker, "_last_mt5_sync_ts", 0) > 2.0:
+                        run_worker._last_mt5_sync_ts = now_ts
+                        try:
+                            executor.sync_active_whatsapp_trades()
+                        except Exception as sync_err:
+                            logger.debug(f"MT5 sync warning in worker: {sync_err}")
+
                     # 2. STRICT CONVERSATION SCOPING & UNREAD BUTTON AUTO-CLICK:
                     main_pane = page.locator("div#main, div[data-testid='conversation-panel-wrapper'], div[data-testid='conversation-panel-messages']").first
                     if main_pane.count() == 0:

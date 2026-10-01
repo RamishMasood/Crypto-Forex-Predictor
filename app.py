@@ -1787,8 +1787,47 @@ def render_mt5_autonomous_engine_view(live_exec):
             render_html(terminal_html)
 
         # ── 6. Executed Batches Tracking Ledger (Active & Closed History) (Requirement 4) ─
-        open_batches = state.get('open_batches', {})
-        closed_batches = state.get('closed_batches', [])
+        # STRICT ISOLATION GUARD: Filter out any WhatsApp Signal trades from Autonomous Ledger
+        wa_tickets_set = set()
+        try:
+            if os.path.exists(".whatsapp_signal_state.json"):
+                with open(".whatsapp_signal_state.json", "r", encoding="utf-8") as _wf:
+                    _w_data = json.load(_wf)
+                for _t_info in _w_data.get("active_signal_trades", {}).values():
+                    for _tkt in _t_info.get("tickets", []):
+                        if isinstance(_tkt, dict):
+                            wa_tickets_set.add(int(_tkt.get("ticket", 0)))
+                        else:
+                            try:
+                                wa_tickets_set.add(int(_tkt))
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+
+        raw_open_batches = state.get('open_batches', {})
+        raw_closed_batches = state.get('closed_batches', [])
+
+        open_batches = {}
+        for b_id, b_data in raw_open_batches.items():
+            b_strat = str(b_data.get('strategy_name', '') or b_data.get('strategy_used', '')).upper()
+            b_cmt = str(b_data.get('comment', '')).upper()
+            b_magic = int(b_data.get('magic', 0))
+            b_tkts = [int(t) for t in b_data.get('tickets', []) if isinstance(t, (int, str)) and str(t).isdigit()]
+            # Exclude if WhatsApp magic, comment, strategy tag, or ticket match
+            if b_magic == 777666 or 'WAPP' in b_cmt or 'WHATSAPP' in b_strat or any(t in wa_tickets_set for t in b_tkts):
+                continue
+            open_batches[b_id] = b_data
+
+        closed_batches = []
+        for b_item in raw_closed_batches:
+            b_strat = str(b_item.get('strategy_name', '') or b_item.get('strategy_used', '')).upper()
+            b_cmt = str(b_item.get('comment', '')).upper()
+            b_magic = int(b_item.get('magic', 0))
+            b_tkts = [int(t) for t in b_item.get('tickets', []) if isinstance(t, (int, str)) and str(t).isdigit()]
+            if b_magic == 777666 or 'WAPP' in b_cmt or 'WHATSAPP' in b_strat or any(t in wa_tickets_set for t in b_tkts):
+                continue
+            closed_batches.append(b_item)
 
         led_hdr_col, led_toggle_col = st.columns([1.6, 2.4])
         with led_hdr_col:
@@ -3415,6 +3454,13 @@ def render_whatsapp_signal_engine_view(live_exec):
 
     # ── 5. Persistent Symbol Setup Memory Inspector ───────────────────────────
     st.markdown("##### 💾 Persistent Symbol Setup Memory (Across Hours/Days):")
+    # Live MT5 sync: auto-update setups if active MT5 trades have closed
+    try:
+        if hasattr(engine, "executor") and hasattr(engine.executor, "sync_active_whatsapp_trades"):
+            engine.executor.sync_active_whatsapp_trades()
+    except Exception:
+        pass
+
     cached_setups = {}
     if hasattr(engine, "parser") and hasattr(engine.parser, "get_all_setups"):
         cached_setups = engine.parser.get_all_setups()
@@ -3427,11 +3473,70 @@ def render_whatsapp_signal_engine_view(live_exec):
             cached_setups = {}
 
     if cached_setups:
+        # Fixed action bar for setup management (Rule 3 compliant)
+        sb_col1, sb_col2, sb_col3 = st.columns([2.2, 1.0, 1.2])
+        with sb_col1:
+            setup_del_opts = ["-- Select setup to delete --"] + [f"{sym} ({s.get('status', '')})" for sym, s in cached_setups.items()]
+            chosen_setup_del = st.selectbox(
+                "Select Setup to Delete:",
+                options=setup_del_opts,
+                key="sb_del_whatsapp_setup",
+                label_visibility="collapsed"
+            )
+        with sb_col2:
+            if st.button("🗑️ Delete", key="btn_del_single_setup", use_container_width=True):
+                if chosen_setup_del and not chosen_setup_del.startswith("--"):
+                    target_sym = chosen_setup_del.split(" ")[0].strip()
+                    if hasattr(engine, "parser") and engine.parser:
+                        engine.parser.delete_setup(target_sym)
+                    from src.engine.whatsapp_signal_parser import SETUPS_CACHE_FILE
+                    if os.path.exists(SETUPS_CACHE_FILE):
+                        try:
+                            with open(SETUPS_CACHE_FILE, "r", encoding="utf-8") as f:
+                                sc_tmp = json.load(f)
+                            sc_tmp.pop(target_sym, None)
+                            with open(SETUPS_CACHE_FILE, "w", encoding="utf-8") as f:
+                                json.dump(sc_tmp, f, indent=2)
+                        except Exception:
+                            pass
+                    st.toast(f"🗑️ Deleted setup for {target_sym}!", icon="🧼")
+                    st.rerun(scope="fragment")
+        with sb_col3:
+            if st.button("🧹 Clear Inactive", key="btn_clear_inactive_setups", use_container_width=True, help="Removes all CLOSED and EXECUTION_FAILED setups from memory."):
+                from src.engine.whatsapp_signal_parser import SETUPS_CACHE_FILE
+                if os.path.exists(SETUPS_CACHE_FILE):
+                    try:
+                        with open(SETUPS_CACHE_FILE, "r", encoding="utf-8") as f:
+                            sc_tmp = json.load(f)
+                        for k, v in list(sc_tmp.items()):
+                            if str(v.get("status", "")).upper() in ["CLOSED", "EXECUTION_FAILED", "CANCELLED", "COMPLETED"]:
+                                sc_tmp.pop(k, None)
+                        with open(SETUPS_CACHE_FILE, "w", encoding="utf-8") as f:
+                            json.dump(sc_tmp, f, indent=2)
+                    except Exception:
+                        pass
+                st.toast("🧹 Cleared all inactive/closed setups!", icon="✨")
+                st.rerun(scope="fragment")
+
         setup_cards = []
         for sym, s_data in cached_setups.items():
             status_val = str(s_data.get('status', 'PENDING_CONFIRMATION')).upper()
-            status_badge_color = "#f59e0b" if "PENDING" in status_val else "#10b981"
-            border_accent = "#f59e0b" if "PENDING" in status_val else "#3b82f6"
+            if "ACTIVE" in status_val or "CONFIRMED" in status_val:
+                status_badge_color = "#10b981"
+                border_accent = "#10b981"
+            elif "PENDING" in status_val:
+                status_badge_color = "#f59e0b"
+                border_accent = "#f59e0b"
+            elif "CLOSED" in status_val or "COMPLETE" in status_val:
+                status_badge_color = "#a1a1aa"
+                border_accent = "#3f3f46"
+            elif "FAIL" in status_val or "REJECT" in status_val or "ERROR" in status_val:
+                status_badge_color = "#f87171"
+                border_accent = "#ef4444"
+            else:
+                status_badge_color = "#93c5fd"
+                border_accent = "#3b82f6"
+
             cond_str = f" | <i style='color:#a1a1aa;'>Condition: {html.escape(str(s_data.get('condition', '')))}</i>" if s_data.get('condition') else ""
             tps_str = f"<b style='color:#34d399;'>TP1:</b> {s_data.get('tp1')} | <b style='color:#34d399;'>TP2:</b> {s_data.get('tp2')}"
             if s_data.get('tp3'):

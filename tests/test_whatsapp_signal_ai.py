@@ -428,6 +428,44 @@ class TestWhatsAppSignalAI(unittest.TestCase):
         self.assertEqual(res.get("action"), "SETUP_SAVED")
         self.assertTrue(res.get("confirmation_required"))
 
+    def test_scenario_18_duplicate_active_setup_suppressed(self):
+        """Verify that an active running WhatsApp trade blocks duplicate entries until it closes."""
+        executor = WhatsAppSignalExecutor(parser=self.parser)
+        
+        # Simulate active running WhatsApp trade for EURGBP
+        executor.get_open_whatsapp_positions = lambda symbol=None: [
+            {"ticket": 12345, "symbol": "EURGBP", "type": 0, "magic": WHATSAPP_MAGIC_NUMBER}
+        ]
+        state = executor.load_state()
+        state["active_signal_trades"]["EURGBP"] = {
+            "symbol": "EURGBP",
+            "direction": "BUY",
+            "sl": 0.85412,
+            "tp1": 0.85461,
+            "tickets": [12345]
+        }
+        executor.save_state(state)
+
+        # Incoming duplicate ENTER signal for EURGBP
+        dup_signal = {
+            "action": "ENTER",
+            "symbol": "EURGBP",
+            "direction": "BUY",
+            "stop_loss": 0.85412,
+            "tp1": 0.85461,
+            "tp2": 0.85486,
+            "safety_gate_passed": True
+        }
+        res = executor.execute_parsed_signal(dup_signal, "EURGBP buy enter ho jao dubara")
+        self.assertFalse(res.get("success"))
+        self.assertEqual(res.get("status"), "DUPLICATE_ACTIVE_SETUP_SKIPPED")
+        self.assertIn("Duplicate active setup suppressed", res.get("reason", ""))
+
+        # Clean up test state
+        state = executor.load_state()
+        state["active_signal_trades"].pop("EURGBP", None)
+        executor.save_state(state)
+
 
 if __name__ == "__main__":
     unittest.main()

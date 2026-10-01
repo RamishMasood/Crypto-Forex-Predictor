@@ -15,16 +15,21 @@ __pycache__/
 !.env.example
 
 # ==============================================================================
-# WhatsApp Web Sessions, Tokens, Media & Runtime State
-# (Keeps user accounts, credentials, and live caches strictly private)
+# WhatsApp Web Sessions, Tokens, Media, Settings & Runtime State
+# (Keeps user accounts, credentials, API keys, and live caches strictly private)
 # ==============================================================================
 .whatsapp_web_session/
 .whatsapp_test_session*/
 .whatsapp_test_qr_session*/
 .whatsapp_media/
 .whatsapp_qr.png
-.whatsapp_signal_state.json
-.whatsapp_pending_setups.json
+.whatsapp_*.json
+
+# ==============================================================================
+# Autonomous Engine & Learning Runtime States
+# ==============================================================================
+.autonomous_trader_state.json
+.trade_learning_journal.json
 
 # ==============================================================================
 # Scratch, Debug Logs & Temporary Testing Files

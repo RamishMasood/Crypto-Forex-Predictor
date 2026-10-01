@@ -58,9 +58,6 @@ class WhatsAppSignalExecutor:
 
     def load_settings(self) -> Dict[str, Any]:
         res = DEFAULT_SETTINGS.copy()
-        env_key = os.environ.get("GEMINI_API_KEY", "")
-        if env_key:
-            res["gemini_api_key"] = env_key
 
         if os.path.exists(SETTINGS_FILE):
             try:
@@ -70,34 +67,39 @@ class WhatsAppSignalExecutor:
             except Exception as e:
                 logger.error(f"Error loading {SETTINGS_FILE}: {e}")
 
-        # If settings had empty key, seamlessly fallback to environment key
-        if not res.get("gemini_api_key") and env_key:
-            res["gemini_api_key"] = env_key
+        # ALWAYS fetch API key exclusively from .env and environment (never expose secret in JSON file)
+        try:
+            from src.utils.env_loader import load_env
+            load_env()
+        except Exception:
+            pass
+
+        env_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        res["gemini_api_key"] = env_key
 
         return res
 
     def save_settings(self, new_settings: Dict[str, Any]):
         try:
-            self.settings = new_settings
-            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-                json.dump(new_settings, f, indent=2)
-            
-            # Sync to environment variable and .env file for universal persistence
-            api_key = new_settings.get("gemini_api_key", "").strip()
+            # 1. Strictly persist secret key to .env file and environment
+            api_key = str(new_settings.get("gemini_api_key", "")).strip()
             if api_key:
-                os.environ["GEMINI_API_KEY"] = api_key
                 try:
-                    env_lines = []
-                    if os.path.exists(".env"):
-                        with open(".env", "r", encoding="utf-8") as ef:
-                            env_lines = [l for l in ef.readlines() if not l.startswith("GEMINI_API_KEY=")]
-                    env_lines.append(f"GEMINI_API_KEY={api_key}\n")
-                    with open(".env", "w", encoding="utf-8") as ef:
-                        ef.writelines(env_lines)
+                    from src.utils.env_loader import set_env_variable
+                    set_env_variable("GEMINI_API_KEY", api_key)
                 except Exception as env_err:
                     logger.debug(f"Could not write to .env: {env_err}")
+                os.environ["GEMINI_API_KEY"] = api_key
 
-            logger.info("WhatsApp Signal settings saved successfully.")
+            # 2. Scrub secret key from JSON file so it NEVER leaks into git
+            file_settings = new_settings.copy()
+            file_settings["gemini_api_key"] = ""  # Keep blank in git-visible JSON!
+
+            self.settings = new_settings  # In-memory settings keeps the active key
+            with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+                json.dump(file_settings, f, indent=2)
+
+            logger.info("WhatsApp Signal settings saved successfully (Secret key strictly in .env).")
         except Exception as e:
             logger.error(f"Error saving {SETTINGS_FILE}: {e}")
 
@@ -262,6 +264,102 @@ class WhatsAppSignalExecutor:
         """
         return self._get_whatsapp_positions(symbol=symbol)
 
+    def sync_active_whatsapp_trades(self) -> Dict[str, Any]:
+        """
+        Synchronizes state['active_signal_trades'] and persistent setup memory with live open WhatsApp positions on MT5.
+        If a position was closed on MT5 (via TP, SL, or manual close), it is removed from active state
+        and marked as CLOSED in persistent setup memory.
+        STRICT ISOLATION: Only touches WhatsApp Signal positions (Magic 777666 / WAPP).
+        """
+        state = self.load_state()
+        active_trades = state.get("active_signal_trades", {})
+
+        # Fetch live open WhatsApp positions directly from MT5
+        live_positions = self.get_open_whatsapp_positions()
+        live_tickets = {int(p["ticket"]) for p in live_positions if "ticket" in p}
+        mt5_connected = self.executor._ensure_connection()
+
+        changed = False
+
+        if mt5_connected:
+            # 1. Reconcile active_signal_trades with MT5
+            for sym in list(active_trades.keys()):
+                trade_info = active_trades[sym]
+                tickets = trade_info.get("tickets", [])
+                int_tickets = []
+                for t in tickets:
+                    if isinstance(t, dict):
+                        int_tickets.append(int(t.get("ticket", 0)))
+                    else:
+                        try:
+                            int_tickets.append(int(t))
+                        except Exception:
+                            pass
+
+                is_alive = any(t in live_tickets for t in int_tickets) if int_tickets else False
+                if not is_alive and int_tickets:
+                    logger.info(f"WhatsApp trade for {sym} (Tickets: {int_tickets}) has closed on MT5. Removing from active state.")
+                    active_trades.pop(sym, None)
+                    changed = True
+                    if self.parser:
+                        self.parser.mark_setup_status(sym, "CLOSED", condition="Active MT5 trade has closed")
+
+            # 2. Synchronize Persistent Setups Cache (.whatsapp_pending_setups.json):
+            # If any setup is marked CONFIRMED_ACTIVE, but MT5 has NO open WhatsApp positions for that symbol,
+            # immediately transition the status to CLOSED so it never falsely lingers as active!
+            if self.parser:
+                cached_setups = self.parser.get_all_setups()
+                for s_sym, s_data in cached_setups.items():
+                    if isinstance(s_data, dict) and s_data.get("status") == "CONFIRMED_ACTIVE":
+                        clean_ssym = s_sym.upper().replace("/", "").replace("_", "").replace("M", "").strip()
+                        has_live = False
+                        for p in live_positions:
+                            p_sym = str(p.get("symbol", "")).upper().replace("/", "").replace("_", "").replace("M", "").strip()
+                            if clean_ssym == p_sym or clean_ssym in p_sym or p_sym in clean_ssym:
+                                has_live = True
+                                break
+                        if not has_live:
+                            logger.info(f"Persistent setup for {s_sym} was CONFIRMED_ACTIVE, but no live MT5 WhatsApp positions exist. Updating status to CLOSED.")
+                            self.parser.mark_setup_status(s_sym, "CLOSED", condition="Active MT5 trade has closed")
+
+            # 3. Self-healing adoption: If there are live WhatsApp positions on MT5 not registered in active_signal_trades,
+            # adopt them so active tracking is continuous and uninterrupted
+            for p in live_positions:
+                p_sym = str(p.get("symbol", "")).upper().replace("M", "")
+                p_ticket = int(p.get("ticket", 0))
+                found = False
+                for a_sym, a_info in active_trades.items():
+                    clean_asym = a_sym.upper().replace("/", "").replace("_", "").replace("M", "").strip()
+                    if clean_asym == p_sym or clean_asym in p_sym or p_sym in clean_asym:
+                        t_list = a_info.get("tickets", [])
+                        t_int_list = [int(x.get("ticket") if isinstance(x, dict) else x) for x in t_list]
+                        if p_ticket not in t_int_list:
+                            t_list.append({"ticket": p_ticket, "label": p.get("comment", "MT5")})
+                            a_info["tickets"] = t_list
+                            changed = True
+                        found = True
+                        break
+                if not found and p_ticket:
+                    active_trades[p_sym] = {
+                        "symbol": p.get("symbol"),
+                        "direction": "BUY" if p.get("type", 0) == 0 else "SELL",
+                        "entry": p.get("price_open"),
+                        "sl": p.get("sl"),
+                        "tp1": p.get("tp"),
+                        "tickets": [{"ticket": p_ticket, "label": p.get("comment", "MT5")}],
+                        "magic": p.get("magic", WHATSAPP_MAGIC_NUMBER),
+                        "opened_at": datetime.now(timezone.utc).isoformat()
+                    }
+                    changed = True
+                    if self.parser:
+                        self.parser.mark_setup_status(p_sym, "CONFIRMED_ACTIVE", condition="Live trade entered & running on MT5")
+
+        if changed:
+            state["active_signal_trades"] = active_trades
+            self.save_state(state)
+
+        return active_trades
+
     def execute_parsed_signal(self, parsed: Dict[str, Any], raw_message: str) -> Dict[str, Any]:
         """
         Executes trade or management action on MT5 according to the parsed AI signal.
@@ -415,6 +513,9 @@ class WhatsAppSignalExecutor:
 
         # 4. ENTER MARKET ORDER (With Dedicated WhatsApp Magic Number & Comment Prefix)
         if action == "ENTER":
+            # 4.0 Sync active trades with live MT5 state
+            active_trades = self.sync_active_whatsapp_trades()
+
             max_active = int(settings.get("max_active_signal_trades", 5))
             if len(active_trades) >= max_active:
                 reason = f"Max Active Signal Trades Cap Reached ({len(active_trades)}/{max_active}). Skipping new entry."
@@ -448,6 +549,50 @@ class WhatsAppSignalExecutor:
                 })
                 logger.warning(f"BLOCKED MT5 ORDER: {symbol} has invalid SL ({sl_price}) or TP1 ({tp1_price}). Safety Gate active.")
                 return {"success": False, "status": "BLOCKED", "reason": reason}
+
+            # 4.1 STRICT GUARD: DUPLICATE ACTIVE SETUP SUPPRESSION (WHATSAPP TRADES ONLY)
+            # If this symbol/setup already has an active WhatsApp trade running on MT5, NEVER re-enter until it closes!
+            open_wa_positions = self.get_open_whatsapp_positions(symbol=symbol)
+            has_active_trade = bool(open_wa_positions) or (symbol in active_trades)
+
+            if has_active_trade:
+                active_entry = active_trades.get(symbol, {})
+                existing_dir = active_entry.get("direction")
+                if not existing_dir and open_wa_positions:
+                    pos_type = open_wa_positions[0].get("type", 0)
+                    existing_dir = "BUY" if pos_type == 0 else "SELL"
+
+                existing_sl = active_entry.get("sl")
+                existing_tp1 = active_entry.get("tp1")
+
+                # Duplicate setup check: same trading pair and (same direction OR matching SL/TP levels)
+                is_same_setup = (
+                    (existing_dir and direction.upper() == existing_dir.upper())
+                    or (existing_sl and abs(float(existing_sl) - sl_price) < 0.001)
+                    or (existing_tp1 and abs(float(existing_tp1) - tp1_price) < 0.001)
+                    or (not existing_dir and not existing_sl)
+                )
+
+                if is_same_setup:
+                    active_tids = [p.get("ticket") for p in open_wa_positions] or active_entry.get("tickets", [])
+                    reason = (
+                        f"Duplicate active setup suppressed: WhatsApp trade for {symbol} ({existing_dir or direction}) "
+                        f"is ALREADY ACTIVE on MT5 (Tickets: {active_tids}, SL: {existing_sl or sl_price}, TP1: {existing_tp1 or tp1_price}). "
+                        f"Duplicate entry is strictly blocked until the active trade closes."
+                    )
+                    logger.info(f"🚫 {reason}")
+                    self._append_log({
+                        "action": f"ENTER {direction}",
+                        "symbol": broker_sym,
+                        "status": "SKIPPED (Active Setup Running)",
+                        "details": reason,
+                        "raw_message": raw_message
+                    })
+                    return {
+                        "success": False,
+                        "status": "DUPLICATE_ACTIVE_SETUP_SKIPPED",
+                        "reason": reason
+                    }
 
             # Get current price
             import MetaTrader5 as mt5

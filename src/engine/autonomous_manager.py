@@ -1381,95 +1381,116 @@ class AutonomousTraderEngine:
                     if reset_at_ts is not None and getattr(p, 'time', 0) < reset_at_ts:
                         continue
 
-                    # HARD ISOLATION GUARD: Strictly ignore WhatsApp Signal trades (Magic 777666 or WAPP_ prefix)
-                    p_magic = getattr(p, 'magic', 0)
-                    p_cmt = str(getattr(p, 'comment', ''))
-                    if p_magic == 777666 or p_cmt.startswith('WAPP'):
+                    # HARD ISOLATION GUARD: Strictly ignore WhatsApp Signal trades (Magic 777666, WAPP prefix, or tracked WhatsApp tickets)
+                    try:
+                        p_magic = int(getattr(p, 'magic', 0))
+                    except Exception:
+                        p_magic = 0
+                    p_cmt = str(getattr(p, 'comment', '') or '').upper()
+
+                    # 1. Reject by Magic Number (777666) or comment tag (WAPP / WHATSAPP)
+                    if p_magic == 777666 or 'WAPP' in p_cmt or 'WHATSAPP' in p_cmt:
                         continue
 
-                    if getattr(p, 'magic', 0) == self.executor.MAGIC_NUMBER or 'QS_' in str(getattr(p, 'comment', '')):
-                        cmt = str(getattr(p, 'comment', ''))
-                        pos_batch = None
-                        pos_tf = None
-                        pos_strat_code = None
+                    # 2. Reject by recorded WhatsApp tickets in state file
+                    wa_tkts = set()
+                    try:
+                        if os.path.exists(".whatsapp_signal_state.json"):
+                            with open(".whatsapp_signal_state.json", "r", encoding="utf-8") as wf:
+                                w_st = json.load(wf)
+                            for t_val in w_st.get("active_signal_trades", {}).values():
+                                for t_tkt in t_val.get("tickets", []):
+                                    wa_tkts.add(int(t_tkt.get("ticket", 0) if isinstance(t_tkt, dict) else t_tkt))
+                    except Exception:
+                        pass
+                    if int(getattr(p, 'ticket', 0)) in wa_tkts:
+                        continue
 
-                        if 'QS_' in cmt:
-                            parts = cmt.split('_')
-                            if len(parts) >= 2:
-                                pos_batch = parts[1]
-                            if len(parts) >= 3 and any(t in parts[2].lower() for t in ['m', 'h', 'd']):
-                                pos_tf = parts[2].lower()
+                    # 3. Strictly require Magic == 999888 OR 'QS_' in comment to be an Autonomous Trader order
+                    if p_magic != self.executor.MAGIC_NUMBER and 'QS_' not in p_cmt:
+                        continue
 
-                        if not pos_batch:
-                            pos_batch = str(p.ticket)
+                    cmt = str(getattr(p, 'comment', ''))
+                    pos_batch = None
+                    pos_tf = None
+                    pos_strat_code = None
 
-                        if str(pos_batch) not in open_batches:
-                            p_type = 'BUY' if p.type == 0 else 'SELL'
-                            norm_s = self.normalize_symbol(p.symbol)
+                    if 'QS_' in cmt:
+                        parts = cmt.split('_')
+                        if len(parts) >= 2:
+                            pos_batch = parts[1]
+                        if len(parts) >= 3 and any(t in parts[2].lower() for t in ['m', 'h', 'd']):
+                            pos_tf = parts[2].lower()
 
-                            # Recover timeframe from recent activity feed if not in comment
-                            if not pos_tf:
-                                for entry in state.get('scan_activity_log', []):
-                                    e_sym = self.normalize_symbol(entry.get('symbol', ''))
-                                    e_tf = entry.get('timeframe')
-                                    if e_sym == norm_s and e_tf and e_tf not in ['-', 'Live']:
-                                        pos_tf = e_tf
-                                        break
-                            if not pos_tf:
-                                pos_tf = "15m"  # Standard default execution timeframe
+                    if not pos_batch:
+                        pos_batch = str(p.ticket)
 
-                            # Recover strategy name from activity feed
-                            resolved_strat_name = "Streamer Strategy (MT5 Sync)"
-                            resolved_strat_key = "STREAMER"
+                    if str(pos_batch) not in open_batches:
+                        p_type = 'BUY' if p.type == 0 else 'SELL'
+                        norm_s = self.normalize_symbol(p.symbol)
+
+                        # Recover timeframe from recent activity feed if not in comment
+                        if not pos_tf:
                             for entry in state.get('scan_activity_log', []):
                                 e_sym = self.normalize_symbol(entry.get('symbol', ''))
-                                det = str(entry.get('details', ''))
-                                if e_sym == norm_s and 'Strategy:' in det:
-                                    try:
-                                        resolved_strat_name = det.split('Strategy:')[1].split('|')[0].strip()
-                                        resolved_strat_key = entry.get('status', '').replace('🎯 Executing (', '').replace(')', '').strip() or 'STREAMER'
-                                        break
-                                    except Exception:
-                                        pass
+                                e_tf = entry.get('timeframe')
+                                if e_sym == norm_s and e_tf and e_tf not in ['-', 'Live']:
+                                    pos_tf = e_tf
+                                    break
+                        if not pos_tf:
+                            pos_tf = "15m"  # Standard default execution timeframe
 
-                            open_batches[str(pos_batch)] = {
-                                'batch_id': pos_batch,
-                                'symbol': norm_s,
-                                'broker_sym': p.symbol,
-                                'timeframe': pos_tf,
-                                'action': p_type,
-                                'entry_price': float(p.price_open),
-                                'sl_price': float(p.sl),
-                                'breakeven_sl': float(p.price_open),
-                                'soft_breakeven_sl': float(p.sl),
-                                'breakeven_mode': be_mode,
-                                'recommended_mode': False,
-                                'active_sessions': current_settings.get('active_sessions', []),
-                                'htf_confluence': True,
-                                'tp1_price': float(p.tp),
-                                'tp2_price': float(p.tp),
-                                'tp3_price': float(p.tp),
-                                'matched_pillars': 5,
-                                'lot_split': {'tp1_lots': float(p.volume)},
-                                'risk_usd': 0.0,
-                                'tickets': [int(p.ticket)],
-                                'executed_at': datetime.now(timezone.utc).isoformat(),
-                                'status': 'OPEN',
-                                'p1_score': 0.0,
-                                'p1_prob': 85.0,
-                                'strategy_used': resolved_strat_key,
-                                'strategy_name': resolved_strat_name
-                            }
+                        # Recover strategy name from activity feed
+                        resolved_strat_name = "Autonomous Strategy (Live)"
+                        resolved_strat_key = "AUTONOMOUS"
+                        for entry in state.get('scan_activity_log', []):
+                            e_sym = self.normalize_symbol(entry.get('symbol', ''))
+                            det = str(entry.get('details', ''))
+                            if e_sym == norm_s and 'Strategy:' in det:
+                                try:
+                                    resolved_strat_name = det.split('Strategy:')[1].split('|')[0].strip()
+                                    resolved_strat_key = entry.get('status', '').replace('🎯 Executing (', '').replace(')', '').strip() or 'AUTONOMOUS'
+                                    break
+                                except Exception:
+                                    pass
+                        open_batches[str(pos_batch)] = {
+                            'batch_id': pos_batch,
+                            'symbol': norm_s,
+                            'broker_sym': p.symbol,
+                            'timeframe': pos_tf,
+                            'action': p_type,
+                            'entry_price': float(p.price_open),
+                            'sl_price': float(p.sl),
+                            'breakeven_sl': float(p.price_open),
+                            'soft_breakeven_sl': float(p.sl),
+                            'breakeven_mode': be_mode,
+                            'recommended_mode': False,
+                            'active_sessions': current_settings.get('active_sessions', []),
+                            'htf_confluence': True,
+                            'tp1_price': float(p.tp),
+                            'tp2_price': float(p.tp),
+                            'tp3_price': float(p.tp),
+                            'matched_pillars': 5,
+                            'lot_split': {'tp1_lots': float(p.volume)},
+                            'risk_usd': 0.0,
+                            'tickets': [int(p.ticket)],
+                            'executed_at': datetime.now(timezone.utc).isoformat(),
+                            'status': 'OPEN',
+                            'p1_score': 0.0,
+                            'p1_prob': 85.0,
+                            'strategy_used': resolved_strat_key,
+                            'strategy_name': resolved_strat_name
+                        }
 
-                            # Update symbol trade counts
-                            if 'trades_by_symbol' not in state:
-                                state['trades_by_symbol'] = {}
-                            state['trades_by_symbol'][norm_s] = state['trades_by_symbol'].get(norm_s, 0) + 1
-                            if p.symbol != norm_s:
-                                state['trades_by_symbol'][p.symbol] = state['trades_by_symbol'].get(p.symbol, 0) + 1
-                            state['total_trades_taken'] = state.get('total_trades_taken', 0) + 1
-                            state_changed = True
-                        else:
+                        # Update symbol trade counts
+                        if 'trades_by_symbol' not in state:
+                            state['trades_by_symbol'] = {}
+                        state['trades_by_symbol'][norm_s] = state['trades_by_symbol'].get(norm_s, 0) + 1
+                        if p.symbol != norm_s:
+                            state['trades_by_symbol'][p.symbol] = state['trades_by_symbol'].get(p.symbol, 0) + 1
+                        state['total_trades_taken'] = state.get('total_trades_taken', 0) + 1
+                        state_changed = True
+                    else:
                             tkts = open_batches[str(pos_batch)].get('tickets', [])
                             if int(p.ticket) not in tkts:
                                 tkts.append(int(p.ticket))
