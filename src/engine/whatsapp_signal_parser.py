@@ -8,6 +8,7 @@ Uses Google Gemini Flash REST API with intelligent heuristic fallback.
 import os
 import re
 import json
+import time
 import base64
 import logging
 import requests
@@ -24,6 +25,7 @@ except Exception:
 logger = logging.getLogger("WhatsAppSignalParser")
 
 SETUPS_CACHE_FILE = ".whatsapp_pending_setups.json"
+ENTRY_TRIGGERS_CACHE_FILE = ".whatsapp_entry_triggers.json"
 
 class WhatsAppSignalParser:
     """
@@ -65,6 +67,68 @@ class WhatsAppSignalParser:
                 json.dump(self.setups_cache, f, indent=2)
         except Exception as e:
             logger.error(f"Error saving {SETUPS_CACHE_FILE}: {e}")
+
+    def _load_entry_triggers(self) -> Dict[str, Any]:
+        if os.path.exists(ENTRY_TRIGGERS_CACHE_FILE):
+            try:
+                with open(ENTRY_TRIGGERS_CACHE_FILE, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {}
+
+    def _save_entry_triggers(self, triggers: Dict[str, Any]):
+        try:
+            with open(ENTRY_TRIGGERS_CACHE_FILE, "w", encoding="utf-8") as f:
+                json.dump(triggers, f, indent=2)
+        except Exception:
+            pass
+
+    def store_entry_trigger(self, symbol: str, direction: str, raw_message: str):
+        """Stores an active entry command (e.g. 'EURGBP mein enter ho jao') awaiting SL/TP levels."""
+        clean_sym = symbol.upper().replace("/", "").replace("_", "").strip()
+        triggers = self._load_entry_triggers()
+        triggers[clean_sym] = {
+            "symbol": clean_sym,
+            "direction": direction,
+            "raw_message": raw_message,
+            "timestamp": time.time(),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        self._save_entry_triggers(triggers)
+        logger.info(f"Stored active entry trigger for {clean_sym} ({direction}) from message: '{raw_message[:50]}'")
+
+    def get_active_entry_trigger(self, symbol: str, max_age_seconds: float = 900.0) -> Optional[Dict[str, Any]]:
+        """Checks if admin commanded entry for this symbol in the last 15 minutes."""
+        clean_sym = symbol.upper().replace("/", "").replace("_", "").strip()
+        triggers = self._load_entry_triggers()
+        trig = triggers.get(clean_sym)
+        if not trig:
+            for k, v in triggers.items():
+                if k in clean_sym or clean_sym in k:
+                    trig = v
+                    break
+        if trig:
+            age = time.time() - float(trig.get("timestamp", 0))
+            if age <= max_age_seconds:
+                return trig
+            else:
+                self.clear_entry_trigger(clean_sym)
+        return None
+
+    def clear_entry_trigger(self, symbol: str):
+        clean_sym = symbol.upper().replace("/", "").replace("_", "").strip()
+        triggers = self._load_entry_triggers()
+        removed = False
+        if clean_sym in triggers:
+            del triggers[clean_sym]
+            removed = True
+        for k in list(triggers.keys()):
+            if k in clean_sym or clean_sym in k:
+                del triggers[k]
+                removed = True
+        if removed:
+            self._save_entry_triggers(triggers)
 
     def get_all_setups(self) -> Dict[str, Any]:
         """Always reloads the latest setups from disk to guarantee cross-process synchronization."""
@@ -124,6 +188,13 @@ class WhatsAppSignalParser:
             open_summary.append(f"- Ticket #{t.get('ticket')}: {t.get('symbol')} {t.get('type')} Vol: {t.get('volume')} Entry: {t.get('price_open')} SL: {t.get('sl')} TP: {t.get('tp')} Profit: ${t.get('profit', 0.0)}")
         open_str = "\n".join(open_summary) if open_summary else "No open trades currently running in MT5."
 
+        triggers = self._load_entry_triggers()
+        trig_summary = []
+        for sym, t_data in triggers.items():
+            age_min = round((time.time() - float(t_data.get('timestamp', 0))) / 60, 1)
+            trig_summary.append(f"- {sym} [{t_data.get('direction', 'TRADE')}]: '{t_data.get('raw_message', '')}' (commanded {age_min} mins ago - awaiting setup levels)")
+        trig_str = "\n".join(trig_summary) if trig_summary else "No pending entry commands."
+
         target_channel_str = f"Active Channel: \"{channel_name}\"" if channel_name else "Active Channel: Tradingpapa.com forex (gold and silver)"
 
         return f"""You are an ultra-intelligent, institutional Forex, Gold, and Crypto Trade Signal Parser.
@@ -133,6 +204,9 @@ You decode unformatted Hinglish, Roman Urdu, and English trading signal messages
 
 ### PERSISTENT SYMBOL SETUP DATABASE (Saved setups awaiting confirmation or actively running):
 {cached_str}
+
+### RECENT ACTIVE ENTRY COMMANDS (Admin commanded entry; awaiting setup levels):
+{trig_str}
 
 ### CURRENTLY RUNNING TRADES ON MT5:
 {open_str}
@@ -145,30 +219,27 @@ You decode unformatted Hinglish, Roman Urdu, and English trading signal messages
    - If the message mentions "eth", "ethusd", or "ethereum" or price is 2,000-5,000 in crypto context -> map to **ETHUSD**.
    - If a message specifies price levels near an open trade (e.g. "Cut the trade if it reach 4159" when GOLD was entered at 4155), correlate with that exact open symbol (XAUUSD)!
 
-2. **CRITICAL: IMMEDIATE MARKET ENTRY ORDER vs SETUP AWAITING CONFIRMATION**:
-   - **CASE A: DIRECT IMMEDIATE ORDER ENTRY (`action: "ENTER"`)**:
-     - When the message states we are entering now or gives direct entry commands:
-       e.g. "enter horahy hain", "enter ho rahe hain", "enter now", "taking entry", "ghus jao", "buy now", "sell now", "long now", "short now", "long", "short", "buy", "sell", "entered", "active now".
-     - Examples:
-       - "Bhai btc mein enter horahy hain long, sl hoga 83400 aur TP1 hoga 83700 aur TP2 83800, TP3 83900, TP4 83950" -> Admin is ENTERING BTC LONG RIGHT NOW!
-       - "Buy BTCUSD now SL 66000 TP1 68000" -> IMMEDIATE ENTRY!
-       - "Sell Gold now SL 4162 TP1 4144" -> IMMEDIATE ENTRY!
-     - In these direct entry cases:
-       - `action`: "ENTER"
-       - `direction`: "BUY" or "SELL"
-       - `confirmation_required`: false
-       - `safety_gate_passed`: true
-       - **CRITICAL**: Do NOT mark `confirmation_required: true` unless the message explicitly commands to wait!
-       - This is an active order meant to be executed on MT5 immediately!
-
-   - **CASE B: SETUP AWAITING CONFIRMATION (`action: "SETUP_SAVED"`)**:
-     - ONLY when the message EXPLICITLY states to WAIT or WATCH for a confirmation before entering:
-       e.g. "Wait for confirmation otherwise don't enter skip this signal", "Wait karo meri confirmation ka", "Abhi mat lena", "Candle engulf hone ke baad", "After confirmation", "Wait for entry trigger".
-     - ONLY when explicit waiting words are present:
-       - `action`: "SETUP_SAVED"
-       - `confirmation_required`: true
-       - `condition`: Extracted condition text (e.g. "wait for confirmation" or "after strong engulfed candle")
-     - The setup will be cached in persistent memory awaiting confirmation.
+2. **CRITICAL: TWO-STEP ENTRY CORRELATION RULE (Admin Entry Command + Subsequent Setup Card)**:
+   - Admin frequently works in two sequential steps:
+     Step 1: Admin commands entry: e.g. "EURGBP mein enter ho jao sabhi long side", "BTC buy now", "Gold enter ho jao" (without SL/TP levels).
+     Step 2: Admin posts the setup card:
+       "EURGBP
+        Long
+        Entry - 0.85435
+        SL - 0.85412
+        TP 1 0.85461
+        TP 2 0.85486
+        Enter with confirmation otherwise skip this signal"
+   - **WHEN STEP 1 ARRIVES**: Admin ordered entry, but SL/TP levels are not yet provided in this message.
+     Output: `action: "ENTRY_TRIGGERED"`, `symbol: "EURGBP"`, `direction: "BUY"`, `safety_gate_passed: false`, `blocked_reason: "Admin commanded entry. Awaiting SL/TP setup card."`
+   - **WHEN STEP 2 ARRIVES**: The admin ALREADY commanded "enter ho jao" in Step 1 (check RECENT CONVERSATION HISTORY and ACTIVE ENTRY COMMANDS)!
+     Therefore, the disclaimer "Enter with confirmation otherwise skip this signal" IS SUPERSEDED AND ALREADY CONFIRMED!
+     You MUST output:
+     `action: "ENTER"`, `symbol: "EURGBP"`, `direction: "BUY"`, `stop_loss: 0.85412`, `tp1: 0.85461`, `tp2: 0.85486`, `confirmation_required: false`, `safety_gate_passed: true`!
+     This executes immediately on MT5 at current market price!
+   - **CASE B: STANDALONE SETUP AWAITING CONFIRMATION (`action: "SETUP_SAVED"`)**:
+     ONLY when there was NO prior "enter ho jao" command for that symbol in recent history or active entry commands, AND the message explicitly says "Wait for confirmation" or "Enter with confirmation otherwise skip this signal":
+     Output: `action: "SETUP_SAVED"`, `confirmation_required: true`.
 
 3. **CONFIRMATION TRIGGER / EXECUTION FOR SAVED SETUPS**:
    - When the admin follows up with:
@@ -438,13 +509,13 @@ Or for multiple actions/pairs in one message:
                         parsed = json.loads(cleaned_json.strip())
                         self.preferred_model = model
                         logger.info(f"Successfully parsed WhatsApp signal with Gemini {model}!")
-                        return self._post_process_parsed_signal(parsed, clean_text, quoted_text, channel_name)
+                        return self._post_process_parsed_signal(parsed, clean_text, quoted_text, channel_name, recent_history=recent_history)
                     except Exception as parse_err:
                         logger.warning(f"Error parsing JSON from {model}: {parse_err}")
 
         # Fallback to intelligent heuristic parser if Gemini calls fail
         logger.warning(f"Gemini API cascade exhausted ({last_error}). Falling back to intelligent heuristic parser.")
-        return self._heuristic_fallback_parse(clean_text, quoted_text, open_trades, channel_name, image_path)
+        return self._heuristic_fallback_parse(clean_text, quoted_text, open_trades, channel_name, image_path, recent_history=recent_history)
 
     def _infer_symbol(self, text: str, channel_name: Optional[str] = None, open_trades: Optional[List[Dict[str, Any]]] = None) -> Optional[str]:
         """
@@ -544,7 +615,8 @@ Or for multiple actions/pairs in one message:
         quoted_text: Optional[str] = None,
         open_trades: Optional[List[Dict[str, Any]]] = None,
         channel_name: Optional[str] = None,
-        image_path: Optional[str] = None
+        image_path: Optional[str] = None,
+        recent_history: Optional[List[Any]] = None
     ) -> Dict[str, Any]:
         """
         Intelligent rule-based parser that handles specific Hinglish/English patterns,
@@ -575,7 +647,7 @@ Or for multiple actions/pairs in one message:
                 cl_clean = clause.strip()
                 if not cl_clean:
                     continue
-                cl_sig = self._heuristic_fallback_parse(cl_clean, quoted_text=quoted_text, open_trades=open_trades, channel_name=channel_name)
+                cl_sig = self._heuristic_fallback_parse(cl_clean, quoted_text=quoted_text, open_trades=open_trades, channel_name=channel_name, recent_history=recent_history)
                 if cl_sig.get("is_actionable") and cl_sig.get("action") not in ["IGNORE"]:
                     sub_signals.append(cl_sig)
 
@@ -588,15 +660,23 @@ Or for multiple actions/pairs in one message:
                 }
 
         # 0.5. Cancel / Invalidate pending setup (e.g. "Ignore US100 trade I told you before, Invalid now", "Cancel setup", "US100 invalid now")
-        cancel_triggers = ["invalid", "cancel", "radd", "mat lena", "skip", "ignore"]
-        if any(w in t_low for w in cancel_triggers) and any(w in t_low for w in ["trade", "setup", "signal", "before", "told", "now", "order", "invalid", "us100", "gold", "xau", "btc", "eth"]):
+        has_setup_levels = bool(re.search(r'\bsl\b|\bstop\b', t_low) and re.search(r'\btp\b|\btarget\b', t_low))
+        cancel_patterns = [
+            r'\b(?:cancel|radd)\s*(?:the\s*)?(?:trade|setup|signal|order)\b',
+            r'\b(?:trade|setup|signal|order)\s*(?:is\s*)?invalid\b',
+            r'\binvalid\s*now\b',
+            r'\b(?:ignore|skip)\s*(?:the\s*)?(?:trade|setup|order)\s*(?:i\s*told|before)\b',
+            r'\bab\s*mat\s*lena\b'
+        ]
+        is_cancel = any(re.search(p, t_low) for p in cancel_patterns)
+        if is_cancel and not has_setup_levels:
             target_sym = self._infer_symbol(text, channel_name, open_trades) or "US100"
             return self._post_process_parsed_signal({
                 "is_actionable": True,
                 "action": "CANCEL_SETUP",
                 "symbol": target_sym,
                 "explanation": f"Pending setup for {target_sym} invalidated and removed from memory by admin."
-            }, text, quoted_text, channel_name)
+            }, text, quoted_text, channel_name, recent_history=recent_history)
 
         # 1. Non-trade noise / polls / commentary
         noise_keywords = [
@@ -755,7 +835,21 @@ Or for multiple actions/pairs in one message:
                 "wait for confirmation", "confirmation", "confirm", "skip this signal",
                 "after strong engulfed", "engulfed candle", "otherwise skip"
             ])
-            action_type = "SETUP_SAVED" if req_confirm else "ENTER"
+            # Check if admin already commanded entry for this symbol in recent history / active triggers!
+            has_prior_entry = bool(self.get_active_entry_trigger(detected_sym or "XAUUSD"))
+            if not has_prior_entry and recent_history:
+                sym_chk = (detected_sym or "XAUUSD").lower()
+                for m in recent_history[-8:]:
+                    m_txt = (m.get('text', '') if isinstance(m, dict) else str(m)).lower()
+                    if any(w in m_txt for w in ["enter ho jao", "enter long", "enter short", "enter now", "ghus jao", "buy now", "sell now", "sabhi long", "sabhi short", "long side", "short side", "mein enter"]) and (sym_chk in m_txt or "sabhi" in m_txt or "traders" in m_txt):
+                        has_prior_entry = True
+                        break
+
+            if has_prior_entry:
+                action_type = "ENTER"
+                req_confirm = False
+            else:
+                action_type = "SETUP_SAVED" if req_confirm else "ENTER"
 
             parsed = {
                 "is_actionable": True,
@@ -773,7 +867,7 @@ Or for multiple actions/pairs in one message:
                 "condition": "strong engulfed candle" if "engulf" in t_low else "wait for confirmation",
                 "explanation": f"Setup parsed: {direction} {detected_sym or 'XAUUSD'} SL: {sl_p} TP1: {tp1_p} (Confirm required: {req_confirm})"
             }
-            return self._post_process_parsed_signal(parsed, text, quoted_text, channel_name)
+            return self._post_process_parsed_signal(parsed, text, quoted_text, channel_name, recent_history=recent_history)
 
         # 8. Confirmation Triggers & Direct Trade Calls (e.g. "Entered", "Buy BTC now", "Sell now", "Active now")
         confirm_trigger_words = [
@@ -792,7 +886,7 @@ Or for multiple actions/pairs in one message:
                 "direction": direction,
                 "explanation": f"Order / confirmation trigger execution on {detected_sym or 'pending setup'}"
             }
-            return self._post_process_parsed_signal(parsed, text, quoted_text, channel_name)
+            return self._post_process_parsed_signal(parsed, text, quoted_text, channel_name, recent_history=recent_history)
 
         return {"is_actionable": False, "action": "IGNORE", "explanation": "Non-actionable message"}
 
@@ -801,7 +895,8 @@ Or for multiple actions/pairs in one message:
         parsed: Dict[str, Any],
         raw_message: str,
         quoted_text: Optional[str] = None,
-        channel_name: Optional[str] = None
+        channel_name: Optional[str] = None,
+        recent_history: Optional[List[Any]] = None
     ) -> Dict[str, Any]:
         """
         Validates parsed output, syncs with persistent setup store,
@@ -825,6 +920,8 @@ Or for multiple actions/pairs in one message:
         # 0. Cancellation / Invalidation of pending setups
         if action in ["CANCEL_SETUP", "INVALIDATE"]:
             clean_s = symbol.upper().replace("/", "").replace("_", "").strip() if symbol else ""
+            if clean_s:
+                self.clear_entry_trigger(clean_s)
             removed = False
             if clean_s and clean_s in self.setups_cache:
                 del self.setups_cache[clean_s]
@@ -843,9 +940,47 @@ Or for multiple actions/pairs in one message:
             parsed["explanation"] = parsed.get("explanation") or f"Setup for {clean_s} invalidated/cancelled by admin."
             return parsed
 
-        # 1. If message was a SETUP awaiting confirmation, store it in persistent memory
+        # 1. TWO-STEP CORRELATION CHECK:
+        # If this message provides setup levels (SL and TP), check if admin ALREADY commanded entry before this card!
+        sym = symbol or self._infer_symbol(raw_message, channel_name) or "XAUUSD"
+        has_sl = bool(parsed.get("stop_loss"))
+        has_tp1 = bool(parsed.get("tp1"))
+
+        active_trigger = self.get_active_entry_trigger(sym)
+        if not active_trigger and recent_history:
+            sym_low = sym.lower()
+            for m in (recent_history[-8:] if isinstance(recent_history, list) else []):
+                m_txt = (m.get("text", "") if isinstance(m, dict) else str(m)).lower()
+                if any(w in m_txt for w in ["enter ho jao", "enter long", "enter short", "enter now", "taking entry", "ghus jao", "buy now", "sell now", "sabhi long", "sabhi short", "long side", "short side", "mein enter"]) and (sym_low in m_txt or "sabhi" in m_txt or "traders" in m_txt):
+                    active_trigger = {
+                        "symbol": sym,
+                        "direction": "SELL" if any(k in m_txt for k in ["short", "sell"]) else "BUY",
+                        "raw_message": m_txt
+                    }
+                    break
+
+        if (action in ["SETUP_SAVED", "ENTER"] or parsed.get("confirmation_required")) and has_sl and has_tp1:
+            if active_trigger:
+                logger.info(f"Prior entry trigger confirmed for {sym} ('{active_trigger.get('raw_message')}')! Overriding confirmation requirement and executing ENTER!")
+                parsed["is_actionable"] = True
+                parsed["action"] = "ENTER"
+                parsed["symbol"] = sym
+                parsed["confirmation_required"] = False
+                parsed["safety_gate_passed"] = True
+                parsed["blocked_reason"] = None
+                parsed["direction"] = parsed.get("direction") or active_trigger.get("direction", "BUY")
+                parsed["explanation"] = f"Prior entry command ('{active_trigger.get('raw_message')}') confirmed by admin! Executing {parsed.get('direction')} on {sym} with SL {parsed.get('stop_loss')} and TP1 {parsed.get('tp1')}."
+                self.clear_entry_trigger(sym)
+                clean_s = sym.upper().replace("/", "").replace("_", "").strip()
+                c = self.get_cached_setup(clean_s)
+                if c:
+                    c["status"] = "CONFIRMED_ACTIVE"
+                    c["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    self.store_setup(clean_s, c)
+                return parsed
+
+        # 1.5. If message was a standalone SETUP awaiting confirmation, store it in persistent memory
         if action == "SETUP_SAVED" or parsed.get("confirmation_required"):
-            sym = symbol or self._infer_symbol(raw_message, channel_name) or "XAUUSD"
             parsed["symbol"] = sym
             parsed["action"] = "SETUP_SAVED"
             parsed["safety_gate_passed"] = True
@@ -920,18 +1055,33 @@ Or for multiple actions/pairs in one message:
             sl = parsed.get("stop_loss")
             tp1 = parsed.get("tp1")
             if not sl or float(sl) <= 0 or not tp1 or float(tp1) <= 0:
-                parsed["is_actionable"] = False
-                parsed["action"] = "BLOCKED"
-                parsed["safety_gate_passed"] = False
-                parsed["blocked_reason"] = "STRICT SAFETY GATE: Missing Stop-Loss (SL) or Take-Profit (TP). Trade execution blocked."
-                logger.warning(f"BLOCKED EXECUTION for {symbol}: SL or TP1 missing. Gate active.")
+                clean_s = symbol.upper().replace("/", "").replace("_", "").strip() if symbol else (self._infer_symbol(raw_message, channel_name) or "XAUUSD")
+                direction = parsed.get("direction") or ("SELL" if any(w in raw_low for w in ["short", "sell"]) else "BUY")
+                # If admin explicitly commanded entry but SL/TP levels are not yet provided
+                if any(w in raw_low for w in ["enter", "ghus jao", "buy", "sell", "long", "short", "active", "le li", "taking"]):
+                    self.store_entry_trigger(clean_s, direction, raw_message)
+                    parsed["is_actionable"] = True
+                    parsed["action"] = "ENTRY_TRIGGERED"
+                    parsed["symbol"] = clean_s
+                    parsed["direction"] = direction
+                    parsed["safety_gate_passed"] = False
+                    parsed["blocked_reason"] = f"Admin commanded {direction} entry on {clean_s}. Awaiting SL/TP setup card."
+                    parsed["explanation"] = f"Admin commanded {direction} entry on {clean_s}. Active entry trigger saved, ready to execute when setup card is posted."
+                    logger.info(f"⚡ Saved ACTIVE_ENTRY_TRIGGER for {clean_s} ({direction}). Awaiting setup card.")
+                else:
+                    parsed["is_actionable"] = False
+                    parsed["action"] = "BLOCKED"
+                    parsed["safety_gate_passed"] = False
+                    parsed["blocked_reason"] = "STRICT SAFETY GATE: Missing Stop-Loss (SL) or Take-Profit (TP). Trade execution blocked."
+                    logger.warning(f"BLOCKED EXECUTION for {symbol}: SL or TP1 missing. Gate active.")
             else:
                 parsed["safety_gate_passed"] = True
                 clean_s = symbol.upper().replace("/", "").replace("_", "").strip() if symbol else ""
                 if clean_s:
+                    self.clear_entry_trigger(clean_s)
                     c = self.get_cached_setup(clean_s)
                     if c:
-                        c["status"] = "ACTIVE"
+                        c["status"] = "CONFIRMED_ACTIVE"
                         c["condition"] = "Live trade entered & running on MT5"
                         c["action"] = parsed.get("direction", c.get("action", "BUY"))
                         c["stop_loss"] = parsed.get("stop_loss", c.get("stop_loss"))

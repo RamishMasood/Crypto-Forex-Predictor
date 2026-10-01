@@ -1,1 +1,32 @@
-{}
+{
+  "EURGBP": {
+    "symbol": "EURGBP",
+    "action": "BUY",
+    "entry": 0.85435,
+    "stop_loss": 0.85412,
+    "tp1": 0.85461,
+    "tp2": 0.85486,
+    "tp3": null,
+    "tp4": null,
+    "tp5": null,
+    "condition": "Live trade entered & running on MT5",
+    "status": "CONFIRMED_ACTIVE",
+    "raw_message": "EURGBP\nLong\nEntry - 0.85435\nSL - 0.85412\nTP 1 0.85461\nTP 2 0.85486\nEnter with confirmation otherwise skip this signal",
+    "updated_at": "2026-10-01T03:49:40.508016+00:00"
+  },
+  "USDJPY": {
+    "symbol": "USDJPY",
+    "action": "BUY",
+    "entry": 150.5,
+    "stop_loss": 150.2,
+    "tp1": 150.8,
+    "tp2": 151.1,
+    "tp3": null,
+    "tp4": null,
+    "tp5": null,
+    "condition": "Enter with confirmation otherwise skip this signal",
+    "status": "PENDING_CONFIRMATION",
+    "raw_message": "USDJPY\nLong\nEntry - 150.500\nSL - 150.200\nTP 1 150.800\nTP 2 151.100\nEnter with confirmation otherwise skip this signal",
+    "updated_at": "2026-10-01T03:50:20.928646+00:00"
+  }
+}

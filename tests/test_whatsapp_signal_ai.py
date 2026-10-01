@@ -26,11 +26,14 @@ class TestWhatsAppSignalAI(unittest.TestCase):
     def setUp(self):
         self.parser = WhatsAppSignalParser()
         self.channel_name = "Tradingpapa.com forex (gold and silver)"
-        # Backup setups cache
+        # Backup setups cache and isolate per test
         self.orig_cache = {}
         if os.path.exists(SETUPS_CACHE_FILE):
             with open(SETUPS_CACHE_FILE, "r", encoding="utf-8") as f:
                 self.orig_cache = json.load(f)
+        self.parser.setups_cache = {}
+        with open(SETUPS_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump({}, f)
 
     def tearDown(self):
         # Restore setups cache
@@ -147,9 +150,9 @@ class TestWhatsAppSignalAI(unittest.TestCase):
         self.parser.setups_cache = {}
 
         res = self.parser._heuristic_fallback_parse("Buy BTC now", channel_name="Crypto Channel")
-        # Should be blocked
+        # Should be blocked / held as entry trigger awaiting setup levels
         self.assertFalse(res.get("safety_gate_passed", False))
-        self.assertEqual(res.get("action"), "BLOCKED")
+        self.assertIn(res.get("action"), ["BLOCKED", "ENTRY_TRIGGERED"])
 
     def test_scenario_7_multi_pair_independent_tracking(self):
         """Simultaneous setups for BTCUSD and XAUUSD are tracked independently."""
@@ -363,6 +366,66 @@ class TestWhatsAppSignalAI(unittest.TestCase):
         self.assertEqual(res.get("status"), "PARTIAL_CLOSED")
         # Verify close_position was called for ticket 101
         executor.executor.close_position.assert_called_with(101)
+
+    def test_scenario_16_two_step_entry_correlation_eurgbp(self):
+        """User exact scenario: Admin says 'EURGBP mein enter ho jao sabhi long side' followed by setup card with 'Enter with confirmation'."""
+        self.parser.clear_entry_trigger("EURGBP")
+        if "EURGBP" in self.parser.setups_cache:
+            del self.parser.setups_cache["EURGBP"]
+            self.parser._save_setups_cache()
+
+        # Step 1: Entry command arrives (without SL/TP)
+        m1 = "EURGBP mein enter ho jao sabhi long side"
+        res1 = self.parser._heuristic_fallback_parse(m1, channel_name=self.channel_name)
+        self.assertEqual(res1.get("action"), "ENTRY_TRIGGERED")
+        self.assertEqual(res1.get("symbol"), "EURGBP")
+        self.assertEqual(res1.get("direction"), "BUY")
+        self.assertFalse(res1.get("safety_gate_passed"))
+
+        # Step 2: Setup card arrives shortly after with 'Enter with confirmation otherwise skip this signal'
+        m2 = (
+            "EURGBP\n"
+            "Long\n"
+            "Entry - 0.85435\n"
+            "SL - 0.85412\n"
+            "TP 1 0.85461\n"
+            "TP 2 0.85486\n"
+            "Enter with confirmation otherwise skip this signal"
+        )
+        res2 = self.parser._heuristic_fallback_parse(
+            m2,
+            recent_history=[{"time": "08:00", "text": m1}],
+            channel_name=self.channel_name
+        )
+        self.assertEqual(res2.get("action"), "ENTER")
+        self.assertEqual(res2.get("symbol"), "EURGBP")
+        self.assertEqual(res2.get("direction"), "BUY")
+        self.assertEqual(res2.get("stop_loss"), 0.85412)
+        self.assertEqual(res2.get("tp1"), 0.85461)
+        self.assertEqual(res2.get("tp2"), 0.85486)
+        self.assertFalse(res2.get("confirmation_required"))
+        self.assertTrue(res2.get("safety_gate_passed"))
+
+    def test_scenario_17_standalone_setup_awaits_confirmation(self):
+        """If admin sends setup with 'Enter with confirmation' WITHOUT a prior entry command, it remains SETUP_SAVED."""
+        self.parser.clear_entry_trigger("EURGBP")
+        # Remove EURGBP from persistent setups cache for a clean test
+        if "EURGBP" in self.parser.setups_cache:
+            del self.parser.setups_cache["EURGBP"]
+            self.parser._save_setups_cache()
+
+        m_standalone = (
+            "EURGBP\n"
+            "Long\n"
+            "Entry - 0.85435\n"
+            "SL - 0.85412\n"
+            "TP 1 0.85461\n"
+            "TP 2 0.85486\n"
+            "Enter with confirmation otherwise skip this signal"
+        )
+        res = self.parser._heuristic_fallback_parse(m_standalone, recent_history=[], channel_name=self.channel_name)
+        self.assertEqual(res.get("action"), "SETUP_SAVED")
+        self.assertTrue(res.get("confirmation_required"))
 
 
 if __name__ == "__main__":

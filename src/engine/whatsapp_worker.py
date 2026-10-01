@@ -539,27 +539,40 @@ def is_matching_target(active_title: str, target_channel: str) -> bool:
     if clean_target.lower() == act.lower():
         return True
 
-    # 2. Strict Alphanumeric normalized comparison (removes emojis, punctuation, collapses whitespace)
+    # 1.5. Clean trailing dots/ellipsis (e.g. "Tradingpapa.com for..." -> "Tradingpapa.com for")
+    act_clean = re.sub(r'[\.\…\s]+$', '', act.lower())
+    tgt_clean = re.sub(r'[\.\…\s]+$', '', clean_target.lower())
+    if tgt_clean.startswith(act_clean) and len(act_clean) >= 12:
+        return True
+
+    # 2. Strict Alphanumeric normalized comparison
     norm_target = re.sub(r'[^\w\s]', '', clean_target.lower())
     norm_target = re.sub(r'\s+', ' ', norm_target).strip()
 
     norm_act = re.sub(r'[^\w\s]', '', act.lower())
     norm_act = re.sub(r'\s+', ' ', norm_act).strip()
 
-    if norm_target and norm_act and norm_target == norm_act:
-        return True
+    if norm_target and norm_act:
+        if norm_target == norm_act:
+            return True
+        if norm_target.startswith(norm_act) and len(norm_act) >= 12:
+            return True
 
     # 3. Tradingpapa specialized comparison (ensures crypto vs forex are strictly segregated)
     if "tradingpapa" in norm_target and "tradingpapa" in norm_act:
         target_forex = any(k in norm_target for k in ["forex", "gold", "silver"])
-        act_forex = any(k in norm_act for k in ["forex", "gold", "silver"])
         target_crypto = "crypto" in norm_target
-        act_crypto = "crypto" in norm_act
-        if target_forex and act_forex:
+
+        act_has_forex = any(k in norm_act for k in ["forex", "gold", "silver", "for"])
+        act_has_crypto = any(k in norm_act for k in ["crypto", "cryp"])
+
+        if target_forex and act_has_forex and not act_has_crypto:
             return True
-        if target_crypto and act_crypto:
+        if target_crypto and act_has_crypto and not act_has_forex:
             return True
-        return False
+        # If active title is truncated as "tradingpapa.com for..." and target is forex:
+        if target_forex and ("for" in norm_act or norm_act.startswith("tradingpapacom for")):
+            return True
 
     return False
 
@@ -1201,109 +1214,180 @@ def run_worker():
 
 
                     # 1. STRICT ACTIVE HEADER VERIFICATION:
-                    # ONLY poll messages if the currently active chat header on screen matches target_channel!
                     active_title = get_active_conversation_title(page)
                     if not is_matching_target(active_title, target_channel):
                         now_ts = time.time()
-                        if now_ts - getattr(run_worker, "_last_mismatch_log", 0) > 4.0:
+                        if now_ts - getattr(run_worker, "_last_mismatch_log", 0) > 5.0:
                             run_worker._last_mismatch_log = now_ts
                             logger.warning(
                                 f"Active chat '{active_title}' does NOT match target '{target_channel}'. "
                                 "Refusing to poll. Re-aligning to target channel..."
                             )
-                        if open_channel(page, target_channel, executor):
-                            snapshot_existing_messages(page, seen_messages)
-                        time.sleep(1.0)
+                        open_channel(page, target_channel, executor)
+                        # NOTE: NEVER call snapshot_existing_messages here during live runtime!
+                        time.sleep(0.8)
                         continue
 
-                    # 2. STRICT CONVERSATION SCOPING:
-                    # ONLY locate message containers INSIDE the active conversation messages panel (#main)!
-                    # NEVER search global page, div[role='row'] (sidebar items), or other chats!
+                    # 2. STRICT CONVERSATION SCOPING & UNREAD BUTTON AUTO-CLICK:
                     main_pane = page.locator("div#main, div[data-testid='conversation-panel-wrapper'], div[data-testid='conversation-panel-messages']").first
                     if main_pane.count() == 0:
-                        time.sleep(0.4)
+                        time.sleep(0.3)
                         continue
 
-                    # Scroll message container to bottom to keep newest messages visible
+                    # Auto-click unread badge / down-arrow and scroll to bottom
                     try:
                         page.evaluate("""() => {
-                            const pane = document.querySelector('div[data-testid="conversation-panel-messages"], div[role="region"], div._amkc');
-                            if (pane) pane.scrollTop = pane.scrollHeight;
+                            // Click scroll-to-bottom or unread badge button if present
+                            const downBtn = document.querySelector(
+                                'div[data-testid="scroll-to-bottom"], span[data-icon="down"], ' +
+                                'span[data-icon="down-context"], div[data-testid="down-context"], ' +
+                                'button[aria-label*="down" i], [aria-label*="unread" i], [aria-label*="scroll to bottom" i]'
+                            );
+                            if (downBtn) {
+                                const clickable = downBtn.closest('button, [role="button"]') || downBtn;
+                                clickable.click();
+                            }
+                            // Scroll all scrollable elements inside conversation pane
+                            const main = document.querySelector('#main, div[data-testid="conversation-panel-wrapper"]');
+                            if (main) {
+                                const scrollables = Array.from(main.querySelectorAll('div, div[tabindex="-1"]')).filter(el => {
+                                    const style = window.getComputedStyle(el);
+                                    return (style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
+                                });
+                                for (const s of scrollables) {
+                                    s.scrollTop = s.scrollHeight;
+                                }
+                            }
                         }""")
                     except Exception:
                         pass
 
-                    # Detect incoming message containers strictly inside main conversation pane
-                    containers = main_pane.locator("div[data-testid='msg-container'], div.message-in, div.message-out").all()
-                    if containers:
-                        for container in containers[-15:]:
-                            try:
-                                text_elem = container.locator("span.selectable-text, span[dir='ltr'], span[dir='rtl'], div.copyable-text").first
-                                txt = text_elem.inner_text().strip() if text_elem.count() > 0 else ""
+                    # 3. FAST ATOMIC JAVASCRIPT MESSAGE EXTRACTION (0ms latency, zero DOM race conditions):
+                    extracted_messages = []
+                    try:
+                        extracted_messages = page.evaluate("""() => {
+                            const main = document.querySelector('#main, div[data-testid="conversation-panel-wrapper"]');
+                            if (!main) return [];
 
-                                img_elem = container.locator("img[src*='blob:'], img[src*='data:'], div[data-testid='image-thumb'] img, div._ak8l img, div._ak8o img, div[role='button'] img, div._amk4 img").first
-                                has_image = img_elem.count() > 0 and img_elem.is_visible()
+                            // Find candidate message containers inside #main
+                            const containers = Array.from(main.querySelectorAll(
+                                'div[data-testid="msg-container"], div.message-in, div.message-out, ' +
+                                'div[role="row"], div[data-testid="newsletter-message-container"]'
+                            ));
+                            const list = [];
+
+                            for (const c of containers.slice(-25)) {
+                                // Extract text: try copyable-text first, then selectable-text, then spans
+                                let txt = '';
+                                const copyable = c.querySelector('div.copyable-text');
+                                if (copyable) {
+                                    txt = (copyable.innerText || '').trim();
+                                }
+                                if (!txt) {
+                                    const selectable = c.querySelector('span.selectable-text');
+                                    if (selectable) {
+                                        txt = (selectable.innerText || '').trim();
+                                    }
+                                }
+                                if (!txt) {
+                                    const spans = Array.from(c.querySelectorAll('span[dir="ltr"], span[dir="rtl"]'));
+                                    const parts = spans.map(s => (s.innerText || '').trim()).filter(s => s.length > 0);
+                                    if (parts.length > 0) {
+                                        txt = parts.join('\\n').trim();
+                                    }
+                                }
+
+                                const imgNode = c.querySelector('img[src*="blob:"], img[src*="data:"], div[data-testid="image-thumb"] img, div._ak8l img, div._ak8o img, div[role="button"] img, div._amk4 img');
+                                const hasImg = Boolean(imgNode && imgNode.offsetParent !== null);
+
+                                if (!txt && !hasImg) continue;
+
+                                const quoteNode = c.querySelector('div[data-testid="quoted-message"], div[aria-label*="Quoted"]');
+                                const quotedText = quoteNode ? (quoteNode.innerText || '').trim() : null;
+
+                                const timeNode = c.querySelector('div[data-testid="msg-meta"] span, span[data-testid="msg-meta"]');
+                                const msgTime = timeNode ? (timeNode.innerText || '').trim() : '';
+
+                                const dataId = c.getAttribute('data-id') || c.closest('[data-id]')?.getAttribute('data-id') || '';
+
+                                list.push({
+                                    id: dataId,
+                                    text: txt,
+                                    quoted_text: quotedText,
+                                    time: msgTime,
+                                    has_image: hasImg
+                                });
+                            }
+                            return list;
+                        }""")
+                    except Exception as ex_err:
+                        logger.debug(f"Atomic JS extraction error: {ex_err}")
+
+                    if extracted_messages:
+                        for msg_data in extracted_messages:
+                            txt = msg_data.get("text", "").strip()
+                            quoted_text = msg_data.get("quoted_text")
+                            msg_time = msg_data.get("time") or ""
+                            has_img = msg_data.get("has_image", False)
+                            data_id = msg_data.get("id") or ""
+
+                            if not txt and not has_img:
+                                continue
+
+                            q_snip = (quoted_text or "")[:20]
+                            img_flag = "1" if has_img else "0"
+                            if data_id:
+                                msg_hash = f"id_{data_id}"
+                            else:
+                                msg_hash = f"{txt[:60]}_{len(txt)}_{q_snip}_{img_flag}"
+
+                            if msg_hash not in seen_messages:
+                                seen_messages.add(msg_hash)
+                                logger.info(f"⚡ Incoming WhatsApp signal: {txt[:60]}...")
+
                                 image_path = None
-
-                                if not txt and not has_image:
-                                    continue
-
-                                if has_image:
+                                if has_img and not txt:
+                                    txt = "[Screenshot / Image Attachment]"
                                     try:
-                                        os.makedirs(".whatsapp_media", exist_ok=True)
-                                        image_path = os.path.abspath(f".whatsapp_media/wa_msg_{int(time.time()*1000)}.png")
-                                        img_elem.screenshot(path=image_path)
-                                        if not txt:
-                                            txt = "[Screenshot / Image Attachment]"
+                                        img_loc = main_pane.locator("img[src*='blob:'], img[src*='data:']").last
+                                        if img_loc.count() > 0:
+                                            os.makedirs(".whatsapp_media", exist_ok=True)
+                                            image_path = os.path.abspath(f".whatsapp_media/wa_msg_{int(time.time()*1000)}.png")
+                                            img_loc.screenshot(path=image_path)
                                     except Exception:
                                         pass
 
-                                quote_elem = container.locator("div[data-testid='quoted-message'], div[aria-label*='Quoted'], div._amkd").first
-                                quoted_text = quote_elem.inner_text().strip() if quote_elem.count() > 0 else None
+                                open_positions = executor.get_open_whatsapp_positions()
+                                parsed = parser.parse_message(
+                                    message_text=txt,
+                                    quoted_text=quoted_text,
+                                    recent_history=recent_history,
+                                    open_trades=open_positions,
+                                    channel_name=target_channel,
+                                    image_path=image_path
+                                )
+                                recent_history.append({
+                                    "time": msg_time or datetime.now(timezone.utc).strftime("%H:%M"),
+                                    "text": txt,
+                                    "quoted_text": quoted_text,
+                                    "has_image": bool(image_path or has_img)
+                                })
+                                if len(recent_history) > 30:
+                                    recent_history.pop(0)
 
-                                time_elem = container.locator("div[data-testid='msg-meta'] span, span[data-testid='msg-meta'], div._amkd").first
-                                msg_time = time_elem.inner_text().strip() if time_elem.count() > 0 else ""
+                                exec_res = executor.execute_parsed_signal(parsed, txt)
+                                state = executor.load_state()
+                                state["last_message_processed"] = {
+                                    "text": txt,
+                                    "quoted_text": quoted_text,
+                                    "image_path": image_path,
+                                    "parsed": parsed,
+                                    "result": exec_res,
+                                    "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+                                }
+                                executor.save_state(state)
 
-                                q_snippet = quoted_text[:20] if quoted_text else ""
-                                has_img_flag = "1" if image_path else "0"
-                                msg_hash = f"{txt[:60]}_{len(txt)}_{q_snippet}_{has_img_flag}"
-
-                                if msg_hash not in seen_messages:
-                                    seen_messages.add(msg_hash)
-                                    logger.info(f"⚡ Incoming WhatsApp signal: {txt[:60]}...")
-                                    open_positions = executor.get_open_whatsapp_positions()
-                                    parsed = parser.parse_message(
-                                        message_text=txt,
-                                        quoted_text=quoted_text,
-                                        recent_history=recent_history,
-                                        open_trades=open_positions,
-                                        channel_name=target_channel,
-                                        image_path=image_path
-                                    )
-                                    recent_history.append({
-                                        "time": msg_time or datetime.now(timezone.utc).strftime("%H:%M"),
-                                        "text": txt,
-                                        "quoted_text": quoted_text,
-                                        "has_image": bool(image_path)
-                                    })
-                                    if len(recent_history) > 30:
-                                        recent_history.pop(0)
-
-                                    exec_res = executor.execute_parsed_signal(parsed, txt)
-                                    state = executor.load_state()
-                                    state["last_message_processed"] = {
-                                        "text": txt,
-                                        "quoted_text": quoted_text,
-                                        "image_path": image_path,
-                                        "parsed": parsed,
-                                        "result": exec_res,
-                                        "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
-                                    }
-                                    executor.save_state(state)
-                            except Exception:
-                                pass
-
-                    time.sleep(0.4)
+                    time.sleep(0.3)
 
         except Exception as e:
             logger.error(f"Error in WhatsApp worker: {e}", exc_info=True)

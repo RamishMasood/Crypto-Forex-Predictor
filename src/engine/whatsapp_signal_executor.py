@@ -277,6 +277,19 @@ class WhatsAppSignalExecutor:
             })
             return {"success": True, "status": "SETUP_SAVED"}
 
+        # 1.4 ENTRY_TRIGGERED (Admin commanded entry; active trigger saved, awaiting setup card)
+        if action == "ENTRY_TRIGGERED":
+            dir_str = str(parsed.get("direction") or "TRADE").upper()
+            details = parsed.get("explanation") or f"Admin commanded {dir_str} entry on {symbol}. Awaiting SL/TP setup card."
+            self._append_log({
+                "action": "ENTRY_TRIGGERED",
+                "symbol": symbol or "-",
+                "status": "AWAITING SL/TP",
+                "details": details,
+                "raw_message": raw_message
+            })
+            return {"success": True, "status": "ENTRY_TRIGGERED", "details": details}
+
         # 1.5 CANCEL_SETUP / INVALIDATE
         if action in ["CANCEL_SETUP", "INVALIDATE"]:
             details = parsed.get("explanation") or f"Setup for {symbol} has been invalidated and removed from memory."
