@@ -173,6 +173,44 @@ class WhatsAppSignalParser:
         self._save_setups_cache()
         logger.info(f"Stored setup in persistent cache for '{clean_sym}': {setup_data}")
 
+    def mark_setup_status(self, symbol: str, status: str, condition: Optional[str] = None):
+        """
+        Updates the execution status of a setup in persistent memory
+        (e.g., CONFIRMED_ACTIVE once MT5 order successfully opens, or EXECUTION_FAILED / CLOSED).
+        """
+        clean_sym = symbol.upper().replace("/", "").replace("_", "").strip() if symbol else ""
+        if not clean_sym:
+            return
+        setup = self.get_cached_setup(clean_sym)
+        if setup:
+            setup["status"] = status
+            if condition:
+                setup["condition"] = condition
+            setup["updated_at"] = datetime.now(timezone.utc).isoformat()
+            self.store_setup(clean_sym, setup)
+            logger.info(f"Updated setup {clean_sym} status to {status} ({condition})")
+
+    def delete_setup(self, symbol: str) -> bool:
+        """
+        Permanently removes a setup from persistent setup memory (.whatsapp_pending_setups.json).
+        """
+        clean_sym = symbol.upper().replace("/", "").replace("_", "").strip() if symbol else ""
+        if not clean_sym:
+            return False
+        self.setups_cache = self._load_setups_cache()
+        removed = False
+        if clean_sym in self.setups_cache:
+            del self.setups_cache[clean_sym]
+            removed = True
+        for k in list(self.setups_cache.keys()):
+            if clean_sym in k or k in clean_sym:
+                del self.setups_cache[k]
+                removed = True
+        if removed:
+            self._save_setups_cache()
+            logger.info(f"Permanently deleted setup for '{clean_sym}' from persistent memory.")
+        return removed
+
     def build_system_prompt(self, open_trades: List[Dict[str, Any]], channel_name: Optional[str] = None) -> str:
         self.setups_cache = self._load_setups_cache()
         cached_summary = []
@@ -903,6 +941,18 @@ Or for multiple actions/pairs in one message:
         correlates confirmation triggers with pending setups,
         and rigorously enforces safety gates (Never execute without SL/TP).
         """
+        # Handle multi-signal bundles
+        if isinstance(parsed, dict) and isinstance(parsed.get("signals"), list):
+            proc_list = []
+            for s in parsed["signals"]:
+                proc_list.append(self._post_process_parsed_signal(
+                    s, raw_message, quoted_text, channel_name, recent_history
+                ))
+            parsed["signals"] = proc_list
+            return parsed
+        elif isinstance(parsed, list):
+            return [self._post_process_parsed_signal(s, raw_message, quoted_text, channel_name, recent_history) for s in parsed]
+
         action = str(parsed.get("action", "IGNORE")).upper()
         symbol = str(parsed.get("symbol") or "").upper().replace("/", "").replace("_", "").strip()
 
@@ -974,7 +1024,9 @@ Or for multiple actions/pairs in one message:
                 clean_s = sym.upper().replace("/", "").replace("_", "").strip()
                 c = self.get_cached_setup(clean_s)
                 if c:
-                    c["status"] = "CONFIRMED_ACTIVE"
+                    c["action"] = parsed.get("direction", c.get("action", "BUY"))
+                    c["stop_loss"] = parsed.get("stop_loss", c.get("stop_loss"))
+                    c["tp1"] = parsed.get("tp1", c.get("tp1"))
                     c["updated_at"] = datetime.now(timezone.utc).isoformat()
                     self.store_setup(clean_s, c)
                 return parsed
@@ -1047,9 +1099,14 @@ Or for multiple actions/pairs in one message:
                 parsed["tp5"] = parsed.get("tp5") or cached.get("tp5")
                 parsed["direction"] = parsed.get("direction") or cached.get("action", "BUY")
                 parsed["entry_price"] = parsed.get("entry_price") or cached.get("entry")
-                # Mark cached setup as confirmed active
-                cached["status"] = "CONFIRMED_ACTIVE"
-                self.store_setup(symbol, cached)
+                # Note: Cached setup status is managed by WhatsAppSignalExecutor upon actual MT5 order confirmation
+                c_up = False
+                if not cached.get("stop_loss") and parsed.get("stop_loss"):
+                    cached["stop_loss"] = parsed.get("stop_loss")
+                    c_up = True
+                if c_up:
+                    cached["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    self.store_setup(symbol, cached)
 
             # STRICT ZERO-HALLUCINATION SAFETY GATE CHECK
             sl = parsed.get("stop_loss")
@@ -1081,8 +1138,7 @@ Or for multiple actions/pairs in one message:
                     self.clear_entry_trigger(clean_s)
                     c = self.get_cached_setup(clean_s)
                     if c:
-                        c["status"] = "CONFIRMED_ACTIVE"
-                        c["condition"] = "Live trade entered & running on MT5"
+                        # Keep levels in sync without falsely claiming live MT5 trade before execution
                         c["action"] = parsed.get("direction", c.get("action", "BUY"))
                         c["stop_loss"] = parsed.get("stop_loss", c.get("stop_loss"))
                         c["tp1"] = parsed.get("tp1", c.get("tp1"))

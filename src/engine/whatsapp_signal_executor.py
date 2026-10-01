@@ -43,11 +43,18 @@ class WhatsAppSignalExecutor:
     Guarantees strict isolation from Autonomous Trader Engine.
     """
 
-    def __init__(self):
+    def __init__(self, parser=None):
         self.executor = MT5TradeExecutor()
         self.exness_provider = MT5ExnessProvider()
         self.settings = self.load_settings()
         self.state = self.load_state()
+        self.parser = parser
+        if self.parser is None:
+            try:
+                from src.engine.whatsapp_signal_parser import WhatsAppSignalParser
+                self.parser = WhatsAppSignalParser()
+            except Exception:
+                self.parser = None
 
     def load_settings(self) -> Dict[str, Any]:
         res = DEFAULT_SETTINGS.copy()
@@ -121,6 +128,25 @@ class WhatsAppSignalExecutor:
         state = self.load_state()
         logs = state.get("activity_log", [])
         entry["timestamp"] = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+
+        # Robust deduplication guard: prevent identical consecutive/recent messages from duplicating in log
+        new_raw = (entry.get("raw_message") or "").strip()
+        new_action = str(entry.get("action") or "").strip()
+        new_sym = str(entry.get("symbol") or "").strip()
+
+        if new_raw:
+            for ex in logs[:8]:
+                ex_raw = (ex.get("raw_message") or "").strip()
+                ex_action = str(ex.get("action") or "").strip()
+                ex_sym = str(ex.get("symbol") or "").strip()
+                if ex_raw == new_raw and ex_action == new_action and ex_sym == new_sym:
+                    # Update status/details in place instead of duplicating the row
+                    ex["status"] = entry.get("status", ex.get("status"))
+                    ex["details"] = entry.get("details", ex.get("details"))
+                    ex["timestamp"] = entry["timestamp"]
+                    self.save_state(state)
+                    return
+
         logs.insert(0, entry)
         state["activity_log"] = logs[:100]  # keep latest 100
         self.save_state(state)
@@ -290,8 +316,33 @@ class WhatsAppSignalExecutor:
             })
             return {"success": True, "status": "ENTRY_TRIGGERED", "details": details}
 
-        # 1.5 CANCEL_SETUP / INVALIDATE
-        if action in ["CANCEL_SETUP", "INVALIDATE"]:
+        # 1.5 CANCEL_SETUP / INVALIDATE / DELETE
+        if action in ["CANCEL_SETUP", "INVALIDATE", "DELETE"]:
+            clean_s = symbol.upper().replace("/", "").replace("_", "").strip() if symbol else ""
+            if self.parser and clean_s:
+                self.parser.clear_entry_trigger(clean_s)
+                self.parser.delete_setup(clean_s)
+
+            # Atomic direct deletion from SETUPS_CACHE_FILE
+            from src.engine.whatsapp_signal_parser import SETUPS_CACHE_FILE
+            if os.path.exists(SETUPS_CACHE_FILE):
+                try:
+                    with open(SETUPS_CACHE_FILE, "r", encoding="utf-8") as f:
+                        sc = json.load(f)
+                    changed = False
+                    for k in list(sc.keys()):
+                        if clean_s and (clean_s in k or k in clean_s):
+                            sc.pop(k, None)
+                            changed = True
+                        elif not clean_s or clean_s == "ALL":
+                            sc.pop(k, None)
+                            changed = True
+                    if changed:
+                        with open(SETUPS_CACHE_FILE, "w", encoding="utf-8") as f:
+                            json.dump(sc, f, indent=2)
+                except Exception as del_err:
+                    logger.debug(f"Error purging setup from cache file: {del_err}")
+
             details = parsed.get("explanation") or f"Setup for {symbol} has been invalidated and removed from memory."
             self._append_log({
                 "action": "CANCEL_SETUP",
@@ -497,6 +548,9 @@ class WhatsAppSignalExecutor:
                 state["active_signal_trades"] = active_trades
                 self.save_state(state)
 
+                if self.parser:
+                    self.parser.mark_setup_status(symbol, "CONFIRMED_ACTIVE", condition="Live trade entered & running on MT5")
+
                 details = f"Executed {direction} {broker_sym} @ {entry_price:.5f} | SL: {sl_price} | TP1: {tp1_price} | Tickets: {tickets}"
                 self._append_log({
                     "action": f"ENTER {direction}",
@@ -508,6 +562,8 @@ class WhatsAppSignalExecutor:
                 return {"success": True, "status": "EXECUTED", "details": details}
             else:
                 err = trade_res.get("error", "Order placement failed.")
+                if self.parser:
+                    self.parser.mark_setup_status(symbol, "EXECUTION_FAILED", condition=f"Order rejected by MT5: {err}")
                 self._append_log({
                     "action": f"ENTER {direction}",
                     "symbol": broker_sym,

@@ -1,32 +1,17 @@
 {
-  "EURGBP": {
-    "symbol": "EURGBP",
-    "action": "BUY",
-    "entry": 0.85435,
-    "stop_loss": 0.85412,
-    "tp1": 0.85461,
-    "tp2": 0.85486,
-    "tp3": null,
-    "tp4": null,
-    "tp5": null,
+  "XAUUSD": {
+    "symbol": "XAUUSD",
+    "action": "SELL",
+    "entry": 4188.139,
+    "stop_loss": 4194.069,
+    "tp1": 4178.748,
+    "tp2": 4169.339,
+    "tp3": 4159.671,
+    "tp4": 4149.571,
+    "tp5": 4139.488,
     "condition": "Live trade entered & running on MT5",
     "status": "CONFIRMED_ACTIVE",
-    "raw_message": "EURGBP\nLong\nEntry - 0.85435\nSL - 0.85412\nTP 1 0.85461\nTP 2 0.85486\nEnter with confirmation otherwise skip this signal",
-    "updated_at": "2026-10-01T03:49:40.508016+00:00"
-  },
-  "USDJPY": {
-    "symbol": "USDJPY",
-    "action": "BUY",
-    "entry": 150.5,
-    "stop_loss": 150.2,
-    "tp1": 150.8,
-    "tp2": 151.1,
-    "tp3": null,
-    "tp4": null,
-    "tp5": null,
-    "condition": "Enter with confirmation otherwise skip this signal",
-    "status": "PENDING_CONFIRMATION",
-    "raw_message": "USDJPY\nLong\nEntry - 150.500\nSL - 150.200\nTP 1 150.800\nTP 2 151.100\nEnter with confirmation otherwise skip this signal",
-    "updated_at": "2026-10-01T03:50:20.928646+00:00"
+    "raw_message": "Gold \n\n\n\nSell \n\n\n\nBest Entry Zones 4188.139\n\n\n\nTP1  4178.748\n\n\n\nTP2  4169.339\n\n\n\nTP3  4159.671\n\n\n\nTP4  4149.571\n\n\n\nTP5  4139.488\n\n\n\nmax close on every TP \n\n\n\nWait for confirmation otherwise don't enter skip this signal \n\n \n\n\n\nSell after strong engulfed candle \n\n\n\nSL     4194.069",
+    "updated_at": "2026-10-01T06:30:53.174231+00:00"
   }
 }

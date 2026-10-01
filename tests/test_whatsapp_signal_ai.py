@@ -102,7 +102,8 @@ class TestWhatsAppSignalAI(unittest.TestCase):
         self.assertEqual(res.get("tp1"), 4144.002)
         self.assertTrue(res.get("safety_gate_passed"))
 
-        # Verify status is now confirmed active
+        # Simulate executor confirming trade execution on MT5
+        self.parser.mark_setup_status("XAUUSD", "CONFIRMED_ACTIVE")
         cached = self.parser.get_cached_setup("XAUUSD")
         self.assertEqual(cached.get("status"), "CONFIRMED_ACTIVE")
 

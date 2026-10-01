@@ -729,37 +729,56 @@ def snapshot_existing_messages(page, seen_messages: set):
     """
     Snapshots all existing messages currently visible in the active chat container
     so that historical chatter is NOT processed as live incoming signals.
+    Uses fast atomic JavaScript evaluation and registers both unique data IDs and content hashes.
     """
     try:
-        main_pane = page.locator("div#main, div[data-testid='conversation-panel-wrapper'], div[data-testid='conversation-panel-messages']").first
-        if main_pane.count() == 0:
-            return 0
-        containers = main_pane.locator("div[data-testid='msg-container'], div.message-in, div.message-out").all()
+        extracted = page.evaluate("""() => {
+            const main = document.querySelector('#main, div[data-testid="conversation-panel-wrapper"]');
+            if (!main) return [];
+            const containers = Array.from(main.querySelectorAll(
+                'div[data-testid="msg-container"], div.message-in, div.message-out, ' +
+                'div[role="row"], div[data-testid="newsletter-message-container"]'
+            ));
+            const list = [];
+            for (const c of containers) {
+                let txt = '';
+                const copyable = c.querySelector('div.copyable-text');
+                if (copyable) txt = (copyable.innerText || '').trim();
+                if (!txt) {
+                    const selectable = c.querySelector('span.selectable-text');
+                    if (selectable) txt = (selectable.innerText || '').trim();
+                }
+                if (!txt) {
+                    const spans = Array.from(c.querySelectorAll('span[dir="ltr"], span[dir="rtl"]'));
+                    const parts = spans.map(s => (s.innerText || '').trim()).filter(s => s.length > 0);
+                    if (parts.length > 0) txt = parts.join('\\n').trim();
+                }
+                const imgNode = c.querySelector('img[src*="blob:"], img[src*="data:"], div[data-testid="image-thumb"] img, div._ak8l img, div._ak8o img, div[role="button"] img, div._amk4 img');
+                const hasImg = Boolean(imgNode && imgNode.offsetParent !== null);
+                if (!txt && !hasImg) continue;
+                const quoteNode = c.querySelector('div[data-testid="quoted-message"], div[aria-label*="Quoted"]');
+                const quotedText = quoteNode ? (quoteNode.innerText || '').trim() : null;
+                const dataId = c.getAttribute('data-id') || c.closest('[data-id]')?.getAttribute('data-id') || '';
+                list.push({ id: dataId, text: txt, quoted_text: quotedText, has_image: hasImg });
+            }
+            return list;
+        }""")
         added_count = 0
-        for container in containers:
-            try:
-                text_elem = container.locator("span.selectable-text, span[dir='ltr'], span[dir='rtl'], div.copyable-text").first
-                txt = text_elem.inner_text().strip() if text_elem.count() > 0 else ""
+        if extracted:
+            for item in extracted:
+                txt = item.get("text", "").strip()
+                data_id = item.get("id") or ""
+                q_snip = (item.get("quoted_text") or "")[:20]
+                img_flag = "1" if item.get("has_image") else "0"
+                content_hash = f"{txt[:60]}_{len(txt)}_{q_snip}_{img_flag}"
+                id_hash = f"id_{data_id}" if data_id else None
 
-                img_elem = container.locator("img[src*='blob:'], img[src*='data:'], div[data-testid='image-thumb'] img, div._ak8l img, div._ak8o img, div[role='button'] img, div._amk4 img").first
-                has_image = img_elem.count() > 0 and img_elem.is_visible()
-
-                quote_elem = container.locator("div[data-testid='quoted-message'], div[aria-label*='Quoted'], div._amkd").first
-                quoted_text = quote_elem.inner_text().strip() if quote_elem.count() > 0 else None
-
-                if not txt and not has_image:
-                    continue
-
-                q_snippet = quoted_text[:20] if quoted_text else ""
-                has_img_flag = "1" if has_image else "0"
-                msg_hash = f"{txt[:60]}_{len(txt)}_{q_snippet}_{has_img_flag}"
-
-                if msg_hash not in seen_messages:
-                    seen_messages.add(msg_hash)
+                if id_hash:
+                    seen_messages.add(id_hash)
+                if content_hash not in seen_messages:
+                    seen_messages.add(content_hash)
                     added_count += 1
-            except Exception:
-                pass
-        logger.info(f"🛡️ Baseline message snapshot initialized: {len(seen_messages)} total historical messages ignored ({added_count} newly registered).")
+        logger.info(f"🛡️ Baseline message snapshot initialized: {len(seen_messages)} total historical hashes registered ({added_count} newly registered).")
         return added_count
     except Exception as e:
         logger.debug(f"Snapshot existing messages error: {e}")
@@ -1336,56 +1355,61 @@ def run_worker():
 
                             q_snip = (quoted_text or "")[:20]
                             img_flag = "1" if has_img else "0"
-                            if data_id:
-                                msg_hash = f"id_{data_id}"
-                            else:
-                                msg_hash = f"{txt[:60]}_{len(txt)}_{q_snip}_{img_flag}"
+                            content_hash = f"{txt[:60]}_{len(txt)}_{q_snip}_{img_flag}"
+                            id_hash = f"id_{data_id}" if data_id else None
 
-                            if msg_hash not in seen_messages:
-                                seen_messages.add(msg_hash)
-                                logger.info(f"⚡ Incoming WhatsApp signal: {txt[:60]}...")
+                            # Deduplication check: if either id_hash or content_hash was already seen, skip!
+                            if (id_hash and id_hash in seen_messages) or (content_hash in seen_messages):
+                                continue
 
-                                image_path = None
-                                if has_img and not txt:
-                                    txt = "[Screenshot / Image Attachment]"
-                                    try:
-                                        img_loc = main_pane.locator("img[src*='blob:'], img[src*='data:']").last
-                                        if img_loc.count() > 0:
-                                            os.makedirs(".whatsapp_media", exist_ok=True)
-                                            image_path = os.path.abspath(f".whatsapp_media/wa_msg_{int(time.time()*1000)}.png")
-                                            img_loc.screenshot(path=image_path)
-                                    except Exception:
-                                        pass
+                            # Register both immediately to eliminate duplicate processing
+                            if id_hash:
+                                seen_messages.add(id_hash)
+                            seen_messages.add(content_hash)
 
-                                open_positions = executor.get_open_whatsapp_positions()
-                                parsed = parser.parse_message(
-                                    message_text=txt,
-                                    quoted_text=quoted_text,
-                                    recent_history=recent_history,
-                                    open_trades=open_positions,
-                                    channel_name=target_channel,
-                                    image_path=image_path
-                                )
-                                recent_history.append({
-                                    "time": msg_time or datetime.now(timezone.utc).strftime("%H:%M"),
-                                    "text": txt,
-                                    "quoted_text": quoted_text,
-                                    "has_image": bool(image_path or has_img)
-                                })
-                                if len(recent_history) > 30:
-                                    recent_history.pop(0)
+                            logger.info(f"⚡ Incoming WhatsApp signal: {txt[:60]}...")
 
-                                exec_res = executor.execute_parsed_signal(parsed, txt)
-                                state = executor.load_state()
-                                state["last_message_processed"] = {
-                                    "text": txt,
-                                    "quoted_text": quoted_text,
-                                    "image_path": image_path,
-                                    "parsed": parsed,
-                                    "result": exec_res,
-                                    "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
-                                }
-                                executor.save_state(state)
+                            image_path = None
+                            if has_img and not txt:
+                                txt = "[Screenshot / Image Attachment]"
+                                try:
+                                    img_loc = main_pane.locator("img[src*='blob:'], img[src*='data:']").last
+                                    if img_loc.count() > 0:
+                                        os.makedirs(".whatsapp_media", exist_ok=True)
+                                        image_path = os.path.abspath(f".whatsapp_media/wa_msg_{int(time.time()*1000)}.png")
+                                        img_loc.screenshot(path=image_path)
+                                except Exception:
+                                    pass
+
+                            open_positions = executor.get_open_whatsapp_positions()
+                            parsed = parser.parse_message(
+                                message_text=txt,
+                                quoted_text=quoted_text,
+                                recent_history=recent_history,
+                                open_trades=open_positions,
+                                channel_name=target_channel,
+                                image_path=image_path
+                            )
+                            recent_history.append({
+                                "time": msg_time or datetime.now(timezone.utc).strftime("%H:%M"),
+                                "text": txt,
+                                "quoted_text": quoted_text,
+                                "has_image": bool(image_path or has_img)
+                            })
+                            if len(recent_history) > 30:
+                                recent_history.pop(0)
+
+                            exec_res = executor.execute_parsed_signal(parsed, txt)
+                            state = executor.load_state()
+                            state["last_message_processed"] = {
+                                "text": txt,
+                                "quoted_text": quoted_text,
+                                "image_path": image_path,
+                                "parsed": parsed,
+                                "result": exec_res,
+                                "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+                            }
+                            executor.save_state(state)
 
                     time.sleep(0.3)
 
