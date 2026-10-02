@@ -6,14 +6,13 @@
     "USD/JPY",
     "EUR/USD",
     "XAG/USD",
-    "CAD/JPY"
+    "CAD/JPY",
+    "AUD/CHF"
   ],
   "timeframes": [
     "15m",
     "1h",
     "4h",
-    "1m",
-    "3m",
     "5m",
     "30m"
   ],
@@ -47,8 +46,8 @@
     "LINDA_RASCHKE"
   ],
   "date_from": "2026-09-21",
-  "date_to": "2026-09-27",
-  "initial_balance": 10000.0,
+  "date_to": "2026-10-02",
+  "initial_balance": 1000.0,
   "target_trades_per_symbol": 1000,
   "scan_delay_mins": 0.25,
   "batch_lot_size": 0.6,

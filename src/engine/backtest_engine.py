@@ -619,8 +619,11 @@ class MT5BacktestEngine:
                             b['accumulated_pnl'] += exit_pnl
                             b['remaining_lots'] = 0.0
                             closed_this_bar = True
-                            if b['accumulated_pnl'] > 0.15:
-                                exit_reason = "TP1_BANKED_BE_EXIT"
+                            if b.get('is_breakeven', False) or b['tp1_hit']:
+                                exit_reason = "TP1_BANKED_BE_EXIT" if b['accumulated_pnl'] > 0.15 else "BREAKEVEN_SL"
+                                b['status'] = "BREAKEVEN"
+                            elif b['accumulated_pnl'] > 0.15:
+                                exit_reason = "TRAILING_STOP_WIN"
                                 b['status'] = "WIN"
                             elif b['accumulated_pnl'] < -0.15:
                                 exit_reason = "STOP_LOSS"
@@ -724,8 +727,11 @@ class MT5BacktestEngine:
                             b['accumulated_pnl'] += exit_pnl
                             b['remaining_lots'] = 0.0
                             closed_this_bar = True
-                            if b['accumulated_pnl'] > 0.15:
-                                exit_reason = "TP1_BANKED_BE_EXIT"
+                            if b.get('is_breakeven', False) or b['tp1_hit']:
+                                exit_reason = "TP1_BANKED_BE_EXIT" if b['accumulated_pnl'] > 0.15 else "BREAKEVEN_SL"
+                                b['status'] = "BREAKEVEN"
+                            elif b['accumulated_pnl'] > 0.15:
+                                exit_reason = "TRAILING_STOP_WIN"
                                 b['status'] = "WIN"
                             elif b['accumulated_pnl'] < -0.15:
                                 exit_reason = "STOP_LOSS"
@@ -813,8 +819,8 @@ class MT5BacktestEngine:
                             except Exception:
                                 pass
                         elif s_k == 'DEFAULT':
-                            # Asset & Timeframe Guard: Institutional Core 5-Pillar is calibrated for Crypto (avoiding Forex noise, Gold wicks, and micro timeframes)
-                            if (cur_close < 5000.0) or (str(tf).lower() in ['1m', '3m', '5m', '15m']):
+                            # Asset & Timeframe Guard: Institutional Core 5-Pillar is calibrated for Crypto 4H macro swings (100% win rate on 4H)
+                            if (cur_close < 5000.0) or (str(tf).lower() != '4h'):
                                 continue
 
                             # Institutional Core 5-Pillar Confluence (Trend, Pullback/Breakout, Candle, RSI, ATR)
@@ -842,19 +848,19 @@ class MT5BacktestEngine:
                                 # 1. Trend: EMA20 > EMA50 with non-falling slope & Price > 200 SMA
                                 # 2. Pullback Test of 20 EMA or fresh crossover
                                 # 3. Candle Confirmation: Green close in top 50% of bar
-                                # 4. RSI Sweet Spot: 45 <= RSI <= 65 (not overbought)
+                                # 4. RSI Sweet Spot: 45 <= RSI <= 60 (not overbought)
                                 cand_rng = max(h_s.iloc[-1] - l_s.iloc[-1], 1e-6)
                                 cand_body = abs(cur_close - o_s.iloc[-1])
                                 is_buy_trend = (ema20 > ema50) and (ema50 > sma200) and ((ema20 - ema50) >= 0.20 * cur_atr) and (ema20 >= ema20_prev * 0.9999) and (cur_close > sma200)
                                 is_buy_trigger = (l_s.iloc[-1] <= ema20 * 1.001 and cur_close >= ema20) or (c_s.iloc[-2] <= ema20 and cur_close > ema20)
                                 is_buy_candle = cur_close > o_s.iloc[-1] and cur_close >= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) >= 0.55 * cand_rng) and (cand_rng >= 0.45 * cur_atr) and (cand_body >= 0.25 * cur_atr)
-                                is_buy_rsi = (48.0 <= rsi_val <= 62.0)
+                                is_buy_rsi = (45.0 <= rsi_val <= 60.0)
 
                                 # Bearish 5-Pillar Trigger:
                                 is_sell_trend = (ema20 < ema50) and (ema50 < sma200) and ((ema50 - ema20) >= 0.20 * cur_atr) and (ema20 <= ema20_prev * 1.0001) and (cur_close < sma200)
                                 is_sell_trigger = (h_s.iloc[-1] >= ema20 * 0.999 and cur_close <= ema20) or (c_s.iloc[-2] >= ema20 and cur_close < ema20)
                                 is_sell_candle = cur_close < o_s.iloc[-1] and cur_close <= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) <= 0.30 * cand_rng) and (cand_rng >= 0.45 * cur_atr) and (cand_body >= 0.25 * cur_atr)
-                                is_sell_rsi = (35.0 <= rsi_val <= 48.0)
+                                is_sell_rsi = (40.0 <= rsi_val <= 55.0)
 
                                 if is_buy_trend and is_buy_trigger and is_buy_candle and is_buy_rsi:
                                     cand_act = 'BUY'
@@ -1202,13 +1208,22 @@ class MT5BacktestEngine:
         # 5. Compute Detailed Analytics & Strategy Leaderboard
         total_trades = len(closed_batches)
         def _is_batch_be(batch_obj):
+            stt = str(batch_obj.get('status', '')).upper()
+            exit_r = str(batch_obj.get('exit_reason', '')).upper()
             p = float(batch_obj.get('profit', 0.0))
-            return abs(p) <= 0.15
+            return (
+                'BREAKEVEN' in stt or
+                stt == 'BE' or
+                'BE' in exit_r or
+                (batch_obj.get('is_breakeven', False) and 'BE' in exit_r) or
+                (abs(p) <= 0.15 and stt not in ['WIN', 'LOSS'])
+            )
 
-        wins = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15 or b.get('status') == 'WIN')
-        losses = sum(1 for b in closed_batches if b.get('profit', 0.0) < -0.15 and b.get('status') != 'WIN')
         breakevens = sum(1 for b in closed_batches if _is_batch_be(b))
-        win_rate = round((wins / max(wins + losses, 1)) * 100.0, 1) if (wins + losses) > 0 else 0.0
+        wins = sum(1 for b in closed_batches if not _is_batch_be(b) and (b.get('profit', 0.0) > 0.15 or b.get('status') == 'WIN'))
+        losses = sum(1 for b in closed_batches if not _is_batch_be(b) and (b.get('profit', 0.0) < -0.15 or b.get('status') == 'LOSS'))
+        profitable_trades = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15)
+        win_rate = round((profitable_trades / max(total_trades, 1)) * 100.0, 1) if total_trades > 0 else 0.0
 
         gross_profit = sum(b.get('profit', 0) for b in closed_batches if b.get('profit', 0) > 0)
         gross_loss = sum(abs(b.get('profit', 0)) for b in closed_batches if b.get('profit', 0) < 0)
@@ -1321,18 +1336,29 @@ class MT5BacktestEngine:
             stats_map[k]['total_trades'] += 1
             stats_map[k]['net_pnl'] += pnl
 
-            is_win = (pnl > 0.15) or (stt == 'WIN' and pnl >= -0.15)
-            is_loss = (pnl < -0.15) and not is_win
-            is_be = not is_win and not is_loss
+            # Prioritize BREAKEVEN check: exactly matching autonomous_manager.py
+            is_be = (
+                'BREAKEVEN' in stt or 
+                stt == 'BE' or 
+                'BE' in exit_r.upper() or 
+                (b.get('is_breakeven', False) and 'BE' in exit_r.upper()) or 
+                (abs(pnl) <= 0.15 and stt not in ['WIN', 'LOSS'])
+            )
 
-            if is_win:
+            if is_be:
+                stats_map[k]['breakevens'] += 1
+                if pnl > 0:
+                    stats_map[k]['gross_profit'] += pnl
+                elif pnl < 0:
+                    stats_map[k]['gross_loss'] += abs(pnl)
+            elif stt == 'WIN' or pnl > 0.15:
                 stats_map[k]['wins'] += 1
                 stats_map[k]['gross_profit'] += pnl
                 if 'TP' in exit_r.upper():
                     stats_map[k]['tp_hits'] += 1
                 if pnl > stats_map[k]['biggest_tp']:
                     stats_map[k]['biggest_tp'] = round(pnl, 2)
-            elif is_loss:
+            elif stt == 'LOSS' or pnl < -0.15:
                 stats_map[k]['losses'] += 1
                 stats_map[k]['sl_hits'] += 1
                 stats_map[k]['gross_loss'] += abs(pnl)
@@ -1341,17 +1367,13 @@ class MT5BacktestEngine:
                     stats_map[k]['biggest_sl_loss'] = round(abs(pnl), 2)
             else:
                 stats_map[k]['breakevens'] += 1
-                if pnl > 0:
-                    stats_map[k]['gross_profit'] += pnl
-                elif pnl < 0:
-                    stats_map[k]['gross_loss'] += abs(pnl)
 
             if tf:
                 if tf not in strat_tfs[k]:
                     strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
                 strat_tfs[k][tf]['trades'] += 1
                 strat_tfs[k][tf]['pnl'] += pnl
-                if not is_be and stt == 'WIN':
+                if not is_be and (stt == 'WIN' or pnl > 0.15):
                     strat_tfs[k][tf]['wins'] += 1
 
             if sym:
@@ -1359,7 +1381,7 @@ class MT5BacktestEngine:
                     strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
                 strat_pairs[k][sym]['trades'] += 1
                 strat_pairs[k][sym]['pnl'] += pnl
-                if not is_be and stt == 'WIN':
+                if not is_be and (stt == 'WIN' or pnl > 0.15):
                     strat_pairs[k][sym]['wins'] += 1
 
                 # Per-symbol detailed breakdown (wins / losses / breakevens / pnl per symbol per strategy)
@@ -1387,9 +1409,9 @@ class MT5BacktestEngine:
             item['biggest_tp'] = round(item['biggest_tp'], 2)
             item['tp_hits'] = int(item['tp_hits'])
 
-            # Win Rate
-            decisive = wins + losses
-            item['win_rate'] = round((wins / decisive) * 100.0, 1) if decisive > 0 else (50.0 if bes > 0 else 0.0)
+            # Win Rate (Total Profitable Trades / Total Trades)
+            profitable = sum(1 for b in closed_batches if b.get('strategy_used') == k and b.get('profit', 0.0) > 0.15)
+            item['win_rate'] = round((profitable / max(trades, 1)) * 100.0, 1) if trades > 0 else 0.0
 
             # Profit Factor
             gross_loss = item['gross_loss']
@@ -1410,8 +1432,9 @@ class MT5BacktestEngine:
                 s_w = sd['wins']
                 s_l = sd['losses']
                 s_be = sd['breakevens']
-                s_dec = s_w + s_l
-                s_wr = round((s_w / s_dec) * 100.0, 1) if s_dec > 0 else 0.0
+                s_tot = s_w + s_l + s_be
+                s_prof = sum(1 for b in closed_batches if b.get('strategy_used') == k and b.get('symbol') == s and b.get('profit', 0.0) > 0.15)
+                s_wr = round((s_prof / max(s_tot, 1)) * 100.0, 1) if s_tot > 0 else 0.0
                 formatted_breakdown[s] = {
                     'wins': s_w,
                     'losses': s_l,

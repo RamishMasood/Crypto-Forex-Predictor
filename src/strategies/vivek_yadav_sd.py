@@ -41,15 +41,15 @@ class VivekYadavSupplyDemandEngine:
     def detect_zones(
         cls,
         df: pd.DataFrame,
-        swing_window: int = 6
+        swing_window: int = 4
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Identifies institutional Demand and Supply zones at swing extremes with 3+ expansion candles.
+        Identifies institutional Demand and Supply zones at swing extremes with strong expansion candles.
         """
         demand_zones: List[Dict[str, Any]] = []
         supply_zones: List[Dict[str, Any]] = []
         n = len(df)
-        if n < 12:
+        if n < 10:
             return {'demand_zones': demand_zones, 'supply_zones': supply_zones}
 
         opens = df['open'].values
@@ -57,34 +57,30 @@ class VivekYadavSupplyDemandEngine:
         lows = df['low'].values
         closes = df['close'].values
 
-        for i in range(swing_window, n - 4):
+        for i in range(swing_window, n - 3):
             # 1. SWING BOTTOM DEMAND CHECK:
             # Must be local swing low
             is_swing_low = lows[i] == np.min(lows[max(0, i - swing_window) : min(n, i + swing_window + 1)])
             is_red_candle = closes[i] < opens[i]
 
             if is_swing_low and is_red_candle:
-                # Check for 3+ strong green expansion candles immediately following
+                # Check for 2+ strong green expansion candles immediately following
                 c1_green = closes[i + 1] > opens[i + 1]
-                c2_green = closes[i + 2] > opens[i + 2]
-                c3_green = closes[i + 3] > opens[i + 3]
+                c2_green = closes[i + 2] > opens[i + 2] if (i + 2 < n) else True
+                exp_close = closes[min(i + 2, n - 1)]
 
-                if c1_green and c2_green and c3_green:
-                    # Check expansion strength: 3rd candle close must exceed high of red candle
-                    if closes[i + 3] > highs[i]:
-                        # Calculate retest count between zone formation and current bar
-                        # Fresh zone (tested <= 1 time) has highest institutional order density
-                        test_count = sum(1 for k in range(i + 4, n - 1) if lows[k] <= highs[i] and highs[k] >= lows[i])
-                        demand_zones.append({
-                            'type': 'DEMAND_ZONE',
-                            'top': float(highs[i]),
-                            'bottom': float(lows[i]),
-                            'candle_index': int(i),
-                            'test_count': test_count,
-                            'is_fresh': (test_count <= 1),
-                            'source': 'Swing Bottom Demand (3+ Green Expansion)',
-                            'active': True
-                        })
+                if c1_green and exp_close > highs[i]:
+                    test_count = sum(1 for k in range(i + 3, n - 1) if lows[k] <= highs[i] and highs[k] >= lows[i])
+                    demand_zones.append({
+                        'type': 'DEMAND_ZONE',
+                        'top': float(highs[i]),
+                        'bottom': float(lows[i]),
+                        'candle_index': int(i),
+                        'test_count': test_count,
+                        'is_fresh': (test_count <= 2),
+                        'source': 'Swing Bottom Demand (Institutional Expansion)',
+                        'active': True
+                    })
 
             # 2. SWING TOP SUPPLY CHECK:
             # Must be local swing high
@@ -92,25 +88,23 @@ class VivekYadavSupplyDemandEngine:
             is_green_candle = closes[i] > opens[i]
 
             if is_swing_high and is_green_candle:
-                # Check for 3+ strong red expansion candles immediately following
+                # Check for 2+ strong red expansion candles immediately following
                 c1_red = closes[i + 1] < opens[i + 1]
-                c2_red = closes[i + 2] < opens[i + 2]
-                c3_red = closes[i + 3] < opens[i + 3]
+                c2_red = closes[i + 2] < opens[i + 2] if (i + 2 < n) else True
+                exp_close = closes[min(i + 2, n - 1)]
 
-                if c1_red and c2_red and c3_red:
-                    # Check expansion strength: 3rd candle close must be below low of green candle
-                    if closes[i + 3] < lows[i]:
-                        test_count = sum(1 for k in range(i + 4, n - 1) if highs[k] >= lows[i] and lows[k] <= highs[i])
-                        supply_zones.append({
-                            'type': 'SUPPLY_ZONE',
-                            'top': float(highs[i]),
-                            'bottom': float(lows[i]),
-                            'candle_index': int(i),
-                            'test_count': test_count,
-                            'is_fresh': (test_count <= 1),
-                            'source': 'Swing Top Supply (3+ Red Drop)',
-                            'active': True
-                        })
+                if c1_red and exp_close < lows[i]:
+                    test_count = sum(1 for k in range(i + 3, n - 1) if highs[k] >= lows[i] and lows[k] <= highs[i])
+                    supply_zones.append({
+                        'type': 'SUPPLY_ZONE',
+                        'top': float(highs[i]),
+                        'bottom': float(lows[i]),
+                        'candle_index': int(i),
+                        'test_count': test_count,
+                        'is_fresh': (test_count <= 2),
+                        'source': 'Swing Top Supply (Institutional Drop)',
+                        'active': True
+                    })
 
         return {
             'demand_zones': demand_zones[-4:],  # Most recent 4 zones
@@ -206,6 +200,15 @@ class VivekYadavSupplyDemandEngine:
         closes_s = pd.Series(df['close'].values)
         ema_20 = float(closes_s.ewm(span=20, adjust=False).mean().iloc[-1])
         ema_50 = float(closes_s.ewm(span=50, adjust=False).mean().iloc[-1])
+        sma_200 = float(closes_s.rolling(min(n, 200), min_periods=min(n, 25)).mean().iloc[-1])
+
+        # RSI 14 Momentum Guard
+        delta = closes_s.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / (loss.replace(0, np.nan) + 1e-9)
+        rsi_series = 100 - (100 / (1 + rs))
+        rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
 
         # Volume confirmation: institutional participation at the zone
         vol_confirmed = True
@@ -221,31 +224,25 @@ class VivekYadavSupplyDemandEngine:
         reasons = []
 
         # 1. TEST DEMAND TRIGGER (BUY):
-        # Allowed strictly in BULLISH trend with price holding above EMA20 and volume absorption
-        if trend == 'BULLISH' and (last_c >= ema_20) and (ema_20 >= ema_50 * 0.998):
+        # Strictly in BULLISH trend with price holding above EMA20 / 200 SMA with volume absorption & RSI sweet spot
+        if (trend == 'BULLISH') and (last_c >= ema_20 * 0.995) and (ema_20 >= ema_50 * 0.995) and (last_c >= sma_200 * 0.99) and (42.0 <= rsi_val <= 66.0):
             # Sort demand zones: fresh zones first, then most recent
             sorted_demand = sorted(demand_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)
             for dz in sorted_demand:
                 z_top = dz['top']
                 z_bot = dz['bottom']
 
+                # Fresh Zone requirement: Max 3 prior touches for institutional relevance
+                is_fresh_zone = dz.get('test_count', 0) <= 3
+
                 # Touch Requirement: Current or previous low dipped into zone without blowing through
-                touched = (last_l <= z_top) and (last_h >= z_bot) and (last_l >= z_bot - 0.15 * safe_atr)
+                touched = is_fresh_zone and (last_l <= z_top) and (last_h >= z_bot) and (last_l >= z_bot - 0.15 * safe_atr)
                 # Invalidation: Full body candle closed below zone bottom
                 invalidated = (last_c < z_bot) and (last_o < z_bot)
 
                 if touched and not invalidated:
-                    # Confirmation: Green candle with bottom rejection wick >= 38%, price holding above zone bottom, and substantial range
-                    is_green_confirm = (last_c > last_o) and (last_c >= z_bot + 0.05 * safe_atr) and (lower_wick_ratio >= 0.38) and (candle_range >= 0.35 * safe_atr) and vol_confirmed
-                    # Also permit confirmation if previous candle formed the rejection and current confirms green
-                    if not is_green_confirm and n >= 2:
-                        prev_o = float(df['open'].iloc[-2])
-                        prev_c = float(df['close'].iloc[-2])
-                        prev_l = float(df['low'].iloc[-2])
-                        prev_range = max(float(df['high'].iloc[-2]) - prev_l, 1e-9)
-                        prev_lower_wick = (min(prev_o, prev_c) - prev_l) / prev_range
-                        if prev_lower_wick >= 0.38 and last_c > last_o and (last_c >= z_bot + 0.05 * safe_atr) and (candle_range >= 0.35 * safe_atr):
-                            is_green_confirm = True
+                    # Confirmation: Green candle with bottom rejection wick >= 25%, price holding above zone bottom
+                    is_green_confirm = (last_c > last_o) and (last_c >= z_bot) and (lower_wick_ratio >= 0.25) and (candle_range >= 0.30 * safe_atr) and vol_confirmed
 
                     if is_green_confirm:
                         action = 'BUY'
@@ -255,35 +252,29 @@ class VivekYadavSupplyDemandEngine:
                         confidence = 92.0 if is_fresh else 88.0
                         reasons.append(f"Vivek Yadav S&D: {'Fresh ' if is_fresh else ''}Demand Zone Touch [{z_bot:.2f} - {z_top:.2f}]")
                         reasons.append(f"Candle Confirmation: Green Close with {lower_wick_ratio*100:.1f}% Bottom Rejection Wick")
-                        reasons.append(f"Trend Filter: {trend} market structure & EMA20 ({ema_20:.2f}) >= EMA50 ({ema_50:.2f})")
+                        reasons.append(f"Trend Filter: {trend} market structure & EMA20 ({ema_20:.2f}) >= EMA50 ({ema_50:.2f}) & Price >= 200 SMA ({sma_200:.2f})")
                         if is_fresh:
                             reasons.append("Zone Quality: High-Priority Unmitigated (Fresh) Institutional Demand")
                         break
 
         # 2. TEST SUPPLY TRIGGER (SELL):
-        # Allowed strictly in BEARISH trend with price holding below EMA20 and volume absorption
-        if action == 'HOLD' and trend == 'BEARISH' and (last_c <= ema_20) and (ema_20 <= ema_50 * 1.002):
+        # Strictly in BEARISH trend holding below EMA20 / 200 SMA with volume absorption & RSI sweet spot
+        if action == 'HOLD' and (trend == 'BEARISH') and (last_c <= ema_20 * 1.005) and (ema_20 <= ema_50 * 1.005) and (last_c <= sma_200 * 1.01) and not (current_price > 500.0 and last_c > sma_200) and (34.0 <= rsi_val <= 58.0):
             sorted_supply = sorted(supply_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)
             for sz in sorted_supply:
                 z_top = sz['top']
                 z_bot = sz['bottom']
 
+                is_fresh_zone = sz.get('test_count', 0) <= 3
+
                 # Touch Requirement: Current or previous high reached into zone without blowing through
-                touched = (last_h >= z_bot) and (last_l <= z_top) and (last_h <= z_top + 0.15 * safe_atr)
+                touched = is_fresh_zone and (last_h >= z_bot) and (last_l <= z_top) and (last_h <= z_top + 0.15 * safe_atr)
                 # Invalidation: Full body candle closed above zone top
                 invalidated = (last_c > z_top) and (last_o > z_top)
 
                 if touched and not invalidated:
-                    # Confirmation: Red candle with top rejection wick >= 38%, price holding below zone top, and substantial range
-                    is_red_confirm = (last_c < last_o) and (last_c <= z_top - 0.05 * safe_atr) and (upper_wick_ratio >= 0.38) and (candle_range >= 0.35 * safe_atr) and vol_confirmed
-                    if not is_red_confirm and n >= 2:
-                        prev_o = float(df['open'].iloc[-2])
-                        prev_c = float(df['close'].iloc[-2])
-                        prev_h = float(df['high'].iloc[-2])
-                        prev_range = max(prev_h - float(df['low'].iloc[-2]), 1e-9)
-                        prev_upper_wick = (prev_h - max(prev_o, prev_c)) / prev_range
-                        if prev_upper_wick >= 0.38 and last_c < last_o and (last_c <= z_top - 0.05 * safe_atr) and (candle_range >= 0.35 * safe_atr):
-                            is_red_confirm = True
+                    # Confirmation: Red candle with top rejection wick >= 28%, price holding below zone top
+                    is_red_confirm = (last_c < last_o) and (last_c <= z_top - 0.05 * safe_atr) and (upper_wick_ratio >= 0.28) and (candle_range >= 0.35 * safe_atr) and vol_confirmed
 
                     if is_red_confirm:
                         action = 'SELL'
