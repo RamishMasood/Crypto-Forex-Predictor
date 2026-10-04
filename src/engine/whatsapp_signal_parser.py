@@ -256,6 +256,22 @@ You decode unformatted Hinglish, Roman Urdu, and English trading signal messages
    - If the message mentions "eth", "ethusd", or "ethereum" or price is 2,000-5,000 in crypto context -> map to **ETHUSD**.
    - If a message specifies price levels near an open trade (e.g. "Cut the trade if it reach 4159" when GOLD was entered at 4155), correlate with that exact open symbol (XAUUSD)!
 
+1.1 **CRITICAL: QUOTED / REPLIED-TO MESSAGE CORRELATION (HIGHEST PRIORITY OVER RECENT TRADES)**:
+   - When the admin sends a message that replies to an earlier message (indicated by `### QUOTED / REPLIED-TO MESSAGE:`):
+     - **For Exits / Cuts / Closures ("Cut this trade", "Cut krdo yrr", "Exit karlo", "Close this", "Nikal jao")**:
+       - You MUST extract the symbol directly from the **QUOTED / REPLIED-TO MESSAGE**!
+       - **Example Scenario**:
+         Suppose WhatsApp trade for GOLD was opened at 09:15, and earlier trade for EURUSD was opened at 08:30.
+         Now admin REPLIES to the EURUSD setup with: *"Cut this trade"* or *"Cut krdo yrr"*.
+         The symbol MUST BE `"EURUSD"`. It MUST NEVER be GOLD, NEVER null, and NEVER the latest trade!
+         Output: `action: "CLOSE_ALL"`, `symbol: "EURUSD"`, `explanation: "Admin replied to EURUSD setup to cut/close it."`
+     - **For Entry Confirmation ("Entered", "Enter ho jao", "Active now")**:
+       - The setup being entered is the one in the QUOTED message. Use that symbol and levels.
+     - **For SL Modifications / Breakeven ("SL cost pe", "BE kar do", "SL to 4159")**:
+       - Apply to the symbol quoted in the reply.
+     - **Only when NO symbol is in the message AND NO symbol is in the quoted message (or there is no quote)**:
+       - Only in this scenario should `symbol: null` be output to target the single most recent WhatsApp trade.
+
 2. **CRITICAL: TWO-STEP ENTRY CORRELATION RULE (Admin Entry Command + Subsequent Setup Card)**:
    - Admin frequently works in two sequential steps:
      Step 1: Admin commands entry: e.g. "EURGBP mein enter ho jao sabhi long side", "BTC buy now", "Gold enter ho jao" (without SL/TP levels).
@@ -274,9 +290,11 @@ You decode unformatted Hinglish, Roman Urdu, and English trading signal messages
      You MUST output:
      `action: "ENTER"`, `symbol: "EURGBP"`, `direction: "BUY"`, `stop_loss: 0.85412`, `tp1: 0.85461`, `tp2: 0.85486`, `confirmation_required: false`, `safety_gate_passed: true`!
      This executes immediately on MT5 at current market price!
-   - **CASE B: STANDALONE SETUP AWAITING CONFIRMATION (`action: "SETUP_SAVED"`)**:
-     ONLY when there was NO prior "enter ho jao" command for that symbol in recent history or active entry commands, AND the message explicitly says "Wait for confirmation" or "Enter with confirmation otherwise skip this signal":
-     Output: `action: "SETUP_SAVED"`, `confirmation_required: true`.
+   - **CASE B: COMPLETE SIGNAL WITH 'WAIT FOR CONFIRMATION' OR ENTRY PRICE**:
+     - When admin posts a complete signal containing Entry Price, Stop Loss, and Take Profits (TP1..TP5), even if the message contains disclaimers like "Wait for confirmation", "Enter with confirmation otherwise skip", or "Risky setup":
+       You MUST output:
+       `action: "ENTER"`, `symbol`: Extracted symbol (e.g. "BTCUSD", "XAUUSD"), `direction`: "BUY" or "SELL", `entry_price`: Explicit numeric entry price (or midpoint of entry zone), `stop_loss`: Exact SL, `tp1`, `tp2`, `tp3`... `safety_gate_passed`: true!
+       NOTE: The MT5 Executor checks live market price against `entry_price`. If current market price is already near the entry price, it enters MARKET immediately without waiting. If price is far away, it places a PENDING LIMIT ORDER on MT5!
 
 3. **CONFIRMATION TRIGGER / EXECUTION FOR SAVED SETUPS**:
    - When the admin follows up with:
@@ -303,15 +321,33 @@ You decode unformatted Hinglish, Roman Urdu, and English trading signal messages
 
 5. **FULL EXIT / CUT SIGNAL (ROMAN URDU / HINDI / ENGLISH)**:
    - When admin says:
-     - "Cut krdo yrr", "Cut kardo", "Exit karlo sabhi", "Close all", "Book karlo", "Nikal jao", "All positions booked"
+     - "Cut krdo yrr", "Cut kardo", "Cut krdo ye trade", "Exit karlo sabhi", "Close all", "Book karlo", "Nikal jao", "All positions booked"
      - `action`: "CLOSE_ALL"
-     - `symbol`: Symbol of the running trade (e.g. "XAUUSD")
+     - `symbol`:
+       1. If admin mentions a pair in text (e.g. "Gold", "BTC") -> output that symbol ("XAUUSD", "BTCUSD").
+       2. If admin REPLIED to an earlier message (see `### QUOTED / REPLIED-TO MESSAGE:`) that contains a pair (e.g. replying to an EURUSD setup with "Cut this trade" or "Cut krdo yrr") -> output that quoted symbol ("EURUSD")!
+       3. ONLY IF NO SYMBOL IS IN TEXT AND NO QUOTED MESSAGE CONTAINS A PAIR -> output `symbol: null`! (The executor will then close only the single most recent WhatsApp trade).
 
-6. **PARTIAL PROFIT BOOKING**:
-   - When admin says:
-     - "Partially close kar do", "Book karlo safe traders", "50% nikal lo", "itne percent uska nikal lo TP mein se", "TP uska close kar do"
+6. **PARTIAL PROFIT BOOKING & DYNAMIC PERCENTAGE (CRITICAL)**:
+   - When admin commands partial profit booking, closing part of the trade, or locking gains:
+     Examples:
+     - "90% nikal lo baqi lage rehne do" / "90% book karlo" -> `volume_pct: 90.0`, `move_to_be: true`
+     - "80% nikal lo baqi hold" / "80% close kar do" -> `volume_pct: 80.0`, `move_to_be: true`
+     - "70% nikal lo" / "75% nikal lo" -> `volume_pct: 70.0` / `75.0`
+     - "TP1 hit 90% nikal lo baqi hold" -> `volume_pct: 90.0`, `target_tp: "TP1"`, `move_to_be: true`
+     - "TP1 hit book profit safe traders" -> `volume_pct: 50.0`, `target_tp: "TP1"`
+     - "TP2 hit 80% nikal lo baqi runner" -> `volume_pct: 80.0`, `target_tp: "TP2"`, `move_to_be: true`
+     - "half close kar do" / "50% book" -> `volume_pct: 50.0`
+     - "thoda profit nikal lo" / "partially close" -> `volume_pct: 50.0`
+   - **Fields**:
      - `action`: "PARTIAL_CLOSE"
-     - `volume_pct`: Extracted percentage (e.g. 50.0 or 95.0, default 50.0)
+     - `symbol`:
+       - If a pair is mentioned in text (e.g. "Gold 80% nikal lo") -> output that symbol ("XAUUSD").
+       - If admin REPLIED to an earlier message (see `### QUOTED / REPLIED-TO MESSAGE:`) -> output that quoted symbol!
+       - If no symbol in text or quote -> output `null` (defaults to most recent WhatsApp trade).
+     - `volume_pct`: Exact numeric percentage (e.g. 90.0, 80.0, 70.0, 50.0). Extract the exact number stated by admin!
+     - `target_tp`: "TP1", "TP2", "TP3", or null if not specifically mentioned.
+     - `move_to_be`: true if admin also said "baqi lage rehne do", "SL cost pe", "risk free", or "baqi hold".
 
 7. **ADVISORIES, COMMENTARY & HOLD**:
    - When admin says:
@@ -319,27 +355,40 @@ You decode unformatted Hinglish, Roman Urdu, and English trading signal messages
      - `action`: "HOLD"
      - `explanation`: "Admin market commentary / risk advisory"
 
-8. **CANCEL / INVALIDATE PENDING SETUP**:
+8. **CANCEL / INVALIDATE PENDING SETUP OR LIMIT ORDER**:
    - When admin says:
-     - "Ignore US100 trade I told you before, Invalid now", "Cancel setup", "US100 invalid now", "Invalid now", "Setup invalid", "Skip US100 ab mat lena", "Cancel US100 order"
+     - "Ignore US100 trade I told you before, Invalid now", "Cancel setup", "US100 invalid now", "Invalid now", "Setup invalid", "Skip US100 ab mat lena", "Cancel US100 order", "Cancel limit"
      - `action`: "CANCEL_SETUP"
      - `symbol`: "US100" (or specified coin)
-     - `explanation`: "Pending setup cancelled and invalidated as commanded by admin"
+     - `explanation`: "Pending setup / MT5 limit order cancelled and invalidated as commanded by admin"
 
-9. **MULTIMODAL IMAGE RECOGNITION**:
+9. **MULTIMODAL IMAGE RECOGNITION (SCREENSHOTS & CHARTS)**:
    - If an image is provided:
-     - **MT5 Position Screenshot** (shows open orders like "GOLD, sell 2.00 4 155.22"):
-       Identifies admin entered active trade. If a pending setup exists for this symbol, trigger `action: "ENTER"`.
-     - **TradingView Chart Screenshot**:
-       Extract entry zone, SL, TP levels.
+     - **MT5 Mobile Position Screenshot (Proof of Entry)**:
+       Examples: Black/dark mobile MT5 screen with blue/red profit lines such as:
+       `GOLD, sell 2.00  4 185.47 -> 4 183.82  330.00`
+       or `BTCUSD, buy 0.05  90 200 -> 90 450  125.00`
+       This visual screenshot proves the admin has entered the market live!
+       You MUST output:
+       `action`: "ENTER",
+       `symbol`: Extracted symbol (e.g. "XAUUSD" for GOLD, "BTCUSD", "EURUSD"),
+       `direction`: "BUY" or "SELL" (read from screenshot),
+       `entry_price`: The open price shown in the screenshot,
+       `is_screenshot_proof`: true,
+       `stop_loss`: Exact SL from the pending setup cache for this symbol (or from screenshot),
+       `tp1`, `tp2`, `tp3`: Exact TPs from the pending setup cache,
+       `safety_gate_passed`: true,
+       `explanation`: "Admin posted MT5 mobile screenshot showing active position. Triggers immediate market entry if not already in trade."
+     - **TradingView / Chart Analysis Screenshot**:
+       Extract symbol, direction (arrow / candle bounce pattern), entry zone, SL, and TP targets. If no explicit SL/TP is written, extract key support/resistance boundaries from chart.
      - **News Screenshot**:
        Classify as market sentiment advisory -> `action: "HOLD"`.
 
-9. **MULTI-PAIR INDEPENDENCE & MULTI-ACTION MESSAGES**:
-   - Admin may track multiple symbols simultaneously (e.g. BTCUSD and GOLD).
-   - If a message contains actions for MULTIPLE pairs (e.g. "BTC USD ka SL band kar do aur Gold ka trade cut kar do"), return a JSON object with `"signals"` array containing each parsed trade action!
+10. **MULTI-PAIR INDEPENDENCE & MULTI-ACTION MESSAGES**:
+    - Admin may track multiple symbols simultaneously (e.g. BTCUSD and GOLD).
+    - If a message contains actions for MULTIPLE pairs (e.g. "BTC USD ka SL band kar do aur Gold ka trade cut kar do"), return a JSON object with `"signals"` array containing each parsed trade action!
 
-10. **STRICT ZERO-HALLUCINATION SAFETY GATE**:
+11. **STRICT ZERO-HALLUCINATION SAFETY GATE**:
     - NEVER fabricate, guess, or invent numbers!
     - If a brand-new immediate entry is commanded WITHOUT SL and TP in the message, quote, image, or pending setup cache, mark `action: "BLOCKED"`, `safety_gate_passed: false`.
 
@@ -801,24 +850,47 @@ Or for multiple actions/pairs in one message:
             }, text, quoted_text, channel_name)
 
         # 6. Partial Close / Profit Booking
-        # e.g. "BTC USD ka 50% nikal lo TP mein se", "partially close kar do", "TP uska close kar do"
+        # e.g. "BTC USD ka 90% nikal lo TP mein se", "80% nikal lo baqi lage rehne do", "TP1 hit 90% nikal lo", "70% nikal lo"
         partial_keywords = [
             "partial", "partially", "nikal lo", "nikalo", "percent", "%",
             "kuch close", "tp close", "tp uska close", "tp1 book", "tp2 book",
-            "book karlo", "book kar lo", "safe book"
+            "tp1 hit", "tp2 hit", "book karlo", "book kar lo", "safe book", "half close"
         ]
         if any(w in t_low for w in partial_keywords):
             pct = 50.0
             pct_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:%|percent)', t_low)
+            if not pct_match:
+                pct_match = re.search(r'\b(95|90|85|80|75|70|65|60|50|40|30|25|20)\b\s*(?:nikal|close|book)', t_low)
             if pct_match:
                 pct = float(pct_match.group(1))
-            sym = detected_sym or self._infer_symbol(text, channel_name, open_trades) or "XAUUSD"
+
+            target_tp = None
+            if "tp1" in t_low:
+                target_tp = "TP1"
+            elif "tp2" in t_low:
+                target_tp = "TP2"
+            elif "tp3" in t_low:
+                target_tp = "TP3"
+
+            move_be = any(k in t_low for k in ["cost", "be", "breakeven", "risk free", "hold", "lage rehne"])
+
+            sym = detected_sym or self._infer_symbol(text, channel_name, open_trades)
+            if not sym and quoted_text:
+                q_up = quoted_text.upper()
+                for p in open_trades or []:
+                    ps = str(p.get("symbol", "")).upper()
+                    if ps in q_up or ps.replace("M", "") in q_up:
+                        sym = ps
+                        break
+
             return self._post_process_parsed_signal({
                 "is_actionable": True,
                 "action": "PARTIAL_CLOSE",
                 "symbol": sym,
                 "volume_pct": pct,
-                "explanation": f"Booked {pct}% profit on {sym}"
+                "target_tp": target_tp,
+                "move_to_be": move_be,
+                "explanation": f"Booked {pct}% profit on {sym or 'latest trade'}"
             }, text, quoted_text, channel_name)
 
         # 7. Detailed Setup with SL and TP (e.g. Image 1: Best Entry Zones, TP1-TP5, SL)

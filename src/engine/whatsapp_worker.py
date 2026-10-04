@@ -1305,17 +1305,23 @@ def run_worker():
                             const list = [];
 
                             for (const c of containers.slice(-25)) {
-                                // Extract text: try copyable-text first, then selectable-text, then spans
+                                // Extract quoted reply text first using multiple robust modern selectors
+                                const quoteNode = c.querySelector(
+                                    'div[data-testid="quoted-message"], span[data-testid="quoted-message"], ' +
+                                    'div[data-testid="quoted-msg"], div[aria-label*="Quoted"], div[aria-label*="quoted"], ' +
+                                    'div[aria-label*="Reply"], div[aria-label*="reply"], div[aria-label*="Replied"], div[aria-label*="replied"], ' +
+                                    'div._ak72, div._ak73, div._ak74, div[class*="quoted"], div[role="region"]'
+                                );
+                                const quotedText = quoteNode ? (quoteNode.innerText || '').trim() : null;
+
+                                // Extract actual message text: prefer selectable-text which isolates typed text from quote block
                                 let txt = '';
+                                const selectable = c.querySelector('span.selectable-text');
                                 const copyable = c.querySelector('div.copyable-text');
-                                if (copyable) {
+                                if (selectable) {
+                                    txt = (selectable.innerText || '').trim();
+                                } else if (copyable) {
                                     txt = (copyable.innerText || '').trim();
-                                }
-                                if (!txt) {
-                                    const selectable = c.querySelector('span.selectable-text');
-                                    if (selectable) {
-                                        txt = (selectable.innerText || '').trim();
-                                    }
                                 }
                                 if (!txt) {
                                     const spans = Array.from(c.querySelectorAll('span[dir="ltr"], span[dir="rtl"]'));
@@ -1325,13 +1331,15 @@ def run_worker():
                                     }
                                 }
 
+                                // If copyable was used and it swallowed the quoted text inside it, clean it up so txt is purely the reply text
+                                if (quotedText && txt && txt.includes(quotedText)) {
+                                    txt = txt.replace(quotedText, '').trim();
+                                }
+
                                 const imgNode = c.querySelector('img[src*="blob:"], img[src*="data:"], div[data-testid="image-thumb"] img, div._ak8l img, div._ak8o img, div[role="button"] img, div._amk4 img');
                                 const hasImg = Boolean(imgNode && imgNode.offsetParent !== null);
 
                                 if (!txt && !hasImg) continue;
-
-                                const quoteNode = c.querySelector('div[data-testid="quoted-message"], div[aria-label*="Quoted"]');
-                                const quotedText = quoteNode ? (quoteNode.innerText || '').trim() : null;
 
                                 const timeNode = c.querySelector('div[data-testid="msg-meta"] span, span[data-testid="msg-meta"]');
                                 const msgTime = timeNode ? (timeNode.innerText || '').trim() : '';
@@ -1376,19 +1384,21 @@ def run_worker():
                                 seen_messages.add(id_hash)
                             seen_messages.add(content_hash)
 
-                            logger.info(f"⚡ Incoming WhatsApp signal: {txt[:60]}...")
+                            logger.info(f"⚡ Incoming WhatsApp signal: {txt[:60]}... Quoted: {q_snip or 'None'}")
 
                             image_path = None
-                            if has_img and not txt:
-                                txt = "[Screenshot / Image Attachment]"
+                            if has_img:
+                                if not txt:
+                                    txt = "[Screenshot / Image Attachment]"
                                 try:
-                                    img_loc = main_pane.locator("img[src*='blob:'], img[src*='data:']").last
+                                    img_loc = main_pane.locator("img[src*='blob:'], img[src*='data:'], div[data-testid='image-thumb'] img, div._ak8l img, div._ak8o img, div[role='button'] img, div._amk4 img").last
                                     if img_loc.count() > 0:
                                         os.makedirs(".whatsapp_media", exist_ok=True)
                                         image_path = os.path.abspath(f".whatsapp_media/wa_msg_{int(time.time()*1000)}.png")
                                         img_loc.screenshot(path=image_path)
-                                except Exception:
-                                    pass
+                                        logger.info(f"📸 Captured incoming WhatsApp screenshot: {image_path}")
+                                except Exception as img_err:
+                                    logger.debug(f"Image screenshot error: {img_err}")
 
                             open_positions = executor.get_open_whatsapp_positions()
                             parsed = parser.parse_message(
@@ -1408,7 +1418,7 @@ def run_worker():
                             if len(recent_history) > 30:
                                 recent_history.pop(0)
 
-                            exec_res = executor.execute_parsed_signal(parsed, txt)
+                            exec_res = executor.execute_parsed_signal(parsed, txt, quoted_text=quoted_text)
                             state = executor.load_state()
                             state["last_message_processed"] = {
                                 "text": txt,

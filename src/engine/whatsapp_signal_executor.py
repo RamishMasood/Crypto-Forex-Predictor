@@ -264,6 +264,150 @@ class WhatsAppSignalExecutor:
         """
         return self._get_whatsapp_positions(symbol=symbol)
 
+    def get_pending_whatsapp_orders(self, symbol: Optional[str] = None, broker_sym: Optional[str] = None) -> List[Any]:
+        """
+        Returns active pending orders (limit/stop) placed by WhatsApp Signals (Magic 777666 / WAPP).
+        """
+        if not self.executor._ensure_connection():
+            return []
+        import MetaTrader5 as mt5
+        b_sym = broker_sym or (self.resolve_broker_symbol(symbol) if symbol else None)
+        try:
+            orders = mt5.orders_get(symbol=b_sym) if b_sym else mt5.orders_get()
+        except Exception as e:
+            logger.debug(f"orders_get error: {e}")
+            orders = None
+
+        if not orders:
+            return []
+
+        wa_orders = []
+        for o in orders:
+            o_magic = int(getattr(o, 'magic', 0))
+            o_cmt = str(getattr(o, 'comment', ''))
+            if o_magic == WHATSAPP_MAGIC_NUMBER or o_cmt.startswith(WHATSAPP_COMMENT_PREFIX):
+                if symbol or b_sym:
+                    o_sym = str(getattr(o, 'symbol', '')).upper()
+                    if (symbol and symbol in o_sym) or (b_sym and b_sym in o_sym):
+                        wa_orders.append(o)
+                else:
+                    wa_orders.append(o)
+        return wa_orders
+
+    def cancel_pending_whatsapp_orders(self, symbol: Optional[str] = None) -> List[int]:
+        """
+        Cancels any active MT5 pending limit/stop orders for WhatsApp (Magic 777666 / WAPP).
+        """
+        if not self.executor._ensure_connection():
+            return []
+        import MetaTrader5 as mt5
+        cancelled = []
+        pending_orders = self.get_pending_whatsapp_orders(symbol=symbol)
+        for o in pending_orders:
+            tkt = int(getattr(o, 'ticket', 0))
+            req = {
+                'action': mt5.TRADE_ACTION_REMOVE,
+                'order': tkt,
+                'magic': WHATSAPP_MAGIC_NUMBER
+            }
+            res = mt5.order_send(req)
+            if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+                cancelled.append(tkt)
+                logger.info(f"🗑️ Cancelled MT5 WhatsApp pending limit order #{tkt} for {getattr(o, 'symbol', '')}")
+            else:
+                comm = getattr(res, 'comment', 'Remove failed') if res else 'No response'
+                logger.warning(f"Failed to cancel MT5 pending order #{tkt}: {comm}")
+        return cancelled
+
+    def place_pending_whatsapp_order(
+        self,
+        broker_sym: str,
+        direction: str,
+        target_entry: float,
+        sl_price: float,
+        tp1_price: float,
+        tp2_price: float = 0.0,
+        tp3_price: float = 0.0,
+        lot_split: Dict[str, float] = None,
+        raw_symbol: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Places a Pending Limit or Stop Order on MT5 when current market price is not close to signal entry.
+        """
+        if not self.executor._ensure_connection():
+            return {"success": False, "error": "MT5 not connected"}
+
+        import MetaTrader5 as mt5
+        tick = mt5.symbol_info_tick(broker_sym)
+        if not tick:
+            return {"success": False, "error": f"Cannot fetch tick for {broker_sym}"}
+
+        specs = self.executor.get_symbol_trade_specs(broker_sym)
+        if not specs:
+            return {"success": False, "error": f"Cannot fetch specs for {broker_sym}"}
+
+        digits = specs['digits']
+        type_filling = specs['filling_mode']
+        current_price = tick.ask if direction == "BUY" else tick.bid
+
+        # Determine pending order type
+        if direction == "BUY":
+            order_type = mt5.ORDER_TYPE_BUY_LIMIT if target_entry < current_price else mt5.ORDER_TYPE_BUY_STOP
+            order_label = "BUY_LIMIT" if target_entry < current_price else "BUY_STOP"
+        else:
+            order_type = mt5.ORDER_TYPE_SELL_LIMIT if target_entry > current_price else mt5.ORDER_TYPE_SELL_STOP
+            order_label = "SELL_LIMIT" if target_entry > current_price else "SELL_STOP"
+
+        orders_to_place = []
+        if lot_split:
+            if lot_split.get('tp1_lots', 0.0) > 0:
+                orders_to_place.append(('TP1', lot_split['tp1_lots'], tp1_price))
+            if lot_split.get('tp2_lots', 0.0) > 0 and tp2_price > 0:
+                orders_to_place.append(('TP2', lot_split['tp2_lots'], tp2_price))
+            if lot_split.get('tp3_lots', 0.0) > 0 and tp3_price > 0:
+                orders_to_place.append(('TP3', lot_split['tp3_lots'], tp3_price))
+
+        if not orders_to_place:
+            orders_to_place.append(('TP1', 0.05, tp1_price))
+
+        placed_tickets = []
+        errors = []
+
+        for label, volume, tp_val in orders_to_place:
+            req = {
+                'action': mt5.TRADE_ACTION_PENDING,
+                'symbol': broker_sym,
+                'volume': float(volume),
+                'type': order_type,
+                'price': round(float(target_entry), digits),
+                'sl': round(float(sl_price), digits) if sl_price > 0 else 0.0,
+                'tp': round(float(tp_val), digits) if tp_val > 0 else 0.0,
+                'deviation': 20,
+                'magic': WHATSAPP_MAGIC_NUMBER,
+                'comment': f"{WHATSAPP_COMMENT_PREFIX}_{label}_LIMIT",
+                'type_time': mt5.ORDER_TIME_GTC,
+                'type_filling': type_filling
+            }
+            res = mt5.order_send(req)
+            if res and res.retcode == mt5.TRADE_RETCODE_DONE:
+                placed_tickets.append(int(res.order))
+                logger.info(f"📌 Placed MT5 Pending {order_label} #{res.order} on {broker_sym} @ {target_entry} (Vol: {volume}, SL: {sl_price}, TP: {tp_val})")
+            else:
+                comm = getattr(res, 'comment', 'Unknown error') if res else 'No response'
+                errors.append(f"{label} failed: {comm}")
+
+        if placed_tickets:
+            return {
+                "success": True,
+                "order_type": order_label,
+                "tickets": placed_tickets,
+                "price": target_entry,
+                "sl": sl_price,
+                "tp1": tp1_price
+            }
+        else:
+            return {"success": False, "error": "; ".join(errors)}
+
     def sync_active_whatsapp_trades(self) -> Dict[str, Any]:
         """
         Synchronizes state['active_signal_trades'] and persistent setup memory with live open WhatsApp positions on MT5.
@@ -285,6 +429,26 @@ class WhatsAppSignalExecutor:
             # 1. Reconcile active_signal_trades with MT5
             for sym in list(active_trades.keys()):
                 trade_info = active_trades[sym]
+
+                # If trade is currently a pending limit/stop order
+                if trade_info.get("is_pending"):
+                    pending_wa = self.get_pending_whatsapp_orders(symbol=sym)
+                    if not pending_wa:
+                        # Order is no longer in pending orders! Check if it triggered into an active position
+                        live_pos = self.get_open_whatsapp_positions(symbol=sym)
+                        if live_pos:
+                            logger.info(f"WhatsApp pending limit order for {sym} has triggered and is now active on MT5!")
+                            trade_info["is_pending"] = False
+                            trade_info["tickets"] = [{"ticket": int(p.get("ticket")), "label": p.get("comment")} for p in live_pos]
+                            changed = True
+                            if self.parser:
+                                self.parser.mark_setup_status(sym, "CONFIRMED_ACTIVE", condition="Pending limit order triggered & filled on MT5")
+                        else:
+                            logger.info(f"WhatsApp pending limit order for {sym} was cancelled or expired. Purging from active state.")
+                            active_trades.pop(sym, None)
+                            changed = True
+                    continue
+
                 tickets = trade_info.get("tickets", [])
                 int_tickets = []
                 for t in tickets:
@@ -360,7 +524,7 @@ class WhatsAppSignalExecutor:
 
         return active_trades
 
-    def execute_parsed_signal(self, parsed: Dict[str, Any], raw_message: str) -> Dict[str, Any]:
+    def execute_parsed_signal(self, parsed: Dict[str, Any], raw_message: str, quoted_text: Optional[str] = None) -> Dict[str, Any]:
         """
         Executes trade or management action on MT5 according to the parsed AI signal.
         Guarantees 100% strict isolation from Autonomous Trader trades.
@@ -375,7 +539,7 @@ class WhatsAppSignalExecutor:
         if signals_list:
             results = []
             for sig in signals_list:
-                res = self.execute_parsed_signal(sig, raw_message)
+                res = self.execute_parsed_signal(sig, raw_message, quoted_text=quoted_text)
                 results.append(res)
             return {
                 "success": any(r.get("success") for r in results) if results else True,
@@ -421,6 +585,9 @@ class WhatsAppSignalExecutor:
                 self.parser.clear_entry_trigger(clean_s)
                 self.parser.delete_setup(clean_s)
 
+            # Cancel any active MT5 pending limit/stop orders for this symbol (or all if not specified)
+            cancelled_tkts = self.cancel_pending_whatsapp_orders(symbol=clean_s if clean_s else None)
+
             # Atomic direct deletion from SETUPS_CACHE_FILE
             from src.engine.whatsapp_signal_parser import SETUPS_CACHE_FILE
             if os.path.exists(SETUPS_CACHE_FILE):
@@ -441,7 +608,22 @@ class WhatsAppSignalExecutor:
                 except Exception as del_err:
                     logger.debug(f"Error purging setup from cache file: {del_err}")
 
+            # Also clear from active_signal_trades if it was recorded as pending
+            state = self.load_state()
+            active_trades = state.get("active_signal_trades", {})
+            changed_state = False
+            for k in list(active_trades.keys()):
+                if (clean_s and (clean_s in k or k in clean_s)) or not clean_s:
+                    if active_trades[k].get("is_pending"):
+                        active_trades.pop(k, None)
+                        changed_state = True
+            if changed_state:
+                state["active_signal_trades"] = active_trades
+                self.save_state(state)
+
             details = parsed.get("explanation") or f"Setup for {symbol} has been invalidated and removed from memory."
+            if cancelled_tkts:
+                details += f" (Cancelled MT5 pending limit orders: {cancelled_tkts})"
             self._append_log({
                 "action": "CANCEL_SETUP",
                 "symbol": symbol or "-",
@@ -449,7 +631,7 @@ class WhatsAppSignalExecutor:
                 "details": details,
                 "raw_message": raw_message
             })
-            return {"success": True, "status": "SETUP_CANCELLED", "details": details}
+            return {"success": True, "status": "SETUP_CANCELLED", "details": details, "cancelled_tickets": cancelled_tkts}
 
         # 2. HOLD action (Advisory, commentary, hold positions)
         if action == "HOLD":
@@ -536,6 +718,21 @@ class WhatsAppSignalExecutor:
             tp3_price = float(parsed.get("tp3") or 0.0)
             tp4_price = float(parsed.get("tp4") or 0.0)
             tp5_price = float(parsed.get("tp5") or 0.0)
+            target_entry = float(parsed.get("entry_price") or 0.0)
+            is_screenshot_proof = bool(parsed.get("is_screenshot_proof", False))
+
+            # If screenshot proof or missing SL/TP, recover SL/TP from cached setup
+            if (sl_price <= 0 or tp1_price <= 0) and self.parser:
+                cached_s = self.parser.get_cached_setup(symbol) or self.parser.get_latest_pending_setup()
+                if cached_s:
+                    if sl_price <= 0:
+                        sl_price = float(cached_s.get("stop_loss") or 0.0)
+                    if tp1_price <= 0:
+                        tp1_price = float(cached_s.get("tp1") or 0.0)
+                    if tp2_price <= 0:
+                        tp2_price = float(cached_s.get("tp2") or 0.0)
+                    if tp3_price <= 0:
+                        tp3_price = float(cached_s.get("tp3") or 0.0)
 
             # HARD SAFETY GATE: Never place an order on MT5 without explicit, valid SL and TP1
             if sl_price <= 0 or tp1_price <= 0 or not parsed.get("safety_gate_passed", False):
@@ -553,7 +750,7 @@ class WhatsAppSignalExecutor:
             # 4.1 STRICT GUARD: DUPLICATE ACTIVE SETUP SUPPRESSION (WHATSAPP TRADES ONLY)
             # If this symbol/setup already has an active WhatsApp trade running on MT5, NEVER re-enter until it closes!
             open_wa_positions = self.get_open_whatsapp_positions(symbol=symbol)
-            has_active_trade = bool(open_wa_positions) or (symbol in active_trades)
+            has_active_trade = bool(open_wa_positions) or (symbol in active_trades and not active_trades[symbol].get("is_pending"))
 
             if has_active_trade:
                 active_entry = active_trades.get(symbol, {})
@@ -564,6 +761,19 @@ class WhatsAppSignalExecutor:
 
                 existing_sl = active_entry.get("sl")
                 existing_tp1 = active_entry.get("tp1")
+
+                # If admin sent MT5 screenshot proof showing they are in trade, and we are ALREADY in trade:
+                if is_screenshot_proof:
+                    details = f"Trade for {symbol} is ALREADY ACTIVE on MT5. Screenshot proof confirmed; no duplicate entry needed."
+                    logger.info(f"ℹ️ {details}")
+                    self._append_log({
+                        "action": f"ENTER {direction}",
+                        "symbol": broker_sym,
+                        "status": "SKIPPED (Already In Market)",
+                        "details": details,
+                        "raw_message": raw_message
+                    })
+                    return {"success": True, "status": "ALREADY_ACTIVE_SKIPPED", "details": details}
 
                 # Duplicate setup check: same trading pair and (same direction OR matching SL/TP levels)
                 is_same_setup = (
@@ -594,7 +804,7 @@ class WhatsAppSignalExecutor:
                         "reason": reason
                     }
 
-            # Get current price
+            # Get current live price
             import MetaTrader5 as mt5
             tick = mt5.symbol_info_tick(broker_sym)
             if not tick:
@@ -608,126 +818,272 @@ class WhatsAppSignalExecutor:
                 })
                 return {"success": False, "status": "FAILED", "reason": reason}
 
-            entry_price = tick.ask if direction == "BUY" else tick.bid
+            current_market_price = tick.ask if direction == "BUY" else tick.bid
 
-            # Calculate Lot Size and Risk
+            # Proximity check:
+            # If target entry is specified, calculate relative difference
+            diff_pct = abs(current_market_price - target_entry) / target_entry if target_entry > 0 else 0.0
+
+            # Proximity threshold: 0.15% (e.g. ~$4 on Gold, ~$100 on BTC, ~15 pips)
+            # If price is close (<= 0.15%), or no entry price specified, or screenshot proof arrived:
+            # Enter immediately at MARKET!
+            should_enter_market = is_screenshot_proof or (target_entry <= 0) or (diff_pct <= 0.0015)
+
             cfg_lot = float(settings.get("batch_lot_size", 0.05))
             max_risk_cap = float(settings.get("max_dollar_risk", 50.0))
 
-            lot_sizing = self.executor.calculate_lot_and_risk(
-                broker_symbol=broker_sym,
-                entry_price=entry_price,
-                stop_loss_price=sl_price,
-                balance_usd=10000.0,
-                total_volume_lots=cfg_lot,
-                tp1_price=tp1_price,
-                tp2_price=tp2_price if tp2_price > 0 else None,
-                tp3_price=tp3_price if tp3_price > 0 else None
-            )
+            if should_enter_market:
+                # Cancel any old pending limit orders for this symbol first
+                self.cancel_pending_whatsapp_orders(symbol=broker_sym)
 
-            actual_risk = float(lot_sizing.get("actual_risk_usd", 0.0))
-            lot_split = lot_sizing.get("lot_split", {})
+                entry_price = current_market_price
 
-            # Enforce Max Dollar Risk Cap
-            if max_risk_cap > 0 and actual_risk > max_risk_cap:
-                total_lots = float(lot_sizing.get("total_lots", cfg_lot))
-                if total_lots > 0 and actual_risk > 0:
-                    scale_factor = max_risk_cap / actual_risk
-                    scaled_lot = max(0.01, round(int((total_lots * scale_factor) / 0.01) * 0.01, 2))
-                    lot_sizing = self.executor.calculate_lot_and_risk(
-                        broker_symbol=broker_sym,
-                        entry_price=entry_price,
-                        stop_loss_price=sl_price,
-                        balance_usd=10000.0,
-                        total_volume_lots=scaled_lot,
-                        tp1_price=tp1_price,
-                        tp2_price=tp2_price if tp2_price > 0 else None,
-                        tp3_price=tp3_price if tp3_price > 0 else None
-                    )
-                    actual_risk = float(lot_sizing.get("actual_risk_usd", 0.0))
-                    lot_split = lot_sizing.get("lot_split", {})
+                # Calculate Lot Size and Risk
+                lot_sizing = self.executor.calculate_lot_and_risk(
+                    broker_symbol=broker_sym,
+                    entry_price=entry_price,
+                    stop_loss_price=sl_price,
+                    balance_usd=10000.0,
+                    total_volume_lots=cfg_lot,
+                    tp1_price=tp1_price,
+                    tp2_price=tp2_price if tp2_price > 0 else None,
+                    tp3_price=tp3_price if tp3_price > 0 else None
+                )
 
-            if max_risk_cap > 0 and actual_risk > max_risk_cap:
-                reason = f"Risk ${actual_risk:.2f} exceeds Max Dollar Risk Cap (${max_risk_cap:.2f}). Skipped."
-                self._append_log({
-                    "action": "ENTER",
-                    "symbol": broker_sym,
-                    "status": "SKIPPED (Risk Cap)",
-                    "details": reason,
-                    "raw_message": raw_message
-                })
-                return {"success": False, "status": "RISK_CAP_EXCEEDED", "reason": reason}
+                actual_risk = float(lot_sizing.get("actual_risk_usd", 0.0))
+                lot_split = lot_sizing.get("lot_split", {})
 
-            # Submit Order with dedicated WhatsApp Magic Number & Comment Prefix
-            trade_res = self.executor.execute_multi_target_trade(
-                broker_symbol=broker_sym,
-                action=direction,
-                sl_price=sl_price,
-                tp1_price=tp1_price,
-                tp2_price=tp2_price,
-                tp3_price=tp3_price,
-                lot_split=lot_split,
-                strategy_tag="WhatsApp_Signal",
-                custom_magic=WHATSAPP_MAGIC_NUMBER,
-                custom_comment_prefix=WHATSAPP_COMMENT_PREFIX
-            )
+                # Enforce Max Dollar Risk Cap
+                if max_risk_cap > 0 and actual_risk > max_risk_cap:
+                    total_lots = float(lot_sizing.get("total_lots", cfg_lot))
+                    if total_lots > 0 and actual_risk > 0:
+                        scale_factor = max_risk_cap / actual_risk
+                        scaled_lot = max(0.01, round(int((total_lots * scale_factor) / 0.01) * 0.01, 2))
+                        lot_sizing = self.executor.calculate_lot_and_risk(
+                            broker_symbol=broker_sym,
+                            entry_price=entry_price,
+                            stop_loss_price=sl_price,
+                            balance_usd=10000.0,
+                            total_volume_lots=scaled_lot,
+                            tp1_price=tp1_price,
+                            tp2_price=tp2_price if tp2_price > 0 else None,
+                            tp3_price=tp3_price if tp3_price > 0 else None
+                        )
+                        actual_risk = float(lot_sizing.get("actual_risk_usd", 0.0))
+                        lot_split = lot_sizing.get("lot_split", {})
 
-            if trade_res.get("success"):
-                tickets = trade_res.get("tickets", [])
-                active_trades[symbol] = {
-                    "symbol": symbol,
-                    "broker_symbol": broker_sym,
-                    "direction": direction,
-                    "entry_price": entry_price,
-                    "sl": sl_price,
-                    "tp1": tp1_price,
-                    "tp2": tp2_price,
-                    "tp3": tp3_price,
-                    "tp4": tp4_price,
-                    "tp5": tp5_price,
-                    "tickets": tickets,
-                    "lot_split": lot_split,
-                    "magic": WHATSAPP_MAGIC_NUMBER,
-                    "opened_at": datetime.now(timezone.utc).isoformat()
-                }
-                state["active_signal_trades"] = active_trades
-                self.save_state(state)
+                if max_risk_cap > 0 and actual_risk > max_risk_cap:
+                    reason = f"Risk ${actual_risk:.2f} exceeds Max Dollar Risk Cap (${max_risk_cap:.2f}). Skipped."
+                    self._append_log({
+                        "action": "ENTER",
+                        "symbol": broker_sym,
+                        "status": "SKIPPED (Risk Cap)",
+                        "details": reason,
+                        "raw_message": raw_message
+                    })
+                    return {"success": False, "status": "RISK_CAP_EXCEEDED", "reason": reason}
 
-                if self.parser:
-                    self.parser.mark_setup_status(symbol, "CONFIRMED_ACTIVE", condition="Live trade entered & running on MT5")
+                # Submit Market Order with dedicated WhatsApp Magic Number & Comment Prefix
+                trade_res = self.executor.execute_multi_target_trade(
+                    broker_symbol=broker_sym,
+                    action=direction,
+                    sl_price=sl_price,
+                    tp1_price=tp1_price,
+                    tp2_price=tp2_price,
+                    tp3_price=tp3_price,
+                    lot_split=lot_split,
+                    strategy_tag="WhatsApp_Signal",
+                    custom_magic=WHATSAPP_MAGIC_NUMBER,
+                    custom_comment_prefix=WHATSAPP_COMMENT_PREFIX
+                )
 
-                details = f"Executed {direction} {broker_sym} @ {entry_price:.5f} | SL: {sl_price} | TP1: {tp1_price} | Tickets: {tickets}"
-                self._append_log({
-                    "action": f"ENTER {direction}",
-                    "symbol": broker_sym,
-                    "status": "EXECUTED",
-                    "details": details,
-                    "raw_message": raw_message
-                })
-                return {"success": True, "status": "EXECUTED", "details": details}
+                if trade_res.get("success"):
+                    tickets = trade_res.get("tickets", [])
+                    active_trades[symbol] = {
+                        "symbol": symbol,
+                        "broker_symbol": broker_sym,
+                        "direction": direction,
+                        "entry_price": entry_price,
+                        "sl": sl_price,
+                        "tp1": tp1_price,
+                        "tp2": tp2_price,
+                        "tp3": tp3_price,
+                        "tp4": tp4_price,
+                        "tp5": tp5_price,
+                        "tickets": tickets,
+                        "lot_split": lot_split,
+                        "magic": WHATSAPP_MAGIC_NUMBER,
+                        "is_pending": False,
+                        "opened_at": datetime.now(timezone.utc).isoformat()
+                    }
+                    state["active_signal_trades"] = active_trades
+                    self.save_state(state)
+
+                    if self.parser:
+                        self.parser.mark_setup_status(symbol, "CONFIRMED_ACTIVE", condition="Live trade entered & running on MT5")
+
+                    trigger_src = "Screenshot Proof" if is_screenshot_proof else ("Live Price Near Entry" if target_entry > 0 else "Direct Signal")
+                    details = f"Executed {direction} {broker_sym} @ {entry_price:.5f} ({trigger_src}) | SL: {sl_price} | TP1: {tp1_price} | Tickets: {tickets}"
+                    self._append_log({
+                        "action": f"ENTER {direction}",
+                        "symbol": broker_sym,
+                        "status": "EXECUTED",
+                        "details": details,
+                        "raw_message": raw_message
+                    })
+                    return {"success": True, "status": "EXECUTED", "details": details}
+                else:
+                    err = trade_res.get("error", "Order placement failed.")
+                    if self.parser:
+                        self.parser.mark_setup_status(symbol, "EXECUTION_FAILED", condition=f"Order rejected by MT5: {err}")
+                    self._append_log({
+                        "action": f"ENTER {direction}",
+                        "symbol": broker_sym,
+                        "status": "ORDER ERROR",
+                        "details": err,
+                        "raw_message": raw_message
+                    })
+                    return {"success": False, "status": "ORDER_FAILED", "error": err}
+
             else:
-                err = trade_res.get("error", "Order placement failed.")
-                if self.parser:
-                    self.parser.mark_setup_status(symbol, "EXECUTION_FAILED", condition=f"Order rejected by MT5: {err}")
-                self._append_log({
-                    "action": f"ENTER {direction}",
-                    "symbol": broker_sym,
-                    "status": "ORDER ERROR",
-                    "details": err,
-                    "raw_message": raw_message
-                })
-                return {"success": False, "status": "ORDER_FAILED", "error": err}
+                # Market price is far from target entry price -> Place MT5 Pending Limit Order!
+                existing_pending = self.get_pending_whatsapp_orders(symbol=symbol, broker_sym=broker_sym)
+                if existing_pending:
+                    existing_prices = [float(getattr(o, 'price_open', 0.0)) for o in existing_pending]
+                    if any(abs(p - target_entry) < 0.001 for p in existing_prices):
+                        reason = f"Pending limit order for {broker_sym} @ {target_entry} is ALREADY ACTIVE on MT5."
+                        logger.info(f"📌 {reason}")
+                        return {"success": True, "status": "PENDING_ALREADY_ACTIVE", "details": reason}
+                    else:
+                        # Cancel outdated pending order
+                        self.cancel_pending_whatsapp_orders(symbol=broker_sym)
+
+                # Calculate lot size at target entry price
+                lot_sizing = self.executor.calculate_lot_and_risk(
+                    broker_symbol=broker_sym,
+                    entry_price=target_entry,
+                    stop_loss_price=sl_price,
+                    balance_usd=10000.0,
+                    total_volume_lots=cfg_lot,
+                    tp1_price=tp1_price,
+                    tp2_price=tp2_price if tp2_price > 0 else None,
+                    tp3_price=tp3_price if tp3_price > 0 else None
+                )
+                actual_risk = float(lot_sizing.get("actual_risk_usd", 0.0))
+                lot_split = lot_sizing.get("lot_split", {})
+
+                if max_risk_cap > 0 and actual_risk > max_risk_cap:
+                    total_lots = float(lot_sizing.get("total_lots", cfg_lot))
+                    if total_lots > 0 and actual_risk > 0:
+                        scale_factor = max_risk_cap / actual_risk
+                        scaled_lot = max(0.01, round(int((total_lots * scale_factor) / 0.01) * 0.01, 2))
+                        lot_sizing = self.executor.calculate_lot_and_risk(
+                            broker_symbol=broker_sym,
+                            entry_price=target_entry,
+                            stop_loss_price=sl_price,
+                            balance_usd=10000.0,
+                            total_volume_lots=scaled_lot,
+                            tp1_price=tp1_price,
+                            tp2_price=tp2_price if tp2_price > 0 else None,
+                            tp3_price=tp3_price if tp3_price > 0 else None
+                        )
+                        lot_split = lot_sizing.get("lot_split", {})
+
+                pending_res = self.place_pending_whatsapp_order(
+                    broker_sym=broker_sym,
+                    direction=direction,
+                    target_entry=target_entry,
+                    sl_price=sl_price,
+                    tp1_price=tp1_price,
+                    tp2_price=tp2_price,
+                    tp3_price=tp3_price,
+                    lot_split=lot_split
+                )
+
+                if pending_res.get("success"):
+                    tickets = pending_res.get("tickets", [])
+                    active_trades[symbol] = {
+                        "symbol": symbol,
+                        "broker_symbol": broker_sym,
+                        "direction": direction,
+                        "entry_price": target_entry,
+                        "sl": sl_price,
+                        "tp1": tp1_price,
+                        "tp2": tp2_price,
+                        "tp3": tp3_price,
+                        "tp4": tp4_price,
+                        "tp5": tp5_price,
+                        "tickets": tickets,
+                        "lot_split": lot_split,
+                        "magic": WHATSAPP_MAGIC_NUMBER,
+                        "is_pending": True,
+                        "opened_at": datetime.now(timezone.utc).isoformat()
+                    }
+                    state["active_signal_trades"] = active_trades
+                    self.save_state(state)
+
+                    if self.parser:
+                        self.parser.mark_setup_status(symbol, "PENDING_CONFIRMATION", condition=f"Placed MT5 Pending Limit @ {target_entry}")
+
+                    details = (
+                        f"Placed MT5 Pending {pending_res.get('order_type')} for {broker_sym} @ {target_entry} "
+                        f"(Live: {current_market_price:.5f}, Dist: {diff_pct*100:.2f}%) | SL: {sl_price} | TP1: {tp1_price} | Tickets: {tickets}"
+                    )
+                    self._append_log({
+                        "action": f"LIMIT {direction}",
+                        "symbol": broker_sym,
+                        "status": "PENDING ORDER PLACED",
+                        "details": details,
+                        "raw_message": raw_message
+                    })
+                    return {"success": True, "status": "PENDING_LIMIT_PLACED", "details": details}
+                else:
+                    err = pending_res.get("error", "Pending limit order placement failed.")
+                    self._append_log({
+                        "action": f"LIMIT {direction}",
+                        "symbol": broker_sym,
+                        "status": "PENDING ORDER ERROR",
+                        "details": err,
+                        "raw_message": raw_message
+                    })
+                    return {"success": False, "status": "PENDING_ORDER_FAILED", "error": err}
 
         # 5. CLOSE_ALL (STRICTLY closes ONLY WhatsApp positions, NEVER Autonomous trades)
         if action == "CLOSE_ALL":
+            # Priority Fallback: If symbol was not explicitly extracted, but a quoted_text was passed
+            # (e.g. admin replied to an older trade signal saying "Cut this trade"),
+            # extract and match the symbol from quoted_text against open WhatsApp positions!
+            if (not symbol or symbol in ["ALL", ""]) and quoted_text:
+                q_upper = str(quoted_text).upper()
+                live_wa_positions = self.get_open_whatsapp_positions()
+                for p in live_wa_positions:
+                    p_sym = str(p.get("symbol", "")).upper()
+                    clean_p = p_sym.replace("M", "").replace("/", "").replace("_", "")
+                    if clean_p in q_upper or p_sym in q_upper or (clean_p in ["XAUUSD", "GOLD"] and any(k in q_upper for k in ["GOLD", "XAU"])):
+                        symbol = p_sym
+                        logger.info(f"🎯 Correlated target symbol '{symbol}' from WhatsApp quoted reply: '{quoted_text[:50]}'")
+                        break
+
             broker_sym = self.resolve_broker_symbol(symbol) if symbol else None
             target_positions = self._get_whatsapp_positions(symbol, broker_sym)
+
+            # If symbol not specified (admin said unquoted "cut krdo yrr" / "cut kardo trade"):
+            # User requirement: "sabse recent jo lagayi hogi na WhatsApp se trade wo wali cut karni hai, agar wo mention nahi kar raha."
+            if (not symbol or symbol in ["ALL", ""]) and target_positions:
+                sorted_pos = sorted(target_positions, key=lambda x: str(x.get("time", "")), reverse=True)
+                most_recent_sym = sorted_pos[0].get("symbol")
+                target_positions = [p for p in sorted_pos if p.get("symbol") == most_recent_sym]
+                symbol = most_recent_sym
 
             closed_count = 0
             for pos in target_positions:
                 res = self.executor.close_position(pos["ticket"])
                 if res.get("success"):
                     closed_count += 1
+
+            # Also cancel any pending limit orders for this symbol so they don't trigger later
+            if symbol:
+                self.cancel_pending_whatsapp_orders(symbol=symbol)
 
             # Clean from active_signal_trades
             if symbol and symbol in active_trades:
@@ -767,8 +1123,30 @@ class WhatsAppSignalExecutor:
         # 6. PARTIAL_CLOSE (STRICTLY touches ONLY WhatsApp positions)
         if action == "PARTIAL_CLOSE":
             pct = float(parsed.get("volume_pct") or 50.0)
+            target_tp = parsed.get("target_tp")
+            move_be = parsed.get("move_to_be", False)
+
+            # 1. Fallback symbol correlation from quoted_text if symbol is null
+            if (not symbol or symbol in ["ALL", ""]) and quoted_text:
+                q_upper = str(quoted_text).upper()
+                live_wa_positions = self.get_open_whatsapp_positions()
+                for p in live_wa_positions:
+                    p_sym = str(p.get("symbol", "")).upper()
+                    clean_p = p_sym.replace("M", "").replace("/", "").replace("_", "")
+                    if clean_p in q_upper or p_sym in q_upper or (clean_p in ["XAUUSD", "GOLD"] and any(k in q_upper for k in ["GOLD", "XAU"])):
+                        symbol = p_sym
+                        logger.info(f"🎯 Correlated target symbol '{symbol}' for PARTIAL_CLOSE from quoted reply")
+                        break
+
             broker_sym = self.resolve_broker_symbol(symbol) if symbol else None
             target_positions = self._get_whatsapp_positions(symbol, broker_sym)
+
+            # 2. If symbol still not specified, target the single most recent WhatsApp trade
+            if (not symbol or symbol in ["ALL", ""]) and target_positions:
+                sorted_pos = sorted(target_positions, key=lambda x: str(x.get("time", "")), reverse=True)
+                most_recent_sym = sorted_pos[0].get("symbol")
+                target_positions = [p for p in sorted_pos if p.get("symbol") == most_recent_sym]
+                symbol = most_recent_sym
 
             if not target_positions:
                 details = f"No open WhatsApp positions found for {symbol or 'target'} to partially close."
@@ -782,11 +1160,34 @@ class WhatsAppSignalExecutor:
                 return {"success": False, "status": "NO_POSITIONS", "details": details}
 
             total_open_vol = sum(float(p.get("volume", 0.0)) for p in target_positions)
-            target_close_vol = max(0.01, round(total_open_vol * (pct / 100.0), 2))
+
+            # Calculate target volume to close based on dynamic percentage
+            # Enforce that if pct < 100%, at least min volume (0.01) remains running!
+            raw_close_vol = round(total_open_vol * (pct / 100.0), 2)
+            if pct < 100.0 and total_open_vol > 0.01:
+                max_closable = round(total_open_vol - 0.01, 2)
+                target_close_vol = min(raw_close_vol, max_closable)
+            else:
+                target_close_vol = raw_close_vol
+
+            target_close_vol = max(0.01, target_close_vol)
             remaining_to_close = target_close_vol
 
+            # Sort positions so TP1 closes first, then TP2, and TP3 runner is preserved
+            def tp_sort_key(p):
+                cmt = str(p.get("comment", "")).upper()
+                if "_TP1" in cmt:
+                    return 1
+                if "_TP2" in cmt:
+                    return 2
+                if "_TP3" in cmt:
+                    return 3
+                return 4
+
+            sorted_positions = sorted(target_positions, key=tp_sort_key)
+
             closed_details = []
-            for pos in target_positions:
+            for pos in sorted_positions:
                 if remaining_to_close <= 0.001:
                     break
                 p_vol = float(pos.get("volume", 0.0))
@@ -795,14 +1196,25 @@ class WhatsAppSignalExecutor:
                     res = self.executor.close_position(ticket)
                     if res.get("success"):
                         closed_details.append(f"Ticket #{ticket} full ({p_vol} lots)")
-                        remaining_to_close -= p_vol
+                        remaining_to_close = round(remaining_to_close - p_vol, 2)
                 else:
                     res = self.executor.close_position(ticket, volume=remaining_to_close)
                     if res.get("success"):
                         closed_details.append(f"Ticket #{ticket} partial ({remaining_to_close} lots)")
                         remaining_to_close = 0.0
 
-            details = f"Booked {pct}% WhatsApp profits on {symbol or 'positions'} (Target: {target_close_vol:.2f} lots). Actions: {closed_details}"
+            # If admin requested or auto_be is on, move remaining runner tickets to Breakeven
+            be_details = []
+            if move_be or settings.get("auto_be_on_tp1", True):
+                remaining_positions = self._get_whatsapp_positions(symbol)
+                for rp in remaining_positions:
+                    r_tkt = rp["ticket"]
+                    be_res = self.executor.move_to_breakeven(r_tkt)
+                    if be_res.get("success"):
+                        be_details.append(f"#{r_tkt}")
+
+            be_msg = f" | Runners moved to BE: {be_details}" if be_details else ""
+            details = f"Booked {pct}% WhatsApp profits on {symbol} (Closed: {target_close_vol:.2f}/{total_open_vol:.2f} lots). Actions: {closed_details}{be_msg}"
             self._append_log({
                 "action": "PARTIAL_CLOSE",
                 "symbol": symbol or "ACTIVE",
@@ -810,7 +1222,7 @@ class WhatsAppSignalExecutor:
                 "details": details,
                 "raw_message": raw_message
             })
-            return {"success": True, "status": "PARTIAL_CLOSED", "details": details}
+            return {"success": True, "status": "PARTIAL_CLOSED", "details": details, "volume_closed": target_close_vol}
 
         # 7. MODIFY_SL (Early cut level / SL tightening / Breakeven)
         if action == "MODIFY_SL":
