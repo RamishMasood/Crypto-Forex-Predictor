@@ -14,6 +14,7 @@ from src.data.forex_feeds import MT5ExnessProvider
 from src.engine.whatsapp_signal_parser import (
     is_conditional_candle_pattern,
     is_explicit_entry_command,
+    extract_explicit_symbol_from_text,
 )
 
 try:
@@ -1302,13 +1303,15 @@ class WhatsAppSignalExecutor:
             broker_sym = self.resolve_broker_symbol(symbol) if symbol else None
             target_positions = self._get_whatsapp_positions(symbol, broker_sym)
 
-            # Re-routing fallback: If target_positions is empty, check live open WhatsApp positions!
-            if not target_positions:
+            # Re-routing fallback: ONLY permit re-routing if NO explicit symbol was named in message/quote!
+            # If admin explicitly commanded "All position booked in GBPCHF" and GBPCHF is not open, DO NOT close NZDCAD!
+            explicit_msg_sym = extract_explicit_symbol_from_text(raw_message) or (extract_explicit_symbol_from_text(quoted_text) if quoted_text else None)
+            if not target_positions and not explicit_msg_sym and (not symbol or symbol in ["ALL", ""]):
                 live_wa_positions = self.get_open_whatsapp_positions()
                 distinct_open_symbols = list({p.get("symbol") for p in live_wa_positions if p.get("symbol")})
                 if len(distinct_open_symbols) == 1:
                     re_sym = distinct_open_symbols[0]
-                    logger.info(f"🎯 Re-routing CLOSE_ALL from '{symbol}' to sole open WhatsApp position '{re_sym}'")
+                    logger.info(f"🎯 Re-routing unspecific CLOSE_ALL from '{symbol}' to sole open WhatsApp position '{re_sym}'")
                     symbol = re_sym
                     broker_sym = self.resolve_broker_symbol(symbol)
                     target_positions = [p for p in live_wa_positions if p.get("symbol") == re_sym]
@@ -1320,6 +1323,18 @@ class WhatsAppSignalExecutor:
                 most_recent_sym = sorted_pos[0].get("symbol")
                 target_positions = [p for p in sorted_pos if p.get("symbol") == most_recent_sym]
                 symbol = most_recent_sym
+
+            if not target_positions:
+                details = f"No open WhatsApp positions found for {symbol or 'ALL'}. Existing positions untouched."
+                self._append_log({
+                    "action": "CLOSE_ALL",
+                    "symbol": symbol or "ALL",
+                    "status": "NO OPEN POSITIONS",
+                    "details": details,
+                    "raw_message": raw_message
+                })
+                logger.info(f"⚠️ CLOSE_ALL: {details}")
+                return {"success": True, "status": "NO_OPEN_POSITIONS", "details": details}
 
             closed_count = 0
             for pos in target_positions:
@@ -1387,13 +1402,14 @@ class WhatsAppSignalExecutor:
             broker_sym = self.resolve_broker_symbol(symbol) if symbol else None
             target_positions = self._get_whatsapp_positions(symbol, broker_sym)
 
-            # Re-routing fallback: If target_positions is empty, check live open WhatsApp positions!
-            if not target_positions:
+            # Re-routing fallback: ONLY permit re-routing if NO explicit symbol was named in message/quote!
+            explicit_msg_sym = extract_explicit_symbol_from_text(raw_message) or (extract_explicit_symbol_from_text(quoted_text) if quoted_text else None)
+            if not target_positions and not explicit_msg_sym and (not symbol or symbol in ["ALL", ""]):
                 live_wa_positions = self.get_open_whatsapp_positions()
                 distinct_open_symbols = list({p.get("symbol") for p in live_wa_positions if p.get("symbol")})
                 if len(distinct_open_symbols) == 1:
                     re_sym = distinct_open_symbols[0]
-                    logger.info(f"🎯 Re-routing PARTIAL_CLOSE from '{symbol}' to sole open WhatsApp position '{re_sym}'")
+                    logger.info(f"🎯 Re-routing unspecific PARTIAL_CLOSE from '{symbol}' to sole open WhatsApp position '{re_sym}'")
                     symbol = re_sym
                     broker_sym = self.resolve_broker_symbol(symbol)
                     target_positions = [p for p in live_wa_positions if p.get("symbol") == re_sym]
@@ -1488,13 +1504,14 @@ class WhatsAppSignalExecutor:
             broker_sym = self.resolve_broker_symbol(symbol) if symbol else None
             target_positions = self._get_whatsapp_positions(symbol, broker_sym)
 
-            # Re-routing fallback: If target_positions is empty, check live open WhatsApp positions!
-            if not target_positions:
+            # Re-routing fallback: ONLY permit re-routing if NO explicit symbol was named in message/quote!
+            explicit_msg_sym = extract_explicit_symbol_from_text(raw_message) or (extract_explicit_symbol_from_text(quoted_text) if quoted_text else None)
+            if not target_positions and not explicit_msg_sym and (not symbol or symbol in ["ALL", ""]):
                 live_wa_positions = self.get_open_whatsapp_positions()
                 distinct_open_symbols = list({p.get("symbol") for p in live_wa_positions if p.get("symbol")})
                 if len(distinct_open_symbols) == 1:
                     re_sym = distinct_open_symbols[0]
-                    logger.info(f"🎯 Re-routing MODIFY_SL from '{symbol}' to sole open WhatsApp position '{re_sym}'")
+                    logger.info(f"🎯 Re-routing unspecific MODIFY_SL from '{symbol}' to sole open WhatsApp position '{re_sym}'")
                     symbol = re_sym
                     broker_sym = self.resolve_broker_symbol(symbol)
                     target_positions = [p for p in live_wa_positions if p.get("symbol") == re_sym]

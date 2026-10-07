@@ -466,6 +466,48 @@ class TestWhatsAppSignalAI(unittest.TestCase):
         state["active_signal_trades"].pop("EURGBP", None)
         executor.save_state(state)
 
+    def test_scenario_19_explicit_symbol_preservation_and_hold_safety(self):
+        """
+        Verify:
+        1. When admin says 'All position booked in GBP CHF guys. Enjoy the trade.',
+           it parses as CLOSE_ALL on GBPCHF and does NOT close running NZDCAD trades.
+        2. 'Hold on NZDCAD guys !' parses as HOLD advisory and does not execute market order.
+        3. Price levels like 4159 belong to Gold (XAUUSD) and do NOT modify NZDCAD.
+        """
+        # 1. Explicit GBP CHF close message while NZDCAD is running
+        nzdcad_open = [
+            {"ticket": 55501, "symbol": "NZDCAD", "volume": 0.03, "magic": WHATSAPP_MAGIC_NUMBER, "price_open": 0.7950}
+        ]
+        msg_close = "All position booked in GBP CHF guys. Enjoy the trade."
+        parsed_close = self.parser._heuristic_fallback_parse(msg_close, open_trades=nzdcad_open)
+        self.assertEqual(parsed_close.get("action"), "CLOSE_ALL")
+        self.assertEqual(parsed_close.get("symbol"), "GBPCHF")
+
+        # Test executor behavior: When GBPCHF is closed but only NZDCAD is open, NZDCAD must remain UNTOUCHED!
+        from unittest.mock import MagicMock
+        executor = WhatsAppSignalExecutor(parser=self.parser)
+        executor.get_open_whatsapp_positions = lambda symbol=None: [p for p in nzdcad_open if not symbol or p["symbol"] == symbol]
+        executor.executor.close_position = MagicMock(return_value={"success": True})
+        
+        exec_res = executor.execute_parsed_signal(parsed_close, msg_close)
+        self.assertEqual(exec_res.get("status"), "NO_OPEN_POSITIONS")
+        # Ensure executor.close_position was NEVER called on NZDCAD!
+        executor.executor.close_position.assert_not_called()
+
+        # 2. Hold on NZDCAD advisory
+        msg_hold = "Hold on NZDCAD guys !"
+        parsed_hold = self.parser._heuristic_fallback_parse(msg_hold, open_trades=nzdcad_open)
+        self.assertEqual(parsed_hold.get("action"), "HOLD")
+        self.assertEqual(parsed_hold.get("symbol"), "NZDCAD")
+
+        # 3. Gold price level 4159 does not attach to NZDCAD
+        msg_cut = "Cut the trade if it reach 4159"
+        parsed_cut = self.parser._heuristic_fallback_parse(msg_cut, open_trades=nzdcad_open)
+        self.assertEqual(parsed_cut.get("action"), "MODIFY_SL")
+        self.assertEqual(parsed_cut.get("symbol"), "XAUUSD")
+        self.assertEqual(parsed_cut.get("stop_loss"), 4159.0)
+
 
 if __name__ == "__main__":
     unittest.main()
+

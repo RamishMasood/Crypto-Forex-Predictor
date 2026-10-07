@@ -99,6 +99,43 @@ def is_explicit_entry_command(text: str) -> bool:
     ]
     return any(re.search(p, t) for p in explicit_patterns)
 
+def extract_explicit_symbol_from_text(text: str) -> Optional[str]:
+    """
+    Extracts an explicitly stated trading symbol from raw text or quoted reply.
+    Recognizes forex currency pairs (with or without spaces/separators), metals, crypto, and indices.
+    Returns uppercase symbol (e.g. 'GBPCHF', 'NZDCAD', 'XAUUSD', 'BTCUSD') or None.
+    """
+    if not text:
+        return None
+    t = text.upper()
+
+    # Major & Minor Currencies
+    currencies = ["USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD"]
+    for c1 in currencies:
+        for c2 in currencies:
+            if c1 != c2:
+                # Match e.g. GBPCHF, GBP CHF, GBP/CHF, GBP_CHF
+                pattern = r'\b' + c1 + r'[\s/_]*' + c2 + r'\b'
+                if re.search(pattern, t):
+                    return c1 + c2
+
+    # Known Commodities, Metals, Crypto & Indices
+    explicit_aliases = [
+        (r'\b(?:GOLD|XAUUSD|XAU)\b', "XAUUSD"),
+        (r'\b(?:SILVER|XAGUSD|XAG)\b', "XAGUSD"),
+        (r'\b(?:BTCUSD|BTC|BITCOIN)\b', "BTCUSD"),
+        (r'\b(?:ETHUSD|ETH|ETHEREUM)\b', "ETHUSD"),
+        (r'\b(?:US100|NAS100|USTEC)\b', "US100"),
+        (r'\b(?:US30|DJ30|DOW)\b', "US30"),
+        (r'\b(?:US500|SPX500|SP500)\b', "US500"),
+        (r'\b(?:USOIL|OIL|WTI|CRUDE)\b', "USOIL")
+    ]
+    for pattern, sym in explicit_aliases:
+        if re.search(pattern, t):
+            return sym
+
+    return None
+
 class WhatsAppSignalParser:
     """
     Parses messy natural language messages and screenshots from signal channels,
@@ -334,14 +371,19 @@ You decode unformatted Hinglish, Roman Urdu, and English trading signal messages
      - In TradingView charts: Look at the top-left title (e.g. "British Pound / Australian Dollar · 1h · FOREXCOM" -> **GBPAUD**; "Euro / US Dollar" -> **EURUSD**; "Gold / US Dollar" -> **XAUUSD**) and the red/blue price badge on the right axis (e.g. "GBPAUD 1.90037")!
      - The symbol shown in the chart image ALWAYS OVERRIDES ANY CHANNEL DEFAULT! If the chart shows British Pound / Australian Dollar (GBPAUD), the symbol is **GBPAUD**, NEVER XAUUSD!
 
-1.06 **CRITICAL: TRADE MANAGEMENT ACTIONS (PARTIAL CLOSE, CLOSE ALL, SL MODIFICATION, HOLD) APPLY TO OPEN MT5 TRADES**:
-   - When the admin commands a trade management action (such as "TP1 book 80% position", "90% nikal lo", "cut this trade", "close all", "SL to BE", "hold"):
-     1. First check if a chart/image is attached -> extract the symbol from the chart!
-     2. Second check `### CURRENTLY RUNNING TRADES ON MT5`:
+1.06 **CRITICAL: TRADE MANAGEMENT ACTIONS (PARTIAL CLOSE, CLOSE ALL, SL MODIFICATION, HOLD) RESPECT EXPLICIT SYMBOLS**:
+   - When the admin commands a trade management action (such as "All position booked in GBPCHF guys", "90% nikal lo", "cut this trade", "close all", "SL to BE", "hold on NZDCAD"):
+     1. First check if an EXPLICIT SYMBOL is named in the message text itself (e.g. "GBP CHF", "GBPCHF", "NZDCAD", "Gold", "BTC", "EURUSD"):
+        - If an explicit symbol IS stated in the message, you MUST output THAT EXACT SYMBOL!
+        - NEVER substitute or change an explicitly named symbol to a different running symbol on MT5 (e.g. do NOT change "GBPCHF" to "NZDCAD")! If GBPCHF is not currently open, output GBPCHF anyway so the executor can safely skip it without closing unrelated trades.
+     2. Second check if a chart/image is attached -> extract the symbol from the chart!
+     3. Third check if a QUOTED / REPLIED-TO MESSAGE exists -> extract the symbol from that quote!
+     4. Fourth, ONLY IF NO explicit symbol was named in text, quote, or image:
+        - Check `### CURRENTLY RUNNING TRADES ON MT5`:
         - Look at which symbols actually have active positions running on MT5!
         - If only ONE symbol is currently running on MT5 (e.g. `GBPAUD`), then the action APPLIES TO THAT RUNNING SYMBOL (`GBPAUD`)!
         - NEVER output XAUUSD if XAUUSD is NOT currently open on MT5 and another trade (e.g. GBPAUD) IS running! You cannot book profits or cut a trade that doesn't exist!
-     3. Third check `### RECENT CONVERSATION HISTORY`:
+     5. Fifth check `### RECENT CONVERSATION HISTORY`:
         - Look at what admin discussed in recent messages (e.g. if admin said "GBPAUD ko hold rakhna" or "Still waiting for Gold", it confirms Gold has NOT entered and GBPAUD is the active trade)!
 
 1.1 **CRITICAL: QUOTED / REPLIED-TO MESSAGE CORRELATION (HIGHEST PRIORITY OVER RECENT TRADES)**:
@@ -728,6 +770,11 @@ Or for multiple actions/pairs in one message:
             "eurgbp": "EURGBP", "gbpjpy": "GBPJPY", "usoil": "USOIL", "oil": "USOIL"
         }
 
+        # 0. Check explicit symbol from text (currency pairs like NZDCAD, GBPCHF, gold, btc, etc.)
+        explicit_sym = extract_explicit_symbol_from_text(text)
+        if explicit_sym:
+            return explicit_sym
+
         # 1. Direct symbol mentions
         for k, v in known_symbols.items():
             if re.search(r'\b' + re.escape(k) + r'\b', t_low):
@@ -947,7 +994,8 @@ Or for multiple actions/pairs in one message:
         # 5. Full Exit / Close All (e.g. Image 5: "Cut krdo yrr", "All positions booked")
         close_keywords = [
             "cut krdo", "cut kardo", "exit karlo", "exit kardo", "exit ho jao", "close all",
-            "all positions booked", "all booked", "book karte chalo", "all exit", "nikal jao",
+            "all positions booked", "all position booked", "positions booked", "position booked",
+            "all booked", "book karte chalo", "all exit", "nikal jao",
             "full book", "close full", "cut the trade now", "cut trade now", "trade cut kar do",
             "trade cut kardo"
         ]
@@ -1181,19 +1229,33 @@ Or for multiple actions/pairs in one message:
         })
 
         # CRITICAL: TRADE MANAGEMENT RE-ALIGNMENT (PARTIAL_CLOSE, CLOSE_ALL, MODIFY_SL, HOLD)
-        # If admin is managing active trades, ensure symbol correlates with actual running MT5 trades!
+        # Re-alignment to sole open MT5 trade is ONLY permitted when the message contains NO explicit symbol!
         if action in ["PARTIAL_CLOSE", "CLOSE_ALL", "MODIFY_SL", "HOLD"]:
-            explicit_other = False
-            for s_name in ["BTC", "ETH", "US100", "US30", "EURUSD", "GBPUSD", "XAGUSD"]:
-                if re.search(r'\b' + re.escape(s_name.lower()) + r'\b', raw_low):
-                    if s_name not in open_symbols:
-                        explicit_other = True
-                        break
-
+            explicit_msg_sym = extract_explicit_symbol_from_text(raw_message) or (extract_explicit_symbol_from_text(quoted_text) if quoted_text else None)
             clean_sym = symbol.upper().replace("/", "").replace("_", "").replace("M", "").strip() if symbol else ""
-            if not explicit_other and open_symbols and (not clean_sym or clean_sym not in open_symbols):
+
+            # Check price magnitude in message/levels: If message has price in thousands (e.g. 4159) while open trade is forex (e.g. NZDCAD ~0.79), do NOT re-align to forex!
+            msg_nums = [float(n.replace(",", "")) for n in re.findall(r'\b\d{2,6}(?:\.\d+)?\b', raw_message)]
+            if parsed.get("stop_loss"):
+                try: msg_nums.append(float(parsed["stop_loss"]))
+                except Exception: pass
+            has_gold_crypto_price = any(1900 <= n <= 150000 for n in msg_nums)
+
+            # If an explicit symbol was named (e.g. GBPCHF, Gold, NZDCAD), preserve it unconditionally!
+            if explicit_msg_sym:
+                parsed["symbol"] = explicit_msg_sym
+                symbol = explicit_msg_sym
+                logger.info(f"🎯 Preserved explicitly named symbol '{explicit_msg_sym}' for {action}. Bypassing re-alignment.")
+            elif has_gold_crypto_price and any(not (osym.startswith("XAU") or osym.startswith("BTC") or osym.startswith("ETH") or osym.startswith("US")) for osym in open_symbols):
+                # Price is clearly for Gold/Crypto/Index, but sole open trade is a standard Forex pair (e.g. NZDCAD). Do not contaminate!
+                logger.info(f"🎯 Preserved {symbol or 'XAUUSD'} for {action} due to price magnitude ({msg_nums}). Bypassing re-alignment to Forex open trade.")
+                if not symbol or symbol in open_symbols:
+                    symbol = "XAUUSD"
+                    parsed["symbol"] = symbol
+            elif open_symbols and (not clean_sym or clean_sym not in open_symbols):
+                # No explicit symbol was found in message or quote. Safe to correlate with sole open WhatsApp trade.
                 if len(open_symbols) == 1:
-                    logger.info(f"🎯 Re-aligning {action} symbol from '{clean_sym}' to active open WhatsApp trade '{open_symbols[0]}'")
+                    logger.info(f"🎯 Re-aligning unspecific {action} symbol from '{clean_sym}' to active open WhatsApp trade '{open_symbols[0]}'")
                     parsed["symbol"] = open_symbols[0]
                     symbol = open_symbols[0]
                 elif recent_history:
@@ -1209,18 +1271,34 @@ Or for multiple actions/pairs in one message:
                             parsed["symbol"] = matched_h_sym
                             symbol = matched_h_sym
                             break
+            elif not clean_sym:
+                # If symbol is still null/empty and no open positions, check recent conversation history or pending setups
+                if recent_history:
+                    for m in reversed(recent_history[-10:]):
+                        m_txt = (m.get('text', '') if isinstance(m, dict) else str(m))
+                        h_sym = extract_explicit_symbol_from_text(m_txt)
+                        if h_sym:
+                            parsed["symbol"] = h_sym
+                            symbol = h_sym
+                            break
+                if not symbol:
+                    latest_pending = self.get_latest_pending_setup(channel_name)
+                    if latest_pending:
+                        symbol = latest_pending.get("symbol")
+                        parsed["symbol"] = symbol
 
         # CRITICAL SAFETY GATE: CANDLESTICK / PATTERN CONDITION INTERCEPT
         is_candle_cond = is_conditional_candle_pattern(raw_message)
         has_explicit_cmd = is_explicit_entry_command(raw_message)
         is_screenshot = bool(parsed.get("is_screenshot_proof"))
+        has_confirm_text = any(k in raw_low for k in ["wait for confirmation", "otherwise skip", "skip this signal", "enter with confirmation", "confirmation ke sath"])
 
-        if is_candle_cond and not has_explicit_cmd and not is_screenshot:
+        if (is_candle_cond or has_confirm_text) and not has_explicit_cmd and not is_screenshot:
             action = "SETUP_SAVED"
             parsed["action"] = "SETUP_SAVED"
             parsed["confirmation_required"] = True
             if not parsed.get("condition") or parsed.get("condition") == "wait for confirmation":
-                parsed["condition"] = f"Wait for candle pattern formation: {raw_message.strip()}"
+                parsed["condition"] = f"Wait for confirmation: {raw_message.strip()}" if not is_candle_cond else f"Wait for candle pattern formation: {raw_message.strip()}"
 
         confirm_trigger_words = [
             "entered", "enter ho jao", "active now", "trade active", "active guys",
@@ -1389,7 +1467,8 @@ Or for multiple actions/pairs in one message:
                 clean_s = symbol.upper().replace("/", "").replace("_", "").strip() if symbol else (self._infer_symbol(raw_message, channel_name) or "XAUUSD")
                 direction = parsed.get("direction") or ("SELL" if any(w in raw_low for w in ["short", "sell"]) else "BUY")
                 # If admin explicitly commanded entry but SL/TP levels are not yet provided
-                if any(w in raw_low for w in ["enter", "ghus jao", "buy", "sell", "long", "short", "active", "le li", "taking"]):
+                is_hold_msg = any(w in raw_low for w in ["hold on", "hold rakho", "hold rakhna", "hold wohi", "hold position"])
+                if not is_hold_msg and any(w in raw_low for w in ["enter", "ghus jao", "buy", "sell", "long", "short", "active", "le li", "taking"]):
                     self.store_entry_trigger(clean_s, direction, raw_message)
                     parsed["is_actionable"] = True
                     parsed["action"] = "ENTRY_TRIGGERED"
