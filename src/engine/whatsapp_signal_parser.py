@@ -27,6 +27,78 @@ logger = logging.getLogger("WhatsAppSignalParser")
 SETUPS_CACHE_FILE = ".whatsapp_pending_setups.json"
 ENTRY_TRIGGERS_CACHE_FILE = ".whatsapp_entry_triggers.json"
 
+def is_conditional_candle_pattern(text: str) -> bool:
+    """
+    Detects whether a message specifies a conditional candlestick formation,
+    price action condition, rejection, retest, or breakout that must form BEFORE entering.
+    e.g. '4150.957 pr agr engulfed candle bany 5 mins Ki to sell krna',
+         'Sell after strong engulfed candle', 'agar 5m candle close ho to enter'.
+    """
+    if not text:
+        return False
+    t = text.lower()
+    candle_keywords = [
+        "engulf", "engulfed", "engulfing", "candle", "kandle",
+        "rejection", "pinbar", "breakout", "retest", "wick", "bounce"
+    ]
+    has_candle_kw = any(k in t for k in candle_keywords)
+    cond_framing = [
+        "agr", "agar", "if", "jab", "when", "after", "wait for",
+        "hone par", "hone pr", "close hone", "close ho", "bany to", "bane to", "baney to",
+        "to sell", "to buy", "to enter", "tab sell", "tab buy", "tab enter", "pr sell", "pe sell"
+    ]
+    has_cond_framing = any(c in t for c in cond_framing)
+    if has_candle_kw and has_cond_framing:
+        return True
+
+    patterns = [
+        r'(?:agr|agar|if|jab|when)\s+.*(?:candle|kandle|engulf|bany|bane|close|rejection|retest)',
+        r'(?:candle|kandle|engulf|bany|bane|close|rejection|retest).*(?:to|tab|phir|then)\s+(?:sell|buy|enter|short|long)',
+        r'(?:sell|buy|enter|short|long)\s+after\s+(?:strong\s+)?(?:engulf|candle|rejection)',
+        r'after\s+(?:strong\s+)?engulf',
+        r'wait\s+for\s+confirmation.*(?:engulf|candle|close|rejection)',
+        r'(?:5\s*mins?|15\s*mins?|1h|4h|1\s*hour)\s*(?:ki\s*)?(?:candle|close|engulf)',
+        r'candle\s*(?:close|bany|bane|banay)\s*(?:hone|pe|par|pr|to)',
+        r'rejection\s*(?:mile|dekhe|bany|bane)\s*(?:to|tab|par|pe|pr)',
+        r'retest\s*(?:par|pe|pr|hone)\s*(?:to|sell|buy|enter)'
+    ]
+    return any(re.search(p, t) for p in patterns)
+
+def is_explicit_entry_command(text: str) -> bool:
+    """
+    Detects explicit admin live execution commands such as 'enter ho jao', 'le lo', 'let's go', 'entered'.
+    If the message is framed conditionally (e.g. 'agr candle bany to enter'), returns False.
+    """
+    if not text:
+        return False
+    t = text.lower()
+    if is_conditional_candle_pattern(text):
+        return False
+    explicit_patterns = [
+        r'\benter\s*(?:ho\s*jao|hojao|karo|karlo|now|karein)\b',
+        r'\ble\s*lo\b',
+        r'\blelo\b',
+        r'\ble\s*li\s*trade\b',
+        r'\ble\s*li\b',
+        r'\ble\s*liya\b',
+        r'\ble\s*liye\b',
+        r"\blet'?s\s*go\b",
+        r'\bgo\s*for\s*it\b',
+        r'\bghus\s*jao\b',
+        r'\bactive\s*now\b',
+        r'\btrade\s*active\b',
+        r'\bactive\s*guys\b',
+        r'\bentered\b',
+        r'\bdone\s*enter\b',
+        r'\btaken\b',
+        r'\brunning\s*now\b',
+        r'\bbuy\s*(?:[a-z0-9/_-]+\s+)?now\b',
+        r'\bsell\s*(?:[a-z0-9/_-]+\s+)?now\b',
+        r'\bshort\s*(?:[a-z0-9/_-]+\s+)?now\b',
+        r'\blong\s*(?:[a-z0-9/_-]+\s+)?now\b'
+    ]
+    return any(re.search(p, t) for p in explicit_patterns)
+
 class WhatsAppSignalParser:
     """
     Parses messy natural language messages and screenshots from signal channels,
@@ -36,14 +108,14 @@ class WhatsAppSignalParser:
     """
 
     def __init__(self, api_key: Optional[str] = None):
-        if not api_key:
+        if api_key is None:
             try:
                 from src.utils.env_loader import load_env
                 load_env()
             except Exception:
                 pass
             api_key = os.environ.get("GEMINI_API_KEY", "")
-        self.api_key = (api_key or os.environ.get("GEMINI_API_KEY", "")).strip()
+        self.api_key = (api_key or "").strip()
         self.setups_cache = self._load_setups_cache()
         self.preferred_model: Optional[str] = "gemini-3.8-flash"
 
@@ -250,11 +322,27 @@ You decode unformatted Hinglish, Roman Urdu, and English trading signal messages
 
 ### CORE RULES & INTENT UNDERSTANDING:
 1. **CHANNEL CONTEXT & SYMBOL INFERENCE**:
-   - If the active channel name contains "gold and silver" or "forex" (e.g. "Tradingpapa.com forex (gold and silver)"), messages that omit the symbol name (e.g. "Sell Best Entry Zones 4154.873...", "Entered", "Cut krdo yrr", "Cut the trade if it reach 4159") refer to **GOLD** (broker symbol: **XAUUSD**)!
    - In tradingpapa forex, price ranges in the 2000s to 5000s (e.g. 4154.873) are GOLD / XAUUSD.
    - If the message mentions "btc", "btcusd", or "bitcoin" or price is 60,000-150,000 -> map to **BTCUSD**.
    - If the message mentions "eth", "ethusd", or "ethereum" or price is 2,000-5,000 in crypto context -> map to **ETHUSD**.
    - If a message specifies price levels near an open trade (e.g. "Cut the trade if it reach 4159" when GOLD was entered at 4155), correlate with that exact open symbol (XAUUSD)!
+   - If a new ENTRY signal omits the symbol name, it defaults to GOLD / XAUUSD in this channel.
+
+1.05 **CRITICAL: ATTACHED CHART / SCREENSHOT SYMBOL IDENTIFICATION (HIGHEST PRIORITY OVER CHANNEL DEFAULT)**:
+   - When an image or TradingView chart screenshot is attached to the message:
+     - You MUST read the symbol/pair from the chart image!
+     - In TradingView charts: Look at the top-left title (e.g. "British Pound / Australian Dollar · 1h · FOREXCOM" -> **GBPAUD**; "Euro / US Dollar" -> **EURUSD**; "Gold / US Dollar" -> **XAUUSD**) and the red/blue price badge on the right axis (e.g. "GBPAUD 1.90037")!
+     - The symbol shown in the chart image ALWAYS OVERRIDES ANY CHANNEL DEFAULT! If the chart shows British Pound / Australian Dollar (GBPAUD), the symbol is **GBPAUD**, NEVER XAUUSD!
+
+1.06 **CRITICAL: TRADE MANAGEMENT ACTIONS (PARTIAL CLOSE, CLOSE ALL, SL MODIFICATION, HOLD) APPLY TO OPEN MT5 TRADES**:
+   - When the admin commands a trade management action (such as "TP1 book 80% position", "90% nikal lo", "cut this trade", "close all", "SL to BE", "hold"):
+     1. First check if a chart/image is attached -> extract the symbol from the chart!
+     2. Second check `### CURRENTLY RUNNING TRADES ON MT5`:
+        - Look at which symbols actually have active positions running on MT5!
+        - If only ONE symbol is currently running on MT5 (e.g. `GBPAUD`), then the action APPLIES TO THAT RUNNING SYMBOL (`GBPAUD`)!
+        - NEVER output XAUUSD if XAUUSD is NOT currently open on MT5 and another trade (e.g. GBPAUD) IS running! You cannot book profits or cut a trade that doesn't exist!
+     3. Third check `### RECENT CONVERSATION HISTORY`:
+        - Look at what admin discussed in recent messages (e.g. if admin said "GBPAUD ko hold rakhna" or "Still waiting for Gold", it confirms Gold has NOT entered and GBPAUD is the active trade)!
 
 1.1 **CRITICAL: QUOTED / REPLIED-TO MESSAGE CORRELATION (HIGHEST PRIORITY OVER RECENT TRADES)**:
    - When the admin sends a message that replies to an earlier message (indicated by `### QUOTED / REPLIED-TO MESSAGE:`):
@@ -290,16 +378,39 @@ You decode unformatted Hinglish, Roman Urdu, and English trading signal messages
      You MUST output:
      `action: "ENTER"`, `symbol: "EURGBP"`, `direction: "BUY"`, `stop_loss: 0.85412`, `tp1: 0.85461`, `tp2: 0.85486`, `confirmation_required: false`, `safety_gate_passed: true`!
      This executes immediately on MT5 at current market price!
-   - **CASE B: COMPLETE SIGNAL WITH 'WAIT FOR CONFIRMATION' OR ENTRY PRICE**:
-     - When admin posts a complete signal containing Entry Price, Stop Loss, and Take Profits (TP1..TP5), even if the message contains disclaimers like "Wait for confirmation", "Enter with confirmation otherwise skip", or "Risky setup":
+   - **CASE B: PURE PRICE LIMIT / TOUCH SIGNALS (WITHOUT CANDLE PATTERN REQUIREMENT)**:
+     - When admin posts a standard signal with an entry price or price zone (e.g. "Buy limit Gold 2470", "Gold buy @ 2502, wait for confirmation SL 2480 TP 2515") that does NOT require a candlestick pattern:
        You MUST output:
        `action: "ENTER"`, `symbol`: Extracted symbol (e.g. "BTCUSD", "XAUUSD"), `direction`: "BUY" or "SELL", `entry_price`: Explicit numeric entry price (or midpoint of entry zone), `stop_loss`: Exact SL, `tp1`, `tp2`, `tp3`... `safety_gate_passed`: true!
        NOTE: The MT5 Executor checks live market price against `entry_price`. If current market price is already near the entry price, it enters MARKET immediately without waiting. If price is far away, it places a PENDING LIMIT ORDER on MT5!
 
+2.1 **CRITICAL: CONDITIONAL CANDLESTICK / PATTERN SETUPS ARE NEVER IMMEDIATE ENTRIES OR LIMITS**:
+   - When a message specifies a future CANDLESTICK FORMATION, PRICE-ACTION, OR REJECTION CONDITION:
+     Examples:
+     - "4150.957 pr agr engulfed candle bany 5 mins Ki to sell krna"
+     - "Sell after strong engulfed candle"
+     - "agr 5m candle close ho to enter karna"
+     - "agar rejection candle bane to buy/sell"
+     - "retest hone par sell karna"
+     - "agar 5m closing mile tab lelo"
+   - **RULE**: This is a CONDITIONAL SETUP waiting for a price pattern to form. The candle has NOT engulfed or formed yet!
+     You MUST output:
+     `action: "SETUP_SAVED"`,
+     `symbol`: Extracted symbol (e.g. "XAUUSD"),
+     `direction`: "BUY" or "SELL",
+     `entry_price`: Numeric price if mentioned (e.g. 4150.957),
+     `stop_loss`: Exact SL (from message or pending cache),
+     `tp1`, `tp2`, `tp3`: Exact TPs (from message or pending cache),
+     `confirmation_required`: true,
+     `safety_gate_passed`: true,
+     `condition`: "Wait for 5m engulfed candle formation" (or exact condition),
+     `explanation`: "Conditional candlestick pattern setup saved. Waiting for admin MT5 screenshot or entry trigger ('enter ho jao', 'le lo', 'let's go') before executing."
+   - **DO NOT** output `action: "ENTER"` for conditional candle setups!
+
 3. **CONFIRMATION TRIGGER / EXECUTION FOR SAVED SETUPS**:
-   - When the admin follows up with:
-     - "Entered", "Enter ho jao", "Active now", "Le li trade", "Enter now", "Short entered", "Ghus jao"
-     - OR posts an MT5 screenshot showing an active open position (e.g. "GOLD, sell 2.00 4 155.22"):
+   - When the admin follows up with an EXPLICIT LIVE ENTRY COMMAND:
+     - "Entered", "Enter ho jao", "Active now", "Le li trade", "Enter now", "Short entered", "Ghus jao", "Let's go", "Le lo", "Lelo", "Buy now", "Sell now"
+     - OR posts an MT5 mobile position screenshot showing an active open position (e.g. "GOLD, sell 2.00 4 155.22"):
      - You MUST correlate this with the saved pending setup in the database!
      - `action`: "ENTER"
      - `symbol`: Symbol of the pending setup (e.g. "BTCUSD" or "XAUUSD")
@@ -447,14 +558,14 @@ Or for multiple actions/pairs in one message:
         if not clean_text and has_image:
             clean_text = "[Screenshot / Image Attachment]"
 
-        if not self.api_key:
+        if self.api_key is None:
             # Dynamically reload from environment / .env before giving up
             try:
                 from src.utils.env_loader import load_env
                 load_env()
             except Exception:
                 pass
-            self.api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+            self.api_key = (os.environ.get("GEMINI_API_KEY", "") or "").strip()
 
         if not self.api_key:
             logger.info("No Gemini API Key provided. Using intelligent heuristic signal parser.")
@@ -591,7 +702,7 @@ Or for multiple actions/pairs in one message:
                         parsed = json.loads(cleaned_json.strip())
                         self.preferred_model = model
                         logger.info(f"Successfully parsed WhatsApp signal with Gemini {model}!")
-                        return self._post_process_parsed_signal(parsed, clean_text, quoted_text, channel_name, recent_history=recent_history)
+                        return self._post_process_parsed_signal(parsed, clean_text, quoted_text, channel_name, recent_history=recent_history, open_trades=open_trades)
                     except Exception as parse_err:
                         logger.warning(f"Error parsing JSON from {model}: {parse_err}")
 
@@ -758,7 +869,7 @@ Or for multiple actions/pairs in one message:
                 "action": "CANCEL_SETUP",
                 "symbol": target_sym,
                 "explanation": f"Pending setup for {target_sym} invalidated and removed from memory by admin."
-            }, text, quoted_text, channel_name, recent_history=recent_history)
+            }, text, quoted_text, channel_name, recent_history=recent_history, open_trades=open_trades)
 
         # 1. Non-trade noise / polls / commentary
         noise_keywords = [
@@ -775,7 +886,7 @@ Or for multiple actions/pairs in one message:
             "hold wohi kary", "jo risk ly skta", "liquidity sweep", "market manipulate",
             "hold on", "hold rakho", "safe traders stay out"
         ]
-        if any(w in t_low for w in hold_keywords):
+        if any(w in t_low for w in hold_keywords) and not is_explicit_entry_command(text):
             return {
                 "is_actionable": True,
                 "action": "HOLD",
@@ -831,7 +942,7 @@ Or for multiple actions/pairs in one message:
                 "symbol": sym,
                 "stop_loss": num_extracted_sl,
                 "explanation": expl
-            }, text, quoted_text, channel_name)
+            }, text, quoted_text, channel_name, recent_history=recent_history, open_trades=open_trades)
 
         # 5. Full Exit / Close All (e.g. Image 5: "Cut krdo yrr", "All positions booked")
         close_keywords = [
@@ -847,7 +958,7 @@ Or for multiple actions/pairs in one message:
                 "action": "CLOSE_ALL",
                 "symbol": sym,
                 "explanation": f"Full exit / cut signal received for {sym}"
-            }, text, quoted_text, channel_name)
+            }, text, quoted_text, channel_name, recent_history=recent_history, open_trades=open_trades)
 
         # 6. Partial Close / Profit Booking
         # e.g. "BTC USD ka 90% nikal lo TP mein se", "80% nikal lo baqi lage rehne do", "TP1 hit 90% nikal lo", "70% nikal lo"
@@ -891,7 +1002,7 @@ Or for multiple actions/pairs in one message:
                 "target_tp": target_tp,
                 "move_to_be": move_be,
                 "explanation": f"Booked {pct}% profit on {sym or 'latest trade'}"
-            }, text, quoted_text, channel_name)
+            }, text, quoted_text, channel_name, recent_history=recent_history, open_trades=open_trades)
 
         # 7. Detailed Setup with SL and TP (e.g. Image 1: Best Entry Zones, TP1-TP5, SL)
         target_src = q_low if ("sl" in q_low and "sl" not in t_low) else t_low
@@ -936,7 +1047,8 @@ Or for multiple actions/pairs in one message:
             tp5_p = float(tp5_m.group(1).replace(",", "")) if tp5_m else None
 
             # Check if confirmation required
-            req_confirm = any(w in t_low for w in [
+            is_candle_cond = is_conditional_candle_pattern(text)
+            req_confirm = is_candle_cond or any(w in t_low for w in [
                 "wait for confirmation", "confirmation", "confirm", "skip this signal",
                 "after strong engulfed", "engulfed candle", "otherwise skip"
             ])
@@ -950,7 +1062,8 @@ Or for multiple actions/pairs in one message:
                         has_prior_entry = True
                         break
 
-            if has_prior_entry:
+            # If candlestick pattern condition is present, prior entry does NOT override it!
+            if has_prior_entry and not is_candle_cond:
                 action_type = "ENTER"
                 req_confirm = False
             else:
@@ -969,19 +1082,47 @@ Or for multiple actions/pairs in one message:
                 "tp4": tp4_p,
                 "tp5": tp5_p,
                 "confirmation_required": req_confirm,
-                "condition": "strong engulfed candle" if "engulf" in t_low else "wait for confirmation",
+                "condition": f"Wait for candle pattern formation: {text.strip()}" if is_candle_cond else ("wait for confirmation" if req_confirm else None),
                 "explanation": f"Setup parsed: {direction} {detected_sym or 'XAUUSD'} SL: {sl_p} TP1: {tp1_p} (Confirm required: {req_confirm})"
             }
-            return self._post_process_parsed_signal(parsed, text, quoted_text, channel_name, recent_history=recent_history)
+            return self._post_process_parsed_signal(parsed, text, quoted_text, channel_name, recent_history=recent_history, open_trades=open_trades)
 
-        # 8. Confirmation Triggers & Direct Trade Calls (e.g. "Entered", "Buy BTC now", "Sell now", "Active now")
-        confirm_trigger_words = [
-            "entered", "enter ho jao", "active now", "trade active", "active guys",
-            "le li trade", "le li", "enter now", "short entered", "buy entered",
-            "ghus jao", "done enter", "taken", "buy now", "sell now", "short now",
-            "buy", "sell", "short", "long", "enter"
-        ]
-        is_confirm_trigger = any(re.search(r'\b' + re.escape(w) + r'\b', t_low) for w in confirm_trigger_words)
+        # 7.5. Standalone Candlestick / Pattern Condition (e.g. "4150.957 pr agr engulfed candle bany 5 mins Ki to sell krna")
+        if is_conditional_candle_pattern(text):
+            sym = detected_sym or self._infer_symbol(text, channel_name, open_trades) or "XAUUSD"
+            entry_m = (
+                re.search(r'(?:entry\s*zones?|entry|enter(?:\s*karengay|\s*karenge|\s*karna)?|\bzone\b)\s*[-:=@at\s]*(?:at\s*)?([\d,.]+)', text)
+                or re.search(r'([\d,.]+)\s*(?:pe|par|pr)\s*(?:entry|enter|agr|agar)', text)
+                or re.search(r'([\d,.]+)\s*(?:pr|pe|par)', text)
+            )
+            entry_p = float(entry_m.group(1).replace(",", "")) if entry_m else None
+            direction = "SELL" if any(w in t_low for w in ["short", "sell"]) else ("BUY" if any(w in t_low for w in ["buy", "long"]) else "SELL")
+
+            cached = self.get_cached_setup(sym)
+            sl_val = cached.get("stop_loss") if cached else None
+            tp1_val = cached.get("tp1") if cached else None
+            tp2_val = cached.get("tp2") if cached else None
+            tp3_val = cached.get("tp3") if cached else None
+
+            parsed = {
+                "is_actionable": True,
+                "action": "SETUP_SAVED",
+                "symbol": sym,
+                "direction": direction,
+                "entry_price": entry_p or (cached.get("entry") if cached else None),
+                "stop_loss": sl_val,
+                "tp1": tp1_val,
+                "tp2": tp2_val,
+                "tp3": tp3_val,
+                "confirmation_required": True,
+                "condition": f"Wait for candle pattern formation: {text.strip()}",
+                "safety_gate_passed": True,
+                "explanation": f"Candlestick pattern setup for {sym}. Saved as pending setup awaiting admin confirmation trigger ('enter ho jao', 'le lo', 'let's go') or MT5 screenshot."
+            }
+            return self._post_process_parsed_signal(parsed, text, quoted_text, channel_name, recent_history=recent_history, open_trades=open_trades)
+
+        # 8. Confirmation Triggers & Direct Trade Calls (e.g. "Entered", "Buy BTC now", "Sell now", "Active now", "Let's go", "Le lo")
+        is_confirm_trigger = is_explicit_entry_command(text)
         if is_confirm_trigger:
             direction = "SELL" if any(w in combined_text for w in ["short", "sell"]) else ("BUY" if any(w in combined_text for w in ["buy", "long"]) else None)
             parsed = {
@@ -991,7 +1132,7 @@ Or for multiple actions/pairs in one message:
                 "direction": direction,
                 "explanation": f"Order / confirmation trigger execution on {detected_sym or 'pending setup'}"
             }
-            return self._post_process_parsed_signal(parsed, text, quoted_text, channel_name, recent_history=recent_history)
+            return self._post_process_parsed_signal(parsed, text, quoted_text, channel_name, recent_history=recent_history, open_trades=open_trades)
 
         return {"is_actionable": False, "action": "IGNORE", "explanation": "Non-actionable message"}
 
@@ -1001,7 +1142,8 @@ Or for multiple actions/pairs in one message:
         raw_message: str,
         quoted_text: Optional[str] = None,
         channel_name: Optional[str] = None,
-        recent_history: Optional[List[Any]] = None
+        recent_history: Optional[List[Any]] = None,
+        open_trades: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
         Validates parsed output, syncs with persistent setup store,
@@ -1013,12 +1155,12 @@ Or for multiple actions/pairs in one message:
             proc_list = []
             for s in parsed["signals"]:
                 proc_list.append(self._post_process_parsed_signal(
-                    s, raw_message, quoted_text, channel_name, recent_history
+                    s, raw_message, quoted_text, channel_name, recent_history, open_trades=open_trades
                 ))
             parsed["signals"] = proc_list
             return parsed
         elif isinstance(parsed, list):
-            return [self._post_process_parsed_signal(s, raw_message, quoted_text, channel_name, recent_history) for s in parsed]
+            return [self._post_process_parsed_signal(s, raw_message, quoted_text, channel_name, recent_history, open_trades=open_trades) for s in parsed]
 
         action = str(parsed.get("action", "IGNORE")).upper()
         symbol = str(parsed.get("symbol") or "").upper().replace("/", "").replace("_", "").strip()
@@ -1026,6 +1168,59 @@ Or for multiple actions/pairs in one message:
         raw_low = raw_message.lower()
         q_low = quoted_text.lower() if quoted_text else ""
         combined_text = f"{raw_low} {q_low}"
+
+        # Check active open WhatsApp trades (strictly ignoring Autonomous 999888 / QS_)
+        valid_open = [
+            ot for ot in (open_trades or [])
+            if int(ot.get("magic", 0)) != 999888 and not str(ot.get("comment", "")).startswith("QS_")
+        ]
+        open_symbols = list({
+            str(ot.get("symbol", "")).upper().replace("M", "").replace("/", "").replace("_", "").strip()
+            for ot in valid_open
+            if ot.get("symbol")
+        })
+
+        # CRITICAL: TRADE MANAGEMENT RE-ALIGNMENT (PARTIAL_CLOSE, CLOSE_ALL, MODIFY_SL, HOLD)
+        # If admin is managing active trades, ensure symbol correlates with actual running MT5 trades!
+        if action in ["PARTIAL_CLOSE", "CLOSE_ALL", "MODIFY_SL", "HOLD"]:
+            explicit_other = False
+            for s_name in ["BTC", "ETH", "US100", "US30", "EURUSD", "GBPUSD", "XAGUSD"]:
+                if re.search(r'\b' + re.escape(s_name.lower()) + r'\b', raw_low):
+                    if s_name not in open_symbols:
+                        explicit_other = True
+                        break
+
+            clean_sym = symbol.upper().replace("/", "").replace("_", "").replace("M", "").strip() if symbol else ""
+            if not explicit_other and open_symbols and (not clean_sym or clean_sym not in open_symbols):
+                if len(open_symbols) == 1:
+                    logger.info(f"🎯 Re-aligning {action} symbol from '{clean_sym}' to active open WhatsApp trade '{open_symbols[0]}'")
+                    parsed["symbol"] = open_symbols[0]
+                    symbol = open_symbols[0]
+                elif recent_history:
+                    for m in reversed(recent_history[-10:]):
+                        m_txt = (m.get('text', '') if isinstance(m, dict) else str(m)).lower()
+                        matched_h_sym = None
+                        for osym in open_symbols:
+                            if osym.lower() in m_txt or osym.lower().replace("usd", "") in m_txt:
+                                matched_h_sym = osym
+                                break
+                        if matched_h_sym:
+                            logger.info(f"🎯 Correlated {action} symbol '{matched_h_sym}' from recent history: '{m_txt[:40]}'")
+                            parsed["symbol"] = matched_h_sym
+                            symbol = matched_h_sym
+                            break
+
+        # CRITICAL SAFETY GATE: CANDLESTICK / PATTERN CONDITION INTERCEPT
+        is_candle_cond = is_conditional_candle_pattern(raw_message)
+        has_explicit_cmd = is_explicit_entry_command(raw_message)
+        is_screenshot = bool(parsed.get("is_screenshot_proof"))
+
+        if is_candle_cond and not has_explicit_cmd and not is_screenshot:
+            action = "SETUP_SAVED"
+            parsed["action"] = "SETUP_SAVED"
+            parsed["confirmation_required"] = True
+            if not parsed.get("condition") or parsed.get("condition") == "wait for confirmation":
+                parsed["condition"] = f"Wait for candle pattern formation: {raw_message.strip()}"
 
         confirm_trigger_words = [
             "entered", "enter ho jao", "active now", "trade active", "active guys",
@@ -1076,7 +1271,7 @@ Or for multiple actions/pairs in one message:
                     }
                     break
 
-        if (action in ["SETUP_SAVED", "ENTER"] or parsed.get("confirmation_required")) and has_sl and has_tp1:
+        if (action in ["SETUP_SAVED", "ENTER"] or parsed.get("confirmation_required")) and has_sl and has_tp1 and not is_candle_cond:
             if active_trigger:
                 logger.info(f"Prior entry trigger confirmed for {sym} ('{active_trigger.get('raw_message')}')! Overriding confirmation requirement and executing ENTER!")
                 parsed["is_actionable"] = True
@@ -1104,6 +1299,18 @@ Or for multiple actions/pairs in one message:
             parsed["action"] = "SETUP_SAVED"
             parsed["safety_gate_passed"] = True
             parsed["blocked_reason"] = None
+
+            cached = self.get_cached_setup(sym)
+            if cached:
+                parsed["stop_loss"] = parsed.get("stop_loss") or cached.get("stop_loss")
+                parsed["tp1"] = parsed.get("tp1") or cached.get("tp1")
+                parsed["tp2"] = parsed.get("tp2") or cached.get("tp2")
+                parsed["tp3"] = parsed.get("tp3") or cached.get("tp3")
+                parsed["tp4"] = parsed.get("tp4") or cached.get("tp4")
+                parsed["tp5"] = parsed.get("tp5") or cached.get("tp5")
+                parsed["entry_price"] = parsed.get("entry_price") or cached.get("entry")
+                parsed["direction"] = parsed.get("direction") or cached.get("action", "SELL")
+
             if parsed.get("stop_loss") and parsed.get("tp1"):
                 setup_data = {
                     "symbol": sym,

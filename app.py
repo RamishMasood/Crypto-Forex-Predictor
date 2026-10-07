@@ -815,13 +815,24 @@ def render_mt5_execution_panel(symbol, setup, mt5_status, account, risk_pct, ff)
 
 @st.fragment(run_every=3)
 def render_mt5_active_positions_view(live_exec):
-    # Check auto-breakeven
+    # Check auto-breakeven (Autonomous & WhatsApp Signal trades)
     try:
         be_updates = live_exec.check_and_apply_auto_breakeven()
         if be_updates:
             for b in be_updates:
                 st.toast(f"🛡️ Auto-Breakeven: #{b['ticket']} SL shifted to Breakeven (${b['new_sl']})!", icon="🛡️")
                 st.info(f"🛡️ **Auto-Breakeven Triggered:** Position #{b['ticket']} Stop-Loss shifted to Breakeven (${b['new_sl']})!")
+    except Exception:
+        pass
+
+    try:
+        from src.engine.whatsapp_signal_executor import WhatsAppSignalExecutor
+        wa_exec = WhatsAppSignalExecutor()
+        wa_be_updates = wa_exec.check_and_apply_whatsapp_auto_breakeven()
+        if wa_be_updates:
+            for b in wa_be_updates:
+                st.toast(f"🛡️ WhatsApp Auto-BE: #{b['ticket']} ({b.get('symbol')}) moved to Breakeven (${b['new_sl']})!", icon="🛡️")
+                st.info(f"🛡️ **WhatsApp Auto-BE on TP1 Triggered:** Position #{b['ticket']} ({b.get('symbol')}) Stop-Loss shifted to Breakeven (${b['new_sl']})!")
     except Exception:
         pass
 

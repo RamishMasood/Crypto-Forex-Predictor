@@ -158,19 +158,9 @@ class VivekYadavSupplyDemandEngine:
         """
         Full evaluation of Vivek Yadav's Supply & Demand Strategy.
         """
-        tf_clean = str(timeframe).lower().strip()
-        if tf_clean in ['1m', '2m', '3m', '5m']:
-            return {
-                'action': 'HOLD',
-                'status': 'TIMEFRAME_INCOMPATIBLE',
-                'confidence': 0.0,
-                'trade_setup': {},
-                'reasons': [f"Vivek Yadav S&D requires 15M, 1H or 4H execution. '{timeframe}' is too noisy."]
-            }
-
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
-        if n < 20 or current_price <= 0.0:
+        if n < 10 or current_price <= 0.0:
             return {
                 'action': 'HOLD',
                 'status': 'INSUFFICIENT_DATA',
@@ -224,8 +214,10 @@ class VivekYadavSupplyDemandEngine:
         reasons = []
 
         # 1. TEST DEMAND TRIGGER (BUY):
-        # Strictly in BULLISH trend with price holding above EMA20 / 200 SMA with volume absorption & RSI sweet spot
-        if (trend == 'BULLISH') and (last_c >= ema_20 * 0.995) and (ema_20 >= ema_50 * 0.995) and (last_c >= sma_200 * 0.99) and (42.0 <= rsi_val <= 66.0):
+        # Bullish or consolidation range with price holding above EMA20 / 200 SMA with volume absorption & RSI sweet spot
+        is_trend_ok_buy = (trend in ['BULLISH', 'CONSOLIDATION'])
+        is_ma_ok_buy = (last_c >= ema_20 * 0.995) or (n < 25)
+        if is_trend_ok_buy and is_ma_ok_buy and (42.0 <= rsi_val <= 70.0 or n < 25):
             # Sort demand zones: fresh zones first, then most recent
             sorted_demand = sorted(demand_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)
             for dz in sorted_demand:
@@ -252,14 +244,16 @@ class VivekYadavSupplyDemandEngine:
                         confidence = 92.0 if is_fresh else 88.0
                         reasons.append(f"Vivek Yadav S&D: {'Fresh ' if is_fresh else ''}Demand Zone Touch [{z_bot:.2f} - {z_top:.2f}]")
                         reasons.append(f"Candle Confirmation: Green Close with {lower_wick_ratio*100:.1f}% Bottom Rejection Wick")
-                        reasons.append(f"Trend Filter: {trend} market structure & EMA20 ({ema_20:.2f}) >= EMA50 ({ema_50:.2f}) & Price >= 200 SMA ({sma_200:.2f})")
+                        reasons.append(f"Trend Filter: {trend} market structure & EMA20 ({ema_20:.2f})")
                         if is_fresh:
                             reasons.append("Zone Quality: High-Priority Unmitigated (Fresh) Institutional Demand")
                         break
 
         # 2. TEST SUPPLY TRIGGER (SELL):
-        # Strictly in BEARISH trend holding below EMA20 / 200 SMA with volume absorption & RSI sweet spot
-        if action == 'HOLD' and (trend == 'BEARISH') and (last_c <= ema_20 * 1.005) and (ema_20 <= ema_50 * 1.005) and (last_c <= sma_200 * 1.01) and not (current_price > 500.0 and last_c > sma_200) and (34.0 <= rsi_val <= 58.0):
+        # Bearish or consolidation range holding below EMA20 / 200 SMA with volume absorption & RSI sweet spot
+        is_trend_ok_sell = (trend in ['BEARISH', 'CONSOLIDATION'])
+        is_ma_ok_sell = (last_c <= ema_20 * 1.005) or (n < 25)
+        if action == 'HOLD' and is_trend_ok_sell and is_ma_ok_sell and (30.0 <= rsi_val <= 58.0 or n < 25):
             sorted_supply = sorted(supply_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)
             for sz in sorted_supply:
                 z_top = sz['top']
@@ -294,20 +288,18 @@ class VivekYadavSupplyDemandEngine:
             entry_price = current_price
 
             if action == 'BUY':
-                zone_bottom = active_zone['bottom']
-                sl_distance = max(1.80 * safe_atr, abs(entry_price - zone_bottom) + 0.20 * safe_atr)
+                sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Rule #2)
                 stop_loss = entry_price - sl_distance
-                tp1 = entry_price + (0.38 * safe_atr) # Precision scalp bank -> BE lock
-                tp2 = entry_price + (1.15 * sl_distance) # Mandatory 1:1+ Runner Geometry
-                tp3 = entry_price + (2.20 * sl_distance) # Extended runner
+                tp1 = entry_price + (0.38 * safe_atr)  # Precision scalp bank -> BE lock
+                tp2 = entry_price + (2.00 * sl_distance)  # Mandatory 1:2+ Runner Geometry
+                tp3 = entry_price + (3.00 * sl_distance)  # Extended runner
 
             else:  # SELL
-                zone_top = active_zone['top']
-                sl_distance = max(1.80 * safe_atr, abs(zone_top - entry_price) + 0.20 * safe_atr)
+                sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Rule #2)
                 stop_loss = entry_price + sl_distance
                 tp1 = entry_price - (0.38 * safe_atr)
-                tp2 = entry_price - (1.15 * sl_distance)
-                tp3 = entry_price - (2.20 * sl_distance)
+                tp2 = entry_price - (2.00 * sl_distance)
+                tp3 = entry_price - (3.00 * sl_distance)
 
             trade_setup = {
                 'action': action,

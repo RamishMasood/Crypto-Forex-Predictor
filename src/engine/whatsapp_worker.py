@@ -1336,8 +1336,32 @@ def run_worker():
                                     txt = txt.replace(quotedText, '').trim();
                                 }
 
-                                const imgNode = c.querySelector('img[src*="blob:"], img[src*="data:"], div[data-testid="image-thumb"] img, div._ak8l img, div._ak8o img, div[role="button"] img, div._amk4 img');
-                                const hasImg = Boolean(imgNode && imgNode.offsetParent !== null);
+                                let imgB64 = null;
+                                let hasImg = false;
+                                const allImgs = Array.from(c.querySelectorAll('img'));
+                                const mediaImg = allImgs.find(im => {
+                                    const w = im.naturalWidth || im.clientWidth || im.width || 0;
+                                    const h = im.naturalHeight || im.clientHeight || im.height || 0;
+                                    return (w >= 70 && h >= 70);
+                                });
+                                if (mediaImg) {
+                                    hasImg = true;
+                                    try {
+                                        const canvas = document.createElement('canvas');
+                                        canvas.width = mediaImg.naturalWidth || mediaImg.clientWidth || 400;
+                                        canvas.height = mediaImg.naturalHeight || mediaImg.clientHeight || 300;
+                                        const ctx = canvas.getContext('2d');
+                                        ctx.drawImage(mediaImg, 0, 0);
+                                        imgB64 = canvas.toDataURL('image/png');
+                                    } catch (err) {
+                                        imgB64 = mediaImg.src || null;
+                                    }
+                                } else {
+                                    const placeholder = c.querySelector('div[data-testid="image-thumb"], div._ak8l, div._ak8o, div._amk4, div[role="button"] img');
+                                    if (placeholder) {
+                                        hasImg = true;
+                                    }
+                                }
 
                                 if (!txt && !hasImg) continue;
 
@@ -1351,7 +1375,8 @@ def run_worker():
                                     text: txt,
                                     quoted_text: quotedText,
                                     time: msgTime,
-                                    has_image: hasImg
+                                    has_image: hasImg,
+                                    img_b64: imgB64
                                 });
                             }
                             return list;
@@ -1390,15 +1415,37 @@ def run_worker():
                             if has_img:
                                 if not txt:
                                     txt = "[Screenshot / Image Attachment]"
-                                try:
-                                    img_loc = main_pane.locator("img[src*='blob:'], img[src*='data:'], div[data-testid='image-thumb'] img, div._ak8l img, div._ak8o img, div[role='button'] img, div._amk4 img").last
-                                    if img_loc.count() > 0:
-                                        os.makedirs(".whatsapp_media", exist_ok=True)
-                                        image_path = os.path.abspath(f".whatsapp_media/wa_msg_{int(time.time()*1000)}.png")
-                                        img_loc.screenshot(path=image_path)
-                                        logger.info(f"📸 Captured incoming WhatsApp screenshot: {image_path}")
-                                except Exception as img_err:
-                                    logger.debug(f"Image screenshot error: {img_err}")
+                                img_b64 = msg_data.get("img_b64")
+                                if img_b64 and img_b64.startswith("data:image"):
+                                    try:
+                                        import base64
+                                        header, b64_str = img_b64.split(",", 1)
+                                        raw_bytes = base64.b64decode(b64_str)
+                                        if len(raw_bytes) > 1500:
+                                            os.makedirs(".whatsapp_media", exist_ok=True)
+                                            image_path = os.path.abspath(f".whatsapp_media/wa_msg_{int(time.time()*1000)}.png")
+                                            with open(image_path, "wb") as f_out:
+                                                f_out.write(raw_bytes)
+                                            logger.info(f"📸 Extracted full-res WhatsApp media via canvas ({len(raw_bytes)} bytes): {image_path}")
+                                    except Exception as b_err:
+                                        logger.debug(f"b64 decode error: {b_err}")
+
+                                if not image_path:
+                                    try:
+                                        # Locate image strictly within this message container (NOT across the whole main_pane)
+                                        msg_locator = main_pane.locator(f"[data-id='{data_id}']") if data_id else None
+                                        container_locator = msg_locator if (msg_locator and msg_locator.count() > 0) else main_pane
+                                        img_cands = container_locator.locator("img").all()
+                                        for cand in reversed(img_cands):
+                                            box = cand.bounding_box()
+                                            if box and box["width"] >= 70 and box["height"] >= 70:
+                                                os.makedirs(".whatsapp_media", exist_ok=True)
+                                                image_path = os.path.abspath(f".whatsapp_media/wa_msg_{int(time.time()*1000)}.png")
+                                                cand.screenshot(path=image_path)
+                                                logger.info(f"📸 Captured WhatsApp media screenshot ({int(box['width'])}x{int(box['height'])}): {image_path}")
+                                                break
+                                    except Exception as img_err:
+                                        logger.debug(f"Image screenshot error: {img_err}")
 
                             open_positions = executor.get_open_whatsapp_positions()
                             parsed = parser.parse_message(

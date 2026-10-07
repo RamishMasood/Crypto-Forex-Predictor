@@ -36,12 +36,11 @@ class SessionManager:
         ],
 
         # 2. Vivek Yadav (Trade For Profit / Advance Crypto Trader)
-        # Windows: Asian Liquidity Sweep / Session Open (00:00-05:00 UTC)
-        #          London Open (3-6 AM EST / 08:00-11:00 UTC)
+        # Windows: London Open (3-6 AM EST / 08:00-11:00 UTC)
         #          NY Open (8-11 AM EST / 13:00-16:00 UTC)
         #          Macro News Windows (CPI 13:00-14:00 UTC, FOMC 19:00-20:00 UTC)
+        # Note: Asian Range (00:00-05:00 UTC) is strictly for heatmap liquidity accumulation, never for entry.
         "VIVEK_YADAV": [
-            ((0, 0), (5, 0), "Asian Liquidity Sweep & Accumulation (00:00-05:00 UTC)"),
             ((8, 0), (11, 0), "London Open Liquidity Sweep (08:00-11:00 UTC / 3-6 AM EST)"),
             ((13, 0), (16, 0), "NY Open & CPI Window (13:00-16:00 UTC / 8-11 AM EST)"),
             ((19, 0), (20, 0), "FOMC News Window (19:00-20:00 UTC / 2-3 PM EST)")
@@ -112,24 +111,6 @@ class SessionManager:
         # Focus: London Session Open (Capitalizing on European order flow; Asian range consolidation breakout)
         "PAUL_FTMO": [
             ((7, 0), (11, 0), "London Open Asian Breakout Window (07:00-11:00 UTC / European Order Flow)")
-        ],
-
-        # 13. Ariel Zwecher (RealSimpleAriel)
-        # Focus: NY Session Open Range expansion & 15M ORB (9:30 AM - 1:00 PM EST / 13:30 - 17:00 UTC)
-        "ARIEL_ZWECHER": [
-            ((13, 30), (17, 0), "NY Open 15M ORB Window (13:30-17:00 UTC / 9:30 AM-1:00 PM EST)")
-        ],
-
-        # 14. Adam Khoo (Systematic Multi-EMA Trend Following)
-        # Focus: London & NY Trend Hours (08:00-17:00 UTC); avoids Asian session consolidation
-        "ADAM_KHOO": [
-            ((8, 0), (17, 0), "London & NY Trend Hours (08:00-17:00 UTC / Avoid Asian)")
-        ],
-
-        # 15. Oliver Velez (20/200 SMA Location & Elephant Bar)
-        # Focus: London & NY Peak Momentum Hours (08:00-17:00 UTC); avoids Asian drift
-        "OLIVER_VELEZ": [
-            ((8, 0), (17, 0), "London & NY Peak Momentum Hours (08:00-17:00 UTC / Avoid Asian)")
         ],
 
         # 16. Richard Dennis (Turtle Trading Donchian Breakout)

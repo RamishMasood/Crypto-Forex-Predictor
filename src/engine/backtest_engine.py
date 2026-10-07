@@ -536,7 +536,7 @@ class MT5BacktestEngine:
             # ── A. Update Existing Open Batches for this Symbol ───────────────
             surviving_batches = []
             for b in open_batches:
-                if b['symbol'] != sym:
+                if b['symbol'] != sym or b.get('timeframe') != tf:
                     surviving_batches.append(b)
                     continue
 
@@ -563,6 +563,7 @@ class MT5BacktestEngine:
                     tp2_dist = tp2_p - entry_p if tp2_p > entry_p else (1.15 * (entry_p - sl_p))
                     tp1_dist = tp1_p - entry_p if tp1_p > entry_p else (0.38 * cur_atr)
 
+                    hit_tp1_this_bar = False
                     # ── Trade Progression Logic ──
                     if not b['tp1_hit']:
                         # 1. Initial Stop Loss Check (before TP1 is hit)
@@ -578,6 +579,7 @@ class MT5BacktestEngine:
                         # 2. Check TP1 Hit (Major Scalp Lock - 65%)
                         elif cur_high >= tp1_p:
                             b['tp1_hit'] = True
+                            hit_tp1_this_bar = True
                             p1_lots = min(lot_p1, b['remaining_lots'])
                             b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p1_lots), 4)
                             p1_pnl = (tp1_p - entry_p) * p1_lots * contract_size
@@ -610,8 +612,8 @@ class MT5BacktestEngine:
                         elif be_mode != 'loose':
                             b['sl_price'] = max(b['sl_price'], entry_p)
 
-                        # Check Runner Stop (Breakeven or Trailing Stop)
-                        if cur_low <= b['sl_price']:
+                        # Check Runner Stop (Breakeven or Trailing Stop) - evaluated from subsequent bars
+                        if not hit_tp1_this_bar and cur_low <= b['sl_price']:
                             exit_price = b['sl_price']
                             exit_pnl = (exit_price - entry_p) * b['remaining_lots'] * contract_size
                             if is_jpy and cur_close > 0:
@@ -671,6 +673,7 @@ class MT5BacktestEngine:
                     tp2_dist = entry_p - tp2_p if (tp2_p > 0 and tp2_p < entry_p) else (1.15 * (sl_p - entry_p))
                     tp1_dist = entry_p - tp1_p if (tp1_p > 0 and tp1_p < entry_p) else (0.38 * cur_atr)
 
+                    hit_tp1_this_bar = False
                     # ── Trade Progression Logic ──
                     if not b['tp1_hit']:
                         # 1. Initial Stop Loss Check (before TP1 is hit)
@@ -686,6 +689,7 @@ class MT5BacktestEngine:
                         # 2. Check TP1 Hit (Major Scalp Lock - 65%)
                         elif cur_low <= tp1_p:
                             b['tp1_hit'] = True
+                            hit_tp1_this_bar = True
                             p1_lots = min(lot_p1, b['remaining_lots'])
                             b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p1_lots), 4)
                             p1_pnl = (entry_p - tp1_p) * p1_lots * contract_size
@@ -718,8 +722,8 @@ class MT5BacktestEngine:
                         elif be_mode != 'loose':
                             b['sl_price'] = min(b['sl_price'], entry_p)
 
-                        # Check Runner Stop (Breakeven or Trailing Stop)
-                        if cur_high >= b['sl_price']:
+                        # Check Runner Stop (Breakeven or Trailing Stop) - evaluated from subsequent bars
+                        if not hit_tp1_this_bar and cur_high >= b['sl_price']:
                             exit_price = b['sl_price']
                             exit_pnl = (entry_p - exit_price) * b['remaining_lots'] * contract_size
                             if is_jpy and cur_close > 0:
@@ -819,8 +823,10 @@ class MT5BacktestEngine:
                             except Exception:
                                 pass
                         elif s_k == 'DEFAULT':
-                            # Asset & Timeframe Guard: Institutional Core 5-Pillar is calibrated for Crypto 4H macro swings (100% win rate on 4H)
-                            if (cur_close < 5000.0) or (str(tf).lower() != '4h'):
+                            # Asset & Timeframe Guard: Institutional Core 5-Pillar operates on 15m, 30m, 1h, and 4h
+                            # Institutional Core is calibrated for Forex Majors (EUR/USD, GBP/USD, etc.)
+                            # Crypto (BTC, ETH) and Metals (Gold, Silver) have specialized streamer models
+                            if any(m in sym.upper() for m in ['XAU', 'GOLD', 'BTC', 'ETH', 'XAG', 'SILVER']):
                                 continue
 
                             # Institutional Core 5-Pillar Confluence (Trend, Pullback/Breakout, Candle, RSI, ATR)
@@ -841,26 +847,47 @@ class MT5BacktestEngine:
                                 rs = gain / (loss.replace(0, np.nan) + 1e-9)
                                 rsi_series = 100 - (100 / (1 + rs))
                                 rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
-                                sma200 = float(c_s.rolling(min(len(c_s), 200), min_periods=50).mean().iloc[-1])
+                                sma200_series = c_s.rolling(min(len(c_s), 200), min_periods=50).mean()
+                                sma200 = float(sma200_series.iloc[-1])
+                                sma200_prev = float(sma200_series.iloc[-4]) if len(sma200_series) >= 4 else sma200
+                                slope_up_200 = sma200 >= sma200_prev * 0.9998
+                                slope_down_200 = sma200 <= sma200_prev * 1.0002
+
+                                # ADX 14 Trend Strength
+                                up_m = h_s.diff()
+                                down_m = -l_s.diff()
+                                p_dm = pd.Series(np.where((up_m > down_m) & (up_m > 0), up_m, 0.0), index=c_s.index)
+                                m_dm = pd.Series(np.where((down_m > up_m) & (down_m > 0), down_m, 0.0), index=c_s.index)
+                                tr_d = pd.concat([h_s - l_s, (h_s - c_s.shift(1)).abs(), (l_s - c_s.shift(1)).abs()], axis=1).max(axis=1)
+                                sm_tr = tr_d.rolling(14).mean()
+                                p_di = (p_dm.rolling(14).mean() / sm_tr.replace(0, np.nan)) * 100.0
+                                m_di = (m_dm.rolling(14).mean() / sm_tr.replace(0, np.nan)) * 100.0
+                                dx_v = (abs(p_di - m_di) / (p_di + m_di).replace(0, np.nan)) * 100.0
+                                adx_s = dx_v.rolling(14).mean()
+                                adx_val = float(adx_s.iloc[-1]) if not np.isnan(adx_s.iloc[-1]) else 20.0
+
+                                is_gold = any(m in sym.upper() for m in ['XAU', 'GOLD'])
+                                req_adx = 24.0 if is_gold else 21.0
+                                req_cand_body = 0.35 * cur_atr if is_gold else 0.25 * cur_atr
 
                                 cand_act = None
                                 # Bullish 5-Pillar Trigger:
-                                # 1. Trend: EMA20 > EMA50 with non-falling slope & Price > 200 SMA
+                                # 1. Trend: EMA20 > EMA50 with non-falling slope & Price > 200 SMA with rising slope & ADX >= req_adx
                                 # 2. Pullback Test of 20 EMA or fresh crossover
-                                # 3. Candle Confirmation: Green close in top 50% of bar
-                                # 4. RSI Sweet Spot: 45 <= RSI <= 60 (not overbought)
+                                # 3. Candle Confirmation: Green close in top 40% of bar
+                                # 4. RSI Sweet Spot: 45 <= RSI <= 62 (not overbought)
                                 cand_rng = max(h_s.iloc[-1] - l_s.iloc[-1], 1e-6)
                                 cand_body = abs(cur_close - o_s.iloc[-1])
-                                is_buy_trend = (ema20 > ema50) and (ema50 > sma200) and ((ema20 - ema50) >= 0.20 * cur_atr) and (ema20 >= ema20_prev * 0.9999) and (cur_close > sma200)
+                                is_buy_trend = (ema20 > ema50) and (ema50 > sma200) and ((ema20 - ema50) >= 0.20 * cur_atr) and (ema20 >= ema20_prev * 0.9999) and (cur_close > sma200) and slope_up_200 and (adx_val >= req_adx)
                                 is_buy_trigger = (l_s.iloc[-1] <= ema20 * 1.001 and cur_close >= ema20) or (c_s.iloc[-2] <= ema20 and cur_close > ema20)
-                                is_buy_candle = cur_close > o_s.iloc[-1] and cur_close >= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) >= 0.55 * cand_rng) and (cand_rng >= 0.45 * cur_atr) and (cand_body >= 0.25 * cur_atr)
-                                is_buy_rsi = (45.0 <= rsi_val <= 60.0)
+                                is_buy_candle = cur_close > o_s.iloc[-1] and cur_close >= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) >= 0.58 * cand_rng) and (cand_rng >= 0.45 * cur_atr) and (cand_body >= req_cand_body)
+                                is_buy_rsi = (45.0 <= rsi_val <= 62.0)
 
                                 # Bearish 5-Pillar Trigger:
-                                is_sell_trend = (ema20 < ema50) and (ema50 < sma200) and ((ema50 - ema20) >= 0.20 * cur_atr) and (ema20 <= ema20_prev * 1.0001) and (cur_close < sma200)
+                                is_sell_trend = (ema20 < ema50) and (ema50 < sma200) and ((ema50 - ema20) >= 0.20 * cur_atr) and (ema20 <= ema20_prev * 1.0001) and (cur_close < sma200) and slope_down_200 and (adx_val >= req_adx)
                                 is_sell_trigger = (h_s.iloc[-1] >= ema20 * 0.999 and cur_close <= ema20) or (c_s.iloc[-2] >= ema20 and cur_close < ema20)
-                                is_sell_candle = cur_close < o_s.iloc[-1] and cur_close <= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) <= 0.30 * cand_rng) and (cand_rng >= 0.45 * cur_atr) and (cand_body >= 0.25 * cur_atr)
-                                is_sell_rsi = (40.0 <= rsi_val <= 55.0)
+                                is_sell_candle = cur_close < o_s.iloc[-1] and cur_close <= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) <= 0.28 * cand_rng) and (cand_rng >= 0.45 * cur_atr) and (cand_body >= req_cand_body)
+                                is_sell_rsi = (38.0 <= rsi_val <= 55.0)
 
                                 if is_buy_trend and is_buy_trigger and is_buy_candle and is_buy_rsi:
                                     cand_act = 'BUY'
@@ -1207,23 +1234,34 @@ class MT5BacktestEngine:
 
         # 5. Compute Detailed Analytics & Strategy Leaderboard
         total_trades = len(closed_batches)
-        def _is_batch_be(batch_obj):
+        # User Trading Invariant:
+        # 1. A trade is a WIN if at least TP1 was hit (profit banked, b['tp1_hit'] is True) or profit > 0.15.
+        # 2. A trade is a LOSS if full SL hit without TP1 (profit < -0.15 and not tp1_hit).
+        # 3. A trade is BREAKEVEN (BE) if neither TP1 nor full SL hit (scratched around entry, abs(profit) <= 0.15).
+        # 4. Win Rate is strictly between Wins and Losses: Wins / (Wins + Losses), excluding pure BE from denominator.
+        def _is_batch_win(batch_obj):
+            p = float(batch_obj.get('profit', 0.0))
+            tp1_hit = bool(batch_obj.get('tp1_hit', False))
             stt = str(batch_obj.get('status', '')).upper()
             exit_r = str(batch_obj.get('exit_reason', '')).upper()
-            p = float(batch_obj.get('profit', 0.0))
-            return (
-                'BREAKEVEN' in stt or
-                stt == 'BE' or
-                'BE' in exit_r or
-                (batch_obj.get('is_breakeven', False) and 'BE' in exit_r) or
-                (abs(p) <= 0.15 and stt not in ['WIN', 'LOSS'])
-            )
+            return tp1_hit or ('TP' in exit_r) or p > 0.15 or stt == 'WIN'
 
-        breakevens = sum(1 for b in closed_batches if _is_batch_be(b))
-        wins = sum(1 for b in closed_batches if not _is_batch_be(b) and (b.get('profit', 0.0) > 0.15 or b.get('status') == 'WIN'))
-        losses = sum(1 for b in closed_batches if not _is_batch_be(b) and (b.get('profit', 0.0) < -0.15 or b.get('status') == 'LOSS'))
-        profitable_trades = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15)
-        win_rate = round((profitable_trades / max(total_trades, 1)) * 100.0, 1) if total_trades > 0 else 0.0
+        def _is_batch_loss(batch_obj):
+            p = float(batch_obj.get('profit', 0.0))
+            tp1_hit = bool(batch_obj.get('tp1_hit', False))
+            stt = str(batch_obj.get('status', '')).upper()
+            exit_r = str(batch_obj.get('exit_reason', '')).upper()
+            has_tp1 = tp1_hit or ('TP1' in exit_r)
+            return (not has_tp1) and (p < -0.15 or stt == 'LOSS' or 'FULL_SL' in exit_r)
+
+        def _is_batch_pure_be(batch_obj):
+            return not _is_batch_win(batch_obj) and not _is_batch_loss(batch_obj)
+
+        wins = sum(1 for b in closed_batches if _is_batch_win(b))
+        losses = sum(1 for b in closed_batches if _is_batch_loss(b))
+        breakevens = sum(1 for b in closed_batches if _is_batch_pure_be(b))
+        decisive_trades = wins + losses
+        win_rate = round((wins / max(decisive_trades, 1)) * 100.0, 1) if decisive_trades > 0 else 0.0
 
         gross_profit = sum(b.get('profit', 0) for b in closed_batches if b.get('profit', 0) > 0)
         gross_loss = sum(abs(b.get('profit', 0)) for b in closed_batches if b.get('profit', 0) < 0)
@@ -1336,29 +1374,21 @@ class MT5BacktestEngine:
             stats_map[k]['total_trades'] += 1
             stats_map[k]['net_pnl'] += pnl
 
-            # Prioritize BREAKEVEN check: exactly matching autonomous_manager.py
-            is_be = (
-                'BREAKEVEN' in stt or 
-                stt == 'BE' or 
-                'BE' in exit_r.upper() or 
-                (b.get('is_breakeven', False) and 'BE' in exit_r.upper()) or 
-                (abs(pnl) <= 0.15 and stt not in ['WIN', 'LOSS'])
-            )
+            # User Trading Invariant:
+            # At least TP1 hit is a WIN; Full SL without TP1 is a LOSS; pure zero scratch is BREAKEVEN.
+            tp1_hit = bool(b.get('tp1_hit', False))
+            has_tp1 = tp1_hit or ('TP1' in exit_r.upper())
+            is_win = has_tp1 or ('TP' in exit_r.upper()) or pnl > 0.15 or stt == 'WIN'
+            is_loss = (not has_tp1) and (pnl < -0.15 or stt == 'LOSS' or 'FULL_SL' in exit_r.upper())
 
-            if is_be:
-                stats_map[k]['breakevens'] += 1
-                if pnl > 0:
-                    stats_map[k]['gross_profit'] += pnl
-                elif pnl < 0:
-                    stats_map[k]['gross_loss'] += abs(pnl)
-            elif stt == 'WIN' or pnl > 0.15:
+            if is_win:
                 stats_map[k]['wins'] += 1
                 stats_map[k]['gross_profit'] += pnl
-                if 'TP' in exit_r.upper():
+                if 'TP' in exit_r.upper() or has_tp1:
                     stats_map[k]['tp_hits'] += 1
                 if pnl > stats_map[k]['biggest_tp']:
                     stats_map[k]['biggest_tp'] = round(pnl, 2)
-            elif stt == 'LOSS' or pnl < -0.15:
+            elif is_loss:
                 stats_map[k]['losses'] += 1
                 stats_map[k]['sl_hits'] += 1
                 stats_map[k]['gross_loss'] += abs(pnl)
@@ -1373,7 +1403,7 @@ class MT5BacktestEngine:
                     strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
                 strat_tfs[k][tf]['trades'] += 1
                 strat_tfs[k][tf]['pnl'] += pnl
-                if not is_be and (stt == 'WIN' or pnl > 0.15):
+                if is_win:
                     strat_tfs[k][tf]['wins'] += 1
 
             if sym:
@@ -1381,18 +1411,16 @@ class MT5BacktestEngine:
                     strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
                 strat_pairs[k][sym]['trades'] += 1
                 strat_pairs[k][sym]['pnl'] += pnl
-                if not is_be and (stt == 'WIN' or pnl > 0.15):
+                if is_win:
                     strat_pairs[k][sym]['wins'] += 1
 
                 # Per-symbol detailed breakdown (wins / losses / breakevens / pnl per symbol per strategy)
                 if sym not in strat_sym_breakdown[k]:
                     strat_sym_breakdown[k][sym] = {'wins': 0, 'losses': 0, 'breakevens': 0, 'pnl': 0.0}
                 strat_sym_breakdown[k][sym]['pnl'] += pnl
-                if is_be:
-                    strat_sym_breakdown[k][sym]['breakevens'] += 1
-                elif pnl > 0.15 or stt == 'WIN':
+                if is_win:
                     strat_sym_breakdown[k][sym]['wins'] += 1
-                elif pnl < -0.15 or stt == 'LOSS':
+                elif is_loss:
                     strat_sym_breakdown[k][sym]['losses'] += 1
                 else:
                     strat_sym_breakdown[k][sym]['breakevens'] += 1
@@ -1409,9 +1437,9 @@ class MT5BacktestEngine:
             item['biggest_tp'] = round(item['biggest_tp'], 2)
             item['tp_hits'] = int(item['tp_hits'])
 
-            # Win Rate (Total Profitable Trades / Total Trades)
-            profitable = sum(1 for b in closed_batches if b.get('strategy_used') == k and b.get('profit', 0.0) > 0.15)
-            item['win_rate'] = round((profitable / max(trades, 1)) * 100.0, 1) if trades > 0 else 0.0
+            # Win Rate between Wins and Losses (pure BE excluded from denominator)
+            strat_decisive = wins + losses
+            item['win_rate'] = round((wins / max(strat_decisive, 1)) * 100.0, 1) if strat_decisive > 0 else 0.0
 
             # Profit Factor
             gross_loss = item['gross_loss']
