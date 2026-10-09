@@ -250,7 +250,8 @@ class PredictorOrchestrator:
         vivek_yadav_sd = VivekYadavSupplyDemandEngine.evaluate(
             df=df_indicators,
             atr=atr_val,
-            timeframe=timeframe
+            timeframe=timeframe,
+            symbol=symbol
         )
 
         # ────────────────────────────────────────────────────
@@ -260,7 +261,8 @@ class PredictorOrchestrator:
             df=df_indicators,
             atr=atr_val,
             timeframe=timeframe,
-            cot_data=cot_data
+            cot_data=cot_data,
+            symbol=symbol
         )
 
         # ────────────────────────────────────────────────────

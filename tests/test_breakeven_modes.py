@@ -221,6 +221,69 @@ class TestBreakevenModes(unittest.TestCase):
                     self.assertEqual(res_loose[0]['new_sl'], 1.14644)
                     mock_move.assert_called_with(1909954115, target_sl=1.14644)
 
+    def test_tp1_ticket_protected_from_premature_breakeven(self):
+        """
+        Tests that when TP1 position is still open in a multi-ticket batch,
+        its SL is NEVER suffocated to breakeven prematurely.
+        """
+        executor = MT5TradeExecutor()
+        with patch.object(executor, '_ensure_connection', return_value=True), \
+             patch.object(executor, 'move_to_breakeven') as mock_move:
+
+            # Both TP1 and TP2 are open in MT5
+            simulated_pos = [
+                {
+                    'ticket': 5001,  # TP1 ticket
+                    'symbol': 'USDCHFm',
+                    'type': 'BUY',
+                    'price_open': 0.83336,
+                    'price_current': 0.83365,  # 90% toward TP1
+                    'sl': 0.83186,
+                    'tp': 0.83368,
+                    'magic': executor.MAGIC_NUMBER,
+                    'comment': 'QS_888111_TP1',
+                    'return_pct': 0.035
+                },
+                {
+                    'ticket': 5002,  # TP2 runner
+                    'symbol': 'USDCHFm',
+                    'type': 'BUY',
+                    'price_open': 0.83336,
+                    'price_current': 0.83365,
+                    'sl': 0.83186,
+                    'tp': 0.83509,
+                    'magic': executor.MAGIC_NUMBER,
+                    'comment': 'QS_888111_TP2',
+                    'return_pct': 0.035
+                }
+            ]
+
+            batch_info_map = {
+                '888111': {
+                    'entry_price': 0.83336,
+                    'sl_price': 0.83186,
+                    'tp1_price': 0.83368,
+                    'tp2_price': 0.83509,
+                    'breakeven_sl': 0.83337,
+                    'breakeven_mode': 'tight',
+                    'tickets': [5001, 5002]
+                }
+            }
+
+            with patch.object(executor, 'get_open_positions', return_value=simulated_pos):
+                import MetaTrader5 as mt5
+                # No deals closed yet - TP1 has not hit yet
+                with patch.object(mt5, 'history_deals_get', return_value=[]):
+                    res = executor.check_and_apply_auto_breakeven(
+                        batch_breakeven_sl_map={'888111': 0.83337},
+                        batch_info_map=batch_info_map,
+                        breakeven_mode='tight'
+                    )
+                    # Neither ticket should be moved to BE because TP1 has not hit yet!
+                    self.assertEqual(len(res), 0)
+                    mock_move.assert_not_called()
+
 if __name__ == '__main__':
     unittest.main()
+
 

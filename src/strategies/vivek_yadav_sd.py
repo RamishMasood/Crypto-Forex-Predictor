@@ -153,12 +153,28 @@ class VivekYadavSupplyDemandEngine:
         cls,
         df: pd.DataFrame,
         atr: float,
-        timeframe: str = '1h'
+        timeframe: str = '1h',
+        symbol: Optional[str] = None,
+        **kwargs: Any
     ) -> Dict[str, Any]:
         """
         Full evaluation of Vivek Yadav's Supply & Demand Strategy.
         """
-        n = len(df)
+        sym_raw = getattr(df, 'symbol', '') if symbol is None else symbol
+        sym_val = symbol or kwargs.get('symbol') or (sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')) or (getattr(df, 'attrs', None) or {}).get('symbol', '')
+        sym_str = str(sym_val or '').upper()
+
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '3m']:
+            return {
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Vivek Yadav S&D + Liquidation Trap requires 5m/15m/1h structural zones. Timeframe '{tf_clean}' micro-noise invalidates order blocks."]
+            }
+
+        n = len(df) if df is not None else 0
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         if n < 10 or current_price <= 0.0:
             return {
@@ -169,9 +185,17 @@ class VivekYadavSupplyDemandEngine:
                 'reasons': ["Insufficient bars for Vivek Yadav S&D analysis."]
             }
 
-        # Adaptive ATR Floor for Forex Majors, Metals, and Crypto
-        min_atr_floor = (current_price * 0.0003) if current_price < 5.0 else (current_price * 0.0015)
-        safe_atr = max(atr, min_atr_floor)
+        # Instrument-Adaptive Safe ATR Floor (respecting Rule #2 of GEMINI.md)
+        if any(m in sym_str for m in ['BTC', 'ETH', 'SOL', 'CRYPTO']) or current_price > 10000.0:
+            min_atr_floor = current_price * 0.0025  # 0.25% floor for Crypto
+        elif any(m in sym_str for m in ['XAG', 'SILVER']):
+            min_atr_floor = current_price * 0.0035  # 0.35% floor for Silver
+        elif any(m in sym_str for m in ['XAU', 'GOLD']) or current_price > 1000.0:
+            min_atr_floor = current_price * 0.0018  # 0.18% floor for Gold
+        else:
+            min_atr_floor = current_price * 0.0006  # 6-8 pips floor for Forex
+        atr_val = 0.0 if (atr is None or pd.isna(atr)) else float(atr)
+        safe_atr = max(atr_val, min_atr_floor, 1e-5)
 
         zones_dict = cls.detect_zones(df)
         demand_zones = zones_dict.get('demand_zones', [])
@@ -215,7 +239,8 @@ class VivekYadavSupplyDemandEngine:
 
         # 1. TEST DEMAND TRIGGER (BUY):
         # Bullish or consolidation range with price holding above EMA20 / 200 SMA with volume absorption & RSI sweet spot
-        is_trend_ok_buy = (trend in ['BULLISH', 'CONSOLIDATION'])
+        ema_aligned_buy = (ema_20 >= ema_50 * 0.999) or (trend == 'BULLISH')
+        is_trend_ok_buy = (trend in ['BULLISH', 'CONSOLIDATION']) and ema_aligned_buy
         is_ma_ok_buy = (last_c >= ema_20 * 0.995) or (n < 25)
         if is_trend_ok_buy and is_ma_ok_buy and (42.0 <= rsi_val <= 70.0 or n < 25):
             # Sort demand zones: fresh zones first, then most recent
@@ -244,14 +269,15 @@ class VivekYadavSupplyDemandEngine:
                         confidence = 92.0 if is_fresh else 88.0
                         reasons.append(f"Vivek Yadav S&D: {'Fresh ' if is_fresh else ''}Demand Zone Touch [{z_bot:.2f} - {z_top:.2f}]")
                         reasons.append(f"Candle Confirmation: Green Close with {lower_wick_ratio*100:.1f}% Bottom Rejection Wick")
-                        reasons.append(f"Trend Filter: {trend} market structure & EMA20 ({ema_20:.2f})")
+                        reasons.append(f"Trend Filter: {trend} market structure & EMA20 ({ema_20:.2f}) >= EMA50 ({ema_50:.2f})")
                         if is_fresh:
                             reasons.append("Zone Quality: High-Priority Unmitigated (Fresh) Institutional Demand")
                         break
 
         # 2. TEST SUPPLY TRIGGER (SELL):
         # Bearish or consolidation range holding below EMA20 / 200 SMA with volume absorption & RSI sweet spot
-        is_trend_ok_sell = (trend in ['BEARISH', 'CONSOLIDATION'])
+        ema_aligned_sell = (ema_20 <= ema_50 * 1.001) or (trend == 'BEARISH')
+        is_trend_ok_sell = (trend in ['BEARISH', 'CONSOLIDATION']) and ema_aligned_sell
         is_ma_ok_sell = (last_c <= ema_20 * 1.005) or (n < 25)
         if action == 'HOLD' and is_trend_ok_sell and is_ma_ok_sell and (30.0 <= rsi_val <= 58.0 or n < 25):
             sorted_supply = sorted(supply_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)

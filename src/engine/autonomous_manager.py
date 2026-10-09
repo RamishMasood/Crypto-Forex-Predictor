@@ -1440,19 +1440,55 @@ class AutonomousTraderEngine:
                         if not pos_tf:
                             pos_tf = "15m"  # Standard default execution timeframe
 
-                        # Recover strategy name from activity feed
-                        resolved_strat_name = "Autonomous Strategy (Live)"
-                        resolved_strat_key = "AUTONOMOUS"
+                        # Recover strategy name from activity feed or execution log
+                        resolved_strat_name = "Institutional Core (5-Pillars)"
+                        resolved_strat_key = "DEFAULT"
+                        found_strat = False
                         for entry in state.get('scan_activity_log', []):
                             e_sym = self.normalize_symbol(entry.get('symbol', ''))
                             det = str(entry.get('details', ''))
-                            if e_sym == norm_s and 'Strategy:' in det:
-                                try:
+                            st_txt = str(entry.get('status', ''))
+                            if str(pos_batch) in st_txt or str(pos_batch) in det:
+                                if '[' in det and ']' in det:
+                                    resolved_strat_name = det.split(']')[0].lstrip('[').strip()
+                                elif 'Strategy:' in det:
                                     resolved_strat_name = det.split('Strategy:')[1].split('|')[0].strip()
-                                    resolved_strat_key = entry.get('status', '').replace('🎯 Executing (', '').replace(')', '').strip() or 'AUTONOMOUS'
-                                    break
+                                found_strat = True
+                                break
+                            elif e_sym == norm_s and ('[' in det or 'Strategy:' in det):
+                                if '[' in det and ']' in det:
+                                    resolved_strat_name = det.split(']')[0].lstrip('[').strip()
+                                elif 'Strategy:' in det:
+                                    resolved_strat_name = det.split('Strategy:')[1].split('|')[0].strip()
+                                found_strat = True
+                                break
+                        if not found_strat:
+                            log_path = os.path.join(ROOT_DIR, "autonomous_trader.log")
+                            if os.path.exists(log_path):
+                                try:
+                                    with open(log_path, 'r', encoding='utf-8', errors='ignore') as lf:
+                                        lines = lf.readlines()
+                                    for li, line_txt in enumerate(lines[-2000:]):
+                                        if f"Executed Batch #{pos_batch}" in line_txt or f"Batch #{pos_batch}" in line_txt:
+                                            for prev in lines[max(0, li-5):li+1]:
+                                                if "EXECUTING AUTONOMOUS TRADE (" in prev:
+                                                    m_s = re.search(r"EXECUTING AUTONOMOUS TRADE \(([^)]+)\)", prev)
+                                                    if m_s:
+                                                        resolved_strat_name = m_s.group(1).strip()
+                                                        found_strat = True
+                                                        break
+                                            if found_strat:
+                                                break
                                 except Exception:
                                     pass
+
+                        # Reverse lookup strategy key from name
+                        for k, v in AVAILABLE_STRATEGIES.items():
+                            clean_v = v.split('(')[0].replace('🏛️', '').replace('🎯', '').replace('🏆', '').replace('⚡', '').strip()
+                            if k.lower() in resolved_strat_name.lower() or clean_v.lower() in resolved_strat_name.lower() or resolved_strat_name.lower() in str(v).lower():
+                                resolved_strat_key = k
+                                break
+
                         open_batches[str(pos_batch)] = {
                             'batch_id': pos_batch,
                             'symbol': norm_s,
@@ -1595,6 +1631,8 @@ class AutonomousTraderEngine:
                             "timestamp": datetime.now(timezone.utc).isoformat(),
                             "symbol": trade.get('symbol'),
                             "timeframe": trade.get('timeframe'),
+                            "strategy_used": trade.get('strategy_used'),
+                            "strategy_name": trade.get('strategy_name'),
                             "action": trade.get('action'),
                             "entry": trade.get('entry_price'),
                             "sl": trade.get('sl_price'),
@@ -1942,9 +1980,14 @@ class AutonomousTraderEngine:
                 if is_crypto and cur_p > 0 and ema50 > 0:
                     if 'BUY' in action and cur_p < ema50:
                         crypto_trend_conflict = True
+                metal_trend_conflict = False
+                is_silver = any(m in symbol.upper() for m in ['XAG', 'SILVER'])
+                if is_silver and cur_p > 0 and ema50 > 0:
+                    if 'BUY' in action and cur_p < ema50:
+                        metal_trend_conflict = True
                     elif 'SELL' in action and cur_p > ema50:
-                        crypto_trend_conflict = True
-                if 'DEFAULT' in active_strats and is_default_eligible and not is_gold and not is_crypto:
+                        metal_trend_conflict = True
+                if 'DEFAULT' in active_strats and is_default_eligible and not is_gold and not is_crypto and not metal_trend_conflict:
                     if is_default_session_ok:
                         candidates.append({
                             'strategy_key': 'DEFAULT',
@@ -2182,10 +2225,24 @@ class AutonomousTraderEngine:
             breakeven_sl = float(setup.get('breakeven_sl') or 0.0)
             if breakeven_sl <= 0:
                 atr = float(pred.get('market_data', {}).get('atr') or (abs(entry_price - sl_price) / 2.0))
-                if action == 'BUY':
-                    breakeven_sl = entry_price + (0.02 * atr)
+                sym_upper = str(symbol).upper()
+                if 'XAU' in sym_upper or 'GOLD' in sym_upper:
+                    min_spread_buf = 0.50
+                elif 'XAG' in sym_upper or 'SILVER' in sym_upper:
+                    min_spread_buf = 0.035
+                elif 'BTC' in sym_upper:
+                    min_spread_buf = max(20.0, entry_price * 0.0004)
+                elif 'ETH' in sym_upper:
+                    min_spread_buf = max(1.5, entry_price * 0.0005)
+                elif any(cross in sym_upper for cross in ['GBP/AUD', 'GBP/NZD', 'EUR/NZD', 'EUR/AUD', 'CAD/JPY']):
+                    min_spread_buf = 0.00035  # 3.5 pips for volatile cross pairs
                 else:
-                    breakeven_sl = max(entry_price * 0.001, entry_price - (0.02 * atr))
+                    min_spread_buf = 0.00022  # 2.2 pips for standard forex majors
+                be_buffer = max(0.06 * atr, min_spread_buf)
+                if action == 'BUY':
+                    breakeven_sl = entry_price + be_buffer
+                else:
+                    breakeven_sl = max(entry_price * 0.001, entry_price - be_buffer)
             breakeven_sl = round(breakeven_sl, 5)
 
             soft_breakeven_sl = float(setup.get('soft_breakeven_sl') or 0.0)

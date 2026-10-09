@@ -73,11 +73,24 @@ class HTFConfluenceChecker:
             cls._init_mt5_enums()
             try:
                 import MetaTrader5 as mt5
+                if not mt5.terminal_info():
+                    mt5.initialize()
                 htf_enum = cls.MT5_TF_ENUMS.get(htf_tf)
                 if htf_enum is not None:
-                    rates = mt5.copy_rates_from_pos(symbol, htf_enum, 0, 40)
-                    if rates is not None and len(rates) >= 20:
-                        df_htf = pd.DataFrame(rates)
+                    raw_s = str(symbol).strip()
+                    cand_syms = [
+                        raw_s,
+                        raw_s.replace("/", ""),
+                        raw_s.replace("/", "") + "m",
+                        raw_s.replace("/", "") + ".raw",
+                        raw_s.replace("/", "") + "c",
+                    ]
+                    for s_candidate in cand_syms:
+                        if mt5.symbol_info(s_candidate) is not None:
+                            rates = mt5.copy_rates_from_pos(s_candidate, htf_enum, 0, 50)
+                            if rates is not None and len(rates) >= 20:
+                                df_htf = pd.DataFrame(rates)
+                                break
             except Exception:
                 pass
 
@@ -98,10 +111,11 @@ class HTFConfluenceChecker:
         ema20 = float(series.ewm(span=20, adjust=False).mean().iloc[-1])
         ema50 = float(series.ewm(span=50, adjust=False).mean().iloc[-1]) if len(series) >= 50 else ema20
 
-        # Bullish HTF condition: price > EMA20 or EMA20 > EMA50
-        # Bearish HTF condition: price < EMA20 or EMA20 < EMA50
-        is_bullish = (last_close >= ema20) or (ema20 >= ema50)
-        is_bearish = (last_close <= ema20) or (ema20 <= ema50)
+        # Strict Institutional HTF condition:
+        # Bullish: Price must be above EMA20 AND (EMA20 >= EMA50 or price >= EMA50)
+        # Bearish: Price must be below EMA20 AND (EMA20 <= EMA50 or price <= EMA50)
+        is_bullish = (last_close >= ema20) and (ema20 >= ema50 or last_close >= ema50)
+        is_bearish = (last_close <= ema20) and (ema20 <= ema50 or last_close <= ema50)
 
         details = {
             "htf": htf_tf,
@@ -116,11 +130,11 @@ class HTFConfluenceChecker:
             if is_bullish:
                 return True, f"HTF ({htf_tf}) Trend Confirmed: Price ({last_close:.4f}) >= EMA20 ({ema20:.4f})", details
             else:
-                return False, f"HTF ({htf_tf}) Conflict: Price ({last_close:.4f}) below EMA20 ({ema20:.4f}) in Bearish Structure", details
+                return False, f"HTF ({htf_tf}) Conflict: Price ({last_close:.4f}) below EMA20 ({ema20:.4f}) in Bearish/Transitional Structure", details
         elif clean_dir == "SELL":
             if is_bearish:
                 return True, f"HTF ({htf_tf}) Trend Confirmed: Price ({last_close:.4f}) <= EMA20 ({ema20:.4f})", details
             else:
-                return False, f"HTF ({htf_tf}) Conflict: Price ({last_close:.4f}) above EMA20 ({ema20:.4f}) in Bullish Structure", details
+                return False, f"HTF ({htf_tf}) Conflict: Price ({last_close:.4f}) above EMA20 ({ema20:.4f}) in Bullish/Transitional Structure", details
         else:
             return True, "Neutral direction", details

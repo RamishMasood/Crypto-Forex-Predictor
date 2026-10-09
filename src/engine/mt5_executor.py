@@ -834,8 +834,18 @@ class MT5TradeExecutor:
                 else:
                     target_soft_sl = round(open_p + (0.45 * abs(init_sl - open_p) / 1.8), 5)
 
+            # If this batch has multiple tickets (TP1 scalp + runners), NEVER move TP1's own SL to breakeven!
+            # TP1 exists to bank the initial 0.38 ATR scalp profit; moving its SL to entry suffocates it before banking profit.
+            b_tkts = b_info.get('tickets', [])
+            try:
+                tp1_ticket_id = int(b_tkts[0]) if b_tkts else None
+            except (ValueError, TypeError):
+                tp1_ticket_id = None
+
+            if tp1_ticket_id is not None and pos['ticket'] == tp1_ticket_id and len(b_tkts) > 1:
+                continue
+
             batch_tp1_hit = (pos_batch is not None and str(pos_batch) in closed_tp1_batches)
-            symbol_tp1_hit = (pos_sym in closed_tp1_symbols and is_profitable and pos['return_pct'] >= 0.01)
 
             active_be_mode = str(b_info.get('breakeven_mode') or breakeven_mode).lower().strip()
 
@@ -848,13 +858,13 @@ class MT5TradeExecutor:
                     profit_dist = curr_p - open_p
                     if tp2_p > open_p and profit_dist >= 0.50 * (tp2_p - open_p):
                         is_expansion_reached = True
-                    elif batch_tp1_hit or symbol_tp1_hit or (tp1_p > open_p and profit_dist >= (tp1_p - open_p) * 0.95):
+                    elif batch_tp1_hit or (len(b_tkts) > 1 and tp1_p > open_p and profit_dist >= (tp1_p - open_p) * 0.95):
                         is_expansion_reached = True
                 else:
                     profit_dist = open_p - curr_p
                     if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.50 * (open_p - tp2_p):
                         is_expansion_reached = True
-                    elif batch_tp1_hit or symbol_tp1_hit or (tp1_p > 0 and tp1_p < open_p and profit_dist >= (open_p - tp1_p) * 0.95):
+                    elif batch_tp1_hit or (len(b_tkts) > 1 and tp1_p > 0 and tp1_p < open_p and profit_dist >= (open_p - tp1_p) * 0.95):
                         is_expansion_reached = True
 
                 if is_profitable and is_expansion_reached and not sl_at_be:
@@ -882,13 +892,13 @@ class MT5TradeExecutor:
                     profit_dist = curr_p - open_p
                     if tp2_p > open_p and profit_dist >= 0.45 * (tp2_p - open_p):
                         is_expansion_reached = True
-                    elif tp1_p > open_p and profit_dist >= 1.8 * (tp1_p - open_p):
+                    elif len(b_tkts) > 1 and tp1_p > open_p and profit_dist >= 1.8 * (tp1_p - open_p):
                         is_expansion_reached = True
                 else:
                     profit_dist = open_p - curr_p
                     if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.45 * (open_p - tp2_p):
                         is_expansion_reached = True
-                    elif tp1_p > 0 and tp1_p < open_p and profit_dist >= 1.8 * (open_p - tp1_p):
+                    elif len(b_tkts) > 1 and tp1_p > 0 and tp1_p < open_p and profit_dist >= 1.8 * (open_p - tp1_p):
                         is_expansion_reached = True
 
                 # Stage 2 Action: Move to Full Hard Breakeven once expansion toward TP2 is confirmed
@@ -902,7 +912,7 @@ class MT5TradeExecutor:
                             'new_sl': res['new_sl']
                         })
                 # Stage 1 Action: Move to Soft Buffer on TP1 Hit (leaves 0.45 ATR breathing room below entry)
-                elif is_profitable and (batch_tp1_hit or symbol_tp1_hit) and target_soft_sl:
+                elif is_profitable and batch_tp1_hit and target_soft_sl:
                     is_sl_wider_than_soft = (current_sl < target_soft_sl) if pos_type == 'BUY' else (current_sl > target_soft_sl or current_sl <= 0)
                     if is_sl_wider_than_soft and not sl_at_be:
                         res = self.move_to_breakeven(pos['ticket'], target_sl=target_soft_sl)
@@ -917,7 +927,12 @@ class MT5TradeExecutor:
 
             # ── 2.5 WAQAR ASIM & SCALPING QUICK / INSTANT BREAKEVEN ───────────────
             if active_be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be', 'scalping_quick_be']:
-                is_expansion_reached = (batch_tp1_hit or symbol_tp1_hit or (is_profitable and pos.get('return_pct', 0) >= 0.10))
+                if len(b_tkts) > 1:
+                    is_expansion_reached = (batch_tp1_hit or (is_profitable and pos.get('return_pct', 0) >= 0.10))
+                else:
+                    tp2_dist = abs(tp2_p - open_p) if tp2_p > 0 else 0.0
+                    profit_dist = (curr_p - open_p) if pos_type == 'BUY' else (open_p - curr_p)
+                    is_expansion_reached = (tp2_dist > 0 and profit_dist >= 0.50 * tp2_dist) or (is_profitable and pos.get('return_pct', 0) >= 0.50)
                 if is_profitable and is_expansion_reached and not sl_at_be:
                     res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
                     if res.get('success'):
@@ -961,7 +976,7 @@ class MT5TradeExecutor:
                             'new_sl': res['new_sl']
                         })
                 # Stage 1 Action: Move to Soft Buffer on TP1 Hit (leaves 0.45 ATR breathing room below entry)
-                elif is_profitable and (batch_tp1_hit or symbol_tp1_hit) and target_soft_sl:
+                elif is_profitable and batch_tp1_hit and target_soft_sl:
                     # Check if SL is currently wider than soft buffer (i.e. still at wide initial SL)
                     is_sl_wider_than_soft = False
                     if pos_type == 'BUY':
@@ -980,8 +995,16 @@ class MT5TradeExecutor:
                             })
             else:
                 # ── 4. TIGHT BREAKEVEN MODE / SMC PARTIAL BE ────────────────────────
-                high_profit_hit = (is_profitable and pos['return_pct'] >= 0.15)
-                should_be = is_profitable and (batch_tp1_hit or symbol_tp1_hit or high_profit_hit)
+                # Precision Invariant (Rule #2): TP1 (0.38 ATR) locks initial scalp profit & triggers Auto-Breakeven.
+                # Once TP1 is banked in profit (batch_tp1_hit), remaining runner positions (TP2/TP3) are moved to Breakeven.
+                profit_dist = (curr_p - open_p) if pos_type == 'BUY' else (open_p - curr_p)
+                if len(b_tkts) > 1:
+                    should_be = is_profitable and batch_tp1_hit
+                else:
+                    risk_dist = abs(open_p - init_sl) if init_sl > 0 else 0.0
+                    is_macro_expansion = (risk_dist > 0 and profit_dist >= 1.0 * risk_dist)
+                    high_profit_hit = (is_profitable and pos.get('return_pct', 0) >= 0.60)
+                    should_be = is_profitable and (batch_tp1_hit or is_macro_expansion or high_profit_hit)
 
                 if should_be and not sl_at_be:
                     target_be_sl_tight = target_be_sl
