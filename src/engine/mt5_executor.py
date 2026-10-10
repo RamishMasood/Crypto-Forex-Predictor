@@ -437,6 +437,9 @@ class MT5TradeExecutor:
                 fresh_tick = mt5.symbol_info_tick(broker_symbol) or tick
                 entry_p = fresh_tick.ask if is_buy else fresh_tick.bid
 
+                clean_tag = str(strategy_tag or 'DEF').replace('_', '').replace(' ', '')[:6].upper()
+                comment_text = f"{custom_comment_prefix if custom_comment_prefix else 'QS'}_{batch_id}_{clean_tag}_{str(timeframe).lower()[:4]}_{label}"
+
                 request = {
                     'action': mt5.TRADE_ACTION_DEAL,
                     'symbol': broker_symbol,
@@ -447,7 +450,7 @@ class MT5TradeExecutor:
                     'tp': tp_target,
                     'deviation': deviation_points,
                     'magic': custom_magic if custom_magic is not None else self.MAGIC_NUMBER,
-                    'comment': f"{custom_comment_prefix if custom_comment_prefix else 'QS'}_{batch_id}_{str(timeframe).lower()[:4]}_{label}",
+                    'comment': comment_text,
                     'type_time': mt5.ORDER_TIME_GTC,
                     'type_filling': type_filling,
                 }
@@ -749,10 +752,10 @@ class MT5TradeExecutor:
                             matched_bid = tp1_ticket_map[pos_id]
                         elif order_id in tp1_ticket_map:
                             matched_bid = tp1_ticket_map[order_id]
-                        # 2. Broker comment match if preserved (QS_<batch_id>_TP1)
+                        # 2. Broker comment match if preserved (QS_<batch_id>_..._TP1)
                         elif 'QS_' in cmt:
                             parts = cmt.split('_')
-                            if len(parts) >= 3 and parts[2].startswith('TP1'):
+                            if len(parts) >= 2 and any(p.startswith('TP1') for p in parts[2:]):
                                 matched_bid = parts[1]
                         # 3. History order lookup for original order comment
                         elif pos_id > 0:
@@ -761,7 +764,7 @@ class MT5TradeExecutor:
                                 ord_cmt = str(getattr(h_orders[0], 'comment', ''))
                                 if 'QS_' in ord_cmt:
                                     parts = ord_cmt.split('_')
-                                    if len(parts) >= 3 and parts[2].startswith('TP1'):
+                                    if len(parts) >= 2 and any(p.startswith('TP1') for p in parts[2:]):
                                         matched_bid = parts[1]
 
                         if matched_bid:

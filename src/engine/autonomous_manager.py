@@ -1332,6 +1332,98 @@ class AutonomousTraderEngine:
             'chop_gate': chop_gate,
             'spread_guard': spread_guard
         }
+    def _resolve_strategy_for_batch(self, batch_id: Any, symbol: str = "", comment: str = "") -> tuple:
+        """
+        Robust multi-tier strategy resolver for autonomous batches.
+        Ensures that adopted/reconstructed batches are NEVER misattributed
+        to unselected strategies (like Institutional Core DEFAULT).
+        """
+        curr_settings = self.load_settings()
+        active_strats = curr_settings.get('active_strategies', [])
+        default_allowed = ('DEFAULT' in active_strats)
+        bid_str = str(batch_id)
+        state = self.load_state()
+
+        # 1. Check existing record in open_batches (if valid and not unselected DEFAULT)
+        ob_record = state.get('open_batches', {}).get(bid_str)
+        if ob_record:
+            s_key = ob_record.get('strategy_used', '')
+            s_name = ob_record.get('strategy_name', '')
+            if s_key and s_name and (s_key != 'DEFAULT' or default_allowed):
+                return s_key, s_name
+
+        # 2. Check closed_batches in state
+        for cb in state.get('closed_batches', []):
+            if str(cb.get('batch_id')) == bid_str:
+                s_key = cb.get('strategy_used', '')
+                s_name = cb.get('strategy_name', '')
+                if s_key and s_name and (s_key != 'DEFAULT' or default_allowed):
+                    return s_key, s_name
+
+        # 3. Check MT5 order comment if strategy tag is embedded (e.g. QS_571829_TRADE_PRO_1h_TP1 or QS_571829_TRADEP_1h_TP1)
+        if comment:
+            parts = comment.split('_')
+            for part in parts:
+                p_up = part.upper().strip()
+                if p_up in AVAILABLE_STRATEGIES:
+                    return p_up, AVAILABLE_STRATEGIES[p_up]
+                for k, full_name in AVAILABLE_STRATEGIES.items():
+                    k_clean = k.replace('_', '').upper()
+                    if (len(p_up) >= 4 and k_clean.startswith(p_up)) or (len(k_clean) >= 4 and p_up.startswith(k_clean[:5])):
+                        return k, full_name
+
+        # 4. Check .trade_learning_journal.json
+        journal_path = os.path.join(ROOT_DIR, ".trade_learning_journal.json")
+        if os.path.exists(journal_path):
+            try:
+                with open(journal_path, 'r', encoding='utf-8') as jf:
+                    j_data = json.load(jf)
+                for item in (j_data.get('lessons_learned', []) + j_data.get('sl_post_mortems', [])):
+                    if str(item.get('batch_id')) == bid_str:
+                        strat_name = item.get('strategy', '')
+                        if strat_name and (strat_name != 'Institutional Core (5-Pillars)' or default_allowed):
+                            for k, full_name in AVAILABLE_STRATEGIES.items():
+                                if k.lower() in strat_name.lower() or full_name.lower() in strat_name.lower() or strat_name.lower() in full_name.lower():
+                                    return k, full_name
+                            return 'STRATEGY', strat_name
+            except Exception:
+                pass
+
+        # 5. Check autonomous_trader.log by reading backwards from EOF
+        log_path = os.path.join(ROOT_DIR, "autonomous_trader.log")
+        if os.path.exists(log_path):
+            try:
+                with open(log_path, 'r', encoding='utf-8', errors='ignore') as lf:
+                    lines = lf.readlines()
+                # Scan backwards up to 60,000 lines
+                for i in range(len(lines) - 1, max(-1, len(lines) - 60000), -1):
+                    l_txt = lines[i]
+                    if f"Executed Batch #{bid_str}" in l_txt or f"Batch #{bid_str}" in l_txt:
+                        for prev in lines[max(0, i-5):i+1]:
+                            if "TARGET SETUP CONFIRMED (" in prev:
+                                m_s = re.search(r"TARGET SETUP CONFIRMED \((\w+):\s*([^)]+)\)", prev)
+                                if m_s:
+                                    k = m_s.group(1).strip()
+                                    n = m_s.group(2).strip()
+                                    return k, n
+                            elif "EXECUTING AUTONOMOUS TRADE (" in prev:
+                                m_s = re.search(r"EXECUTING AUTONOMOUS TRADE \(([^)]+)\)", prev)
+                                if m_s:
+                                    n = m_s.group(1).strip()
+                                    for k, full_name in AVAILABLE_STRATEGIES.items():
+                                        if k.lower() in n.lower() or n.lower() in full_name.lower():
+                                            return k, full_name
+                                    return 'STRATEGY', n
+            except Exception:
+                pass
+
+        # 6. Fallback: If DEFAULT is in active_strategies, can use DEFAULT; otherwise use first active strategy or neutral active tag
+        if default_allowed:
+            return "DEFAULT", "Institutional Core (5-Pillars)"
+        elif active_strats:
+            first_k = active_strats[0]
+            return first_k, AVAILABLE_STRATEGIES.get(first_k, f"Autonomous Strategy ({first_k})")
+        return "UNKNOWN", "Autonomous Strategy (Live)"
 
     def audit_active_trades_and_learn(self):
         state = self.load_state()
@@ -1425,9 +1517,9 @@ class AutonomousTraderEngine:
                     if not pos_batch:
                         pos_batch = str(p.ticket)
 
+                    norm_s = self.normalize_symbol(p.symbol)
                     if str(pos_batch) not in open_batches:
                         p_type = 'BUY' if p.type == 0 else 'SELL'
-                        norm_s = self.normalize_symbol(p.symbol)
 
                         # Recover timeframe from recent activity feed if not in comment
                         if not pos_tf:
@@ -1440,54 +1532,12 @@ class AutonomousTraderEngine:
                         if not pos_tf:
                             pos_tf = "15m"  # Standard default execution timeframe
 
-                        # Recover strategy name from activity feed or execution log
-                        resolved_strat_name = "Institutional Core (5-Pillars)"
-                        resolved_strat_key = "DEFAULT"
-                        found_strat = False
-                        for entry in state.get('scan_activity_log', []):
-                            e_sym = self.normalize_symbol(entry.get('symbol', ''))
-                            det = str(entry.get('details', ''))
-                            st_txt = str(entry.get('status', ''))
-                            if str(pos_batch) in st_txt or str(pos_batch) in det:
-                                if '[' in det and ']' in det:
-                                    resolved_strat_name = det.split(']')[0].lstrip('[').strip()
-                                elif 'Strategy:' in det:
-                                    resolved_strat_name = det.split('Strategy:')[1].split('|')[0].strip()
-                                found_strat = True
-                                break
-                            elif e_sym == norm_s and ('[' in det or 'Strategy:' in det):
-                                if '[' in det and ']' in det:
-                                    resolved_strat_name = det.split(']')[0].lstrip('[').strip()
-                                elif 'Strategy:' in det:
-                                    resolved_strat_name = det.split('Strategy:')[1].split('|')[0].strip()
-                                found_strat = True
-                                break
-                        if not found_strat:
-                            log_path = os.path.join(ROOT_DIR, "autonomous_trader.log")
-                            if os.path.exists(log_path):
-                                try:
-                                    with open(log_path, 'r', encoding='utf-8', errors='ignore') as lf:
-                                        lines = lf.readlines()
-                                    for li, line_txt in enumerate(lines[-2000:]):
-                                        if f"Executed Batch #{pos_batch}" in line_txt or f"Batch #{pos_batch}" in line_txt:
-                                            for prev in lines[max(0, li-5):li+1]:
-                                                if "EXECUTING AUTONOMOUS TRADE (" in prev:
-                                                    m_s = re.search(r"EXECUTING AUTONOMOUS TRADE \(([^)]+)\)", prev)
-                                                    if m_s:
-                                                        resolved_strat_name = m_s.group(1).strip()
-                                                        found_strat = True
-                                                        break
-                                            if found_strat:
-                                                break
-                                except Exception:
-                                    pass
-
-                        # Reverse lookup strategy key from name
-                        for k, v in AVAILABLE_STRATEGIES.items():
-                            clean_v = v.split('(')[0].replace('🏛️', '').replace('🎯', '').replace('🏆', '').replace('⚡', '').strip()
-                            if k.lower() in resolved_strat_name.lower() or clean_v.lower() in resolved_strat_name.lower() or resolved_strat_name.lower() in str(v).lower():
-                                resolved_strat_key = k
-                                break
+                        # Recover strategy name from multi-tier resolver
+                        resolved_strat_key, resolved_strat_name = self._resolve_strategy_for_batch(
+                            batch_id=pos_batch,
+                            symbol=norm_s,
+                            comment=cmt
+                        )
 
                         open_batches[str(pos_batch)] = {
                             'batch_id': pos_batch,
@@ -1527,10 +1577,19 @@ class AutonomousTraderEngine:
                         state['total_trades_taken'] = state.get('total_trades_taken', 0) + 1
                         state_changed = True
                     else:
-                            tkts = open_batches[str(pos_batch)].get('tickets', [])
-                            if int(p.ticket) not in tkts:
-                                tkts.append(int(p.ticket))
-                                open_batches[str(pos_batch)]['tickets'] = tkts
+                        tkts = open_batches[str(pos_batch)].get('tickets', [])
+                        if int(p.ticket) not in tkts:
+                            tkts.append(int(p.ticket))
+                            open_batches[str(pos_batch)]['tickets'] = tkts
+                            state_changed = True
+
+                        # Self-healing: If previously mislabeled as DEFAULT while DEFAULT is NOT in active_strategies, re-resolve
+                        current_sk = open_batches[str(pos_batch)].get('strategy_used', '')
+                        if current_sk == 'DEFAULT' and ('DEFAULT' not in current_settings.get('active_strategies', [])):
+                            res_sk, res_sn = self._resolve_strategy_for_batch(pos_batch, norm_s, cmt)
+                            if res_sk != 'DEFAULT':
+                                open_batches[str(pos_batch)]['strategy_used'] = res_sk
+                                open_batches[str(pos_batch)]['strategy_name'] = res_sn
                                 state_changed = True
 
             # Check open batches for completion
@@ -2211,6 +2270,9 @@ class AutonomousTraderEngine:
             active_strats = settings.get('active_strategies', [])
             if active_strats and strategy_used not in active_strats:
                 logger.warning(f"BLOCKED EXECUTION: Strategy '{strategy_used}' ({strategy_name}) is NOT in active strategies {active_strats}. Aborting trade.")
+                return False
+            if 'DEFAULT' not in active_strats and (strategy_used == 'DEFAULT' or 'Institutional Core' in str(strategy_name)):
+                logger.warning(f"BLOCKED EXECUTION: Institutional Core (DEFAULT) is NOT selected by user. Aborting trade.")
                 return False
 
             entry_price = float(setup.get('recommended_entry') or pred.get('market_data', {}).get('current_price', 0.0))
