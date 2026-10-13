@@ -456,6 +456,9 @@ class AutonomousTraderEngine:
                 return f"{raw[:3]}/{raw[3:]}"
             return raw
 
+        # Valid Timeframes whitelist
+        VALID_TFS = {'1m', '2m', '3m', '5m', '15m', '30m', '45m', '1h', '2h', '3h', '4h', 'd', '1d', 'daily', 'w', '1w'}
+
         # Process Closed Batches
         for b in closed_batches:
             k = match_strategy_key(b)
@@ -481,9 +484,9 @@ class AutonomousTraderEngine:
             if is_win:
                 stats_map[k]['wins'] += 1
                 stats_map[k]['gross_profit'] += pnl
-                # Track TP hits from exit_reason
-                if 'TP' in exit_r or has_tp1:
-                    stats_map[k]['tp_hits'] += 1
+                # At least TP1 hit or winning trade is counted as a TP hit
+                tp_count = max(1, int(b.get('tp_hits') or 1))
+                stats_map[k]['tp_hits'] += tp_count
                 # Biggest TP win
                 if pnl > stats_map[k]['biggest_tp']:
                     stats_map[k]['biggest_tp'] = round(pnl, 2)
@@ -497,14 +500,17 @@ class AutonomousTraderEngine:
                     stats_map[k]['biggest_sl_loss'] = round(loss_amt, 2)
             else:
                 stats_map[k]['breakevens'] += 1
+                if has_tp1 or b.get('tp1_hit') or 'TP' in exit_r:
+                    stats_map[k]['tp_hits'] += 1
 
-            # Track per-timeframe metrics
-            if tf and tf not in ['-', 'live', 'none']:
+            # Track per-timeframe metrics (strictly valid timeframes)
+            is_valid_tf = (tf in VALID_TFS) or bool(re.match(r'^\d+[mhd]$', tf))
+            if tf and tf not in ['-', 'live', 'none'] and is_valid_tf:
                 if tf not in strat_tfs[k]:
                     strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
                 strat_tfs[k][tf]['trades'] += 1
                 strat_tfs[k][tf]['pnl'] += pnl
-                if status == 'WIN' or pnl > 0.15:
+                if is_win:
                     strat_tfs[k][tf]['wins'] += 1
 
             # Track per-symbol metrics
@@ -538,7 +544,8 @@ class AutonomousTraderEngine:
             stats_map[k]['total_trades'] += 1
             stats_map[k]['active_trades'] += 1
 
-            if tf and tf not in ['-', 'live', 'none']:
+            is_valid_tf = (tf in VALID_TFS) or bool(re.match(r'^\d+[mhd]$', tf))
+            if tf and tf not in ['-', 'live', 'none'] and is_valid_tf:
                 if tf not in strat_tfs[k]:
                     strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
                 strat_tfs[k][tf]['trades'] += 1
@@ -557,6 +564,7 @@ class AutonomousTraderEngine:
             closed = item['closed_trades']
             net_pnl = round(item['net_pnl'], 2)
             item['net_pnl'] = net_pnl
+            item['net_profit'] = round(item.get('gross_profit', 0.0), 2)
             item['net_loss'] = round(item['net_loss'], 2)
             item['biggest_tp'] = round(item['biggest_tp'], 2)
             item['tp_hits'] = int(item['tp_hits'])
@@ -579,11 +587,15 @@ class AutonomousTraderEngine:
             else:
                 item['profit_factor'] = 0.0
 
-            # Synthesize Best Timeframes
+            # Synthesize Best Timeframes: prioritize most profitable timeframes, then wins, then trade volume
             pb_entry = playbook_profiles.get(k, {})
+            valid_tf_items = [
+                (t_name, t_data) for t_name, t_data in strat_tfs[k].items()
+                if (t_name in VALID_TFS or re.match(r'^\d+[mhd]$', t_name))
+            ]
             t_items = sorted(
-                strat_tfs[k].items(),
-                key=lambda x: (x[1]['wins'], x[1]['pnl'], x[1]['trades']),
+                valid_tf_items,
+                key=lambda x: (x[1]['pnl'], x[1]['wins'], x[1]['trades']),
                 reverse=True
             )
             if t_items:
@@ -712,6 +724,9 @@ class AutonomousTraderEngine:
             pnl = float(item.get('net_pnl', 0.0))
             pnl_str = f"+${pnl:,.2f}" if pnl >= 0 else f"-${abs(pnl):,.2f}"
 
+            net_profit = float(item.get('net_profit', 0.0))
+            net_profit_str = f"+${net_profit:,.2f}" if net_profit > 0 else "$0.00"
+
             net_loss = float(item.get('net_loss', 0.0))
             net_loss_str = f"-${abs(net_loss):,.2f}" if net_loss < 0 else "$0.00"
 
@@ -732,6 +747,7 @@ class AutonomousTraderEngine:
                 'Breakevens': be,
                 'Win Rate (%)': f"{float(item.get('win_rate', 0.0)):.1f}%",
                 'Net PnL ($)': pnl_str,
+                'Net Profit ($)': net_profit_str,
                 'Net Loss ($)': net_loss_str,
                 'Profit Factor': float(item.get('profit_factor', 0.0)),
                 'Biggest SL Hit ($)': bsl_str,
@@ -1511,8 +1527,12 @@ class AutonomousTraderEngine:
                         parts = cmt.split('_')
                         if len(parts) >= 2:
                             pos_batch = parts[1]
-                        if len(parts) >= 3 and any(t in parts[2].lower() for t in ['m', 'h', 'd']):
-                            pos_tf = parts[2].lower()
+                        # Look for valid timeframe in comment parts (skipping prefix and batch id)
+                        for part in parts[2:]:
+                            p_clean = part.lower().strip()
+                            if p_clean in {'1m', '2m', '3m', '5m', '15m', '30m', '45m', '1h', '2h', '3h', '4h', 'd', '1d', 'daily', 'w', '1w'} or re.match(r'^\d+[mhd]$', p_clean):
+                                pos_tf = p_clean
+                                break
 
                     if not pos_batch:
                         pos_batch = str(p.ticket)

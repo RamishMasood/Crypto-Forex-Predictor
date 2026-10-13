@@ -1992,6 +1992,7 @@ def render_mt5_autonomous_engine_view(live_exec):
             be = item['breakevens']
             wr = item['win_rate']
             pnl = item['net_pnl']
+            net_profit_val = float(item.get('net_profit', 0.0))
             net_loss_val = float(item.get('net_loss', 0.0))
             pf = item['profit_factor']
             bsl = float(item.get('biggest_sl_loss', 0.0))
@@ -2039,6 +2040,9 @@ def render_mt5_autonomous_engine_view(live_exec):
             # Biggest SL and SL hits styling
             bsl_html = f"<span style='color:#f87171;font-weight:700;'>-${bsl:,.2f}</span>" if bsl > 0 else "<span style='color:#64748b;'>$0.00</span>"
             sl_h_html = f"<span style='color:#f87171;font-weight:600;'>{sl_h}</span>" if sl_h > 0 else "<span style='color:#64748b;'>0</span>"
+
+            # Net Profit styling
+            net_profit_html = f"<span style='color:#10b981;font-weight:700;'>+${net_profit_val:,.2f}</span>" if net_profit_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
 
             # Net Loss styling
             net_loss_html = f"<span style='color:#f87171;font-weight:700;'>${net_loss_val:,.2f}</span>" if net_loss_val < 0 else "<span style='color:#64748b;'>$0.00</span>"
@@ -2092,6 +2096,7 @@ def render_mt5_autonomous_engine_view(live_exec):
                 </td>
                 <td style='padding:8px 10px;'>{wr_html}</td>
                 <td style='padding:8px 10px;text-align:right;font-size:0.85rem;'>{pnl_html}</td>
+                <td style='padding:8px 8px;text-align:right;font-size:0.8rem;'>{net_profit_html}</td>
                 <td style='padding:8px 8px;text-align:right;font-size:0.8rem;'>{net_loss_html}</td>
                 <td style='padding:8px 10px;text-align:center;font-size:0.8rem;color:#94a3b8;'>{pf:.2f}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{bsl_html}</td>
@@ -2116,6 +2121,7 @@ def render_mt5_autonomous_engine_view(live_exec):
                         <th style='padding:10px;text-align:center;width:105px;'>W / L / BE</th>
                         <th style='padding:10px;text-align:left;width:100px;'>Win Rate</th>
                         <th style='padding:10px;text-align:right;width:85px;'>Net PnL</th>
+                        <th style='padding:10px;text-align:right;width:85px;'>Net Profit</th>
                         <th style='padding:10px;text-align:right;width:85px;'>Net Loss</th>
                         <th style='padding:10px;text-align:center;width:50px;'>PF</th>
                         <th style='padding:10px;text-align:center;width:95px;'>Biggest SL</th>

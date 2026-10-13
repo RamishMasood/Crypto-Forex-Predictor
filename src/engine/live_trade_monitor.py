@@ -75,15 +75,17 @@ class LiveTradeMonitor:
                 pass
 
     def run_cycle(self) -> Dict[str, Any]:
-        """Runs one inspection cycle: queries MT5 history, detects newly closed batches, analyzes results."""
+        """Runs one inspection cycle: queries MT5 history for current trading week (Mon-Fri), detects newly closed batches, analyzes results."""
         if not mt5.initialize():
             logger.warning("MT5 initialize failed in monitor cycle: %s", mt5.last_error())
             return {"status": "MT5_DISCONNECTED"}
 
         try:
             now = datetime.now()
-            from_date = now - timedelta(days=3)
-            deals = mt5.history_deals_get(from_date, now)
+            # Full Trading Week Execution (Monday to Friday continuous), strictly ignoring weekend (Sat/Sun) trades
+            days_from_monday = now.weekday()
+            week_monday_start = (now - timedelta(days=days_from_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+            deals = mt5.history_deals_get(week_monday_start, now)
             if deals is None:
                 return {"status": "NO_DEALS"}
 
@@ -92,22 +94,42 @@ class LiveTradeMonitor:
             for d in magic_deals:
                 positions_map[d.position_id].append(d)
 
-            # Reconstruct batches from position comments (QS_<batch_id>_<tf>_TPx)
+            # Reconstruct batches from position comments (QS_<batch_id>_<strat>_<tf>_TPx)
             batch_positions = defaultdict(list)
             batch_info = {}
 
+            VALID_TFS = {'1m', '2m', '3m', '5m', '15m', '30m', '45m', '1h', '2h', '3h', '4h', 'd', '1d', 'daily', 'w', '1w'}
+
             for pid, d_list in positions_map.items():
                 entry_deal = next((d for d in d_list if d.entry == 0), None)
+                if not entry_deal:
+                    continue
+
+                # Ignore positions entered before current week's Monday open
+                if entry_deal.time < week_monday_start.timestamp():
+                    continue
+
+                # Strictly ignore weekend trades (Saturday=5, Sunday=6)
+                entry_dt = datetime.fromtimestamp(entry_deal.time)
+                if entry_dt.weekday() in (5, 6):
+                    continue
+
                 comment = entry_deal.comment if entry_deal else d_list[0].comment
-                # Parse batch_id from comment
                 bid = None
                 tf = "1h"
+                strat_tag = None
+
                 if "QS_" in comment:
                     parts = comment.split("_")
                     if len(parts) >= 2:
                         bid = parts[1]
-                    if len(parts) >= 3:
-                        tf = parts[2]
+                    for part in parts[2:]:
+                        p_clean = part.lower().strip()
+                        if p_clean in VALID_TFS or (len(p_clean) >= 2 and p_clean[-1] in 'mhd' and p_clean[:-1].isdigit()):
+                            tf = p_clean
+                            break
+                    if len(parts) >= 4:
+                        strat_tag = parts[2].upper().strip()
                 elif "AUTOBE_" in comment:
                     parts = comment.split("_")
                     if len(parts) >= 2:
@@ -122,6 +144,7 @@ class LiveTradeMonitor:
                         "batch_id": bid,
                         "symbol": d_list[0].symbol,
                         "timeframe": tf,
+                        "strat_tag": strat_tag,
                         "comment": comment,
                         "entry_deal": entry_deal
                     }
@@ -169,7 +192,7 @@ class LiveTradeMonitor:
                 self._handle_closed_batch(cb)
 
             # Generate and save scorecard
-            scorecard = self._compute_performance_scorecard(batch_positions, open_pids)
+            scorecard = self._compute_performance_scorecard(batch_positions, open_pids, batch_info=batch_info)
             with open(PERF_FILE, "w", encoding="utf-8") as f:
                 json.dump(scorecard, f, indent=2)
 
@@ -186,8 +209,8 @@ class LiveTradeMonitor:
         pnl = cb["pnl"]
         self.processed_batches.add(bid)
 
-        # Determine strategy from autonomous state or comment
-        strat_key, strat_name = self._lookup_strategy_for_batch(bid)
+        # Determine strategy from order comment tag, autonomous state or logs
+        strat_key, strat_name = self._lookup_strategy_for_batch(bid, comment=cb.get("comment", ""), strat_tag=cb.get("strat_tag"))
 
         if pnl > 0.15:
             outcome = "WIN"
@@ -210,14 +233,76 @@ class LiveTradeMonitor:
             outcome = "BREAKEVEN"
             logger.info(f"⚖️ LIVE BREAKEVEN! Batch #{bid} | {sym} ({tf}) | Strategy: {strat_name} | PnL: ${pnl:+.2f}")
 
-    def _lookup_strategy_for_batch(self, batch_id: str) -> tuple:
-        """Finds the strategy key and name for a batch from autonomous state or logs."""
+    TAG_MAP = {
+        'ADAMKH': ('ADAM_KHOO', 'Adam Khoo (Multi-EMA Trend)'),
+        'TRADEP': ('TRADE_PRO', 'Trade Pro (Donchian & 200 SMA)'),
+        'EUGENE': ('EUGENE_NG_AH_SIO', 'Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)'),
+        'VIVEKY': ('VIVEK_YADAV', 'Vivek Yadav (Trade For Profit)'),
+        'VIVEK': ('VIVEK_YADAV', 'Vivek Yadav (Trade For Profit)'),
+        'BERNDS': ('BERND_SKORUPINSKI', 'Bernd Skorupinski (FTMO #1)'),
+        'BERND': ('BERND_SKORUPINSKI', 'Bernd Skorupinski (FTMO #1)'),
+        'ICT': ('ICT', 'Michael Huddleston (ICT - Inner Circle Trader)'),
+        'STEVEN': ('STEVEN_HART', 'Steven Hart (The Trading Channel)'),
+        'RAYNER': ('RAYNER_TEO', 'Rayner Teo (Price Action & Trend Following)'),
+        'CRED': ('CRYPTO_CRED', 'Crypto Cred (S/R & RSI Confluence)'),
+        'NDEMAZ': ('NDEMAZEAH_GODLOVE', 'Ndemazeah Godlove (GU MVR)'),
+        'ROSSCA': ('ROSS_CAMERON', 'Ross Cameron (Warrior Trading)'),
+        'ROSS': ('ROSS_CAMERON', 'Ross Cameron (Warrior Trading)'),
+        'ARIELZ': ('ARIEL_ZWECHER', 'Ariel Zwecher (Quantitative ORB)'),
+        'ARIEL': ('ARIEL_ZWECHER', 'Ariel Zwecher (Quantitative ORB)'),
+        'OLIVER': ('OLIVER_VELEZ', 'Oliver Velez (180 Trading)'),
+        'KRISTJ': ('KRISTJAN_QULLAMAGGIE', 'Kristjan Qullamaggie (Breakout & High Beta Momentum)'),
+        'GCR': ('GCR', 'GCR (@GiganticRebirth - Behavioral Sentiment)'),
+        'WAQARZ': ('WAQAR_ZAKA', 'Waqar Zaka (Off-Exchange Reserve & ATR Buffer Model)'),
+        'WAQAR': ('WAQAR_ZAKA', 'Waqar Zaka (Off-Exchange Reserve & ATR Buffer Model)'),
+        'WAQARA': ('WAQAR_ASIM', 'Waqar Asim (Forex 1M S&D Inducement Scalp)'),
+        'PAULFT': ('PAUL_FTMO', 'Paul (FTMO Top Funded Prop Trader)'),
+        'PAUL': ('PAUL_FTMO', 'Paul (FTMO Top Funded Prop Trader)'),
+        'RICHAR': ('RICHARD_DENNIS', 'Richard Dennis (Turtle Trading Trend Following)'),
+        'MARKMI': ('MARK_MINERVINI', 'Mark Minervini (SEPA - Volatility Contraction Pattern)'),
+        'MARK': ('MARK_MINERVINI', 'Mark Minervini (SEPA - Volatility Contraction Pattern)'),
+        'ALBROO': ('AL_BROOKS', 'Al Brooks (Price Action - Major Trend Reversals)'),
+        'BROOKS': ('AL_BROOKS', 'Al Brooks (Price Action - Major Trend Reversals)'),
+        'BOBVOL': ('BOB_VOLMAN', 'Bob Volman (Price Action Scalping & Buildup)'),
+        'VOLMAN': ('BOB_VOLMAN', 'Bob Volman (Price Action Scalping & Buildup)'),
+        'TOMHOU': ('TOM_HOUGAARD', 'Tom Hougaard (TraderTom - Institutional Trend Expansion & VWAP)'),
+        'TOM': ('TOM_HOUGAARD', 'Tom Hougaard (TraderTom - Institutional Trend Expansion & VWAP)'),
+        'LARRYW': ('LARRY_WILLIAMS', 'Larry Williams (Williams %R Volatility Expansion)'),
+        'LARRY': ('LARRY_WILLIAMS', 'Larry Williams (Williams %R Volatility Expansion)'),
+        'NICOLA': ('NICOLAS_DARVAS', 'Nicolas Darvas (Darvas Box Theory Breakout)'),
+        'DARVAS': ('NICOLAS_DARVAS', 'Nicolas Darvas (Darvas Box Theory Breakout)'),
+        'TOBYCR': ('TOBY_CRABEL', 'Toby Crabel (NR7 Volatility Contraction Breakout)'),
+        'CRABEL': ('TOBY_CRABEL', 'Toby Crabel (NR7 Volatility Contraction Breakout)'),
+        'LINDAR': ('LINDA_RASCHKE', 'Linda Raschke (Holy Grail - ADX Trend & 20 EMA Pullback)'),
+        'RASCHK': ('LINDA_RASCHKE', 'Linda Raschke (Holy Grail - ADX Trend & 20 EMA Pullback)'),
+        'CORE': ('DEFAULT', 'Institutional Core (5-Pillars)')
+    }
+
+    def _lookup_strategy_for_batch(self, batch_id: str, comment: str = "", strat_tag: Optional[str] = None) -> tuple:
+        """Finds the strategy key and name for a batch from MT5 comment tag, autonomous state or logs."""
         if not hasattr(self, '_strat_cache'):
             self._strat_cache = {}
 
         if batch_id in self._strat_cache:
             return self._strat_cache[batch_id]
 
+        # 1. Match from explicit strat_tag
+        if strat_tag and strat_tag in self.TAG_MAP:
+            res = self.TAG_MAP[strat_tag]
+            self._strat_cache[batch_id] = res
+            return res
+
+        # 2. Match from comment parts
+        if comment and "QS_" in comment:
+            parts = comment.split("_")
+            if len(parts) >= 3:
+                c_tag = parts[2].upper().strip()
+                if c_tag in self.TAG_MAP:
+                    res = self.TAG_MAP[c_tag]
+                    self._strat_cache[batch_id] = res
+                    return res
+
+        # 3. Match from STATE_FILE
         if os.path.exists(STATE_FILE):
             try:
                 with open(STATE_FILE, "r", encoding="utf-8") as f:
@@ -240,7 +325,7 @@ class LiveTradeMonitor:
             except Exception:
                 pass
 
-        # Check autonomous_trader.log
+        # 4. Check autonomous_trader.log
         log_path = os.path.join(ROOT_DIR, "autonomous_trader.log")
         if os.path.exists(log_path):
             try:
@@ -248,7 +333,6 @@ class LiveTradeMonitor:
                     lines = f.readlines()
                 for i, l in enumerate(lines):
                     if f"Executed Batch #{batch_id}" in l:
-                        # Check previous 4 lines for strategy name
                         for prev_line in lines[max(0, i-4):i]:
                             if "TARGET SETUP CONFIRMED (" in prev_line:
                                 import re
@@ -429,16 +513,19 @@ class LiveTradeMonitor:
         except Exception as e:
             logger.debug(f"Auto-BE watchdog check notice: {e}")
 
-    def _compute_performance_scorecard(self, batch_positions: dict, open_pids: set) -> Dict[str, Any]:
-        """Calculates live Win Rate, Net PnL per strategy and per symbol with 24H Session vs All-Time split."""
+    def _compute_performance_scorecard(self, batch_positions: dict, open_pids: set, batch_info: Optional[dict] = None) -> Dict[str, Any]:
+        """Calculates live Win Rate, Net PnL per strategy and per symbol across current trading week (Mon-Fri), strictly excluding weekends."""
         now = datetime.now()
-        cutoff_24h_ts = (now - timedelta(hours=24)).timestamp()
+        # Full trading week cutoff: Monday 00:00:00 of the active week
+        days_from_monday = now.weekday()
+        week_monday_start = (now - timedelta(days=days_from_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        session_cutoff_ts = week_monday_start.timestamp()
 
         # All-time accumulators
         at_strat_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0})
         at_symbol_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0})
 
-        # Session (last 24h) accumulators
+        # Trading Week accumulators (Mon-Fri)
         s_strat_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0})
         s_symbol_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0})
 
@@ -466,7 +553,12 @@ class LiveTradeMonitor:
                     if d.entry == 1 and d.time > latest_exit_ts:
                         latest_exit_ts = d.time
 
-            strat_key, strat_name = self._lookup_strategy_for_batch(bid)
+            b_meta = (batch_info or {}).get(bid, {})
+            strat_key, strat_name = self._lookup_strategy_for_batch(
+                bid,
+                comment=b_meta.get("comment", ""),
+                strat_tag=b_meta.get("strat_tag")
+            )
 
             if all_closed:
                 # 1. Update All-Time stats
@@ -487,8 +579,8 @@ class LiveTradeMonitor:
                     at_st["breakevens"] += 1
                     at_sy["breakevens"] += 1
 
-                # 2. Update Session (last 24h) stats if closed within 24h
-                if latest_exit_ts >= cutoff_24h_ts:
+                # 2. Update Session (Monday onwards) stats if closed within Monday session
+                if latest_exit_ts >= session_cutoff_ts:
                     s_st = s_strat_stats[strat_name]
                     s_sy = s_symbol_stats[sym]
                     s_st["total"] += 1
@@ -586,12 +678,20 @@ class LiveTradeMonitor:
 def main():
     monitor = LiveTradeMonitor()
     logger.info("=" * 65)
-    logger.info("🚀 LIVE TRADE MONITOR & DUAL-LAYER STRATEGY OPTIMIZER (24-30H)")
+    logger.info("🚀 LIVE TRADE MONITOR & CONTINUOUS STRATEGY OPTIMIZER (FULL WEEK)")
+    logger.info("Schedule: Monday to Friday (24/5 Continuous) | Sat/Sun Weekend Standby")
     logger.info("Connected to MT5 Demo: Magic #%d | Interval: 30s", MAGIC_NUMBER)
     logger.info("=" * 65)
 
     while True:
         try:
+            now = datetime.now()
+            # If weekend (Saturday=5, Sunday=6), standby until Monday open
+            if now.weekday() in (5, 6):
+                logger.info("⏸️ WEEKEND STANDBY: Markets closed for weekend (Saturday/Sunday). Live optimizer sleeping until Monday open...")
+                time.sleep(120)
+                continue
+
             scorecard = monitor.run_cycle()
             s_ov = scorecard.get("session_24h", {})
             at_ov = scorecard.get("all_time", {})
@@ -600,7 +700,7 @@ def main():
 
             if s_ov:
                 logger.info(
-                    "📊 MONITOR PULSE [24H Session]: Closed: %d | Wins: %d | Losses: %d | WR: %.1f%% | Net: $%.2f | Open: %d ($%.2f flt) [All-Time: %d trd, %.1f%% WR]",
+                    "📊 MONITOR PULSE [Trading Week]: Closed: %d | Wins: %d | Losses: %d | WR: %.1f%% | Net: $%.2f | Open: %d ($%.2f flt) [All-Time: %d trd, %.1f%% WR]",
                     s_ov.get("total_trades", 0),
                     s_ov.get("wins", 0),
                     s_ov.get("losses", 0),
