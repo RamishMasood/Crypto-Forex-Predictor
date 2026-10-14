@@ -1,37 +1,37 @@
 {
-  "updated_at": "2026-10-14T11:52:32.849651+00:00",
+  "updated_at": "2026-10-14T15:09:07.922780+00:00",
   "overall": {
-    "total_trades": 105,
-    "wins": 75,
-    "losses": 29,
+    "total_trades": 120,
+    "wins": 89,
+    "losses": 30,
     "breakevens": 1,
-    "win_rate_pct": 72.1,
-    "net_pnl_usd": -180.84
+    "win_rate_pct": 74.8,
+    "net_pnl_usd": -101.0
   },
   "session_24h": {
-    "total_trades": 105,
-    "wins": 75,
-    "losses": 29,
+    "total_trades": 120,
+    "wins": 89,
+    "losses": 30,
     "breakevens": 1,
-    "win_rate_pct": 72.1,
-    "net_pnl_usd": -180.84
+    "win_rate_pct": 74.8,
+    "net_pnl_usd": -101.0
   },
   "all_time": {
-    "total_trades": 108,
-    "wins": 75,
-    "losses": 29,
+    "total_trades": 123,
+    "wins": 89,
+    "losses": 30,
     "breakevens": 4,
-    "win_rate_pct": 72.1,
-    "net_pnl_usd": -180.84
+    "win_rate_pct": 74.8,
+    "net_pnl_usd": -101.0
   },
   "by_strategy": {
     "Adam Khoo (Multi-EMA Trend)": {
-      "wins": 12,
+      "wins": 13,
       "losses": 9,
       "breakevens": 0,
-      "pnl": -137.81,
-      "total": 21,
-      "win_rate_pct": 57.1
+      "pnl": -132.54,
+      "total": 22,
+      "win_rate_pct": 59.1
     },
     "Trade Pro (Donchian & 200 SMA)": {
       "wins": 7,
@@ -58,28 +58,28 @@
       "win_rate_pct": 100.0
     },
     "Mark Minervini (SEPA - Volatility Contraction Pattern)": {
-      "wins": 5,
-      "losses": 0,
+      "wins": 6,
+      "losses": 1,
       "breakevens": 0,
-      "pnl": 20.12,
-      "total": 5,
-      "win_rate_pct": 100.0
+      "pnl": -10.09,
+      "total": 7,
+      "win_rate_pct": 85.7
     },
     "Ndemazeah Godlove (GU MVR)": {
-      "wins": 2,
+      "wins": 4,
       "losses": 0,
       "breakevens": 0,
-      "pnl": 21.13,
-      "total": 2,
+      "pnl": 30.38,
+      "total": 4,
       "win_rate_pct": 100.0
     },
     "Linda Raschke (Holy Grail - ADX Trend & 20 EMA Pullback)": {
-      "wins": 7,
+      "wins": 9,
       "losses": 3,
       "breakevens": 0,
-      "pnl": -1.11,
-      "total": 10,
-      "win_rate_pct": 70.0
+      "pnl": 10.05,
+      "total": 12,
+      "win_rate_pct": 75.0
     },
     "Michael Huddleston (ICT - Inner Circle Trader)": {
       "wins": 3,
@@ -90,12 +90,12 @@
       "win_rate_pct": 50.0
     },
     "Waqar Asim (Forex 1M S&D Inducement Scalp)": {
-      "wins": 2,
+      "wins": 3,
       "losses": 1,
       "breakevens": 0,
-      "pnl": 5.94,
-      "total": 3,
-      "win_rate_pct": 66.7
+      "pnl": 11.4,
+      "total": 4,
+      "win_rate_pct": 75.0
     },
     "Bob Volman (Price Action Scalping & Buildup)": {
       "wins": 4,
@@ -122,27 +122,27 @@
       "win_rate_pct": 66.7
     },
     "Steven Hart (The Trading Channel)": {
-      "wins": 6,
+      "wins": 8,
       "losses": 2,
       "breakevens": 0,
-      "pnl": -42.22,
-      "total": 8,
-      "win_rate_pct": 75.0
+      "pnl": -17.75,
+      "total": 10,
+      "win_rate_pct": 80.0
     },
     "Al Brooks (Price Action - Major Trend Reversals)": {
-      "wins": 6,
+      "wins": 7,
       "losses": 1,
       "breakevens": 0,
-      "pnl": 46.59,
-      "total": 7,
-      "win_rate_pct": 85.7
+      "pnl": 76.29,
+      "total": 8,
+      "win_rate_pct": 87.5
     },
     "Tom Hougaard (TraderTom - Institutional Trend Expansion & VWAP)": {
-      "wins": 2,
+      "wins": 4,
       "losses": 0,
       "breakevens": 0,
-      "pnl": 7.61,
-      "total": 2,
+      "pnl": 13.07,
+      "total": 4,
       "win_rate_pct": 100.0
     },
     "Richard Dennis (Turtle Trading Trend Following)": {
@@ -170,11 +170,11 @@
       "win_rate_pct": 100.0
     },
     "Crypto Cred (S/R & RSI Confluence)": {
-      "wins": 1,
+      "wins": 2,
       "losses": 0,
       "breakevens": 0,
-      "pnl": 4.2,
-      "total": 1,
+      "pnl": 21.67,
+      "total": 2,
       "win_rate_pct": 100.0
     },
     "Ross Cameron (Warrior Trading)": {
@@ -182,6 +182,14 @@
       "losses": 0,
       "breakevens": 0,
       "pnl": 4.45,
+      "total": 1,
+      "win_rate_pct": 100.0
+    },
+    "Oliver Velez (180 Trading)": {
+      "wins": 1,
+      "losses": 0,
+      "breakevens": 0,
+      "pnl": 1.81,
       "total": 1,
       "win_rate_pct": 100.0
     }
@@ -196,20 +204,20 @@
       "win_rate_pct": 62.5
     },
     "ETHUSDm": {
-      "wins": 11,
+      "wins": 14,
       "losses": 4,
       "breakevens": 0,
-      "pnl": -8.18,
-      "total": 15,
-      "win_rate_pct": 73.3
+      "pnl": 3.76,
+      "total": 18,
+      "win_rate_pct": 77.8
     },
     "XAUUSDm": {
-      "wins": 21,
+      "wins": 23,
       "losses": 6,
       "breakevens": 0,
-      "pnl": 7.33,
-      "total": 27,
-      "win_rate_pct": 77.8
+      "pnl": 32.83,
+      "total": 29,
+      "win_rate_pct": 79.3
     },
     "EURUSDm": {
       "wins": 14,
@@ -220,38 +228,38 @@
       "win_rate_pct": 82.4
     },
     "USDCHFm": {
-      "wins": 9,
-      "losses": 3,
-      "breakevens": 0,
-      "pnl": -44.34,
-      "total": 12,
-      "win_rate_pct": 75.0
-    },
-    "XAGUSDm": {
-      "wins": 4,
+      "wins": 11,
       "losses": 4,
       "breakevens": 0,
-      "pnl": 22.25,
-      "total": 8,
-      "win_rate_pct": 50.0
+      "pnl": -57.08,
+      "total": 15,
+      "win_rate_pct": 73.3
+    },
+    "XAGUSDm": {
+      "wins": 6,
+      "losses": 4,
+      "breakevens": 0,
+      "pnl": 53.85,
+      "total": 10,
+      "win_rate_pct": 60.0
     },
     "GBPAUDm": {
-      "wins": 6,
+      "wins": 11,
       "losses": 3,
       "breakevens": 0,
-      "pnl": -53.54,
-      "total": 9,
-      "win_rate_pct": 66.7
+      "pnl": -30.0,
+      "total": 14,
+      "win_rate_pct": 78.6
     }
   },
   "all_time_by_strategy": {
     "Adam Khoo (Multi-EMA Trend)": {
-      "wins": 12,
+      "wins": 13,
       "losses": 9,
       "breakevens": 2,
-      "pnl": -137.81,
-      "total": 23,
-      "win_rate_pct": 57.1
+      "pnl": -132.54,
+      "total": 24,
+      "win_rate_pct": 59.1
     },
     "Trade Pro (Donchian & 200 SMA)": {
       "wins": 7,
@@ -278,28 +286,28 @@
       "win_rate_pct": 100.0
     },
     "Mark Minervini (SEPA - Volatility Contraction Pattern)": {
-      "wins": 5,
-      "losses": 0,
+      "wins": 6,
+      "losses": 1,
       "breakevens": 0,
-      "pnl": 20.12,
-      "total": 5,
-      "win_rate_pct": 100.0
+      "pnl": -10.09,
+      "total": 7,
+      "win_rate_pct": 85.7
     },
     "Ndemazeah Godlove (GU MVR)": {
-      "wins": 2,
+      "wins": 4,
       "losses": 0,
       "breakevens": 0,
-      "pnl": 21.13,
-      "total": 2,
+      "pnl": 30.38,
+      "total": 4,
       "win_rate_pct": 100.0
     },
     "Linda Raschke (Holy Grail - ADX Trend & 20 EMA Pullback)": {
-      "wins": 7,
+      "wins": 9,
       "losses": 3,
       "breakevens": 0,
-      "pnl": -1.11,
-      "total": 10,
-      "win_rate_pct": 70.0
+      "pnl": 10.05,
+      "total": 12,
+      "win_rate_pct": 75.0
     },
     "Michael Huddleston (ICT - Inner Circle Trader)": {
       "wins": 3,
@@ -310,12 +318,12 @@
       "win_rate_pct": 50.0
     },
     "Waqar Asim (Forex 1M S&D Inducement Scalp)": {
-      "wins": 2,
+      "wins": 3,
       "losses": 1,
       "breakevens": 0,
-      "pnl": 5.94,
-      "total": 3,
-      "win_rate_pct": 66.7
+      "pnl": 11.4,
+      "total": 4,
+      "win_rate_pct": 75.0
     },
     "Bob Volman (Price Action Scalping & Buildup)": {
       "wins": 4,
@@ -342,27 +350,27 @@
       "win_rate_pct": 66.7
     },
     "Steven Hart (The Trading Channel)": {
-      "wins": 6,
+      "wins": 8,
       "losses": 2,
       "breakevens": 0,
-      "pnl": -42.22,
-      "total": 8,
-      "win_rate_pct": 75.0
+      "pnl": -17.75,
+      "total": 10,
+      "win_rate_pct": 80.0
     },
     "Al Brooks (Price Action - Major Trend Reversals)": {
-      "wins": 6,
+      "wins": 7,
       "losses": 1,
       "breakevens": 0,
-      "pnl": 46.59,
-      "total": 7,
-      "win_rate_pct": 85.7
+      "pnl": 76.29,
+      "total": 8,
+      "win_rate_pct": 87.5
     },
     "Tom Hougaard (TraderTom - Institutional Trend Expansion & VWAP)": {
-      "wins": 2,
+      "wins": 4,
       "losses": 0,
       "breakevens": 0,
-      "pnl": 7.61,
-      "total": 2,
+      "pnl": 13.07,
+      "total": 4,
       "win_rate_pct": 100.0
     },
     "Richard Dennis (Turtle Trading Trend Following)": {
@@ -390,11 +398,11 @@
       "win_rate_pct": 100.0
     },
     "Crypto Cred (S/R & RSI Confluence)": {
-      "wins": 1,
+      "wins": 2,
       "losses": 0,
       "breakevens": 0,
-      "pnl": 4.2,
-      "total": 1,
+      "pnl": 21.67,
+      "total": 2,
       "win_rate_pct": 100.0
     },
     "Ross Cameron (Warrior Trading)": {
@@ -402,6 +410,14 @@
       "losses": 0,
       "breakevens": 0,
       "pnl": 4.45,
+      "total": 1,
+      "win_rate_pct": 100.0
+    },
+    "Oliver Velez (180 Trading)": {
+      "wins": 1,
+      "losses": 0,
+      "breakevens": 0,
+      "pnl": 1.81,
       "total": 1,
       "win_rate_pct": 100.0
     }
@@ -416,20 +432,20 @@
       "win_rate_pct": 62.5
     },
     "ETHUSDm": {
-      "wins": 11,
+      "wins": 14,
       "losses": 4,
       "breakevens": 0,
-      "pnl": -8.18,
-      "total": 15,
-      "win_rate_pct": 73.3
+      "pnl": 3.76,
+      "total": 18,
+      "win_rate_pct": 77.8
     },
     "XAUUSDm": {
-      "wins": 21,
+      "wins": 23,
       "losses": 6,
       "breakevens": 0,
-      "pnl": 7.33,
-      "total": 27,
-      "win_rate_pct": 77.8
+      "pnl": 32.83,
+      "total": 29,
+      "win_rate_pct": 79.3
     },
     "EURUSDm": {
       "wins": 14,
@@ -440,49 +456,38 @@
       "win_rate_pct": 82.4
     },
     "USDCHFm": {
-      "wins": 9,
-      "losses": 3,
+      "wins": 11,
+      "losses": 4,
       "breakevens": 0,
-      "pnl": -44.34,
-      "total": 12,
-      "win_rate_pct": 75.0
+      "pnl": -57.08,
+      "total": 15,
+      "win_rate_pct": 73.3
     },
     "XAGUSDm": {
-      "wins": 4,
+      "wins": 6,
       "losses": 4,
       "breakevens": 1,
-      "pnl": 22.25,
-      "total": 9,
-      "win_rate_pct": 50.0
+      "pnl": 53.85,
+      "total": 11,
+      "win_rate_pct": 60.0
     },
     "GBPAUDm": {
-      "wins": 6,
+      "wins": 11,
       "losses": 3,
       "breakevens": 0,
-      "pnl": -53.54,
-      "total": 9,
-      "win_rate_pct": 66.7
+      "pnl": -30.0,
+      "total": 14,
+      "win_rate_pct": 78.6
     }
   },
   "active_open_batches_count": 6,
-  "active_open_floating_pnl_usd": -4.55,
+  "active_open_floating_pnl_usd": 51.8,
   "active_batches": [
-    {
-      "batch_id": "890639",
-      "symbol": "ETHUSDm",
-      "strategy": "Linda Raschke (Holy Grail - ADX Trend & 20 EMA Pullback)",
-      "open_tickets": [
-        2557515522,
-        2557515589
-      ]
-    },
     {
       "batch_id": "905872",
       "symbol": "EURUSDm",
       "strategy": "Vivek Yadav (Trade For Profit)",
       "open_tickets": [
-        2559682385,
-        2559682393,
         2559682397
       ]
     },
@@ -495,77 +500,84 @@
       ]
     },
     {
-      "batch_id": "961317",
-      "symbol": "XAGUSDm",
+      "batch_id": "984770",
+      "symbol": "ETHUSDm",
+      "strategy": "Tom Hougaard (TraderTom - Institutional Trend Expansion & VWAP)",
+      "open_tickets": [
+        2567480889,
+        2567480944
+      ]
+    },
+    {
+      "batch_id": "985846",
+      "symbol": "XAUUSDm",
       "strategy": "Al Brooks (Price Action - Major Trend Reversals)",
       "open_tickets": [
-        2563891832
+        2567737315
       ]
     },
     {
-      "batch_id": "976878",
-      "symbol": "XAUUSDm",
-      "strategy": "Steven Hart (The Trading Channel)",
+      "batch_id": "987958",
+      "symbol": "USDCHFm",
+      "strategy": "Waqar Asim (Forex 1M S&D Inducement Scalp)",
       "open_tickets": [
-        2565377814
+        2568176706
       ]
     },
     {
-      "batch_id": "977022",
-      "symbol": "GBPAUDm",
-      "strategy": "Ndemazeah Godlove (GU MVR)",
+      "batch_id": "990546",
+      "symbol": "XAGUSDm",
+      "strategy": "Mark Minervini (SEPA - Volatility Contraction Pattern)",
       "open_tickets": [
-        2565390288,
-        2565390291,
-        2565390295
+        2568625750
       ]
     }
   ],
   "upcoming_high_impact_news": [
     {
-      "title": "Core CPI m/m",
-      "country": "USD",
-      "impact": "High",
-      "datetime_utc": "2026-10-14T12:30:00+00:00",
-      "minutes_away": 37.5,
-      "forecast": "0.2%",
-      "previous": "0.3%"
-    },
-    {
-      "title": "Core CPI y/y",
-      "country": "USD",
-      "impact": "High",
-      "datetime_utc": "2026-10-14T12:30:00+00:00",
-      "minutes_away": 37.5,
-      "forecast": "2.5%",
-      "previous": "2.4%"
-    },
-    {
-      "title": "CPI m/m",
-      "country": "USD",
-      "impact": "High",
-      "datetime_utc": "2026-10-14T12:30:00+00:00",
-      "minutes_away": 37.5,
-      "forecast": "0.6%",
-      "previous": "0.4%"
-    },
-    {
-      "title": "CPI y/y",
-      "country": "USD",
-      "impact": "High",
-      "datetime_utc": "2026-10-14T12:30:00+00:00",
-      "minutes_away": 37.5,
-      "forecast": "3.6%",
-      "previous": "3.4%"
-    },
-    {
       "title": "FOMC Member Barkin Speaks",
       "country": "USD",
       "impact": "Low",
       "datetime_utc": "2026-10-14T17:30:00+00:00",
-      "minutes_away": 337.5,
+      "minutes_away": 140.9,
       "forecast": "",
       "previous": ""
+    },
+    {
+      "title": "FOMC Member Goolsbee Speaks",
+      "country": "USD",
+      "impact": "Low",
+      "datetime_utc": "2026-10-14T19:00:00+00:00",
+      "minutes_away": 230.9,
+      "forecast": "",
+      "previous": ""
+    },
+    {
+      "title": "FOMC Member Bowman Speaks",
+      "country": "USD",
+      "impact": "Low",
+      "datetime_utc": "2026-10-15T02:55:00+00:00",
+      "minutes_away": 705.9,
+      "forecast": "",
+      "previous": ""
+    },
+    {
+      "title": "Core PPI m/m",
+      "country": "USD",
+      "impact": "High",
+      "datetime_utc": "2026-10-15T12:30:00+00:00",
+      "minutes_away": 1280.9,
+      "forecast": "0.3%",
+      "previous": "0.2%"
+    },
+    {
+      "title": "Core Retail Sales m/m",
+      "country": "USD",
+      "impact": "High",
+      "datetime_utc": "2026-10-15T12:30:00+00:00",
+      "minutes_away": 1280.9,
+      "forecast": "0.6%",
+      "previous": "1.4%"
     }
   ]
 }

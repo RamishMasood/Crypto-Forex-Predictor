@@ -278,6 +278,31 @@ class LiveTradeMonitor:
         'CORE': ('DEFAULT', 'Institutional Core (5-Pillars)')
     }
 
+    @staticmethod
+    def _normalize_strat_name(strat_key: str, name: str) -> tuple:
+        n = name.strip()
+        if "Crypto Cred" in n:
+            return ('CRYPTO_CRED', 'Crypto Cred (S/R & RSI Confluence)')
+        if "Ndemazeah" in n:
+            return ('NDEMAZEAH_GODLOVE', 'Ndemazeah Godlove (GU MVR)')
+        if "Larry Williams" in n:
+            return ('LARRY_WILLIAMS', 'Larry Williams (Williams %R Volatility Expansion)')
+        if "Al Brooks" in n:
+            return ('AL_BROOKS', 'Al Brooks (Price Action - Major Trend Reversals)')
+        if "Richard Dennis" in n:
+            return ('RICHARD_DENNIS', 'Richard Dennis (Turtle Trading Trend Following)')
+        if "Mark Minervini" in n:
+            return ('MARK_MINERVINI', 'Mark Minervini (SEPA - Volatility Contraction Pattern)')
+        if "Bob Volman" in n:
+            return ('BOB_VOLMAN', 'Bob Volman (Price Action Scalping & Buildup)')
+        if "Toby Crabel" in n:
+            return ('TOBY_CRABEL', 'Toby Crabel (NR7 Volatility Contraction Breakout)')
+        if "Waqar Asim" in n:
+            return ('WAQAR_ASIM', 'Waqar Asim (Forex 1M S&D Inducement Scalp)')
+        if n.count("(") > n.count(")"):
+            n = n + ")"
+        return (strat_key, n)
+
     def _lookup_strategy_for_batch(self, batch_id: str, comment: str = "", strat_tag: Optional[str] = None) -> tuple:
         """Finds the strategy key and name for a batch from MT5 comment tag, autonomous state or logs."""
         if not hasattr(self, '_strat_cache'):
@@ -288,7 +313,7 @@ class LiveTradeMonitor:
 
         # 1. Match from explicit strat_tag
         if strat_tag and strat_tag in self.TAG_MAP:
-            res = self.TAG_MAP[strat_tag]
+            res = self._normalize_strat_name(*self.TAG_MAP[strat_tag])
             self._strat_cache[batch_id] = res
             return res
 
@@ -298,7 +323,7 @@ class LiveTradeMonitor:
             if len(parts) >= 3:
                 c_tag = parts[2].upper().strip()
                 if c_tag in self.TAG_MAP:
-                    res = self.TAG_MAP[c_tag]
+                    res = self._normalize_strat_name(*self.TAG_MAP[c_tag])
                     self._strat_cache[batch_id] = res
                     return res
 
@@ -312,14 +337,14 @@ class LiveTradeMonitor:
                         b = open_batches[batch_id]
                         strat_name = b.get("strategy_name", "")
                         if strat_name and "Autonomous Strategy (Live)" not in strat_name:
-                            res = (b.get("strategy_used", "DEFAULT"), strat_name)
+                            res = self._normalize_strat_name(b.get("strategy_used", "DEFAULT"), strat_name)
                             self._strat_cache[batch_id] = res
                             return res
                     for cb in state.get("closed_batches", []):
                         if str(cb.get("batch_id")) == str(batch_id):
                             strat_name = cb.get("strategy_name", "")
                             if strat_name and "Autonomous Strategy (Live)" not in strat_name:
-                                res = (cb.get("strategy_used", "DEFAULT"), strat_name)
+                                res = self._normalize_strat_name(cb.get("strategy_used", "DEFAULT"), strat_name)
                                 self._strat_cache[batch_id] = res
                                 return res
             except Exception:
@@ -338,7 +363,7 @@ class LiveTradeMonitor:
                                 import re
                                 m = re.search(r"TARGET SETUP CONFIRMED \((\w+):\s*([^)]+)\)", prev_line)
                                 if m:
-                                    res = (m.group(1), m.group(2).strip())
+                                    res = self._normalize_strat_name(m.group(1), m.group(2).strip())
                                     self._strat_cache[batch_id] = res
                                     return res
                             elif "EXECUTING AUTONOMOUS TRADE (" in prev_line:
@@ -346,7 +371,7 @@ class LiveTradeMonitor:
                                 m = re.search(r"EXECUTING AUTONOMOUS TRADE \(([^)]+)\)", prev_line)
                                 if m:
                                     s_name = m.group(1).strip()
-                                    res = (s_name, s_name)
+                                    res = self._normalize_strat_name(s_name, s_name)
                                     self._strat_cache[batch_id] = res
                                     return res
             except Exception:

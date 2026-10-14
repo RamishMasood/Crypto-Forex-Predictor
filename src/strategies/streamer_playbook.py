@@ -288,6 +288,33 @@ class ICTStrategy:
         closes = df['close'].values
         opens = df['open'].values
 
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"ICT Market Structure Shift requires structural liquidity pools (5m, 15m, 30m, 1h). Sub-5m timeframe '{tf_clean}' micro noise creates false liquidity sweeps."]
+            }
+
+        asset_type = str(kwargs.get('asset_type', '')).lower()
+        is_crypto = any(m in sym_str for m in ['BTC', 'ETH']) or asset_type in ['crypto']
+        if is_crypto and tf_clean in ['5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"ICT Crypto requires at least 15m/30m/1h structural liquidity pools. 5m crypto wick volatility creates premature FVG invalidation."]
+            }
+
         # Check Killzone window (Using bar timestamp if present, falling back to UTC now)
         if 'timestamp' in df.columns and len(df['timestamp']) > 0:
             last_ts = df['timestamp'].iloc[-1]
@@ -297,9 +324,9 @@ class ICTStrategy:
         is_london_kz = (7 <= curr_hour <= 10)
         is_ny_kz = (12 <= curr_hour <= 16)
         is_silver_bullet = (15 <= curr_hour < 16)
-        in_killzone = is_london_kz or is_ny_kz or ('crypto' in str(timeframe).lower())
+        in_killzone = is_london_kz or is_ny_kz or is_crypto
 
-        kz_label = "Silver Bullet (NY)" if is_silver_bullet else ("NY Killzone" if is_ny_kz else ("London Killzone" if is_london_kz else "Off-Hours"))
+        kz_label = "Crypto 24/7 Pool" if is_crypto else ("Silver Bullet (NY)" if is_silver_bullet else ("NY Killzone" if is_ny_kz else ("London Killzone" if is_london_kz else "Off-Hours")))
 
         # Look for Liquidity Sweep in last 15 bars
         recent_h = float(np.max(highs[-15:-2])) if n >= 15 else float(np.max(highs))
@@ -423,6 +450,18 @@ class StevenHartStrategy:
         lows = df['low'].values
         closes = df['close'].values
         opens = df['open'].values
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Steven Hart Break & Retest requires genuine structural support/resistance zones (15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise causes false barrier breakouts."]
+            }
 
         # Detect recent key structural barrier (prior swing high / low)
         lookback = min(n, 40)
@@ -3129,6 +3168,19 @@ class MarkMinerviniStrategy:
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = compute_playbook_safe_atr(df, atr, current_price, symbol=sym_str)
+
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Mark Minervini SEPA VCP requires structural price contraction (5m, 15m, 30m, 1h). Sub-5m timeframe '{tf_clean}' spread-to-ATR ratio invalidates contraction geometry."]
+            }
 
         if n < 30:
             return {

@@ -19,6 +19,7 @@ from src.engine.mt5_executor import MT5TradeExecutor
 from src.engine.session_manager import SessionManager
 from src.engine.htf_confluence import HTFConfluenceChecker
 from src.engine.recommended_presets import RecommendedPresetsManager, RECOMMENDED_SYMBOL_PROFILES
+from src.data.economic_calendar import EconomicCalendarManager
 
 class SafeStreamHandler(logging.StreamHandler):
     def emit(self, record):
@@ -1884,6 +1885,33 @@ class AutonomousTraderEngine:
 
         asset_type = 'crypto' if is_crypto else 'forex'
 
+        # HARD GUARD: High-Impact Macroeconomic News Blackout (30m pre/post window)
+        try:
+            if not hasattr(self, '_econ_manager'):
+                self._econ_manager = EconomicCalendarManager()
+            blackout_status = self._econ_manager.check_blackout_status(symbol=symbol, asset_type=asset_type, blackout_minutes=30)
+            if blackout_status.get('is_blackout'):
+                active_ev = blackout_status.get('active_event') or {}
+                title = active_ev.get('title', 'High-Impact News')
+                ccy = active_ev.get('country', 'MACRO')
+                mins = active_ev.get('minutes_away', 0.0)
+                timing = f"in {mins:.0f}m" if mins > 0 else f"{abs(mins):.0f}m ago"
+                logger.info(f"Skipping {symbol} scan: High-impact news blackout [{ccy}] '{title}' ({timing}).")
+                now_utc = datetime.now(timezone.utc)
+                self._append_activity_log({
+                    "timestamp": now_utc.strftime("%H:%M:%S UTC"),
+                    "cycle": cycle,
+                    "symbol": symbol,
+                    "timeframe": "-",
+                    "action": "HOLD",
+                    "pillars": "-",
+                    "status": "NEWS BLACKOUT",
+                    "details": f"Standing aside during [{ccy}] '{title}' release ({timing})."
+                })
+                return None
+        except Exception as e_news:
+            logger.debug(f"Non-critical economic calendar check bypass: {e_news}")
+
         # Load rotation pointer so scan order rotates across timeframes
         state = self.load_state()
         tf_rotation = state.get('tf_rotation_indices', {})
@@ -2294,6 +2322,27 @@ class AutonomousTraderEngine:
             if 'DEFAULT' not in active_strats and (strategy_used == 'DEFAULT' or 'Institutional Core' in str(strategy_name)):
                 logger.warning(f"BLOCKED EXECUTION: Institutional Core (DEFAULT) is NOT selected by user. Aborting trade.")
                 return False
+
+            # HARD GUARD 3: High-Impact Macroeconomic News Blackout (30m pre/post window)
+            try:
+                sym_norm = self.normalize_symbol(symbol).replace('/', '').upper()
+                asset_type = 'crypto' if any(m in sym_norm for m in ['BTC', 'ETH']) else 'forex'
+                if not hasattr(self, '_econ_manager'):
+                    self._econ_manager = EconomicCalendarManager()
+                blackout_status = self._econ_manager.check_blackout_status(symbol=symbol, asset_type=asset_type, blackout_minutes=30)
+                if blackout_status.get('is_blackout'):
+                    active_ev = blackout_status.get('active_event') or {}
+                    title = active_ev.get('title', 'High-Impact News')
+                    ccy = active_ev.get('country', 'MACRO')
+                    mins = active_ev.get('minutes_away', 0.0)
+                    timing = f"in {mins:.0f}m" if mins > 0 else f"{abs(mins):.0f}m ago"
+                    logger.warning(
+                        f"🚨 BLOCKED EXECUTION (NEWS BLACKOUT): Trade on '{symbol}' [{strategy_name}] rejected due to "
+                        f"[{ccy}] '{title}' release ({timing})! Standing aside to protect capital from macro whipsaws."
+                    )
+                    return False
+            except Exception as e_news:
+                logger.debug(f"Non-critical economic calendar check bypass: {e_news}")
 
             entry_price = float(setup.get('recommended_entry') or pred.get('market_data', {}).get('current_price', 0.0))
             sl_price = float(setup.get('stop_loss', 0.0))
