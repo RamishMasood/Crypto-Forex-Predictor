@@ -1,37 +1,37 @@
 {
-  "updated_at": "2026-10-14T10:59:46.875320+00:00",
+  "updated_at": "2026-10-14T11:52:32.849651+00:00",
   "overall": {
-    "total_trades": 102,
-    "wins": 72,
+    "total_trades": 105,
+    "wins": 75,
     "losses": 29,
     "breakevens": 1,
-    "win_rate_pct": 71.3,
-    "net_pnl_usd": -201.81
+    "win_rate_pct": 72.1,
+    "net_pnl_usd": -180.84
   },
   "session_24h": {
-    "total_trades": 102,
-    "wins": 72,
+    "total_trades": 105,
+    "wins": 75,
     "losses": 29,
     "breakevens": 1,
-    "win_rate_pct": 71.3,
-    "net_pnl_usd": -201.81
+    "win_rate_pct": 72.1,
+    "net_pnl_usd": -180.84
   },
   "all_time": {
-    "total_trades": 105,
-    "wins": 72,
+    "total_trades": 108,
+    "wins": 75,
     "losses": 29,
     "breakevens": 4,
-    "win_rate_pct": 71.3,
-    "net_pnl_usd": -201.81
+    "win_rate_pct": 72.1,
+    "net_pnl_usd": -180.84
   },
   "by_strategy": {
     "Adam Khoo (Multi-EMA Trend)": {
-      "wins": 11,
+      "wins": 12,
       "losses": 9,
       "breakevens": 0,
-      "pnl": -140.62,
-      "total": 20,
-      "win_rate_pct": 55.0
+      "pnl": -137.81,
+      "total": 21,
+      "win_rate_pct": 57.1
     },
     "Trade Pro (Donchian & 200 SMA)": {
       "wins": 7,
@@ -98,12 +98,12 @@
       "win_rate_pct": 66.7
     },
     "Bob Volman (Price Action Scalping & Buildup)": {
-      "wins": 2,
+      "wins": 4,
       "losses": 2,
       "breakevens": 0,
-      "pnl": -11.29,
-      "total": 4,
-      "win_rate_pct": 50.0
+      "pnl": 6.87,
+      "total": 6,
+      "win_rate_pct": 66.7
     },
     "Larry Williams (Williams %R Volatility Expansion)": {
       "wins": 1,
@@ -204,12 +204,12 @@
       "win_rate_pct": 73.3
     },
     "XAUUSDm": {
-      "wins": 20,
+      "wins": 21,
       "losses": 6,
       "breakevens": 0,
-      "pnl": 2.92,
-      "total": 26,
-      "win_rate_pct": 76.9
+      "pnl": 7.33,
+      "total": 27,
+      "win_rate_pct": 77.8
     },
     "EURUSDm": {
       "wins": 14,
@@ -220,12 +220,12 @@
       "win_rate_pct": 82.4
     },
     "USDCHFm": {
-      "wins": 8,
+      "wins": 9,
       "losses": 3,
       "breakevens": 0,
-      "pnl": -47.15,
-      "total": 11,
-      "win_rate_pct": 72.7
+      "pnl": -44.34,
+      "total": 12,
+      "win_rate_pct": 75.0
     },
     "XAGUSDm": {
       "wins": 4,
@@ -236,22 +236,22 @@
       "win_rate_pct": 50.0
     },
     "GBPAUDm": {
-      "wins": 5,
+      "wins": 6,
       "losses": 3,
       "breakevens": 0,
-      "pnl": -67.29,
-      "total": 8,
-      "win_rate_pct": 62.5
+      "pnl": -53.54,
+      "total": 9,
+      "win_rate_pct": 66.7
     }
   },
   "all_time_by_strategy": {
     "Adam Khoo (Multi-EMA Trend)": {
-      "wins": 11,
+      "wins": 12,
       "losses": 9,
       "breakevens": 2,
-      "pnl": -140.62,
-      "total": 22,
-      "win_rate_pct": 55.0
+      "pnl": -137.81,
+      "total": 23,
+      "win_rate_pct": 57.1
     },
     "Trade Pro (Donchian & 200 SMA)": {
       "wins": 7,
@@ -318,12 +318,12 @@
       "win_rate_pct": 66.7
     },
     "Bob Volman (Price Action Scalping & Buildup)": {
-      "wins": 2,
+      "wins": 4,
       "losses": 2,
       "breakevens": 0,
-      "pnl": -11.29,
-      "total": 4,
-      "win_rate_pct": 50.0
+      "pnl": 6.87,
+      "total": 6,
+      "win_rate_pct": 66.7
     },
     "Larry Williams (Williams %R Volatility Expansion)": {
       "wins": 1,
@@ -424,12 +424,12 @@
       "win_rate_pct": 73.3
     },
     "XAUUSDm": {
-      "wins": 20,
+      "wins": 21,
       "losses": 6,
       "breakevens": 0,
-      "pnl": 2.92,
-      "total": 26,
-      "win_rate_pct": 76.9
+      "pnl": 7.33,
+      "total": 27,
+      "win_rate_pct": 77.8
     },
     "EURUSDm": {
       "wins": 14,
@@ -440,12 +440,12 @@
       "win_rate_pct": 82.4
     },
     "USDCHFm": {
-      "wins": 8,
+      "wins": 9,
       "losses": 3,
       "breakevens": 0,
-      "pnl": -47.15,
-      "total": 11,
-      "win_rate_pct": 72.7
+      "pnl": -44.34,
+      "total": 12,
+      "win_rate_pct": 75.0
     },
     "XAGUSDm": {
       "wins": 4,
@@ -456,16 +456,16 @@
       "win_rate_pct": 50.0
     },
     "GBPAUDm": {
-      "wins": 5,
+      "wins": 6,
       "losses": 3,
       "breakevens": 0,
-      "pnl": -67.29,
-      "total": 8,
-      "win_rate_pct": 62.5
+      "pnl": -53.54,
+      "total": 9,
+      "win_rate_pct": 66.7
     }
   },
-  "active_open_batches_count": 7,
-  "active_open_floating_pnl_usd": 1.92,
+  "active_open_batches_count": 6,
+  "active_open_floating_pnl_usd": -4.55,
   "active_batches": [
     {
       "batch_id": "890639",
@@ -474,15 +474,6 @@
       "open_tickets": [
         2557515522,
         2557515589
-      ]
-    },
-    {
-      "batch_id": "899762",
-      "symbol": "USDCHFm",
-      "strategy": "Adam Khoo (Multi-EMA Trend)",
-      "open_tickets": [
-        2558843179,
-        2558843181
       ]
     },
     {
@@ -512,21 +503,69 @@
       ]
     },
     {
-      "batch_id": "961470",
-      "symbol": "GBPAUDm",
-      "strategy": "Bob Volman (Price Action Scalping & Buildup)",
+      "batch_id": "976878",
+      "symbol": "XAUUSDm",
+      "strategy": "Steven Hart (The Trading Channel)",
       "open_tickets": [
-        2563914427
+        2565377814
       ]
     },
     {
-      "batch_id": "975411",
-      "symbol": "XAUUSDm",
-      "strategy": "Bob Volman (Price Action Scalping & Buildup)",
+      "batch_id": "977022",
+      "symbol": "GBPAUDm",
+      "strategy": "Ndemazeah Godlove (GU MVR)",
       "open_tickets": [
-        2565172408,
-        2565172413
+        2565390288,
+        2565390291,
+        2565390295
       ]
+    }
+  ],
+  "upcoming_high_impact_news": [
+    {
+      "title": "Core CPI m/m",
+      "country": "USD",
+      "impact": "High",
+      "datetime_utc": "2026-10-14T12:30:00+00:00",
+      "minutes_away": 37.5,
+      "forecast": "0.2%",
+      "previous": "0.3%"
+    },
+    {
+      "title": "Core CPI y/y",
+      "country": "USD",
+      "impact": "High",
+      "datetime_utc": "2026-10-14T12:30:00+00:00",
+      "minutes_away": 37.5,
+      "forecast": "2.5%",
+      "previous": "2.4%"
+    },
+    {
+      "title": "CPI m/m",
+      "country": "USD",
+      "impact": "High",
+      "datetime_utc": "2026-10-14T12:30:00+00:00",
+      "minutes_away": 37.5,
+      "forecast": "0.6%",
+      "previous": "0.4%"
+    },
+    {
+      "title": "CPI y/y",
+      "country": "USD",
+      "impact": "High",
+      "datetime_utc": "2026-10-14T12:30:00+00:00",
+      "minutes_away": 37.5,
+      "forecast": "3.6%",
+      "previous": "3.4%"
+    },
+    {
+      "title": "FOMC Member Barkin Speaks",
+      "country": "USD",
+      "impact": "Low",
+      "datetime_utc": "2026-10-14T17:30:00+00:00",
+      "minutes_away": 337.5,
+      "forecast": "",
+      "previous": ""
     }
   ]
 }

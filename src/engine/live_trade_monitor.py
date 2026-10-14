@@ -404,6 +404,28 @@ class LiveTradeMonitor:
                 if spread_price > 0.20 * atr_val:
                     findings.append(f"High broker spread ({spread_price:.5f}) absorbed stop breathing room ({atr_val:.5f} ATR)")
 
+        # Macroeconomic News Event Correlation (ForexFactory Calendar)
+        news_event_info = None
+        try:
+            from src.data.economic_calendar import EconomicCalendarManager
+            cal_mgr = EconomicCalendarManager()
+            exit_dt_utc = datetime.fromtimestamp(exit_deal.time, tz=timezone.utc)
+            news_res = cal_mgr.check_blackout_status(symbol=sym, check_time=exit_dt_utc, blackout_minutes=45)
+            if news_res.get('is_blackout') and news_res.get('active_event'):
+                news_event_info = news_res.get('active_event')
+                mins_away = news_event_info.get('minutes_away', 0)
+                timing = f"{abs(mins_away):.0f}m ago" if mins_away < 0 else f"in {mins_away:.0f}m"
+                findings.insert(0, f"📰 MACRO NEWS SPIKE: [{news_event_info.get('country')}] '{news_event_info.get('title')}' ({timing}) released near SL exit")
+                logger.warning(f"📰 HIGH-IMPACT NEWS CORRELATION (Batch #{cb['batch_id']}): Stop loss triggered during [{news_event_info.get('country')}] '{news_event_info.get('title')}' release ({timing})!")
+            else:
+                entry_dt_utc = datetime.fromtimestamp(entry_deal.time, tz=timezone.utc)
+                entry_news_res = cal_mgr.check_blackout_status(symbol=sym, check_time=entry_dt_utc, blackout_minutes=30)
+                if entry_news_res.get('is_blackout') and entry_news_res.get('active_event'):
+                    news_event_info = entry_news_res.get('active_event')
+                    findings.insert(0, f"📰 MACRO NEWS PRE-EVENT: Trade entered within news window of [{news_event_info.get('country')}] '{news_event_info.get('title')}'")
+        except Exception as e:
+            logger.debug("News check in forensics failed: %s", e)
+
         diag_reason = "; ".join(findings) if findings else "False breakout / liquidity sweep continuation against local momentum."
 
         # Adaptive enhancement action
@@ -423,10 +445,22 @@ class LiveTradeMonitor:
             pnl=cb["pnl"],
             outcome="LOSS",
             note=diag_reason,
-            action_taken=action_taken
+            action_taken=action_taken,
+            news_event=news_event_info
         )
 
-    def _record_journal_lesson(self, batch_id: str, symbol: str, timeframe: str, strategy: str, pnl: float, outcome: str, note: str, action_taken: str = ""):
+    def _record_journal_lesson(
+        self,
+        batch_id: str,
+        symbol: str,
+        timeframe: str,
+        strategy: str,
+        pnl: float,
+        outcome: str,
+        note: str,
+        action_taken: str = "",
+        news_event: Optional[Dict[str, Any]] = None
+    ):
         """Saves trade lesson into .trade_learning_journal.json."""
         journal = {"lessons_learned": [], "sl_post_mortems": [], "optimal_adjustments": {}}
         if os.path.exists(JOURNAL_FILE):
@@ -447,6 +481,16 @@ class LiveTradeMonitor:
             "diagnostic_note": note,
             "action_taken": action_taken
         }
+
+        if news_event:
+            entry_record["news_impact"] = {
+                "is_macro_news_spike": True,
+                "title": news_event.get("title", ""),
+                "country": news_event.get("country", ""),
+                "impact": news_event.get("impact", "High"),
+                "datetime_utc": news_event.get("datetime_utc", ""),
+                "minutes_away_at_sl": news_event.get("minutes_away", 0)
+            }
 
         if outcome == "LOSS":
             if "sl_post_mortems" not in journal:
@@ -650,6 +694,16 @@ class LiveTradeMonitor:
             "net_pnl_usd": round(at_pnl, 2)
         }
 
+        # Check upcoming high-impact macroeconomic news releases within next 24 hours
+        upcoming_news_summary = []
+        try:
+            from src.data.economic_calendar import EconomicCalendarManager
+            cal_mgr = EconomicCalendarManager()
+            news_res = cal_mgr.check_blackout_status(symbol="EURUSD", blackout_minutes=30)
+            upcoming_news_summary = news_res.get('upcoming_high_impact_events', [])
+        except Exception:
+            pass
+
         sc_data = {
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "overall": session_summary,  # Live consumers see active session
@@ -661,7 +715,8 @@ class LiveTradeMonitor:
             "all_time_by_symbol": dict(at_symbol_stats),
             "active_open_batches_count": len(open_batches_summary),
             "active_open_floating_pnl_usd": round(open_floating_pnl, 2),
-            "active_batches": open_batches_summary
+            "active_batches": open_batches_summary,
+            "upcoming_high_impact_news": upcoming_news_summary
         }
 
         # Persist live scorecard to disk for UI and real-time observability
@@ -711,6 +766,18 @@ def main():
                     at_ov.get("total_trades", 0),
                     at_ov.get("win_rate_pct", 0.0)
                 )
+
+            # Alert if high-impact news is imminent (within next 60 minutes)
+            upcoming_events = scorecard.get("upcoming_high_impact_news", [])
+            for ne in upcoming_events:
+                mins_away = ne.get("minutes_away", 999)
+                if 0 <= mins_away <= 60:
+                    logger.warning(
+                        "🚨 HIGH-IMPACT NEWS INCOMING: [%s] '%s' in %.0f minutes! Expect heightened volatility / spread widening.",
+                        ne.get("country", ""),
+                        ne.get("title", ""),
+                        mins_away
+                    )
         except Exception as e:
             logger.error("Monitor loop exception: %s", e)
         time.sleep(30)
