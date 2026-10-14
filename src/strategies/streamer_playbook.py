@@ -112,8 +112,8 @@ class BerndSkorupinskiStrategy:
         sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
-        tf_clean = str(timeframe).lower()
-        if tf_clean in ['1m', '3m']:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -122,7 +122,7 @@ class BerndSkorupinskiStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Bernd Skorupinski S&D Umbrella requires HTF structural zones (15m, 1h, 4h). Timeframe '{tf_clean}' is noise-incompatible."]
+                'reasons': [f"Bernd Skorupinski S&D Umbrella requires HTF structural zones (15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise is incompatible."]
             }
 
         n = len(df)
@@ -544,7 +544,19 @@ class RaynerTeoStrategy:
         sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
-        tf_clean = str(timeframe).lower()
+        tf_clean = str(timeframe or '4h').lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Rayner Teo Trend & Pullback requires swing timeframes (15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise whipsaws the 20/50 EMA value area."]
+            }
+
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = compute_playbook_safe_atr(df, atr, current_price, symbol=sym_str)
@@ -1073,8 +1085,8 @@ class RossCameronStrategy:
         sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
-        tf_clean = str(timeframe).lower()
-        if tf_clean in ['1h', '4h', '1d']:
+        tf_clean = str(timeframe).lower().strip()
+        if tf_clean in ['1m', '2m', '1h', '4h', '1d']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -1083,7 +1095,7 @@ class RossCameronStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Ross Cameron Warrior Trading requires intraday momentum charts (1M, 5M, 15M, 30M). '{timeframe}' is incompatible."]
+                'reasons': [f"Ross Cameron Warrior Trading requires structural intraday momentum charts (5M, 15M, 30M). '{timeframe}' micro noise or swing is incompatible."]
             }
 
         n = len(df)
@@ -1278,12 +1290,29 @@ class AdamKhooStrategy:
         adx_series = dx.rolling(14).mean()
         adx_val = float(adx_series.iloc[-1]) if not np.isnan(adx_series.iloc[-1]) else 20.0
 
+        # Session and asset-specific calibration for Gold/Commodities
+        is_gold = any(m in sym_str for m in ['XAU', 'GOLD'])
+        curr_ts = df['timestamp'].iloc[-1] if 'timestamp' in df.columns and len(df['timestamp']) > 0 else None
+        curr_hour = curr_ts.hour if hasattr(curr_ts, 'hour') else 12
+        if is_gold and not (6 <= curr_hour <= 21):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'SESSION_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Adam Khoo Gold Multi-EMA requires active London/NY liquidity hours (06:00-21:00 UTC) to prevent Asian chop."]
+            }
+
         # Volume participation confirmation
         vol_ok = True
         if 'volume' in df.columns and len(df['volume']) >= 10:
             vol_sma = float(df['volume'].iloc[-10:].mean())
             if vol_sma > 0:
-                vol_ok = float(df['volume'].iloc[-1]) >= vol_sma * 0.85
+                req_vol = vol_sma * 1.05 if is_gold else vol_sma * 0.85
+                vol_ok = float(df['volume'].iloc[-1]) >= req_vol
 
         # Genuine trend expansion filter: 20 EMA and 50 SMA must fan out, avoiding flat compressed chop
         min_fan_dist = 0.20 * safe_atr
@@ -1308,9 +1337,10 @@ class AdamKhooStrategy:
         lower_wick = min(last_o, current_price) - last_l
         upper_wick = last_h - max(last_o, current_price)
         cand_body = abs(current_price - last_o)
-        min_body_ratio = 0.45 if tf_clean in ['1m', '3m', '5m'] else 0.30
-        bullish_bounce = (current_price > last_o) and ((lower_wick >= 0.20 * cand_rng) or (current_price - last_o >= 0.45 * cand_rng)) and (cand_body >= min_body_ratio * safe_atr)
-        bearish_bounce = (current_price < last_o) and ((upper_wick >= 0.20 * cand_rng) or (last_o - current_price >= 0.45 * cand_rng)) and (cand_body >= min_body_ratio * safe_atr)
+        min_body_ratio = 0.45 if tf_clean in ['1m', '3m', '5m'] else (0.38 if is_gold else 0.30)
+        min_wick_ratio = 0.25 if is_gold else 0.20
+        bullish_bounce = (current_price > last_o) and ((lower_wick >= min_wick_ratio * cand_rng) or (current_price - last_o >= 0.45 * cand_rng)) and (cand_body >= min_body_ratio * safe_atr)
+        bearish_bounce = (current_price < last_o) and ((upper_wick >= min_wick_ratio * cand_rng) or (last_o - current_price >= 0.45 * cand_rng)) and (cand_body >= min_body_ratio * safe_atr)
 
         action = 'HOLD'
         status = 'SCANNING_TREND_ALIGNMENT'
@@ -2939,6 +2969,19 @@ class RichardDennisStrategy:
         sym_raw = getattr(df, 'symbol', '')
         sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
+
+        tf_clean = str(timeframe or '1h').lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Richard Dennis Turtle Donchian 20 requires macro trends (15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise is held."]
+            }
 
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
