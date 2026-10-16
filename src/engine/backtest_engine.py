@@ -1184,11 +1184,12 @@ class MT5BacktestEngine:
             now_perf = time.time()
             is_final_bar = (e_idx == total_events - 1)
             if (now_perf - last_ui_update_time >= 0.35) or is_final_bar:
-                wins_c = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15 or b.get('status') == 'WIN')
-                losses_c = sum(1 for b in closed_batches if b.get('profit', 0.0) < -0.15 and b.get('status') == 'LOSS')
-                be_c = sum(1 for b in closed_batches if abs(b.get('profit', 0.0)) <= 0.15)
+                be_c = sum(1 for b in closed_batches if b.get('status') == 'BREAKEVEN' or 'BE' in str(b.get('exit_reason', '')).upper() or abs(b.get('profit', 0.0)) <= 0.15)
+                losses_c = sum(1 for b in closed_batches if not (b.get('status') == 'BREAKEVEN' or 'BE' in str(b.get('exit_reason', '')).upper()) and (b.get('status') == 'LOSS' or 'FULL_SL' in str(b.get('exit_reason', '')).upper() or (not b.get('tp1_hit') and b.get('profit', 0.0) < -0.15)))
+                wins_c = max(0, len(closed_batches) - be_c - losses_c)
                 comp_c = len(closed_batches)
-                wr_c = round((wins_c / max(wins_c + losses_c, 1)) * 100.0, 1) if (wins_c + losses_c) > 0 else 0.0
+                prof_c = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+                wr_c = round((prof_c / max(comp_c, 1)) * 100.0, 1) if comp_c > 0 else 0.0
                 net_pnl_c = round(current_equity - initial_balance, 2)
                 roi_c = round((net_pnl_c / initial_balance) * 100.0, 2)
 
@@ -1305,34 +1306,36 @@ class MT5BacktestEngine:
 
         # 5. Compute Detailed Analytics & Strategy Leaderboard
         total_trades = len(closed_batches)
-        # User Trading Invariant:
-        # 1. A trade is a WIN if at least TP1 was hit (profit banked, b['tp1_hit'] is True) or profit > 0.15.
-        # 2. A trade is a LOSS if full SL hit without TP1 (profit < -0.15 and not tp1_hit).
-        # 3. A trade is BREAKEVEN (BE) if neither TP1 nor full SL hit (scratched around entry, abs(profit) <= 0.15).
-        # 4. Win Rate is strictly between Wins and Losses: Wins / (Wins + Losses), excluding pure BE from denominator.
-        def _is_batch_win(batch_obj):
-            p = float(batch_obj.get('profit', 0.0))
-            tp1_hit = bool(batch_obj.get('tp1_hit', False))
+        # User Trading Invariant & Tri-State Classification:
+        # 1. BREAKEVEN (BE): Any trade where status is BREAKEVEN or exit_reason is TP1_BANKED_BE_EXIT or BREAKEVEN_SL or pure scratch
+        # 2. LOSS (L): Any trade where status is LOSS or exit_reason is FULL_SL or (not tp1_hit and pnl < -0.15)
+        # 3. WIN (W): Full runner expansion target reached (TP2/TP3 hit, status == 'WIN')
+        # 4. Overall Win Rate: Percentage of all trades that locked positive profit (> $0.15 or TP1 banked)
+        def _is_batch_be(batch_obj):
             stt = str(batch_obj.get('status', '')).upper()
             exit_r = str(batch_obj.get('exit_reason', '')).upper()
-            return tp1_hit or ('TP' in exit_r) or p > 0.15 or stt == 'WIN'
+            p = float(batch_obj.get('profit', 0.0))
+            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
 
         def _is_batch_loss(batch_obj):
-            p = float(batch_obj.get('profit', 0.0))
-            tp1_hit = bool(batch_obj.get('tp1_hit', False))
+            if _is_batch_be(batch_obj):
+                return False
             stt = str(batch_obj.get('status', '')).upper()
             exit_r = str(batch_obj.get('exit_reason', '')).upper()
-            has_tp1 = tp1_hit or ('TP1' in exit_r)
-            return (not has_tp1) and (p < -0.15 or stt == 'LOSS' or 'FULL_SL' in exit_r)
+            p = float(batch_obj.get('profit', 0.0))
+            tp1_hit = bool(batch_obj.get('tp1_hit', False))
+            return (stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15)
 
-        def _is_batch_pure_be(batch_obj):
-            return not _is_batch_win(batch_obj) and not _is_batch_loss(batch_obj)
+        def _is_batch_win(batch_obj):
+            return not _is_batch_be(batch_obj) and not _is_batch_loss(batch_obj)
 
-        wins = sum(1 for b in closed_batches if _is_batch_win(b))
+        breakevens = sum(1 for b in closed_batches if _is_batch_be(b))
         losses = sum(1 for b in closed_batches if _is_batch_loss(b))
-        breakevens = sum(1 for b in closed_batches if _is_batch_pure_be(b))
-        decisive_trades = wins + losses
-        win_rate = round((wins / max(decisive_trades, 1)) * 100.0, 1) if decisive_trades > 0 else 0.0
+        wins = sum(1 for b in closed_batches if _is_batch_win(b))
+
+        # Win Rate is based on all profitable trades (TP1 banked or runner targets reached)
+        profitable_trades = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+        win_rate = round((profitable_trades / max(total_trades, 1)) * 100.0, 1) if total_trades > 0 else 0.0
 
         gross_profit = sum(b.get('profit', 0) for b in closed_batches if b.get('profit', 0) > 0)
         gross_loss = sum(abs(b.get('profit', 0)) for b in closed_batches if b.get('profit', 0) < 0)
@@ -1444,26 +1447,27 @@ class MT5BacktestEngine:
             tf = str(b.get('timeframe', ''))
             sym = str(b.get('symbol', ''))
             exit_r = str(b.get('exit_reason', ''))
+            tp1_hit = bool(b.get('tp1_hit', False))
 
             stats_map[k]['total_trades'] += 1
             stats_map[k]['net_pnl'] += pnl
 
-            # User Trading Invariant:
-            # At least TP1 hit is a WIN; Full SL without TP1 is a LOSS; pure zero scratch is BREAKEVEN.
-            tp1_hit = bool(b.get('tp1_hit', False))
-            has_tp1 = tp1_hit or ('TP1' in exit_r.upper())
-            is_win = has_tp1 or ('TP' in exit_r.upper()) or pnl > 0.15 or stt == 'WIN'
-            is_loss = (not has_tp1) and (pnl < -0.15 or stt == 'LOSS' or 'FULL_SL' in exit_r.upper())
+            # True Tri-State Classification:
+            # 1. BREAKEVEN (BE): Any trade where status is BREAKEVEN or exit_reason is TP1_BANKED_BE_EXIT or BREAKEVEN_SL or pure scratch
+            # 2. LOSS (L): Any trade where status is LOSS or exit_reason is FULL_SL or (not tp1_hit and pnl < -0.15)
+            # 3. WIN (W): Full runner expansion target reached (TP2/TP3 hit, status == 'WIN')
+            is_be = (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(pnl) <= 0.15)
+            is_loss = (not is_be) and ((stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and pnl < -0.15))
+            is_win = (not is_be) and (not is_loss)
 
-            if is_win:
-                stats_map[k]['wins'] += 1
-                stats_map[k]['gross_profit'] += pnl
-                if 'TP' in exit_r.upper() or has_tp1:
+            if is_be:
+                stats_map[k]['breakevens'] += 1
+                if pnl > 0:
+                    stats_map[k]['gross_profit'] += pnl
+                elif pnl < 0:
+                    stats_map[k]['gross_loss'] += abs(pnl)
+                if tp1_hit or ('TP' in exit_r):
                     stats_map[k]['tp_hits'] += 1
-                if bool(b.get('tp2_hit', False)) or ('TP2' in exit_r.upper()):
-                    stats_map[k]['tp2_hits'] += 1
-                if pnl > stats_map[k]['biggest_tp']:
-                    stats_map[k]['biggest_tp'] = round(pnl, 2)
             elif is_loss:
                 stats_map[k]['losses'] += 1
                 stats_map[k]['sl_hits'] += 1
@@ -1472,14 +1476,21 @@ class MT5BacktestEngine:
                 if abs(pnl) > stats_map[k]['biggest_sl_loss']:
                     stats_map[k]['biggest_sl_loss'] = round(abs(pnl), 2)
             else:
-                stats_map[k]['breakevens'] += 1
+                stats_map[k]['wins'] += 1
+                stats_map[k]['gross_profit'] += pnl
+                if 'TP' in exit_r or tp1_hit:
+                    stats_map[k]['tp_hits'] += 1
+                if bool(b.get('tp2_hit', False)) or ('TP2' in exit_r):
+                    stats_map[k]['tp2_hits'] += 1
+                if pnl > stats_map[k]['biggest_tp']:
+                    stats_map[k]['biggest_tp'] = round(pnl, 2)
 
             if tf:
                 if tf not in strat_tfs[k]:
                     strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
                 strat_tfs[k][tf]['trades'] += 1
                 strat_tfs[k][tf]['pnl'] += pnl
-                if is_win:
+                if is_win or (is_be and pnl > 0.15):
                     strat_tfs[k][tf]['wins'] += 1
 
             if sym:
@@ -1487,19 +1498,19 @@ class MT5BacktestEngine:
                     strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
                 strat_pairs[k][sym]['trades'] += 1
                 strat_pairs[k][sym]['pnl'] += pnl
-                if is_win:
+                if is_win or (is_be and pnl > 0.15):
                     strat_pairs[k][sym]['wins'] += 1
 
                 # Per-symbol detailed breakdown (wins / losses / breakevens / pnl per symbol per strategy)
                 if sym not in strat_sym_breakdown[k]:
                     strat_sym_breakdown[k][sym] = {'wins': 0, 'losses': 0, 'breakevens': 0, 'pnl': 0.0}
                 strat_sym_breakdown[k][sym]['pnl'] += pnl
-                if is_win:
-                    strat_sym_breakdown[k][sym]['wins'] += 1
+                if is_be:
+                    strat_sym_breakdown[k][sym]['breakevens'] += 1
                 elif is_loss:
                     strat_sym_breakdown[k][sym]['losses'] += 1
                 else:
-                    strat_sym_breakdown[k][sym]['breakevens'] += 1
+                    strat_sym_breakdown[k][sym]['wins'] += 1
 
         leaderboard = []
         for k, item in stats_map.items():
@@ -1516,9 +1527,9 @@ class MT5BacktestEngine:
             item['tp2_hits'] = int(item['tp2_hits'])
             item['active_trades'] = 0
 
-            # Win Rate between Wins and Losses (pure BE excluded from denominator)
-            strat_decisive = wins + losses
-            item['win_rate'] = round((wins / max(strat_decisive, 1)) * 100.0, 1) if strat_decisive > 0 else 0.0
+            # Win Rate is based on all profitable trades (TP1 banked or runner targets reached)
+            prof_cnt = sum(1 for b in closed_batches if b.get('strategy_used') == k and (b.get('profit', 0.0) > 0.15 or b.get('tp1_hit')))
+            item['win_rate'] = round((prof_cnt / max(trades, 1)) * 100.0, 1) if trades > 0 else 0.0
 
             # Profit Factor
             gross_loss = item['gross_loss']
@@ -1540,7 +1551,7 @@ class MT5BacktestEngine:
                 s_l = sd['losses']
                 s_be = sd['breakevens']
                 s_tot = s_w + s_l + s_be
-                s_prof = sum(1 for b in closed_batches if b.get('strategy_used') == k and b.get('symbol') == s and b.get('profit', 0.0) > 0.15)
+                s_prof = sum(1 for b in closed_batches if b.get('strategy_used') == k and b.get('symbol') == s and (b.get('profit', 0.0) > 0.15 or b.get('tp1_hit')))
                 s_wr = round((s_prof / max(s_tot, 1)) * 100.0, 1) if s_tot > 0 else 0.0
                 formatted_breakdown[s] = {
                     'wins': s_w,
