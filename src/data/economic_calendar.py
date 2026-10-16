@@ -35,6 +35,11 @@ HIGH_IMPACT_KEYWORDS = [
 # Static fallback schedule of major 2026 macroeconomic dates (UTC)
 # Ensures zero-failure resilience even during total network or Cloudflare outages
 FALLBACK_2026_EVENTS = [
+    {'title': 'US Non-Farm Payrolls (NFP) & Unemployment', 'country': 'USD', 'date': '2026-08-07T12:30:00Z', 'impact': 'High'},
+    {'title': 'US Consumer Price Index (CPI)', 'country': 'USD', 'date': '2026-08-12T12:30:00Z', 'impact': 'High'},
+    {'title': 'Jackson Hole Economic Symposium (Fed Powell)', 'country': 'USD', 'date': '2026-08-21T14:00:00Z', 'impact': 'High'},
+    {'title': 'US Core PCE Price Index', 'country': 'USD', 'date': '2026-08-28T12:30:00Z', 'impact': 'High'},
+    {'title': 'US Non-Farm Payrolls (NFP)', 'country': 'USD', 'date': '2026-09-04T12:30:00Z', 'impact': 'High'},
     {'title': 'ECB Monetary Policy & Refinancing Rate', 'country': 'EUR', 'date': '2026-09-10T12:15:00Z', 'impact': 'High'},
     {'title': 'ECB Press Conference', 'country': 'EUR', 'date': '2026-09-10T12:45:00Z', 'impact': 'High'},
     {'title': 'US Core PPI & PPI m/m', 'country': 'USD', 'date': '2026-09-10T12:30:00Z', 'impact': 'High'},
@@ -43,7 +48,13 @@ FALLBACK_2026_EVENTS = [
     {'title': 'FOMC Press Conference (Fed Chair)', 'country': 'USD', 'date': '2026-09-16T18:30:00Z', 'impact': 'High'},
     {'title': 'Bank of England (BOE) Rate Decision', 'country': 'GBP', 'date': '2026-09-17T11:00:00Z', 'impact': 'High'},
     {'title': 'Bank of Japan (BOJ) Policy Rate', 'country': 'JPY', 'date': '2026-09-19T03:00:00Z', 'impact': 'High'},
+    {'title': 'US Core PCE Price Index m/m', 'country': 'USD', 'date': '2026-09-25T12:30:00Z', 'impact': 'High'},
     {'title': 'US Non-Farm Payrolls (NFP) & Unemployment', 'country': 'USD', 'date': '2026-10-02T12:30:00Z', 'impact': 'High'},
+    {'title': 'US Consumer Price Index (CPI)', 'country': 'USD', 'date': '2026-10-08T12:30:00Z', 'impact': 'High'},
+    {'title': 'FOMC Meeting Minutes', 'country': 'USD', 'date': '2026-10-14T18:00:00Z', 'impact': 'High'},
+    {'title': 'US Core Retail Sales & Retail Sales m/m', 'country': 'USD', 'date': '2026-10-15T12:30:00Z', 'impact': 'High'},
+    {'title': 'ECB Monetary Policy Meeting & Statement', 'country': 'EUR', 'date': '2026-10-15T12:15:00Z', 'impact': 'High'},
+    {'title': 'US Prelim UoM Consumer Sentiment', 'country': 'USD', 'date': '2026-10-16T14:00:00Z', 'impact': 'High'},
 ]
 
 

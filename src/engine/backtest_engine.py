@@ -38,6 +38,7 @@ from ..strategies.streamer_playbook import MasterStreamerPlaybook
 from ..engine.session_manager import SessionManager
 from ..engine.htf_confluence import HTFConfluenceChecker
 from ..engine.autonomous_manager import AVAILABLE_STRATEGIES
+from ..data.economic_calendar import EconomicCalendarManager
 
 logger = logging.getLogger("MT5BacktestEngine")
 if not logger.handlers:
@@ -182,6 +183,8 @@ class MT5BacktestEngine:
             "breakeven_mode": "tight",
             "active_sessions": ["London Session", "New York Session", "24/7 (Any Session)"],
             "htf_filter_enabled": True,
+            "smart_solution_enabled": True,
+            "news_filter_enabled": True,
             "spread_model": "broker",
             "slippage_pips": 0.0
         }

@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-10-16T12:16:53.449062+00:00",
+  "updated_at": "2026-10-16T12:17:23.574666+00:00",
   "overall": {
     "total_trades": 178,
     "wins": 137,
@@ -36,7 +36,7 @@
     "net_pnl_usd": 0.0,
     "tp2_hits": 0,
     "open_count": 3,
-    "open_floating_pnl": 4.72
+    "open_floating_pnl": 4.59
   },
   "by_strategy": {
     "Adam Khoo (Multi-EMA Trend)": {
@@ -627,7 +627,7 @@
     }
   },
   "active_open_batches_count": 3,
-  "active_open_floating_pnl_usd": 4.72,
+  "active_open_floating_pnl_usd": 4.59,
   "active_batches": [
     {
       "batch_id": "88338",
