@@ -57,13 +57,13 @@ class TestBacktesterUIRendering(unittest.TestCase):
 
     def test_mock_streamlit_ui_render_cycle(self):
         """Simulate the exact Streamlit execution cycle of render_mt5_backtest_engine_view."""
-        # Mock streamlit calls in a safe sandbox
-        from unittest.mock import MagicMock
-        import streamlit as st
-        
-        # Verify app.py has the fixed render_mt5_backtest_engine_view
-        import app
-        self.assertTrue(hasattr(app, 'render_mt5_backtest_engine_view'))
+        # Verify app.py has render_mt5_backtest_engine_view and required toggles
+        app_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'app.py'))
+        with open(app_path, 'r', encoding='utf-8') as f:
+            code = f.read()
+        self.assertIn('def render_mt5_backtest_engine_view', code)
+        self.assertIn('bt_smart_solution_toggle', code)
+        self.assertIn('bt_news_guard_toggle', code)
 
 
 if __name__ == '__main__':

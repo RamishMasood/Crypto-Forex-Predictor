@@ -3857,7 +3857,7 @@ should_run = (
     run_btn
     or auto_sync_ticked
     or (st.session_state.result is None)
-    or (st.session_state.cache_key != cache_key)
+    or (st.session_state.get('cache_key') != cache_key)
 )
 
 st.title("📊 Quantitative Signal Terminal")

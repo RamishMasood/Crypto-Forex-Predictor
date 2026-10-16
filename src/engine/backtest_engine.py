@@ -573,6 +573,22 @@ class MT5BacktestEngine:
 
                     hit_tp1_this_bar = False
                     # ── Trade Progression Logic ──
+                    # Pre-News Defensive Shield (Matching autonomous_manager.py line 1516-1540):
+                    # Advance floating profitable trades to Breakeven 15m ahead of High-Impact Macro releases
+                    if news_filter_enabled and econ_manager and not b.get('is_breakeven'):
+                        try:
+                            n_st = econ_manager.check_blackout_status(sym, asset_type, check_time=cur_time, blackout_minutes=15)
+                            is_imminent = n_st.get('is_blackout', False)
+                            if not is_imminent and n_st.get('upcoming_high_impact_events'):
+                                next_ev = n_st['upcoming_high_impact_events'][0]
+                                if float(next_ev.get('minutes_away', 99)) <= 15.0:
+                                    is_imminent = True
+                            if is_imminent and (cur_close > entry_p or cur_high > entry_p + (0.05 * cur_atr)):
+                                b['sl_price'] = max(b['sl_price'], entry_p)
+                                b['is_breakeven'] = True
+                        except Exception:
+                            pass
+
                     if not b['tp1_hit']:
                         # 1. Initial Stop Loss Check (before TP1 is hit)
                         if cur_low <= b['sl_price']:
@@ -615,13 +631,15 @@ class MT5BacktestEngine:
                     if not closed_this_bar and b['tp1_hit']:
                         # ── Runner Management (TP1 already locked in bank) ──
                         # Stage 2 Trailing Breakeven advancement on expansion toward TP2
-                        if be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be', 'scalping_quick_be']:
-                            b['sl_price'] = max(b['sl_price'], entry_p)
-                        elif profit_dist >= (0.45 * tp2_dist):
+                        if profit_dist >= (0.45 * tp2_dist):
                             b['sl_price'] = max(b['sl_price'], entry_p + (0.02 * cur_atr))
-                        elif be_mode == 'smart_breathing_be' or smart_solution_enabled:
+                        elif smart_solution_enabled or be_mode == 'smart_breathing_be':
                             b['sl_price'] = max(b['sl_price'], entry_p - (0.25 * cur_atr))
-                        elif be_mode != 'loose':
+                        elif be_mode == 'loose':
+                            b['sl_price'] = max(b['sl_price'], entry_p - (0.45 * cur_atr))
+                        elif be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be', 'scalping_quick_be']:
+                            b['sl_price'] = max(b['sl_price'], entry_p)
+                        else:
                             b['sl_price'] = max(b['sl_price'], entry_p)
 
                         # Check Runner Stop (Breakeven or Trailing Stop) - evaluated from subsequent bars
@@ -687,6 +705,22 @@ class MT5BacktestEngine:
 
                     hit_tp1_this_bar = False
                     # ── Trade Progression Logic ──
+                    # Pre-News Defensive Shield (Matching autonomous_manager.py line 1516-1540):
+                    # Advance floating profitable trades to Breakeven 15m ahead of High-Impact Macro releases
+                    if news_filter_enabled and econ_manager and not b.get('is_breakeven'):
+                        try:
+                            n_st = econ_manager.check_blackout_status(sym, asset_type, check_time=cur_time, blackout_minutes=15)
+                            is_imminent = n_st.get('is_blackout', False)
+                            if not is_imminent and n_st.get('upcoming_high_impact_events'):
+                                next_ev = n_st['upcoming_high_impact_events'][0]
+                                if float(next_ev.get('minutes_away', 99)) <= 15.0:
+                                    is_imminent = True
+                            if is_imminent and (cur_close < entry_p or cur_low < entry_p - (0.05 * cur_atr)):
+                                b['sl_price'] = min(b['sl_price'], entry_p)
+                                b['is_breakeven'] = True
+                        except Exception:
+                            pass
+
                     if not b['tp1_hit']:
                         # 1. Initial Stop Loss Check (before TP1 is hit)
                         if cur_high >= b['sl_price']:
@@ -729,13 +763,15 @@ class MT5BacktestEngine:
                     if not closed_this_bar and b['tp1_hit']:
                         # ── Runner Management (TP1 already locked in bank) ──
                         # Stage 2 Trailing Breakeven advancement on expansion toward TP2
-                        if be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be', 'scalping_quick_be']:
-                            b['sl_price'] = min(b['sl_price'], entry_p)
-                        elif profit_dist >= (0.45 * tp2_dist):
+                        if profit_dist >= (0.45 * tp2_dist):
                             b['sl_price'] = min(b['sl_price'], entry_p - (0.02 * cur_atr))
-                        elif be_mode == 'smart_breathing_be' or smart_solution_enabled:
+                        elif smart_solution_enabled or be_mode == 'smart_breathing_be':
                             b['sl_price'] = min(b['sl_price'], entry_p + (0.25 * cur_atr))
-                        elif be_mode != 'loose':
+                        elif be_mode == 'loose':
+                            b['sl_price'] = min(b['sl_price'], entry_p + (0.45 * cur_atr))
+                        elif be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be', 'scalping_quick_be']:
+                            b['sl_price'] = min(b['sl_price'], entry_p)
+                        else:
                             b['sl_price'] = min(b['sl_price'], entry_p)
 
                         # Check Runner Stop (Breakeven or Trailing Stop) - evaluated from subsequent bars
@@ -1006,7 +1042,12 @@ class MT5BacktestEngine:
                         c_act = best_candidate.get('action')
                         c_strat_key = best_candidate.get('strategy_key', 'DEFAULT')
                         c_strat_name = best_candidate.get('strategy_name', c_strat_key)
-                        c_be_mode = best_candidate.get('breakeven_mode', breakeven_mode)
+                        if smart_solution_enabled:
+                            c_be_mode = 'smart_breathing_be'
+                        elif breakeven_mode in ('tight', 'loose'):
+                            c_be_mode = breakeven_mode
+                        else:
+                            c_be_mode = str(best_candidate.get('breakeven_mode') or 'tight').lower().strip()
 
                         c_entry = cur_close
                         setup_sl = float(setup.get('stop_loss', 0.0))
@@ -1091,6 +1132,9 @@ class MT5BacktestEngine:
                                 'tp3_price': round(c_tp3, 5),
                                 'risk_usd': round(dollar_risk, 2),
                                 'breakeven_mode': c_be_mode,
+                                'smart_solution': smart_solution_enabled,
+                                'breakeven_sl': round(c_entry, 5),
+                                'soft_breakeven_sl': round(c_entry - (0.25 * cur_atr), 5) if c_act == 'BUY' else round(c_entry + (0.25 * cur_atr), 5),
                                 'lot_tp1': lot_p1,
                                 'lot_tp2': lot_p2,
                                 'lot_tp3': lot_p3,
