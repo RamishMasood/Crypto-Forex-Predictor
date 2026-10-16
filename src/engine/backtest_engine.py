@@ -400,6 +400,11 @@ class MT5BacktestEngine:
         breakeven_mode = str(cfg.get('breakeven_mode', 'tight')).lower()
         allowed_sessions = cfg.get('active_sessions', ["London Session", "New York Session", "24/7 (Any Session)"])
         htf_filter_enabled = bool(cfg.get('htf_filter_enabled', True))
+        smart_solution_enabled = bool(cfg.get('smart_solution_enabled', True))
+        news_filter_enabled = bool(cfg.get('news_filter_enabled', True))
+        if smart_solution_enabled:
+            breakeven_mode = 'smart_breathing_be'
+        econ_manager = EconomicCalendarManager() if news_filter_enabled else None
 
         # Parse date range
         now_dt = datetime.now(timezone.utc)
@@ -594,7 +599,9 @@ class MT5BacktestEngine:
 
                             # Auto-Breakeven on TP1 hit (Rule #2: Mandatory for all strategies)
                             b['is_breakeven'] = True
-                            if be_mode == 'loose':
+                            if be_mode == 'smart_breathing_be' or smart_solution_enabled:
+                                b['sl_price'] = max(b['sl_price'], entry_p - (0.25 * cur_atr))
+                            elif be_mode == 'loose':
                                 b['sl_price'] = max(b['sl_price'], entry_p - (0.45 * cur_atr))
                             else:
                                 b['sl_price'] = max(b['sl_price'], entry_p)
@@ -612,6 +619,8 @@ class MT5BacktestEngine:
                             b['sl_price'] = max(b['sl_price'], entry_p)
                         elif profit_dist >= (0.45 * tp2_dist):
                             b['sl_price'] = max(b['sl_price'], entry_p + (0.02 * cur_atr))
+                        elif be_mode == 'smart_breathing_be' or smart_solution_enabled:
+                            b['sl_price'] = max(b['sl_price'], entry_p - (0.25 * cur_atr))
                         elif be_mode != 'loose':
                             b['sl_price'] = max(b['sl_price'], entry_p)
 
@@ -704,7 +713,9 @@ class MT5BacktestEngine:
 
                             # Auto-Breakeven on TP1 hit (Rule #2: Mandatory for all strategies)
                             b['is_breakeven'] = True
-                            if be_mode == 'loose':
+                            if be_mode == 'smart_breathing_be' or smart_solution_enabled:
+                                b['sl_price'] = min(b['sl_price'], entry_p + (0.25 * cur_atr))
+                            elif be_mode == 'loose':
                                 b['sl_price'] = min(b['sl_price'], entry_p + (0.45 * cur_atr))
                             else:
                                 b['sl_price'] = min(b['sl_price'], entry_p)
@@ -722,6 +733,8 @@ class MT5BacktestEngine:
                             b['sl_price'] = min(b['sl_price'], entry_p)
                         elif profit_dist >= (0.45 * tp2_dist):
                             b['sl_price'] = min(b['sl_price'], entry_p - (0.02 * cur_atr))
+                        elif be_mode == 'smart_breathing_be' or smart_solution_enabled:
+                            b['sl_price'] = min(b['sl_price'], entry_p + (0.25 * cur_atr))
                         elif be_mode != 'loose':
                             b['sl_price'] = min(b['sl_price'], entry_p)
 
@@ -961,6 +974,17 @@ class MT5BacktestEngine:
                                         continue
                                     elif clean_dir == 'SELL' and cur_close > c_sma200 * 1.005:
                                         continue
+
+                        # HARD GUARD: High-Impact Macroeconomic News Blackout (30m pre/post window)
+                        # (Matching Autonomous Engine autonomous_manager.py line 2019 & 2287)
+                        # WAQAR_ZAKA is explicitly designed to trade High-Volatility News Events & Liquidation Sweeps
+                        if news_filter_enabled and econ_manager:
+                            try:
+                                news_st = econ_manager.check_blackout_status(sym, asset_type, check_time=cur_time, blackout_minutes=30)
+                                if news_st.get('is_blackout', False) and s_k != 'WAQAR_ZAKA':
+                                    continue
+                            except Exception:
+                                pass
 
                         # Check Diff-Strat Same-TF Rule
                         if allow_diff_strat:
@@ -1356,7 +1380,10 @@ class MT5BacktestEngine:
                 'biggest_sl_loss': 0.0,
                 'sl_hits': 0,
                 'tp_hits': 0,
+                'tp2_hits': 0,
                 'biggest_tp': 0.0,
+                'net_profit': 0.0,
+                'active_trades': 0,
                 'status_badge': '💤 NO TRADES',
                 'best_timeframes': '-',
                 'best_pairs': '-',
@@ -1389,6 +1416,8 @@ class MT5BacktestEngine:
                 stats_map[k]['gross_profit'] += pnl
                 if 'TP' in exit_r.upper() or has_tp1:
                     stats_map[k]['tp_hits'] += 1
+                if bool(b.get('tp2_hit', False)) or ('TP2' in exit_r.upper()):
+                    stats_map[k]['tp2_hits'] += 1
                 if pnl > stats_map[k]['biggest_tp']:
                     stats_map[k]['biggest_tp'] = round(pnl, 2)
             elif is_loss:
@@ -1436,9 +1465,12 @@ class MT5BacktestEngine:
             trades = item['total_trades']
             net_pnl = round(item['net_pnl'], 2)
             item['net_pnl'] = net_pnl
+            item['net_profit'] = round(item['gross_profit'], 2)
             item['net_loss'] = round(item['net_loss'], 2)
             item['biggest_tp'] = round(item['biggest_tp'], 2)
             item['tp_hits'] = int(item['tp_hits'])
+            item['tp2_hits'] = int(item['tp2_hits'])
+            item['active_trades'] = 0
 
             # Win Rate between Wins and Losses (pure BE excluded from denominator)
             strat_decisive = wins + losses
@@ -1506,6 +1538,8 @@ class MT5BacktestEngine:
                 item['rank_display'] = f'#{idx}'
 
         return leaderboard
+
+    run_simulation = run_backtest
 
 
 _BACKTEST_ENGINE_INSTANCE: Optional[MT5BacktestEngine] = None

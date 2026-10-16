@@ -2524,8 +2524,29 @@ def render_mt5_backtest_engine_view():
         else:
             bt_state = {'last_results': {}}
 
-    # 1. Date Range & Presets
-    st.markdown("##### 📅 Historical Simulation Period (MT5 Multi-Year Bar Feeds):")
+    # 1. Date Range, Presets & Autonomous Mirror
+    hdr_c1, hdr_c2 = st.columns([3, 1])
+    with hdr_c1:
+        st.markdown("##### 📅 Historical Simulation Period (MT5 Multi-Year Bar Feeds):")
+    with hdr_c2:
+        if st.button("🔄 Sync / Mirror Autonomous Settings", key="btn_sync_auto_to_bt", use_container_width=True, help="Copy exact symbols, timeframes, risk caps, pillars, sessions and strategies from Autonomous Engine"):
+            auto_set_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.autonomous_trader_settings.json')
+            if os.path.exists(auto_set_file):
+                try:
+                    with open(auto_set_file, 'r', encoding='utf-8') as f:
+                        a_cfg = json.load(f)
+                    for k in ['selected_symbols', 'timeframes', 'active_strategies', 'target_trades_per_symbol',
+                              'batch_lot_size', 'max_dollar_risk', 'min_pillars_required', 'allow_same_tf_trades',
+                              'allow_diff_strat_same_tf', 'breakeven_mode', 'active_sessions', 'htf_filter_enabled', 'smart_solution_enabled']:
+                        if k in a_cfg:
+                            bt_settings[k] = a_cfg[k]
+                    bt_settings['news_filter_enabled'] = True
+                    bt_engine.save_settings(bt_settings)
+                    st.toast("✅ Autonomous settings successfully mirrored into Backtester!", icon="🎯")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to sync autonomous settings: {e}")
+
     dp_c1, dp_c2, dp_c3, dp_c4, dp_c5, dp_c6 = st.columns(6)
     today = date.today()
     
@@ -2539,6 +2560,15 @@ def render_mt5_backtest_engine_view():
             bt_engine.save_settings(bt_settings)
             st.rerun()
     with dp_c2:
+        if st.button("📅 2 Months", key="bt_preset_2m", use_container_width=True):
+            d_f = today - timedelta(days=60)
+            bt_settings['date_from'] = d_f.isoformat()
+            bt_settings['date_to'] = today.isoformat()
+            st.session_state["bt_date_from_input"] = d_f
+            st.session_state["bt_date_to_input"] = today
+            bt_engine.save_settings(bt_settings)
+            st.rerun()
+    with dp_c3:
         if st.button("📅 3 Months", key="bt_preset_3m", use_container_width=True):
             d_f = today - timedelta(days=90)
             bt_settings['date_from'] = d_f.isoformat()
@@ -2757,8 +2787,22 @@ def render_mt5_backtest_engine_view():
             help="Total batch lot size (0.03 = 0.01 on TP1/TP2/TP3. For pairs with higher min like ETH 0.10, auto-takes min and closes at TP1)."
         )
 
+    st.markdown("##### 🌍 Trading Sessions & High-Probability Filters:")
+    all_session_opts = ["London Session", "New York Session", "Asian Session", "24/7 (Any Session)"]
+    saved_sessions = bt_settings.get('active_sessions', ["London Session", "New York Session", "24/7 (Any Session)"])
+    valid_sessions = [s for s in saved_sessions if s in all_session_opts]
+    if not valid_sessions:
+        valid_sessions = ["24/7 (Any Session)"]
+    sel_sessions = st.multiselect(
+        "🌍 Active Trading Sessions (Peak Liquidity Windows):",
+        options=all_session_opts,
+        default=valid_sessions,
+        key="bt_active_sessions_input",
+        help="Restricts trade entries to high-volume market hours. Note: Strategies with dedicated author killzones in the Playbook automatically enforce their exact author hours."
+    )
+
     # Toggles
-    tog1, tog2, tog3, tog4 = st.columns(4)
+    tog1, tog2, tog3, tog4, tog5, tog6 = st.columns(6)
     with tog1:
         sel_same_tf = st.toggle("🔁 Multi-Trades / Same TF", value=bool(bt_settings.get('allow_same_tf_trades', False)), key="bt_same_tf_toggle")
     with tog2:
@@ -2767,6 +2811,10 @@ def render_mt5_backtest_engine_view():
         sel_loose_be = st.toggle("🕊️ Loose Breakeven", value=(bt_settings.get('breakeven_mode', 'tight') == 'loose'), key="bt_loose_be_toggle")
     with tog4:
         sel_htf = st.toggle("🔭 HTF Confluence Filter", value=bool(bt_settings.get('htf_filter_enabled', True)), key="bt_htf_toggle")
+    with tog5:
+        sel_smart_sol = st.toggle("🧠 Smart Solution", value=bool(bt_settings.get('smart_solution_enabled', True)), key="bt_smart_solution_toggle", help="0.25 ATR breathing cushion on TP1 lock to allow runners to reach TP2")
+    with tog6:
+        sel_news_guard = st.toggle("🚨 Economic News Guard", value=bool(bt_settings.get('news_filter_enabled', True)), key="bt_news_guard_toggle", help="Filter out trades during high-impact macroeconomic releases (FOMC, CPI, NFP)")
 
     is_bt_running = getattr(bt_engine, 'is_running', False) or st.session_state.get('bt_is_running', False)
     if not getattr(bt_engine, 'is_running', False) and st.session_state.get('bt_is_running', False):
@@ -2846,10 +2894,13 @@ def render_mt5_backtest_engine_view():
             bt_settings['max_dollar_risk'] = sel_max_risk
             bt_settings['max_active_batches'] = sel_max_batches
             bt_settings['min_pillars_required'] = sel_min_pillars
+            bt_settings['active_sessions'] = sel_sessions
             bt_settings['allow_same_tf_trades'] = sel_same_tf
             bt_settings['allow_diff_strat_same_tf'] = sel_diff_strat
-            bt_settings['breakeven_mode'] = 'loose' if sel_loose_be else 'tight'
+            bt_settings['breakeven_mode'] = 'smart_breathing_be' if sel_smart_sol else ('loose' if sel_loose_be else 'tight')
             bt_settings['htf_filter_enabled'] = sel_htf
+            bt_settings['smart_solution_enabled'] = sel_smart_sol
+            bt_settings['news_filter_enabled'] = sel_news_guard
             bt_engine.save_settings(bt_settings)
 
             # Spawn background execution thread and update session state
@@ -3000,12 +3051,16 @@ def render_mt5_backtest_engine_view():
 
             pnl_col = "#00c853" if net_pnl_val > 0 else ("#ff1744" if net_pnl_val < 0 else "#94a3b8")
             pnl_html = f"<b style='color:{pnl_col};'>{net_pnl_val:+,.2f}</b>"
+            net_profit_val = float(item.get('net_profit', 0.0))
+            net_profit_html = f"<span style='color:#10b981;font-weight:700;'>+${net_profit_val:,.2f}</span>" if net_profit_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
             wr_col = "#00c853" if wr_val >= 65 else ("#ffab00" if wr_val >= 50 else "#ff1744")
             wr_html = f"<span style='color:{wr_col};font-weight:700;'>{wr_val:.1f}%</span>"
             bsl_html = f"<span style='color:#ef4444;font-weight:700;'>-${bsl_val:,.2f}</span>" if bsl_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
             sl_h_html = f"<span style='color:#f87171;font-weight:700;'>{sl_h_val}</span>" if sl_h_val > 0 else "<span style='color:#64748b;'>0</span>"
             net_loss_html = f"<span style='color:#f87171;font-weight:700;'>${net_loss_val:,.2f}</span>" if net_loss_val < 0 else "<span style='color:#64748b;'>$0.00</span>"
             tp_h_html = f"<span style='color:#10b981;font-weight:700;'>{tp_h_val}</span>" if tp_h_val > 0 else "<span style='color:#64748b;'>0</span>"
+            tp2_h_val = int(item.get('tp2_hits', 0))
+            tp2_h_html = f"<span style='color:#38bdf8;font-weight:700;'>{tp2_h_val}</span>" if tp2_h_val > 0 else "<span style='color:#64748b;'>0</span>"
             btp_html = f"<span style='color:#10b981;font-weight:700;'>+${biggest_tp_val:,.2f}</span>" if biggest_tp_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
             btf_html = f"<span style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.72rem;font-weight:600;'>{btf}</span>"
             bpr_html = f"<span style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;'>{bpr}</span>"
@@ -3049,11 +3104,13 @@ def render_mt5_backtest_engine_view():
                 </td>
                 <td style='padding:8px 10px;'>{wr_html}</td>
                 <td style='padding:8px 10px;text-align:right;font-size:0.85rem;'>{pnl_html}</td>
+                <td style='padding:8px 8px;text-align:right;font-size:0.8rem;'>{net_profit_html}</td>
                 <td style='padding:8px 8px;text-align:right;font-size:0.8rem;'>{net_loss_html}</td>
                 <td style='padding:8px 10px;text-align:center;font-size:0.8rem;color:#94a3b8;'>{pf_val:.2f}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{bsl_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{sl_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{tp_h_html}</td>
+                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{tp2_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{btp_html}</td>
                 <td style='padding:8px 8px;text-align:center;'>{btf_html}</td>
                 <td style='padding:8px 8px;text-align:center;'>{bpr_html}</td>
@@ -3072,11 +3129,13 @@ def render_mt5_backtest_engine_view():
                         <th style='padding:10px;text-align:center;width:105px;'>W / L / BE</th>
                         <th style='padding:10px;text-align:left;width:100px;'>Win Rate</th>
                         <th style='padding:10px;text-align:right;width:85px;'>Net PnL</th>
+                        <th style='padding:10px;text-align:right;width:85px;'>Net Profit</th>
                         <th style='padding:10px;text-align:right;width:85px;'>Net Loss</th>
                         <th style='padding:10px;text-align:center;width:50px;'>PF</th>
                         <th style='padding:10px;text-align:center;width:95px;'>Biggest SL</th>
                         <th style='padding:10px;text-align:center;width:60px;'>SL Hits</th>
                         <th style='padding:10px;text-align:center;width:60px;'>TP Hits</th>
+                        <th style='padding:10px;text-align:center;width:60px;'>TP2 Hits</th>
                         <th style='padding:10px;text-align:center;width:95px;'>Biggest TP</th>
                         <th style='padding:10px;text-align:center;width:125px;'>Best Timeframes</th>
                         <th style='padding:10px;text-align:center;width:140px;'>Best Trading Pairs</th>

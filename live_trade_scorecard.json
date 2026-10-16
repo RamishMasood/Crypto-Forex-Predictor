@@ -1,31 +1,31 @@
 {
-  "updated_at": "2026-10-16T12:17:23.574666+00:00",
+  "updated_at": "2026-10-16T15:22:25.697708+00:00",
   "overall": {
-    "total_trades": 178,
-    "wins": 137,
+    "total_trades": 180,
+    "wins": 138,
     "losses": 40,
-    "breakevens": 1,
+    "breakevens": 2,
     "tp2_hits": 25,
-    "win_rate_pct": 77.4,
-    "net_pnl_usd": -133.73
+    "win_rate_pct": 77.5,
+    "net_pnl_usd": -131.12
   },
   "session_24h": {
-    "total_trades": 178,
-    "wins": 137,
+    "total_trades": 180,
+    "wins": 138,
     "losses": 40,
-    "breakevens": 1,
+    "breakevens": 2,
     "tp2_hits": 25,
-    "win_rate_pct": 77.4,
-    "net_pnl_usd": -133.73
+    "win_rate_pct": 77.5,
+    "net_pnl_usd": -131.12
   },
   "all_time": {
-    "total_trades": 182,
-    "wins": 137,
+    "total_trades": 184,
+    "wins": 138,
     "losses": 40,
-    "breakevens": 5,
+    "breakevens": 6,
     "tp2_hits": 25,
-    "win_rate_pct": 77.4,
-    "net_pnl_usd": -133.73
+    "win_rate_pct": 77.5,
+    "net_pnl_usd": -131.12
   },
   "smart_solution_performance": {
     "total_trades": 0,
@@ -36,7 +36,7 @@
     "net_pnl_usd": 0.0,
     "tp2_hits": 0,
     "open_count": 3,
-    "open_floating_pnl": 4.59
+    "open_floating_pnl": 15.37
   },
   "by_strategy": {
     "Adam Khoo (Multi-EMA Trend)": {
@@ -80,14 +80,14 @@
       "tp2_rate_pct": 50.0
     },
     "Mark Minervini (SEPA - Volatility Contraction Pattern)": {
-      "wins": 8,
+      "wins": 9,
       "losses": 1,
       "breakevens": 0,
-      "pnl": 13.24,
-      "total": 9,
+      "pnl": 15.85,
+      "total": 10,
       "tp2_hits": 1,
-      "win_rate_pct": 88.9,
-      "tp2_rate_pct": 11.1
+      "win_rate_pct": 90.0,
+      "tp2_rate_pct": 10.0
     },
     "Ndemazeah Godlove (GU MVR)": {
       "wins": 7,
@@ -222,12 +222,12 @@
     "Crypto Cred (S/R & RSI Confluence)": {
       "wins": 5,
       "losses": 1,
-      "breakevens": 0,
+      "breakevens": 1,
       "pnl": 0.75,
-      "total": 6,
+      "total": 7,
       "tp2_hits": 1,
       "win_rate_pct": 83.3,
-      "tp2_rate_pct": 16.7
+      "tp2_rate_pct": 14.3
     },
     "Ross Cameron (Warrior Trading)": {
       "wins": 1,
@@ -272,14 +272,14 @@
       "tp2_rate_pct": 11.1
     },
     "ETHUSDm": {
-      "wins": 23,
+      "wins": 24,
       "losses": 4,
       "breakevens": 0,
-      "pnl": 15.66,
-      "total": 27,
+      "pnl": 18.27,
+      "total": 28,
       "tp2_hits": 3,
-      "win_rate_pct": 85.2,
-      "tp2_rate_pct": 11.1
+      "win_rate_pct": 85.7,
+      "tp2_rate_pct": 10.7
     },
     "XAUUSDm": {
       "wins": 27,
@@ -314,12 +314,12 @@
     "XAGUSDm": {
       "wins": 10,
       "losses": 6,
-      "breakevens": 0,
+      "breakevens": 1,
       "pnl": 39.6,
-      "total": 16,
+      "total": 17,
       "tp2_hits": 7,
       "win_rate_pct": 62.5,
-      "tp2_rate_pct": 43.8
+      "tp2_rate_pct": 41.2
     },
     "GBPAUDm": {
       "wins": 18,
@@ -374,14 +374,14 @@
       "tp2_rate_pct": 50.0
     },
     "Mark Minervini (SEPA - Volatility Contraction Pattern)": {
-      "wins": 8,
+      "wins": 9,
       "losses": 1,
       "breakevens": 0,
-      "pnl": 13.24,
-      "total": 9,
+      "pnl": 15.85,
+      "total": 10,
       "tp2_hits": 1,
-      "win_rate_pct": 88.9,
-      "tp2_rate_pct": 11.1
+      "win_rate_pct": 90.0,
+      "tp2_rate_pct": 10.0
     },
     "Ndemazeah Godlove (GU MVR)": {
       "wins": 7,
@@ -516,12 +516,12 @@
     "Crypto Cred (S/R & RSI Confluence)": {
       "wins": 5,
       "losses": 1,
-      "breakevens": 0,
+      "breakevens": 1,
       "pnl": 0.75,
-      "total": 6,
+      "total": 7,
       "tp2_hits": 1,
       "win_rate_pct": 83.3,
-      "tp2_rate_pct": 16.7
+      "tp2_rate_pct": 14.3
     },
     "Ross Cameron (Warrior Trading)": {
       "wins": 1,
@@ -566,14 +566,14 @@
       "tp2_rate_pct": 10.3
     },
     "ETHUSDm": {
-      "wins": 23,
+      "wins": 24,
       "losses": 4,
       "breakevens": 0,
-      "pnl": 15.66,
-      "total": 27,
+      "pnl": 18.27,
+      "total": 28,
       "tp2_hits": 3,
-      "win_rate_pct": 85.2,
-      "tp2_rate_pct": 11.1
+      "win_rate_pct": 85.7,
+      "tp2_rate_pct": 10.7
     },
     "XAUUSDm": {
       "wins": 27,
@@ -608,12 +608,12 @@
     "XAGUSDm": {
       "wins": 10,
       "losses": 6,
-      "breakevens": 1,
+      "breakevens": 2,
       "pnl": 39.6,
-      "total": 17,
+      "total": 18,
       "tp2_hits": 7,
       "win_rate_pct": 62.5,
-      "tp2_rate_pct": 41.2
+      "tp2_rate_pct": 38.9
     },
     "GBPAUDm": {
       "wins": 18,
@@ -627,7 +627,7 @@
     }
   },
   "active_open_batches_count": 3,
-  "active_open_floating_pnl_usd": 4.59,
+  "active_open_floating_pnl_usd": 15.37,
   "active_batches": [
     {
       "batch_id": "88338",
@@ -638,20 +638,20 @@
       ]
     },
     {
-      "batch_id": "123998",
-      "symbol": "XAGUSDm",
-      "strategy": "Crypto Cred (S/R & RSI Confluence)",
-      "open_tickets": [
-        2580586034
-      ]
-    },
-    {
       "batch_id": "129058",
       "symbol": "GBPAUDm",
       "strategy": "\ud83c\udfdb\ufe0f Institutional Core (5-Pillars Confluence & AlphaSniper)",
       "open_tickets": [
         2580947530,
         2580947532
+      ]
+    },
+    {
+      "batch_id": "162927",
+      "symbol": "XAGUSDm",
+      "strategy": "Mark Minervini (SEPA - Volatility Contraction Pattern)",
+      "open_tickets": [
+        2584489264
       ]
     }
   ],
