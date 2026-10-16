@@ -2536,7 +2536,7 @@ def render_mt5_backtest_engine_view():
                     with open(auto_set_file, 'r', encoding='utf-8') as f:
                         a_cfg = json.load(f)
                     for k in ['selected_symbols', 'timeframes', 'active_strategies', 'target_trades_per_symbol',
-                              'batch_lot_size', 'max_dollar_risk', 'min_pillars_required', 'allow_same_tf_trades',
+                              'batch_lot_size', 'max_dollar_risk', 'max_active_batches', 'min_pillars_required', 'allow_same_tf_trades',
                               'allow_diff_strat_same_tf', 'breakeven_mode', 'active_sessions', 'htf_filter_enabled', 'smart_solution_enabled']:
                         if k in a_cfg:
                             bt_settings[k] = a_cfg[k]
@@ -2630,8 +2630,8 @@ def render_mt5_backtest_engine_view():
         sel_date_from = st.date_input("From Date:", value=def_d_from, key="bt_date_from_input")
     with dt_col2:
         sel_date_to = st.date_input("To Date:", value=def_d_to, key="bt_date_to_input")
-    with dt_col3:
-        sel_initial_bal = st.number_input("💰 Initial Test Balance ($ USD):", min_value=100.0, max_value=1000000.0, value=float(bt_settings.get('initial_balance', 10000.0)), step=500.0, key="bt_initial_bal_input")
+        raw_bal = float(bt_settings.get('initial_balance', 10000.0))
+        sel_initial_bal = st.number_input("💰 Initial Test Balance ($ USD):", min_value=100.0, max_value=1000000.0, value=min(1000000.0, max(100.0, raw_bal)), step=500.0, key="bt_initial_bal_input")
 
     # 2. Pairs & Timeframes (Exact copy of Autonomous)
     st.markdown("##### 💱 Pairs & Multi-Timeframe Scan Feeds:")
@@ -2728,59 +2728,65 @@ def render_mt5_backtest_engine_view():
     st.markdown("##### 🛡️ Risk, Geometry & Execution Rules:")
     rc1, rc2, rc3, rc4, rc5, rc6 = st.columns([1.2, 1.2, 1.1, 1.1, 1.1, 1.1])
     with rc1:
+        raw_target = int(bt_settings.get('target_trades_per_symbol', 10))
         sel_target_trades = st.number_input(
             "🎯 Target Batches / Pair:",
             min_value=0,
-            max_value=1000,
-            value=int(bt_settings.get('target_trades_per_symbol', 10)),
+            max_value=10000,
+            value=min(10000, max(0, raw_target)),
             step=1,
             key="bt_target_trades_input",
             help="Target completed batches per pair (e.g. 10, 20, 50). Set to 0 for unlimited historical simulation."
         )
     with rc2:
+        raw_pil = bt_settings.get('min_pillars_required', 5)
         sel_min_pillars = st.selectbox(
             "🏛️ Execution Pillar Threshold:",
             options=[3, 4, 5],
-            index=[3, 4, 5].index(bt_settings.get('min_pillars_required', 5)) if bt_settings.get('min_pillars_required', 5) in [3, 4, 5] else 2,
+            index=[3, 4, 5].index(raw_pil) if raw_pil in [3, 4, 5] else 2,
             key="bt_min_pillars_input",
             help="Minimum pillar gate required to execute trade setups."
         )
     with rc3:
+        raw_delay = float(bt_settings.get('scan_delay_mins', 3.0))
         sel_scan_delay = st.number_input(
             "⏱️ Scan Delay (Min):",
-            min_value=0.25,
-            max_value=60.0,
-            value=float(bt_settings.get('scan_delay_mins', 3.0)),
-            step=0.5,
+            min_value=0.0,
+            max_value=3600.0,
+            value=min(3600.0, max(0.0, raw_delay)),
+            step=0.25,
             key="bt_scan_delay_input",
             help="Simulated scan delay between timeframe checks (synced with Autonomous interval)."
         )
     with rc4:
+        raw_batches = int(bt_settings.get('max_active_batches', 5))
         sel_max_batches = st.number_input(
             "🔒 Max Concurrent Batches:",
             min_value=1,
-            max_value=100,
-            value=int(bt_settings.get('max_active_batches', 5)),
+            max_value=10000,
+            value=min(10000, max(1, raw_batches)),
             step=1,
             key="bt_max_batches_input",
             help="Maximum concurrent running trade batches allowed simultaneously."
         )
     with rc5:
+        raw_risk = float(bt_settings.get('max_dollar_risk', 50.0))
         sel_max_risk = st.number_input(
             "🛡️ Max Risk Cap ($ USD):",
             min_value=0.0,
-            max_value=5000.0,
-            value=float(bt_settings.get('max_dollar_risk', 50.0)),
+            max_value=50000.0,
+            value=min(50000.0, max(0.0, raw_risk)),
             step=5.0,
             key="bt_max_risk_input",
             help="Maximum dollar risk cap per batch. Trades exceeding this cap are scaled down or skipped."
         )
     with rc6:
+        raw_lot = float(bt_settings.get('batch_lot_size', 0.03))
         sel_lot_size = st.number_input(
             "📦 Batch Lot Size:",
             min_value=0.01,
-            max_value=50.0,
-            value=float(bt_settings.get('batch_lot_size', 0.03)),
+            max_value=100.0,
+            value=min(100.0, max(0.01, raw_lot)),
             step=0.01,
             format="%.2f",
             key="bt_batch_lot_input",
