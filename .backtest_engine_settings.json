@@ -14,9 +14,7 @@
     "30m",
     "1h",
     "4h",
-    "5m",
-    "1m",
-    "3m"
+    "5m"
   ],
   "active_strategies": [
     "VIVEK_YADAV",
@@ -45,10 +43,9 @@
     "LARRY_WILLIAMS",
     "NICOLAS_DARVAS",
     "TOBY_CRABEL",
-    "LINDA_RASCHKE",
-    "DEFAULT"
+    "LINDA_RASCHKE"
   ],
-  "date_from": "2026-08-17",
+  "date_from": "2026-09-16",
   "date_to": "2026-10-16",
   "initial_balance": 10000.0,
   "target_trades_per_symbol": 1000,
