@@ -18,3 +18,8 @@
 
 ## 4. Closed-Loop Trade Learning Journal
 - The trade learning journal (`.trade_learning_journal.json`) must actively feed lessons back into the `AutonomousTraderEngine` to adaptively adjust win-probability filters and buffers for symbols with recent losses.
+
+## 5. Master Strategy Improvement Journal (`docs/STRATEGY_IMPROVEMENT_JOURNAL.md`)
+- Before altering or modifying any strategy code in `src/strategies/`, always consult [`docs/STRATEGY_IMPROVEMENT_JOURNAL.md`](file:///c:/Users/FATTANI%20COMPUTRS/Desktop/Crypto-Forex-Predictor/docs/STRATEGY_IMPROVEMENT_JOURNAL.md).
+- **Mandatory Update Logging**: Whenever any strategy is improved, tuned, or updated, you MUST immediately log the change in `docs/STRATEGY_IMPROVEMENT_JOURNAL.md` with the date, problem/root cause, technical fix implemented, and expected outcome.
+- Never regress or remove past optimizations (timeframe noise pruning, session killzones, EMA fanning, ADX thresholds, signal bar completion) that were added to eliminate historical losses.
