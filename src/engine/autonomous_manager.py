@@ -2437,6 +2437,11 @@ class AutonomousTraderEngine:
 
             settings = self.load_settings()
 
+            # HARD GUARD 0: Engine Must Be Enabled & Active (Never execute if user stopped engine)
+            if _SCAN_STOP_EVENT.is_set() or not settings.get('enabled', False):
+                logger.warning(f"BLOCKED EXECUTION: Autonomous engine is STOPPED/disabled (enabled={settings.get('enabled')}). Rejecting trade on {symbol}.")
+                return False
+
             # HARD GUARD 1: Unselected symbols must NEVER execute trades
             selected_symbols = settings.get('selected_symbols', DEFAULT_SYMBOLS)
             norm_symbol = self.normalize_symbol(symbol).replace('/', '').upper()
