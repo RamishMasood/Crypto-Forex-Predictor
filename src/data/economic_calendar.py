@@ -69,6 +69,45 @@ class EconomicCalendarManager:
         self._cached_events: Optional[List[Dict[str, Any]]] = None
         self._last_fetch_time: float = 0.0
 
+    @classmethod
+    def _normalize_event_key(cls, country: str, title: str, date_str: str) -> tuple:
+        """
+        Normalizes country, title, and UTC timestamp down to the minute so that
+        identical events arriving with slight formatting differences are never duplicated.
+        """
+        import re
+        c = str(country or '').strip().upper()
+        clean_t = re.sub(r'^(us|german|uk|eu)\s+', '', str(title or '').lower().strip())
+        clean_t = re.sub(r'[^a-z0-9]+', ' ', clean_t).strip()
+        dt = cls._parse_event_datetime(date_str)
+        dt_str = dt.strftime('%Y-%m-%d %H:%M') if dt else str(date_str).strip()
+        return (c, clean_t, dt_str)
+
+    @classmethod
+    def deduplicate_events(cls, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Strict deduplication filter: Eliminates any duplicate events scheduled for the
+        same country, title, and time. Conserves disk space, memory, and UI cleanliness.
+        """
+        if not events:
+            return []
+        unique_map: Dict[tuple, Dict[str, Any]] = {}
+        for e in events:
+            k = cls._normalize_event_key(e.get('country', ''), e.get('title', ''), e.get('date', ''))
+            if k not in unique_map:
+                unique_map[k] = dict(e)
+            else:
+                existing = unique_map[k]
+                if not existing.get('forecast') and e.get('forecast'):
+                    existing['forecast'] = e['forecast']
+                if not existing.get('previous') and e.get('previous'):
+                    existing['previous'] = e['previous']
+                if e.get('impact') == 'High':
+                    existing['impact'] = 'High'
+                elif e.get('impact') == 'Medium' and existing.get('impact') != 'High':
+                    existing['impact'] = 'Medium'
+        return list(unique_map.values())
+
     def _load_cache(self) -> Optional[List[Dict[str, Any]]]:
         if not os.path.exists(CACHE_FILE):
             return None
@@ -76,33 +115,44 @@ class EconomicCalendarManager:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             cached_at = data.get('cached_at', 0)
+            cached_date = data.get('cached_date')
+            today_date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+
+            # Daily Refresh Guarantee: If cache was saved on a previous calendar day, invalidate to force fresh daily pull
+            if cached_date and cached_date != today_date_str:
+                return None
+
+            # Hourly Refresh Guarantee: 1-hour cache TTL (3600 seconds)
             if (time.time() - cached_at) < self.cache_ttl:
-                return data.get('events', [])
+                return self.deduplicate_events(data.get('events', []))
         except Exception:
             pass
         return None
 
     def _save_cache(self, events: List[Dict[str, Any]]) -> None:
         try:
+            today_date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+            clean_events = self.deduplicate_events(events)
             with open(CACHE_FILE, 'w', encoding='utf-8') as f:
-                json.dump({'cached_at': time.time(), 'events': events}, f)
+                json.dump({
+                    'cached_at': time.time(),
+                    'cached_date': today_date_str,
+                    'events': clean_events
+                }, f)
         except Exception:
             pass
 
     def fetch_live_calendar(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """
-        Fetches calendar from live feed or cache.
+        Fetches calendar from live feed or cache with guaranteed deduplication.
         """
         if not force_refresh:
             cached = self._load_cache()
             if cached is not None:
-                # Ensure static fallback events are included in case cache is from older week
-                all_td = {(e.get('title'), e.get('date')) for e in cached}
-                for fb in FALLBACK_2026_EVENTS:
-                    if (fb.get('title'), fb.get('date')) not in all_td:
-                        cached.append(fb)
-                self._cached_events = cached
-                return cached
+                # Merge static fallback events strictly deduplicated
+                merged = self.deduplicate_events(cached + FALLBACK_2026_EVENTS)
+                self._cached_events = merged
+                return merged
 
         # Attempt 1: ForexFactory JSON endpoint
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
@@ -122,14 +172,11 @@ class EconomicCalendarManager:
                         'source': 'forexfactory_live_json'
                     })
                 if parsed:
-                    # Merge static fallback events to ensure major macro schedule is always preserved
-                    all_titles_dates = {(e.get('title'), e.get('date')) for e in parsed}
-                    for fb in FALLBACK_2026_EVENTS:
-                        if (fb.get('title'), fb.get('date')) not in all_titles_dates:
-                            parsed.append(fb)
-                    self._save_cache(parsed)
-                    self._cached_events = parsed
-                    return parsed
+                    merged = self.deduplicate_events(parsed + FALLBACK_2026_EVENTS)
+                    self._save_cache(merged)
+                    self._cached_events = merged
+                    self._last_fetch_time = time.time()
+                    return merged
         except Exception:
             pass
 
@@ -159,9 +206,11 @@ class EconomicCalendarManager:
                             'source': 'forexfactory_live_csv'
                         })
                 if parsed:
-                    self._save_cache(parsed)
-                    self._cached_events = parsed
-                    return parsed
+                    merged = self.deduplicate_events(parsed + FALLBACK_2026_EVENTS)
+                    self._save_cache(merged)
+                    self._cached_events = merged
+                    self._last_fetch_time = time.time()
+                    return merged
         except Exception:
             pass
 
@@ -172,14 +221,15 @@ class EconomicCalendarManager:
                     data = json.load(f)
                     events = data.get('events', [])
                     if events:
-                        self._cached_events = events
-                        return events
+                        merged = self.deduplicate_events(events + FALLBACK_2026_EVENTS)
+                        self._cached_events = merged
+                        return merged
             except Exception:
                 pass
 
         # Fallback 4: Built-in high-impact schedule
-        self._cached_events = FALLBACK_2026_EVENTS
-        return FALLBACK_2026_EVENTS
+        self._cached_events = self.deduplicate_events(FALLBACK_2026_EVENTS)
+        return self._cached_events
 
     @staticmethod
     def _parse_event_datetime(date_str: str) -> Optional[datetime]:
@@ -333,3 +383,138 @@ class EconomicCalendarManager:
             'affected_currencies': affected_ccys,
             'upcoming_high_impact_events': upcoming_events[:5]
         }
+
+    def fetch_daily_calendar(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """
+        Guarantees that calendar data is freshly fetched and synchronized for today.
+        """
+        return self.fetch_live_calendar(force_refresh=force_refresh)
+
+    def fetch_hourly_calendar(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """
+        Hourly synchronization: Fetches and refreshes live calendar data on an hourly basis.
+        Guarantees strict deduplication so no same-time news is ever repeated or wastes disk space.
+        """
+        now = time.time()
+        need_live_pull = force_refresh or ((now - self._last_fetch_time) >= 3600)
+        events = self.fetch_live_calendar(force_refresh=need_live_pull)
+        return self.deduplicate_events(events)
+
+    def get_todays_events(
+        self,
+        symbol: Optional[str] = None,
+        asset_type: str = 'crypto',
+        target_date: Optional[datetime] = None,
+        min_impact: str = 'All'
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieves all economic events scheduled specifically for TODAY (24h window).
+        Provides exact UTC & Local PKT time, currency, impact, countdown, and blackout status.
+        Guarantees zero duplicate entries for same-time events.
+        """
+        now_utc = datetime.now(timezone.utc)
+        cur_date = target_date.date() if target_date else now_utc.date()
+
+        events = self.fetch_hourly_calendar()
+        affected_ccys = self.get_affected_currencies(symbol, asset_type) if symbol else None
+
+        todays_list = []
+        for e in events:
+            date_str = e.get('date', '')
+            dt = self._parse_event_datetime(date_str)
+            if not dt:
+                continue
+
+            # Filter for events occurring on the target date (today)
+            if dt.date() != cur_date:
+                continue
+
+            country = e.get('country', '').upper().strip()
+            impact = e.get('impact', 'Low').capitalize().strip()
+            title = e.get('title', '').strip()
+
+            if affected_ccys and country not in affected_ccys and country != 'ALL':
+                continue
+
+            if min_impact == 'High' and impact != 'High':
+                continue
+            elif min_impact == 'Medium+' and impact not in ('High', 'Medium'):
+                continue
+
+            diff_mins = (dt - now_utc).total_seconds() / 60.0
+
+            # Status determination
+            if -30.0 <= diff_mins <= 30.0 and impact == 'High':
+                status = '🔴 IN BLACKOUT NOW'
+                status_color = '#ef4444'
+            elif diff_mins < -30.0:
+                status = '✅ COMPLETED'
+                status_color = '#64748b'
+            elif 0 <= diff_mins <= 60.0:
+                status = f'⚠️ IMMINENT ({int(diff_mins)}m away)'
+                status_color = '#f59e0b'
+            elif diff_mins > 60.0:
+                hrs = diff_mins / 60.0
+                status = f'⏳ UPCOMING ({hrs:.1f}h away)'
+                status_color = '#38bdf8'
+            else:
+                status = '✅ PASSED'
+                status_color = '#64748b'
+
+            # Local PKT time conversion (UTC + 5)
+            pkt_dt = dt + timedelta(hours=5)
+
+            todays_list.append({
+                'title': title,
+                'country': country,
+                'impact': impact,
+                'time_utc': dt.strftime('%H:%M UTC'),
+                'time_pkt': pkt_dt.strftime('%I:%M %p PKT'),
+                'datetime_utc': dt.isoformat(),
+                'minutes_away': round(diff_mins, 1),
+                'status': status,
+                'status_color': status_color,
+                'forecast': e.get('forecast', '-'),
+                'previous': e.get('previous', '-'),
+                'is_high_impact': (impact == 'High')
+            })
+
+        # Strict deduplication: never allow the same event at the same time to repeat twice
+        deduped_todays = []
+        seen_keys = set()
+        for item in todays_list:
+            ukey = (item['country'], item['title'].lower().strip(), item['time_utc'])
+            if ukey not in seen_keys:
+                seen_keys.add(ukey)
+                deduped_todays.append(item)
+
+        # Sort chronologically
+        deduped_todays.sort(key=lambda x: x['datetime_utc'])
+        return deduped_todays
+
+    def get_daily_summary(self, symbol: Optional[str] = None, asset_type: str = 'crypto') -> Dict[str, Any]:
+        """
+        Returns high-level daily KPI summary of today's economic schedule.
+        """
+        todays = self.get_todays_events(symbol=symbol, asset_type=asset_type)
+        high_impact_today = [e for e in todays if e.get('is_high_impact')]
+        upcoming_high = [e for e in high_impact_today if e.get('minutes_away', -999) > 0]
+
+        now_utc = datetime.now(timezone.utc)
+        pkt_now = now_utc + timedelta(hours=5)
+
+        blackout_st = self.check_blackout_status(symbol=symbol or 'BTC/USD', asset_type=asset_type)
+
+        return {
+            'date_utc': now_utc.strftime('%Y-%m-%d'),
+            'date_display': pkt_now.strftime('%A, %d %B %Y'),
+            'total_events_today': len(todays),
+            'high_impact_events_today': len(high_impact_today),
+            'upcoming_high_impact_today': len(upcoming_high),
+            'next_event': upcoming_high[0] if upcoming_high else None,
+            'is_blackout': blackout_st.get('is_blackout', False),
+            'active_blackout_event': blackout_st.get('active_event'),
+            'blackout_reason': blackout_st.get('blackout_reason', ''),
+            'todays_events': todays
+        }
+

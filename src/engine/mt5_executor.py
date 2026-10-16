@@ -826,8 +826,14 @@ class MT5TradeExecutor:
             elif b_info.get('breakeven_sl'):
                 target_be_sl = float(b_info['breakeven_sl'])
 
-            # Determine if Smart Solution is active (from batch info or engine breakeven_mode)
-            is_smart_batch = bool(b_info.get('smart_solution')) or (str(breakeven_mode).lower().strip() == 'smart_breathing_be')
+            # Determine if Smart Solution is active (from engine breakeven_mode override or batch info)
+            mode_str = str(breakeven_mode).lower().strip() if breakeven_mode else ''
+            if mode_str == 'smart_breathing_be':
+                is_smart_batch = True
+            elif mode_str in ('tight', 'loose', 'standard'):
+                is_smart_batch = False
+            else:
+                is_smart_batch = bool(b_info.get('smart_solution'))
 
             # Soft Breakeven SL (for Smart Breathing Room / Loose Mode Stage 1)
             target_soft_sl = None
@@ -857,7 +863,9 @@ class MT5TradeExecutor:
             if is_smart_batch:
                 active_be_mode = 'smart_breathing_be'
             else:
-                active_be_mode = str(b_info.get('breakeven_mode') or breakeven_mode).lower().strip()
+                active_be_mode = mode_str if mode_str in ('tight', 'loose') else str(b_info.get('breakeven_mode') or 'tight').lower().strip()
+                if active_be_mode == 'smart_breathing_be':
+                    active_be_mode = 'tight'
 
             # ── 1. STRATEGY-SPECIFIC FIXED R:R TARGET (BREATHING ROOM WITH EXPANSION / TP1 PROTECTION) ──
             # Lets the trade breathe without premature choking, but ONCE TP1 is banked OR price expands >= 50% toward TP2,

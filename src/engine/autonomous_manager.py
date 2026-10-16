@@ -1468,16 +1468,19 @@ class AutonomousTraderEngine:
             be_mode = 'smart_breathing_be' if smart_solution_on else current_settings.get('breakeven_mode', 'tight')
             if smart_solution_on:
                 for bid, binfo in open_batches.items():
-                    if not binfo.get('smart_solution'):
-                        binfo['smart_solution'] = True
-                        binfo['breakeven_mode'] = 'smart_breathing_be'
-                        if not binfo.get('soft_breakeven_sl'):
-                            e_p = float(binfo.get('entry_price', 0.0))
-                            s_p = float(binfo.get('sl_price', 0.0))
-                            if e_p > 0 and s_p > 0:
-                                atr_est = abs(e_p - s_p) / 1.8
-                                cushion = 0.25 * atr_est
-                                binfo['soft_breakeven_sl'] = round(e_p - cushion, 5) if binfo.get('action') == 'BUY' else round(e_p + cushion, 5)
+                    binfo['smart_solution'] = True
+                    binfo['breakeven_mode'] = 'smart_breathing_be'
+                    if not binfo.get('soft_breakeven_sl'):
+                        e_p = float(binfo.get('entry_price', 0.0))
+                        s_p = float(binfo.get('sl_price', 0.0))
+                        if e_p > 0 and s_p > 0:
+                            atr_est = abs(e_p - s_p) / 1.8
+                            cushion = 0.25 * atr_est
+                            binfo['soft_breakeven_sl'] = round(e_p - cushion, 5) if binfo.get('action') == 'BUY' else round(e_p + cushion, 5)
+            else:
+                for bid, binfo in open_batches.items():
+                    binfo['smart_solution'] = False
+                    binfo['breakeven_mode'] = be_mode
             be_map = {
                 str(bid): float(binfo['breakeven_sl'])
                 for bid, binfo in open_batches.items()
@@ -2830,6 +2833,19 @@ class AutonomousTraderEngine:
                     self.audit_active_trades_and_learn()
                 except Exception as a_err:
                     logger.error(f"Error in audit_active_trades: {a_err}")
+
+                # Hourly Economic Calendar Sync (Deduplicated hourly news fetch)
+                if not hasattr(self, '_last_hourly_cal_sync'):
+                    self._last_hourly_cal_sync = 0.0
+                if (time.time() - self._last_hourly_cal_sync) >= 3600:
+                    try:
+                        if not hasattr(self, '_econ_manager'):
+                            self._econ_manager = EconomicCalendarManager()
+                        self._econ_manager.fetch_hourly_calendar(force_refresh=True)
+                        self._last_hourly_cal_sync = time.time()
+                        logger.info("Hourly economic calendar live sync completed (deduplicated).")
+                    except Exception as e_cal:
+                        logger.debug(f"Hourly calendar sync notice: {e_cal}")
 
                 # Check Concurrent Active Batches Limit (Requirement 8)
                 state = self.load_state()

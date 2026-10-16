@@ -1126,6 +1126,81 @@ def render_mt5_autonomous_engine_view(live_exec):
         if not is_scan_active and has_active_trades:
             st.info(f"ℹ️ **Scanner Stopped:** New scans and new trades are paused. The autonomous manager is actively monitoring and managing your {len(state.get('open_batches', {}))} open trade batch(es) until completion.")
 
+        # ── 1.2 Hourly Economic News & Blackout Radar (Deduplicated Feed) ───────────────
+        with st.expander("📅 Hourly Economic Calendar & Blackout Radar (Deduplicated Live Feed)", expanded=False):
+            from src.data.economic_calendar import EconomicCalendarManager
+            cal_mgr = EconomicCalendarManager()
+            daily_summary = cal_mgr.get_daily_summary()
+
+            c_hdr1, c_hdr2 = st.columns([3, 1])
+            with c_hdr1:
+                is_bo = daily_summary.get('is_blackout', False)
+                bo_ev = daily_summary.get('active_blackout_event')
+                if is_bo and bo_ev:
+                    st.error(f"🚨 **ACTIVE BLACKOUT**: [{bo_ev.get('country')}] {bo_ev.get('title')} ({bo_ev.get('minutes_away')}m away). Trading halted within +/-30m window.")
+                else:
+                    st.success("🟢 **ECONOMIC CONDITIONS CLEAR**: No high-impact releases within 30-minute blackout window.")
+            with c_hdr2:
+                if st.button("🔄 Sync Hourly News", key="btn_refresh_today_news", use_container_width=True):
+                    cal_mgr.fetch_hourly_calendar(force_refresh=True)
+                    st.toast("✅ Hourly economic news re-synchronized & strictly deduplicated!", icon="📡")
+                    st.rerun(scope="fragment")
+
+            k_c1, k_c2, k_c3, k_c4 = st.columns(4)
+            with k_c1:
+                st.metric("📅 Today's Date", daily_summary.get('date_display', 'Today'))
+            with k_c2:
+                st.metric("📰 Total Events Today", daily_summary.get('total_events_today', 0))
+            with k_c3:
+                st.metric("🔴 High-Impact Today", daily_summary.get('high_impact_events_today', 0))
+            with k_c4:
+                st.metric("⏳ Upcoming Red Events", daily_summary.get('upcoming_high_impact_today', 0))
+
+            todays_evs = daily_summary.get('todays_events', [])
+            if todays_evs:
+                ev_rows = []
+                for ev in todays_evs:
+                    imp = ev.get('impact', 'Low')
+                    imp_badge = "<span style='color:#ef4444;font-weight:700;'>🔴 High</span>" if imp == 'High' else ("<span style='color:#f59e0b;font-weight:600;'>🟠 Med</span>" if imp == 'Medium' else "<span style='color:#94a3b8;'>🟡 Low</span>")
+                    st_col = ev.get('status_color', '#94a3b8')
+                    st_txt = ev.get('status', '-')
+                    fc = ev.get('forecast') or '-'
+                    pr = ev.get('previous') or '-'
+                    ev_rows.append(f"""
+                    <tr style='border-bottom:1px solid #1e293b;'>
+                        <td style='padding:6px 10px;color:#38bdf8;font-weight:600;'>{ev.get('time_pkt')}</td>
+                        <td style='padding:6px 10px;color:#94a3b8;'>{ev.get('time_utc')}</td>
+                        <td style='padding:6px 10px;font-weight:700;color:#f8fafc;'>{ev.get('country')}</td>
+                        <td style='padding:6px 10px;font-weight:600;color:#e2e8f0;'>{ev.get('title')}</td>
+                        <td style='padding:6px 10px;text-align:center;'>{imp_badge}</td>
+                        <td style='padding:6px 10px;text-align:center;'><span style='color:{st_col};font-weight:700;'>{st_txt}</span></td>
+                        <td style='padding:6px 10px;color:#cbd5e1;font-size:0.8rem;'>{fc} / {pr}</td>
+                    </tr>
+                    """)
+                html_table = f"""
+                <div style='background:#0b0f19;border:1px solid #1e293b;border-radius:8px;overflow-x:auto;margin-top:8px;'>
+                    <table style='width:100%;border-collapse:collapse;font-size:0.82rem;'>
+                        <thead>
+                            <tr style='background:#0f172a;color:#94a3b8;border-bottom:1px solid #334155;'>
+                                <th style='padding:8px 10px;text-align:left;'>Time (PKT)</th>
+                                <th style='padding:8px 10px;text-align:left;'>UTC</th>
+                                <th style='padding:8px 10px;text-align:left;'>CCY</th>
+                                <th style='padding:8px 10px;text-align:left;'>Event Title</th>
+                                <th style='padding:8px 10px;text-align:center;'>Impact</th>
+                                <th style='padding:8px 10px;text-align:center;'>Status</th>
+                                <th style='padding:8px 10px;text-align:left;'>Fcast / Prev</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {''.join(ev_rows)}
+                        </tbody>
+                    </table>
+                </div>
+                """
+                st.markdown(html_table, unsafe_allow_html=True)
+            else:
+                st.info("No economic events scheduled for today.")
+
         # ── 1.5. Institutional Recommended Auto-Pilot Toggle ─────────────────────
         rec_mode_active = bool(settings.get('recommended_mode', False))
         rec_toggle = st.toggle(
@@ -1518,7 +1593,11 @@ def render_mt5_autonomous_engine_view(live_exec):
                             atr_est = abs(e_p - s_p) / 1.8
                             cushion = 0.25 * atr_est
                             binfo['soft_breakeven_sl'] = round(e_p - cushion, 5) if binfo.get('action') == 'BUY' else round(e_p + cushion, 5)
-                auto_engine.save_state(state)
+            else:
+                for bid, binfo in state.get('open_batches', {}).items():
+                    binfo['smart_solution'] = False
+                    binfo['breakeven_mode'] = be_mode_cfg
+            auto_engine.save_state(state)
 
             st.toast(f"⚙️ Settings Updated: {len(chosen_strats)} Active Strategies Selected!", icon="✅")
 

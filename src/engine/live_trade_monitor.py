@@ -596,16 +596,16 @@ class LiveTradeMonitor:
                             except Exception:
                                 pass
 
-                        # Check Smart Solution setting from batch or global autonomous settings
-                        is_smart = bool(b_state.get("smart_solution"))
-                        if not is_smart:
-                            try:
-                                settings_file = Path(".autonomous_trader_settings.json")
-                                if settings_file.exists():
-                                    with open(settings_file, "r", encoding="utf-8") as f:
-                                        is_smart = bool(json.load(f).get("smart_solution_enabled", True))
-                            except Exception:
-                                is_smart = True
+                        # Check Smart Solution setting dynamically from global autonomous settings
+                        try:
+                            settings_file = Path(".autonomous_trader_settings.json")
+                            if settings_file.exists():
+                                with open(settings_file, "r", encoding="utf-8") as f:
+                                    is_smart = bool(json.load(f).get("smart_solution_enabled", True))
+                            else:
+                                is_smart = bool(b_state.get("smart_solution", True))
+                        except Exception:
+                            is_smart = bool(b_state.get("smart_solution", True))
 
                         if is_smart:
                             target_be = float(b_state.get("soft_breakeven_sl") or 0.0)
