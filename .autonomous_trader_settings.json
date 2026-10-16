@@ -64,6 +64,7 @@
     "TOBY_CRABEL",
     "LINDA_RASCHKE"
   ],
+  "smart_solution_enabled": true,
   "manual_selected_symbols": [
     "ETH/USD",
     "BTC/USD",

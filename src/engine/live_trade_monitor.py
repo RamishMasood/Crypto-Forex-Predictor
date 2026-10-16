@@ -212,9 +212,28 @@ class LiveTradeMonitor:
         # Determine strategy from order comment tag, autonomous state or logs
         strat_key, strat_name = self._lookup_strategy_for_batch(bid, comment=cb.get("comment", ""), strat_tag=cb.get("strat_tag"))
 
+        # Determine if this trade ran under Smart Solution
+        is_smart_sol = False
+        if os.path.exists(STATE_FILE):
+            try:
+                with open(STATE_FILE, "r", encoding="utf-8") as sf:
+                    st_data = json.load(sf)
+                    b_obj = st_data.get("open_batches", {}).get(str(bid))
+                    if not b_obj:
+                        for cb_item in st_data.get("closed_batches", []):
+                            if str(cb_item.get("batch_id")) == str(bid):
+                                b_obj = cb_item
+                                break
+                    if b_obj and b_obj.get("smart_solution"):
+                        is_smart_sol = True
+            except Exception:
+                pass
+
+        tag_prefix = " [🧠 SMART SOLUTION]" if is_smart_sol else ""
+
         if pnl > 0.15:
             outcome = "WIN"
-            logger.info(f"🏆 LIVE TRADE WIN! Batch #{bid} | {sym} ({tf}) | Strategy: {strat_name} | PnL: +${pnl:.2f}")
+            logger.info(f"🏆 LIVE TRADE WIN!{tag_prefix} Batch #{bid} | {sym} ({tf}) | Strategy: {strat_name} | PnL: +${pnl:.2f}")
             self._record_journal_lesson(
                 batch_id=bid,
                 symbol=sym,
@@ -222,16 +241,16 @@ class LiveTradeMonitor:
                 strategy=strat_name,
                 pnl=pnl,
                 outcome=outcome,
-                note="Confluence verified. Precision TP1 secured and auto-breakeven protected runners."
+                note=f"Confluence verified.{' [Smart High-Expectancy Execution]' if is_smart_sol else ''} TP secured and auto-breakeven protected runners."
             )
         elif pnl < -0.15:
             outcome = "LOSS"
-            logger.warning(f"🛑 LIVE STOP LOSS HIT! Batch #{bid} | {sym} ({tf}) | Strategy: {strat_name} | PnL: -${abs(pnl):.2f}")
+            logger.warning(f"🛑 LIVE STOP LOSS HIT!{tag_prefix} Batch #{bid} | {sym} ({tf}) | Strategy: {strat_name} | PnL: -${abs(pnl):.2f}")
             # Run deep forensic analysis on failed entry
             self._perform_sl_forensics(cb, strat_key, strat_name)
         else:
             outcome = "BREAKEVEN"
-            logger.info(f"⚖️ LIVE BREAKEVEN! Batch #{bid} | {sym} ({tf}) | Strategy: {strat_name} | PnL: ${pnl:+.2f}")
+            logger.info(f"⚖️ LIVE BREAKEVEN!{tag_prefix} Batch #{bid} | {sym} ({tf}) | Strategy: {strat_name} | PnL: ${pnl:+.2f}")
 
     TAG_MAP = {
         'ADAMKH': ('ADAM_KHOO', 'Adam Khoo (Multi-EMA Trend)'),
@@ -569,16 +588,47 @@ class LiveTradeMonitor:
                         current_sl = float(pos.sl)
                         is_buy = (pos.type == mt5.ORDER_TYPE_BUY)
 
-                        # Check if SL is unprotected (still below entry for BUY, or above entry for SELL)
+                        b_state = {}
+                        if os.path.exists(STATE_FILE):
+                            try:
+                                with open(STATE_FILE, "r", encoding="utf-8") as sf:
+                                    b_state = json.load(sf).get("open_batches", {}).get(str(bid), {})
+                            except Exception:
+                                pass
+
+                        # Check Smart Solution setting from batch or global autonomous settings
+                        is_smart = bool(b_state.get("smart_solution"))
+                        if not is_smart:
+                            try:
+                                settings_file = Path(".autonomous_trader_settings.json")
+                                if settings_file.exists():
+                                    with open(settings_file, "r", encoding="utf-8") as f:
+                                        is_smart = bool(json.load(f).get("smart_solution_enabled", True))
+                            except Exception:
+                                is_smart = True
+
+                        if is_smart:
+                            target_be = float(b_state.get("soft_breakeven_sl") or 0.0)
+                            if target_be <= 0 and current_sl > 0:
+                                atr_est = abs(entry_price - current_sl) / 1.8
+                                cushion = 0.25 * atr_est
+                                target_be = round(entry_price - cushion, 5) if is_buy else round(entry_price + cushion, 5)
+                            if target_be <= 0:
+                                target_be = entry_price
+                        else:
+                            target_be = entry_price
+
+                        # Check if SL is unprotected (below target_be for BUY, or above target_be for SELL)
                         needs_be = False
-                        if is_buy and (current_sl <= 0 or current_sl < entry_price):
+                        if is_buy and (current_sl <= 0 or current_sl < target_be):
                             needs_be = True
-                        elif not is_buy and (current_sl <= 0 or current_sl > entry_price):
+                        elif not is_buy and (current_sl <= 0 or current_sl > target_be):
                             needs_be = True
 
                         if needs_be:
-                            logger.info(f"🛡️ AUTO-BE WATCHDOG: Locking Ticket #{pid} at Breakeven (TP1 already banked for Batch #{bid})")
-                            executor.modify_stop_loss(ticket=pid, target_sl=entry_price)
+                            be_label = "Smart Breathing BE" if is_smart else "Breakeven"
+                            logger.info(f"🛡️ AUTO-BE WATCHDOG: Locking Ticket #{pid} at {be_label} ({target_be}) (TP1 already banked for Batch #{bid})")
+                            executor.move_to_breakeven(ticket=pid, target_sl=target_be)
         except Exception as e:
             logger.debug(f"Auto-BE watchdog check notice: {e}")
 
@@ -591,15 +641,42 @@ class LiveTradeMonitor:
         session_cutoff_ts = week_monday_start.timestamp()
 
         # All-time accumulators
-        at_strat_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0})
-        at_symbol_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0})
+        at_strat_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0, "tp2_hits": 0})
+        at_symbol_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0, "tp2_hits": 0})
 
         # Trading Week accumulators (Mon-Fri)
-        s_strat_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0})
-        s_symbol_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0})
+        s_strat_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0, "tp2_hits": 0})
+        s_symbol_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0, "tp2_hits": 0})
 
         open_batches_summary = []
         open_floating_pnl = 0.0
+
+        # Load Smart Solution batch IDs if any
+        smart_batch_ids = set()
+        if os.path.exists(STATE_FILE):
+            try:
+                with open(STATE_FILE, "r", encoding="utf-8") as sf:
+                    st_data = json.load(sf)
+                    for k, v in st_data.get("open_batches", {}).items():
+                        if v.get("smart_solution"):
+                            smart_batch_ids.add(str(k))
+                    for cb_item in st_data.get("closed_batches", []):
+                        if cb_item.get("smart_solution"):
+                            smart_batch_ids.add(str(cb_item.get("batch_id")))
+            except Exception:
+                pass
+
+        smart_stats = {
+            "total_trades": 0,
+            "wins": 0,
+            "losses": 0,
+            "breakevens": 0,
+            "win_rate_pct": 0.0,
+            "net_pnl_usd": 0.0,
+            "tp2_hits": 0,
+            "open_count": 0,
+            "open_floating_pnl": 0.0
+        }
 
         # Run Auto-BE failsafe check
         self._watchdog_verify_auto_breakeven(batch_positions, open_pids)
@@ -609,6 +686,7 @@ class LiveTradeMonitor:
             total_pnl = 0.0
             latest_exit_ts = 0
             sym = p_tuples[0][1][0].symbol if p_tuples and p_tuples[0][1] else "UNKNOWN"
+            is_tp2_hit = False
 
             for pid, d_list in p_tuples:
                 if pid in open_pids:
@@ -621,6 +699,23 @@ class LiveTradeMonitor:
                     total_pnl += float(d.profit) + float(getattr(d, 'swap', 0.0) or 0.0) + float(getattr(d, 'commission', 0.0) or 0.0)
                     if d.entry == 1 and d.time > latest_exit_ts:
                         latest_exit_ts = d.time
+
+                # Check if this position is a TP2 position or runner that closed with positive profit / TP hit
+                entry_deals = [d for d in d_list if d.entry == 0]
+                exit_deals = [d for d in d_list if d.entry == 1]
+                pos_comment = getattr(entry_deals[0], 'comment', '') if entry_deals else ''
+                if '_TP2' in pos_comment:
+                    for ed in exit_deals:
+                        ed_comm = getattr(ed, 'comment', '').lower()
+                        if '[tp' in ed_comm and '[sl' not in ed_comm:
+                            is_tp2_hit = True
+                            break
+                elif not is_tp2_hit and len(p_tuples) == 1:
+                    for ed in exit_deals:
+                        ed_comm = getattr(ed, 'comment', '').lower()
+                        if '[tp' in ed_comm and '[sl' not in ed_comm:
+                            is_tp2_hit = True
+                            break
 
             b_meta = (batch_info or {}).get(bid, {})
             strat_key, strat_name = self._lookup_strategy_for_batch(
@@ -637,6 +732,9 @@ class LiveTradeMonitor:
                 at_st["pnl"] = round(at_st["pnl"] + total_pnl, 2)
                 at_sy["total"] += 1
                 at_sy["pnl"] = round(at_sy["pnl"] + total_pnl, 2)
+                if is_tp2_hit:
+                    at_st["tp2_hits"] += 1
+                    at_sy["tp2_hits"] += 1
 
                 if total_pnl > 0.15:
                     at_st["wins"] += 1
@@ -648,6 +746,19 @@ class LiveTradeMonitor:
                     at_st["breakevens"] += 1
                     at_sy["breakevens"] += 1
 
+                # Track Smart Solution closed trades
+                if str(bid) in smart_batch_ids:
+                    smart_stats["total_trades"] += 1
+                    smart_stats["net_pnl_usd"] = round(smart_stats["net_pnl_usd"] + total_pnl, 2)
+                    if is_tp2_hit:
+                        smart_stats["tp2_hits"] += 1
+                    if total_pnl > 0.15:
+                        smart_stats["wins"] += 1
+                    elif total_pnl < -0.15:
+                        smart_stats["losses"] += 1
+                    else:
+                        smart_stats["breakevens"] += 1
+
                 # 2. Update Session (Monday onwards) stats if closed within Monday session
                 if latest_exit_ts >= session_cutoff_ts:
                     s_st = s_strat_stats[strat_name]
@@ -656,6 +767,9 @@ class LiveTradeMonitor:
                     s_st["pnl"] = round(s_st["pnl"] + total_pnl, 2)
                     s_sy["total"] += 1
                     s_sy["pnl"] = round(s_sy["pnl"] + total_pnl, 2)
+                    if is_tp2_hit:
+                        s_st["tp2_hits"] += 1
+                        s_sy["tp2_hits"] += 1
 
                     if total_pnl > 0.15:
                         s_st["wins"] += 1
@@ -667,6 +781,11 @@ class LiveTradeMonitor:
                         s_st["breakevens"] += 1
                         s_sy["breakevens"] += 1
             else:
+                if str(bid) in smart_batch_ids:
+                    smart_stats["open_count"] += 1
+                    b_flt = sum(float(mt5.positions_get(ticket=pid)[0].profit) for pid, _ in p_tuples if pid in open_pids and mt5.positions_get(ticket=pid))
+                    smart_stats["open_floating_pnl"] = round(smart_stats["open_floating_pnl"] + b_flt, 2)
+
                 open_batches_summary.append({
                     "batch_id": bid,
                     "symbol": sym,
@@ -679,17 +798,23 @@ class LiveTradeMonitor:
             for k, v in stat_dict.items():
                 denom = v["wins"] + v["losses"]
                 v["win_rate_pct"] = round((v["wins"] / denom * 100.0), 1) if denom > 0 else 0.0
+                v["tp2_rate_pct"] = round((v.get("tp2_hits", 0) / v["total"] * 100.0), 1) if v.get("total", 0) > 0 else 0.0
 
         calc_rates(at_strat_stats)
         calc_rates(at_symbol_stats)
         calc_rates(s_strat_stats)
         calc_rates(s_symbol_stats)
 
+        # Smart Solution Win Rate
+        denom_smart = smart_stats["wins"] + smart_stats["losses"]
+        smart_stats["win_rate_pct"] = round((smart_stats["wins"] / denom_smart * 100.0), 1) if denom_smart > 0 else 0.0
+
         # Totals for Session 24H
         s_wins = sum(v["wins"] for v in s_strat_stats.values())
         s_losses = sum(v["losses"] for v in s_strat_stats.values())
         s_be = sum(v["breakevens"] for v in s_strat_stats.values())
         s_pnl = sum(v["pnl"] for v in s_strat_stats.values())
+        s_tp2 = sum(v.get("tp2_hits", 0) for v in s_strat_stats.values())
         s_denom = s_wins + s_losses
         s_wr = round((s_wins / s_denom * 100.0), 1) if s_denom > 0 else 0.0
 
@@ -698,6 +823,7 @@ class LiveTradeMonitor:
         at_losses = sum(v["losses"] for v in at_strat_stats.values())
         at_be = sum(v["breakevens"] for v in at_strat_stats.values())
         at_pnl = sum(v["pnl"] for v in at_strat_stats.values())
+        at_tp2 = sum(v.get("tp2_hits", 0) for v in at_strat_stats.values())
         at_denom = at_wins + at_losses
         at_wr = round((at_wins / at_denom * 100.0), 1) if at_denom > 0 else 0.0
 
@@ -706,6 +832,7 @@ class LiveTradeMonitor:
             "wins": s_wins,
             "losses": s_losses,
             "breakevens": s_be,
+            "tp2_hits": s_tp2,
             "win_rate_pct": s_wr,
             "net_pnl_usd": round(s_pnl, 2)
         }
@@ -715,6 +842,7 @@ class LiveTradeMonitor:
             "wins": at_wins,
             "losses": at_losses,
             "breakevens": at_be,
+            "tp2_hits": at_tp2,
             "win_rate_pct": at_wr,
             "net_pnl_usd": round(at_pnl, 2)
         }
@@ -734,6 +862,7 @@ class LiveTradeMonitor:
             "overall": session_summary,  # Live consumers see active session
             "session_24h": session_summary,
             "all_time": all_time_summary,
+            "smart_solution_performance": smart_stats,
             "by_strategy": dict(s_strat_stats),
             "by_symbol": dict(s_symbol_stats),
             "all_time_by_strategy": dict(at_strat_stats),
@@ -790,6 +919,21 @@ def main():
                     float_pnl,
                     at_ov.get("total_trades", 0),
                     at_ov.get("win_rate_pct", 0.0)
+                )
+
+            # Smart Solution pulse observability
+            smart_ov = scorecard.get("smart_solution_performance", {})
+            if smart_ov and (smart_ov.get("total_trades", 0) > 0 or smart_ov.get("open_count", 0) > 0):
+                logger.info(
+                    "🧠 SMART SOLUTION PULSE: Closed: %d | Wins: %d | Losses: %d | WR: %.1f%% | Net: $%.2f | TP2 Hits: %d | Open: %d ($%.2f flt)",
+                    smart_ov.get("total_trades", 0),
+                    smart_ov.get("wins", 0),
+                    smart_ov.get("losses", 0),
+                    smart_ov.get("win_rate_pct", 0.0),
+                    smart_ov.get("net_pnl_usd", 0.0),
+                    smart_ov.get("tp2_hits", 0),
+                    smart_ov.get("open_count", 0),
+                    smart_ov.get("open_floating_pnl", 0.0)
                 )
 
             # Alert if high-impact news is imminent (within next 60 minutes)

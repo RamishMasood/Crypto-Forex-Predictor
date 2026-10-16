@@ -1,0 +1,604 @@
+{
+  "total_trades": 1148,
+  "date_range": "2026-09-20 to 2026-10-16",
+  "summary": {
+    "Baseline (Actual MT5 Reality)": {
+      "wins": 433,
+      "losses": 424,
+      "breakevens": 291,
+      "win_rate": 50.5,
+      "total_pnl": -1319.6,
+      "avg_win": 3.98,
+      "avg_loss": -7.18,
+      "tp1_hits": 0,
+      "tp2_hits": 0,
+      "tp3_hits": 0,
+      "be_stops": 0,
+      "full_sl_hits": 0
+    },
+    "Smart Solution (0.25 ATR Breathing BE)": {
+      "wins": 663,
+      "losses": 300,
+      "breakevens": 185,
+      "win_rate": 68.8,
+      "total_pnl": -1066.84,
+      "avg_win": 2.96,
+      "avg_loss": -10.14,
+      "tp1_hits": 818,
+      "tp2_hits": 70,
+      "tp3_hits": 34,
+      "be_stops": 678,
+      "full_sl_hits": 182
+    },
+    "Smart Solution (0.35 ATR Breathing BE)": {
+      "wins": 546,
+      "losses": 300,
+      "breakevens": 302,
+      "win_rate": 64.5,
+      "total_pnl": -1112.16,
+      "avg_win": 3.5,
+      "avg_loss": -10.14,
+      "tp1_hits": 818,
+      "tp2_hits": 75,
+      "tp3_hits": 35,
+      "be_stops": 638,
+      "full_sl_hits": 182
+    }
+  },
+  "by_strategy": {
+    "Baseline (Actual MT5 Reality)": {
+      "30M": {
+        "wins": 55,
+        "losses": 40,
+        "pnl": -76.53000000000002
+      },
+      "1H": {
+        "wins": 30,
+        "losses": 55,
+        "pnl": -228.24000000000004
+      },
+      "4H": {
+        "wins": 17,
+        "losses": 14,
+        "pnl": -101.11999999999999
+      },
+      "5M": {
+        "wins": 66,
+        "losses": 50,
+        "pnl": -126.64000000000001
+      },
+      "3M": {
+        "wins": 43,
+        "losses": 72,
+        "pnl": -206.58999999999997
+      },
+      "15M": {
+        "wins": 37,
+        "losses": 47,
+        "pnl": -69.92
+      },
+      "1M": {
+        "wins": 46,
+        "losses": 101,
+        "pnl": -281.84
+      },
+      "LINDAR": {
+        "wins": 14,
+        "losses": 3,
+        "pnl": 23.95
+      },
+      "WAQARZ": {
+        "wins": 4,
+        "losses": 1,
+        "pnl": -10.88
+      },
+      "TRADEP": {
+        "wins": 9,
+        "losses": 7,
+        "pnl": -110.13000000000001
+      },
+      "GCR": {
+        "wins": 6,
+        "losses": 0,
+        "pnl": 34.84
+      },
+      "ADAMKH": {
+        "wins": 19,
+        "losses": 11,
+        "pnl": -147.56999999999994
+      },
+      "EUGENE": {
+        "wins": 5,
+        "losses": 3,
+        "pnl": -43.99
+      },
+      "ICT": {
+        "wins": 4,
+        "losses": 3,
+        "pnl": -61.23
+      },
+      "ROSSCA": {
+        "wins": 2,
+        "losses": 0,
+        "pnl": 11.530000000000001
+      },
+      "BOBVOL": {
+        "wins": 5,
+        "losses": 3,
+        "pnl": 2.7700000000000014
+      },
+      "MARKMI": {
+        "wins": 10,
+        "losses": 1,
+        "pnl": 15.940000000000003
+      },
+      "NDEMAZ": {
+        "wins": 7,
+        "losses": 0,
+        "pnl": 39.730000000000004
+      },
+      "WAQARA": {
+        "wins": 5,
+        "losses": 1,
+        "pnl": 28.59
+      },
+      "LARRYW": {
+        "wins": 1,
+        "losses": 0,
+        "pnl": 3.15
+      },
+      "STEVEN": {
+        "wins": 8,
+        "losses": 3,
+        "pnl": -39.459999999999994
+      },
+      "ALBROO": {
+        "wins": 10,
+        "losses": 4,
+        "pnl": 19.35
+      },
+      "TOMHOU": {
+        "wins": 6,
+        "losses": 0,
+        "pnl": 22.84
+      },
+      "RICHAR": {
+        "wins": 12,
+        "losses": 3,
+        "pnl": -7.519999999999998
+      },
+      "TOBYCR": {
+        "wins": 2,
+        "losses": 1,
+        "pnl": -23.62
+      },
+      "VIVEKY": {
+        "wins": 2,
+        "losses": 0,
+        "pnl": 8.85
+      },
+      "CRYPTO": {
+        "wins": 5,
+        "losses": 1,
+        "pnl": 0.7499999999999976
+      },
+      "OLIVER": {
+        "wins": 1,
+        "losses": 0,
+        "pnl": 1.81
+      },
+      "ARIELZ": {
+        "wins": 2,
+        "losses": 0,
+        "pnl": 1.58
+      }
+    },
+    "Smart Solution (0.25 ATR Breathing BE)": {
+      "30M": {
+        "wins": 85,
+        "losses": 44,
+        "pnl": -79.83
+      },
+      "1H": {
+        "wins": 67,
+        "losses": 42,
+        "pnl": -223.32999999999996
+      },
+      "4H": {
+        "wins": 25,
+        "losses": 25,
+        "pnl": -97.71000000000001
+      },
+      "5M": {
+        "wins": 112,
+        "losses": 33,
+        "pnl": -120.74000000000001
+      },
+      "3M": {
+        "wins": 76,
+        "losses": 37,
+        "pnl": -141.56
+      },
+      "15M": {
+        "wins": 80,
+        "losses": 28,
+        "pnl": 105.87000000000002
+      },
+      "1M": {
+        "wins": 73,
+        "losses": 52,
+        "pnl": -345.45
+      },
+      "LINDAR": {
+        "wins": 12,
+        "losses": 4,
+        "pnl": 5.289999999999997
+      },
+      "WAQARZ": {
+        "wins": 4,
+        "losses": 1,
+        "pnl": -8.69
+      },
+      "TRADEP": {
+        "wins": 11,
+        "losses": 6,
+        "pnl": -87.36999999999999
+      },
+      "GCR": {
+        "wins": 6,
+        "losses": 0,
+        "pnl": 42.47
+      },
+      "ADAMKH": {
+        "wins": 22,
+        "losses": 8,
+        "pnl": -71.52000000000001
+      },
+      "EUGENE": {
+        "wins": 5,
+        "losses": 3,
+        "pnl": -51.190000000000005
+      },
+      "ICT": {
+        "wins": 5,
+        "losses": 2,
+        "pnl": -29.729999999999997
+      },
+      "ROSSCA": {
+        "wins": 2,
+        "losses": 0,
+        "pnl": 12.34
+      },
+      "BOBVOL": {
+        "wins": 7,
+        "losses": 1,
+        "pnl": 26.89
+      },
+      "MARKMI": {
+        "wins": 10,
+        "losses": 1,
+        "pnl": 10.230000000000006
+      },
+      "NDEMAZ": {
+        "wins": 7,
+        "losses": 0,
+        "pnl": 45.76
+      },
+      "WAQARA": {
+        "wins": 5,
+        "losses": 1,
+        "pnl": 12.140000000000002
+      },
+      "LARRYW": {
+        "wins": 1,
+        "losses": 0,
+        "pnl": 3.18
+      },
+      "STEVEN": {
+        "wins": 8,
+        "losses": 3,
+        "pnl": -61.040000000000006
+      },
+      "ALBROO": {
+        "wins": 10,
+        "losses": 4,
+        "pnl": -78.66999999999999
+      },
+      "TOMHOU": {
+        "wins": 6,
+        "losses": 0,
+        "pnl": 17.82
+      },
+      "RICHAR": {
+        "wins": 13,
+        "losses": 2,
+        "pnl": 39.92999999999999
+      },
+      "TOBYCR": {
+        "wins": 2,
+        "losses": 1,
+        "pnl": -4.67
+      },
+      "VIVEKY": {
+        "wins": 2,
+        "losses": 0,
+        "pnl": 10.32
+      },
+      "CRYPTO": {
+        "wins": 5,
+        "losses": 1,
+        "pnl": 5.779999999999995
+      },
+      "OLIVER": {
+        "wins": 1,
+        "losses": 0,
+        "pnl": 1.03
+      },
+      "ARIELZ": {
+        "wins": 1,
+        "losses": 1,
+        "pnl": -4.390000000000001
+      }
+    },
+    "Smart Solution (0.35 ATR Breathing BE)": {
+      "30M": {
+        "wins": 71,
+        "losses": 44,
+        "pnl": -88.52
+      },
+      "1H": {
+        "wins": 60,
+        "losses": 42,
+        "pnl": -229.89999999999998
+      },
+      "4H": {
+        "wins": 25,
+        "losses": 25,
+        "pnl": -96.22999999999999
+      },
+      "5M": {
+        "wins": 90,
+        "losses": 33,
+        "pnl": -122.13999999999999
+      },
+      "3M": {
+        "wins": 55,
+        "losses": 37,
+        "pnl": -143.85000000000002
+      },
+      "15M": {
+        "wins": 66,
+        "losses": 28,
+        "pnl": 101.74
+      },
+      "1M": {
+        "wins": 34,
+        "losses": 52,
+        "pnl": -347.0399999999999
+      },
+      "LINDAR": {
+        "wins": 12,
+        "losses": 4,
+        "pnl": 7.139999999999999
+      },
+      "WAQARZ": {
+        "wins": 4,
+        "losses": 1,
+        "pnl": -9.25
+      },
+      "TRADEP": {
+        "wins": 11,
+        "losses": 6,
+        "pnl": -90.28
+      },
+      "GCR": {
+        "wins": 6,
+        "losses": 0,
+        "pnl": 42.14
+      },
+      "ADAMKH": {
+        "wins": 22,
+        "losses": 8,
+        "pnl": -77.74000000000001
+      },
+      "EUGENE": {
+        "wins": 5,
+        "losses": 3,
+        "pnl": -51.970000000000006
+      },
+      "ICT": {
+        "wins": 5,
+        "losses": 2,
+        "pnl": -31.519999999999996
+      },
+      "ROSSCA": {
+        "wins": 2,
+        "losses": 0,
+        "pnl": 12.34
+      },
+      "BOBVOL": {
+        "wins": 7,
+        "losses": 1,
+        "pnl": 25.699999999999996
+      },
+      "MARKMI": {
+        "wins": 10,
+        "losses": 1,
+        "pnl": 8.990000000000002
+      },
+      "NDEMAZ": {
+        "wins": 7,
+        "losses": 0,
+        "pnl": 43.42
+      },
+      "WAQARA": {
+        "wins": 5,
+        "losses": 1,
+        "pnl": 10.530000000000001
+      },
+      "LARRYW": {
+        "wins": 1,
+        "losses": 0,
+        "pnl": 3.18
+      },
+      "STEVEN": {
+        "wins": 8,
+        "losses": 3,
+        "pnl": -64.72000000000001
+      },
+      "ALBROO": {
+        "wins": 10,
+        "losses": 4,
+        "pnl": -74.91999999999999
+      },
+      "TOMHOU": {
+        "wins": 6,
+        "losses": 0,
+        "pnl": 15.299999999999999
+      },
+      "RICHAR": {
+        "wins": 13,
+        "losses": 2,
+        "pnl": 37.440000000000005
+      },
+      "TOBYCR": {
+        "wins": 2,
+        "losses": 1,
+        "pnl": -5.529999999999999
+      },
+      "VIVEKY": {
+        "wins": 2,
+        "losses": 0,
+        "pnl": 13.040000000000001
+      },
+      "CRYPTO": {
+        "wins": 5,
+        "losses": 1,
+        "pnl": 4.639999999999998
+      },
+      "OLIVER": {
+        "wins": 1,
+        "losses": 0,
+        "pnl": 0.24
+      },
+      "ARIELZ": {
+        "wins": 1,
+        "losses": 1,
+        "pnl": -4.390000000000001
+      }
+    }
+  },
+  "by_symbol": {
+    "Baseline (Actual MT5 Reality)": {
+      "ETHUSDm": {
+        "wins": 119,
+        "losses": 118,
+        "pnl": -140.39999999999995
+      },
+      "BTCUSDm": {
+        "wins": 139,
+        "losses": 220,
+        "pnl": -690.6799999999998
+      },
+      "EURUSDm": {
+        "wins": 35,
+        "losses": 15,
+        "pnl": -115.30000000000003
+      },
+      "USDCHFm": {
+        "wins": 39,
+        "losses": 22,
+        "pnl": -200.63000000000005
+      },
+      "GBPAUDm": {
+        "wins": 35,
+        "losses": 15,
+        "pnl": -123.69000000000003
+      },
+      "XAUUSDm": {
+        "wins": 46,
+        "losses": 18,
+        "pnl": 3.9499999999999895
+      },
+      "XAGUSDm": {
+        "wins": 20,
+        "losses": 16,
+        "pnl": -52.850000000000065
+      }
+    },
+    "Smart Solution (0.25 ATR Breathing BE)": {
+      "ETHUSDm": {
+        "wins": 190,
+        "losses": 111,
+        "pnl": -78.43999999999997
+      },
+      "BTCUSDm": {
+        "wins": 264,
+        "losses": 117,
+        "pnl": -627.2899999999998
+      },
+      "EURUSDm": {
+        "wins": 41,
+        "losses": 16,
+        "pnl": -94.89000000000001
+      },
+      "USDCHFm": {
+        "wins": 43,
+        "losses": 21,
+        "pnl": -126.12999999999992
+      },
+      "GBPAUDm": {
+        "wins": 39,
+        "losses": 13,
+        "pnl": -2.629999999999999
+      },
+      "XAUUSDm": {
+        "wins": 57,
+        "losses": 14,
+        "pnl": -41.099999999999994
+      },
+      "XAGUSDm": {
+        "wins": 29,
+        "losses": 8,
+        "pnl": -96.36000000000001
+      }
+    },
+    "Smart Solution (0.35 ATR Breathing BE)": {
+      "ETHUSDm": {
+        "wins": 190,
+        "losses": 111,
+        "pnl": -86.57
+      },
+      "BTCUSDm": {
+        "wins": 149,
+        "losses": 117,
+        "pnl": -646.2099999999999
+      },
+      "EURUSDm": {
+        "wins": 39,
+        "losses": 16,
+        "pnl": -98.14000000000001
+      },
+      "USDCHFm": {
+        "wins": 43,
+        "losses": 21,
+        "pnl": -133.80999999999995
+      },
+      "GBPAUDm": {
+        "wins": 39,
+        "losses": 13,
+        "pnl": -2.509999999999998
+      },
+      "XAUUSDm": {
+        "wins": 57,
+        "losses": 14,
+        "pnl": -45.96000000000001
+      },
+      "XAGUSDm": {
+        "wins": 29,
+        "losses": 8,
+        "pnl": -98.96000000000004
+      }
+    }
+  }
+}

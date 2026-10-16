@@ -1,0 +1,4222 @@
+{
+  "total_batches": 167,
+  "baseline": {
+    "wins": 126,
+    "losses": 40,
+    "breakevens": 1,
+    "win_rate": 75.9,
+    "net_pnl": -184.94
+  },
+  "smart_solution": {
+    "wins": 76,
+    "losses": 91,
+    "breakevens": 0,
+    "win_rate": 45.5,
+    "net_pnl": -187.2,
+    "delta": -2.26
+  },
+  "forensics": {
+    "early_cuts_triggered": 81,
+    "early_cuts_saved_loss": 534.86,
+    "early_cuts_wrongly_cut_win": 42,
+    "smart_tp1_hits": 64,
+    "smart_tp1_missed_legacy_wins": 64,
+    "smart_tp2_hits": 11,
+    "smart_breathing_be_hits": 19
+  },
+  "batches": [
+    {
+      "batch_id": "755184",
+      "symbol": "BTCUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "3m",
+      "baseline_pnl": -29.76,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.4,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 17.36,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2545443551": [
+          83538.9225,
+          "EARLY_CUT"
+        ],
+        "2545443553": [
+          83538.9225,
+          "EARLY_CUT"
+        ],
+        "2545443560": [
+          83538.9225,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "756000",
+      "symbol": "ETHUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": 3.99,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 11.48,
+      "smart_outcome": "WIN",
+      "pnl_delta": 7.49,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2545453305": [
+          2535.6258333333335,
+          "TP1_BANKED"
+        ],
+        "2545453320": [
+          2550.5785000000005,
+          "TP2_HIT"
+        ],
+        "2545453326": [
+          2554.98,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "757316",
+      "symbol": "XAUUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "30m",
+      "baseline_pnl": -21.96,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -9.14,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 12.82,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2545708384": [
+          4190.0545,
+          "EARLY_CUT"
+        ],
+        "2545708385": [
+          4190.0545,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "759408",
+      "symbol": "EURUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": -28.86,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.03,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 16.83,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2545807710": [
+          1.120415,
+          "EARLY_CUT"
+        ],
+        "2545807713": [
+          1.120415,
+          "EARLY_CUT"
+        ],
+        "2545807722": [
+          1.120415,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "761289",
+      "symbol": "USDCHFm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": 5.42,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 14.41,
+      "smart_outcome": "WIN",
+      "pnl_delta": 8.99,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2545917830": [
+          0.8296583333333334,
+          "TP1_BANKED"
+        ],
+        "2545917831": [
+          0.82951,
+          "MARKET_CLOSE"
+        ],
+        "2545917835": [
+          0.82951,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "761349",
+      "symbol": "XAUUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": -1.17,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -13.22,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -12.05,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2545921445": [
+          4189.79975,
+          "EARLY_CUT"
+        ],
+        "2545921457": [
+          4189.79975,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "763690",
+      "symbol": "USDCHFm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": 4.88,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 8.82,
+      "smart_outcome": "WIN",
+      "pnl_delta": 3.94,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2546084060": [
+          0.82942,
+          "MARKET_CLOSE"
+        ],
+        "2546084061": [
+          0.82942,
+          "MARKET_CLOSE"
+        ],
+        "2546084088": [
+          0.82942,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "763825",
+      "symbol": "XAUUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "15m",
+      "baseline_pnl": 13.09,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 14.21,
+      "smart_outcome": "WIN",
+      "pnl_delta": 1.12,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2546100628": [
+          4207.4845000000005,
+          "TP1_BANKED"
+        ],
+        "2546100633": [
+          4207.989,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "764857",
+      "symbol": "XAGUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": -14.7,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -6.12,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 8.58,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2546215094": [
+          61.204499999999996,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "766948",
+      "symbol": "XAUUSDm",
+      "strategy": "EUGENE",
+      "timeframe": "15m",
+      "baseline_pnl": -3.7,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -15.18,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -11.48,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2546397686": [
+          4206.85425,
+          "EARLY_CUT"
+        ],
+        "2546397710": [
+          4206.85425,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "770127",
+      "symbol": "USDCHFm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": -29.59,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.4,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 17.19,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2546693949": [
+          0.8299491666666667,
+          "EARLY_CUT"
+        ],
+        "2546693989": [
+          0.8299491666666667,
+          "EARLY_CUT"
+        ],
+        "2546694010": [
+          0.8299491666666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "770352",
+      "symbol": "ETHUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": 3.05,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 1.49,
+      "smart_outcome": "WIN",
+      "pnl_delta": -1.56,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2546716153": [
+          2543.2033333333334,
+          "TP1_BANKED"
+        ],
+        "2546716227": [
+          2537.018888888889,
+          "SOFT_BE_STOP"
+        ],
+        "2546716329": [
+          2537.018888888889,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "771460",
+      "symbol": "ETHUSDm",
+      "strategy": "EUGENE",
+      "timeframe": "5m",
+      "baseline_pnl": 1.97,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -3.7,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -5.67,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2546793119": [
+          2546.5625,
+          "EARLY_CUT"
+        ],
+        "2546793149": [
+          2546.5625,
+          "EARLY_CUT"
+        ],
+        "2546793185": [
+          2546.5625,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "771548",
+      "symbol": "BTCUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": -21.26,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -8.74,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 12.52,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2546797902": [
+          83740.12583333332,
+          "EARLY_CUT"
+        ],
+        "2546797940": [
+          83740.12583333332,
+          "EARLY_CUT"
+        ],
+        "2546797969": [
+          83740.12583333332,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "786268",
+      "symbol": "BTCUSDm",
+      "strategy": "GCR",
+      "timeframe": "4h",
+      "baseline_pnl": 3.66,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -9.52,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -13.18,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2548033800": [
+          84004.81833333333,
+          "EARLY_CUT"
+        ],
+        "2548033839": [
+          84004.81833333333,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "788322",
+      "symbol": "ETHUSDm",
+      "strategy": "EUGENE",
+      "timeframe": "1h",
+      "baseline_pnl": 4.19,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -6.42,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -10.61,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2548208525": [
+          2561.6,
+          "MARKET_CLOSE"
+        ],
+        "2548208571": [
+          2561.6,
+          "MARKET_CLOSE"
+        ],
+        "2548208622": [
+          2561.6,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "788538",
+      "symbol": "USDCHFm",
+      "strategy": "MARKMI",
+      "timeframe": "5m",
+      "baseline_pnl": 4.76,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 10.6,
+      "smart_outcome": "WIN",
+      "pnl_delta": 5.84,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2548234163": [
+          0.8314566666666666,
+          "TP1_BANKED"
+        ],
+        "2548234210": [
+          0.83118,
+          "MARKET_CLOSE"
+        ],
+        "2548234299": [
+          0.83118,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "788914",
+      "symbol": "EURUSDm",
+      "strategy": "NDEMAZ",
+      "timeframe": "1h",
+      "baseline_pnl": 18.01,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 24.52,
+      "smart_outcome": "WIN",
+      "pnl_delta": 6.51,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2548264804": [
+          1.11927,
+          "TP1_BANKED"
+        ],
+        "2548264861": [
+          1.117774,
+          "TP2_HIT"
+        ],
+        "2548264899": [
+          1.115632,
+          "TP3_HIT"
+        ]
+      }
+    },
+    {
+      "batch_id": "789028",
+      "symbol": "XAGUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "1h",
+      "baseline_pnl": -25.1,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -10.46,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 14.64,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2548271623": [
+          60.780833333333334,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "789090",
+      "symbol": "GBPAUDm",
+      "strategy": "ICT",
+      "timeframe": "1h",
+      "baseline_pnl": -29.91,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.44,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 17.47,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2548275326": [
+          1.8985058333333336,
+          "EARLY_CUT"
+        ],
+        "2548275357": [
+          1.8985058333333336,
+          "EARLY_CUT"
+        ],
+        "2548275386": [
+          1.8985058333333336,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "790880",
+      "symbol": "ETHUSDm",
+      "strategy": "WAQARA",
+      "timeframe": "3m",
+      "baseline_pnl": -10.04,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -4.18,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 5.86,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2548442790": [
+          2560.8808333333336,
+          "EARLY_CUT"
+        ],
+        "2548442820": [
+          2560.8808333333336,
+          "EARLY_CUT"
+        ],
+        "2548442894": [
+          2560.8808333333336,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "791091",
+      "symbol": "XAUUSDm",
+      "strategy": "ICT",
+      "timeframe": "5m",
+      "baseline_pnl": 17.49,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 21.99,
+      "smart_outcome": "WIN",
+      "pnl_delta": 4.5,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2548463144": [
+          4176.343750000001,
+          "TP1_BANKED"
+        ],
+        "2548463160": [
+          4166.054350000001,
+          "TP2_HIT"
+        ]
+      }
+    },
+    {
+      "batch_id": "792966",
+      "symbol": "ETHUSDm",
+      "strategy": "BOBVOL",
+      "timeframe": "1m",
+      "baseline_pnl": -8.83,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -3.66,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 5.17,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2548670253": [
+          2556.0975000000003,
+          "EARLY_CUT"
+        ],
+        "2548670279": [
+          2556.0975000000003,
+          "EARLY_CUT"
+        ],
+        "2548670310": [
+          2556.0975000000003,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "794185",
+      "symbol": "BTCUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "5m",
+      "baseline_pnl": -0.46,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -0.16,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 0.3,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2548800360": [
+          83602.20999999999,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "794254",
+      "symbol": "ETHUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "30m",
+      "baseline_pnl": -18.95,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -7.9,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 11.05,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2548805578": [
+          2547.6375,
+          "EARLY_CUT"
+        ],
+        "2548805655": [
+          2547.6375,
+          "EARLY_CUT"
+        ],
+        "2548805720": [
+          2547.6375,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "803477",
+      "symbol": "XAGUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "15m",
+      "baseline_pnl": 21.85,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -7.98,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -29.83,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2549797571": [
+          60.70258333333334,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "805708",
+      "symbol": "USDCHFm",
+      "strategy": "LARRYW",
+      "timeframe": "4h",
+      "baseline_pnl": 3.15,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 6.87,
+      "smart_outcome": "WIN",
+      "pnl_delta": 3.72,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2550051876": [
+          0.8342175000000001,
+          "TP1_BANKED"
+        ],
+        "2550051885": [
+          0.83281,
+          "MARKET_CLOSE"
+        ],
+        "2550051886": [
+          0.83281,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "807761",
+      "symbol": "BTCUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "15m",
+      "baseline_pnl": 0.09,
+      "baseline_outcome": "BE",
+      "smart_pnl": 16.8,
+      "smart_outcome": "WIN",
+      "pnl_delta": 16.71,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2550312656": [
+          82872.12916666668,
+          "TP1_BANKED"
+        ],
+        "2550312704": [
+          82796.14,
+          "MARKET_CLOSE"
+        ],
+        "2550312806": [
+          82796.14,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "807859",
+      "symbol": "XAUUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "15m",
+      "baseline_pnl": 4.25,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 2.54,
+      "smart_outcome": "WIN",
+      "pnl_delta": -1.71,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2550335055": [
+          4159.090166666667,
+          "TP1_BANKED"
+        ],
+        "2550335058": [
+          4167.425111111111,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "808558",
+      "symbol": "BTCUSDm",
+      "strategy": "BOBVOL",
+      "timeframe": "3m",
+      "baseline_pnl": 1.95,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 18.51,
+      "smart_outcome": "WIN",
+      "pnl_delta": 16.56,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2550509021": [
+          82702.1725,
+          "TP1_BANKED"
+        ],
+        "2550509051": [
+          82540.84,
+          "MARKET_CLOSE"
+        ],
+        "2550509082": [
+          82540.84,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "809017",
+      "symbol": "ETHUSDm",
+      "strategy": "WAQARZ",
+      "timeframe": "5m",
+      "baseline_pnl": 1.5,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -3.92,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -5.42,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2550623982": [
+          2526.7541666666666,
+          "EARLY_CUT"
+        ],
+        "2550624022": [
+          2526.7541666666666,
+          "EARLY_CUT"
+        ],
+        "2550624127": [
+          2526.7541666666666,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "809255",
+      "symbol": "XAUUSDm",
+      "strategy": "STEVEN",
+      "timeframe": "15m",
+      "baseline_pnl": 2.05,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.78,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -13.83,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2550664448": [
+          4170.020166666667,
+          "EARLY_CUT"
+        ],
+        "2550664454": [
+          4170.020166666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "810926",
+      "symbol": "ETHUSDm",
+      "strategy": "MARKMI",
+      "timeframe": "1m",
+      "baseline_pnl": 1.63,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 1.76,
+      "smart_outcome": "WIN",
+      "pnl_delta": 0.13,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2550905122": [
+          2520.0558333333333,
+          "TP1_BANKED"
+        ],
+        "2550905156": [
+          2527.3455555555556,
+          "SOFT_BE_STOP"
+        ],
+        "2550905212": [
+          2527.3455555555556,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "811983",
+      "symbol": "ETHUSDm",
+      "strategy": "BOBVOL",
+      "timeframe": "5m",
+      "baseline_pnl": -8.31,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -3.46,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 4.85,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2551048690": [
+          2525.7508333333335,
+          "EARLY_CUT"
+        ],
+        "2551048766": [
+          2525.7508333333335,
+          "EARLY_CUT"
+        ],
+        "2551048807": [
+          2525.7508333333335,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "812118",
+      "symbol": "BTCUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "1m",
+      "baseline_pnl": -33.65,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -14.06,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 19.59,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2551069278": [
+          82597.66666666667,
+          "EARLY_CUT"
+        ],
+        "2551069294": [
+          82597.66666666667,
+          "EARLY_CUT"
+        ],
+        "2551069327": [
+          82597.66666666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "812950",
+      "symbol": "ETHUSDm",
+      "strategy": "GCR",
+      "timeframe": "30m",
+      "baseline_pnl": 2.69,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 3.17,
+      "smart_outcome": "WIN",
+      "pnl_delta": 0.48,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2551170532": [
+          2540.9908333333337,
+          "TP1_BANKED"
+        ],
+        "2551170558": [
+          2527.9255555555555,
+          "SOFT_BE_STOP"
+        ],
+        "2551170600": [
+          2527.9255555555555,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "813413",
+      "symbol": "BTCUSDm",
+      "strategy": "WAQARZ",
+      "timeframe": "1h",
+      "baseline_pnl": -27.07,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -10.34,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 16.73,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2551217033": [
+          82587.9125,
+          "EARLY_CUT"
+        ],
+        "2551217062": [
+          82587.9125,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "814750",
+      "symbol": "ETHUSDm",
+      "strategy": "ALBROO",
+      "timeframe": "5m",
+      "baseline_pnl": 2.48,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 5.88,
+      "smart_outcome": "WIN",
+      "pnl_delta": 3.4,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2551414377": [
+          2524.0633333333335,
+          "TP1_BANKED"
+        ],
+        "2551414480": [
+          2515.234,
+          "TP2_HIT"
+        ],
+        "2551414551": [
+          2520.76,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "815584",
+      "symbol": "XAUUSDm",
+      "strategy": "TOMHOU",
+      "timeframe": "15m",
+      "baseline_pnl": 5.85,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 2.39,
+      "smart_outcome": "WIN",
+      "pnl_delta": -3.46,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2551524878": [
+          4162.600416666666,
+          "TP1_BANKED"
+        ],
+        "2551524881": [
+          4170.4274444444445,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "818592",
+      "symbol": "XAUUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "5m",
+      "baseline_pnl": 4.83,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 7.0,
+      "smart_outcome": "WIN",
+      "pnl_delta": 2.17,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2551816443": [
+          4162.077833333333,
+          "TP1_BANKED"
+        ],
+        "2551816448": [
+          4165.703,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "819042",
+      "symbol": "ETHUSDm",
+      "strategy": "ALBROO",
+      "timeframe": "5m",
+      "baseline_pnl": 4.36,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -3.64,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -8.0,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2551853594": [
+          2529.8925,
+          "EARLY_CUT"
+        ],
+        "2551853608": [
+          2529.8925,
+          "EARLY_CUT"
+        ],
+        "2551853681": [
+          2529.8925,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "823449",
+      "symbol": "XAUUSDm",
+      "strategy": "ALBROO",
+      "timeframe": "15m",
+      "baseline_pnl": -27.02,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -11.26,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 15.76,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2552253825": [
+          4167.281916666667,
+          "EARLY_CUT"
+        ],
+        "2552253833": [
+          4167.281916666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "835694",
+      "symbol": "EURUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "15m",
+      "baseline_pnl": -27.25,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -11.36,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 15.89,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2553088020": [
+          1.1158241666666668,
+          "EARLY_CUT"
+        ],
+        "2553088021": [
+          1.1158241666666668,
+          "EARLY_CUT"
+        ],
+        "2553088024": [
+          1.1158241666666668,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "860304",
+      "symbol": "XAUUSDm",
+      "strategy": "RICHAR",
+      "timeframe": "30m",
+      "baseline_pnl": 17.71,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 6.5,
+      "smart_outcome": "WIN",
+      "pnl_delta": -11.21,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2554817850": [
+          4185.4,
+          "TP1_BANKED"
+        ]
+      }
+    },
+    {
+      "batch_id": "862178",
+      "symbol": "XAGUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "5m",
+      "baseline_pnl": -19.95,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": 8.31,
+      "smart_outcome": "WIN",
+      "pnl_delta": 28.26,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2554985757": [
+          60.51625,
+          "TP1_BANKED"
+        ]
+      }
+    },
+    {
+      "batch_id": "866512",
+      "symbol": "BTCUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "3m",
+      "baseline_pnl": 11.45,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 10.94,
+      "smart_outcome": "WIN",
+      "pnl_delta": -0.51,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2555365053": [
+          83575.68666666666,
+          "TP1_BANKED"
+        ],
+        "2555365097": [
+          83842.44399999999,
+          "TP2_HIT"
+        ],
+        "2555365113": [
+          83343.28444444443,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "874075",
+      "symbol": "EURUSDm",
+      "strategy": "RICHAR",
+      "timeframe": "3m",
+      "baseline_pnl": 3.6,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -13.0,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -16.6,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2556048817": [
+          1.1175983333333335,
+          "EARLY_CUT"
+        ],
+        "2556048819": [
+          1.1175983333333335,
+          "EARLY_CUT"
+        ],
+        "2556048823": [
+          1.1175983333333335,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "874697",
+      "symbol": "GBPAUDm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": 3.27,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -3.79,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -7.06,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2556102016": [
+          1.89926,
+          "MARKET_CLOSE"
+        ],
+        "2556102017": [
+          1.89926,
+          "MARKET_CLOSE"
+        ],
+        "2556102019": [
+          1.89926,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "874871",
+      "symbol": "USDCHFm",
+      "strategy": "TOBYCR",
+      "timeframe": "5m",
+      "baseline_pnl": -30.45,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.8,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 17.65,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2556122115": [
+          0.8329516666666668,
+          "EARLY_CUT"
+        ],
+        "2556122118": [
+          0.8329516666666668,
+          "EARLY_CUT"
+        ],
+        "2556122123": [
+          0.8329516666666668,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "875032",
+      "symbol": "EURUSDm",
+      "strategy": "TOMHOU",
+      "timeframe": "5m",
+      "baseline_pnl": 1.76,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 6.6,
+      "smart_outcome": "WIN",
+      "pnl_delta": 4.84,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2556136951": [
+          1.1189725000000001,
+          "TP1_BANKED"
+        ],
+        "2556136965": [
+          1.1181100000000002,
+          "SOFT_BE_STOP"
+        ],
+        "2556136977": [
+          1.1181100000000002,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "875384",
+      "symbol": "GBPAUDm",
+      "strategy": "WAQARA",
+      "timeframe": "5m",
+      "baseline_pnl": 4.29,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 11.23,
+      "smart_outcome": "WIN",
+      "pnl_delta": 6.94,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2556172645": [
+          1.8983200000000005,
+          "TP1_BANKED"
+        ],
+        "2556172649": [
+          1.89856,
+          "MARKET_CLOSE"
+        ],
+        "2556172650": [
+          1.89856,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "880282",
+      "symbol": "USDCHFm",
+      "strategy": "MARKMI",
+      "timeframe": "5m",
+      "baseline_pnl": 5.51,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -12.66,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -18.17,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2556579466": [
+          0.8331075,
+          "EARLY_CUT"
+        ],
+        "2556579468": [
+          0.8331075,
+          "EARLY_CUT"
+        ],
+        "2556579472": [
+          0.8331075,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "881419",
+      "symbol": "ETHUSDm",
+      "strategy": "GCR",
+      "timeframe": "30m",
+      "baseline_pnl": 7.3,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 12.33,
+      "smart_outcome": "WIN",
+      "pnl_delta": 5.03,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2556671803": [
+          2512.215,
+          "TP1_BANKED"
+        ],
+        "2556671807": [
+          2495.0989999999997,
+          "TP2_HIT"
+        ],
+        "2556671837": [
+          2497.25,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "884290",
+      "symbol": "BTCUSDm",
+      "strategy": "TOBYCR",
+      "timeframe": "15m",
+      "baseline_pnl": 2.88,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -3.21,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -6.09,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2556910405": [
+          83484.96,
+          "MARKET_CLOSE"
+        ],
+        "2556910487": [
+          83484.96,
+          "MARKET_CLOSE"
+        ],
+        "2556910545": [
+          83484.96,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "884378",
+      "symbol": "GBPAUDm",
+      "strategy": "ICT",
+      "timeframe": "30m",
+      "baseline_pnl": -31.41,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -13.02,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 18.39,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2556917778": [
+          1.8982525000000001,
+          "EARLY_CUT"
+        ],
+        "2556917784": [
+          1.8982525000000001,
+          "EARLY_CUT"
+        ],
+        "2556917786": [
+          1.8982525000000001,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "886214",
+      "symbol": "EURUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "30m",
+      "baseline_pnl": 3.52,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 12.09,
+      "smart_outcome": "WIN",
+      "pnl_delta": 8.57,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2557078592": [
+          1.1190058333333337,
+          "TP1_BANKED"
+        ],
+        "2557078595": [
+          1.11888,
+          "MARKET_CLOSE"
+        ],
+        "2557078598": [
+          1.11888,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "887294",
+      "symbol": "XAUUSDm",
+      "strategy": "RICHAR",
+      "timeframe": "15m",
+      "baseline_pnl": 3.47,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -10.78,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -14.25,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2557183532": [
+          4186.666416666667,
+          "EARLY_CUT"
+        ],
+        "2557183539": [
+          4186.666416666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "888179",
+      "symbol": "EURUSDm",
+      "strategy": "MARKMI",
+      "timeframe": "15m",
+      "baseline_pnl": 4.0,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -2.64,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -6.64,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2557266999": [
+          1.11866,
+          "MARKET_CLOSE"
+        ],
+        "2557267001": [
+          1.11866,
+          "MARKET_CLOSE"
+        ],
+        "2557267003": [
+          1.11866,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "889312",
+      "symbol": "USDCHFm",
+      "strategy": "TRADEP",
+      "timeframe": "3m",
+      "baseline_pnl": 6.49,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 15.34,
+      "smart_outcome": "WIN",
+      "pnl_delta": 8.85,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2557357088": [
+          0.831995,
+          "TP1_BANKED"
+        ],
+        "2557357095": [
+          0.83171,
+          "MARKET_CLOSE"
+        ],
+        "2557357100": [
+          0.83171,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "889564",
+      "symbol": "EURUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "30m",
+      "baseline_pnl": 1.55,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -4.56,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -6.11,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2557392454": [
+          1.11878,
+          "MARKET_CLOSE"
+        ],
+        "2557392459": [
+          1.11878,
+          "MARKET_CLOSE"
+        ],
+        "2557392460": [
+          1.11878,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "890465",
+      "symbol": "BTCUSDm",
+      "strategy": "WAQARZ",
+      "timeframe": "5m",
+      "baseline_pnl": 10.92,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 16.6,
+      "smart_outcome": "WIN",
+      "pnl_delta": 5.68,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2557490982": [
+          83324.5,
+          "TP1_BANKED"
+        ],
+        "2557491001": [
+          83616.836,
+          "TP2_HIT"
+        ],
+        "2557491032": [
+          83069.81333333332,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "890639",
+      "symbol": "ETHUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "1h",
+      "baseline_pnl": 9.8,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 4.2,
+      "smart_outcome": "WIN",
+      "pnl_delta": -5.6,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2557515454": [
+          2496.1408333333334,
+          "TP1_BANKED"
+        ],
+        "2557515522": [
+          2517.422222222222,
+          "SOFT_BE_STOP"
+        ],
+        "2557515589": [
+          2517.422222222222,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "892956",
+      "symbol": "BTCUSDm",
+      "strategy": "MARKMI",
+      "timeframe": "3m",
+      "baseline_pnl": 4.22,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 5.22,
+      "smart_outcome": "WIN",
+      "pnl_delta": 1.0,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2557750150": [
+          83000.795,
+          "TP1_BANKED"
+        ],
+        "2557750169": [
+          83236.35333333333,
+          "SOFT_BE_STOP"
+        ],
+        "2557750193": [
+          83236.35333333333,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "894244",
+      "symbol": "EURUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "5m",
+      "baseline_pnl": 2.24,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -13.3,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -15.54,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2557928718": [
+          1.1185658333333335,
+          "EARLY_CUT"
+        ],
+        "2557928724": [
+          1.1185658333333335,
+          "EARLY_CUT"
+        ],
+        "2557928727": [
+          1.1185658333333335,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "894504",
+      "symbol": "BTCUSDm",
+      "strategy": "ICT",
+      "timeframe": "15m",
+      "baseline_pnl": 4.06,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -12.5,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -16.56,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2557965095": [
+          83133.2675,
+          "EARLY_CUT"
+        ],
+        "2557965146": [
+          83133.2675,
+          "EARLY_CUT"
+        ],
+        "2557965186": [
+          83133.2675,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "894800",
+      "symbol": "USDCHFm",
+      "strategy": "STEVEN",
+      "timeframe": "15m",
+      "baseline_pnl": 4.76,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 5.78,
+      "smart_outcome": "WIN",
+      "pnl_delta": 1.02,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2558023021": [
+          0.8317575000000001,
+          "TP1_BANKED"
+        ],
+        "2558023029": [
+          0.8323133333333333,
+          "SOFT_BE_STOP"
+        ],
+        "2558023032": [
+          0.8323133333333333,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "895041",
+      "symbol": "EURUSDm",
+      "strategy": "NDEMAZ",
+      "timeframe": "5m",
+      "baseline_pnl": 3.12,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 2.0,
+      "smart_outcome": "WIN",
+      "pnl_delta": -1.12,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558062719": [
+          1.11916,
+          "MARKET_CLOSE"
+        ],
+        "2558062722": [
+          1.11916,
+          "MARKET_CLOSE"
+        ],
+        "2558062727": [
+          1.11916,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "895793",
+      "symbol": "EURUSDm",
+      "strategy": "ALBROO",
+      "timeframe": "5m",
+      "baseline_pnl": 5.44,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -12.3,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -17.74,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558178187": [
+          1.1188575,
+          "EARLY_CUT"
+        ],
+        "2558178195": [
+          1.1188575,
+          "EARLY_CUT"
+        ],
+        "2558178201": [
+          1.1188575,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "896504",
+      "symbol": "XAUUSDm",
+      "strategy": "STEVEN",
+      "timeframe": "3m",
+      "baseline_pnl": 2.77,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.52,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -14.29,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558305897": [
+          4183.791583333334,
+          "EARLY_CUT"
+        ],
+        "2558305923": [
+          4183.791583333334,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "896711",
+      "symbol": "XAGUSDm",
+      "strategy": "ALBROO",
+      "timeframe": "30m",
+      "baseline_pnl": 23.7,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -9.29,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -32.99,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558348306": [
+          60.13783333333333,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "896967",
+      "symbol": "EURUSDm",
+      "strategy": "VIVEKY",
+      "timeframe": "5m",
+      "baseline_pnl": 4.96,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 12.49,
+      "smart_outcome": "WIN",
+      "pnl_delta": 7.53,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2558402434": [
+          1.1195908333333335,
+          "TP1_BANKED"
+        ],
+        "2558402435": [
+          1.11959,
+          "MARKET_CLOSE"
+        ],
+        "2558402439": [
+          1.11959,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "897015",
+      "symbol": "USDCHFm",
+      "strategy": "ALBROO",
+      "timeframe": "5m",
+      "baseline_pnl": 7.13,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 5.85,
+      "smart_outcome": "WIN",
+      "pnl_delta": -1.28,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2558408152": [
+          0.8316433333333334,
+          "TP1_BANKED"
+        ],
+        "2558408156": [
+          0.8322055555555555,
+          "SOFT_BE_STOP"
+        ],
+        "2558408160": [
+          0.8322055555555555,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "897677",
+      "symbol": "XAUUSDm",
+      "strategy": "ICT",
+      "timeframe": "15m",
+      "baseline_pnl": 3.38,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.28,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -14.66,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558497034": [
+          4178.7550833333335,
+          "EARLY_CUT"
+        ],
+        "2558497039": [
+          4178.7550833333335,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "897809",
+      "symbol": "EURUSDm",
+      "strategy": "STEVEN",
+      "timeframe": "3m",
+      "baseline_pnl": 3.04,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -13.3,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -16.34,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558516229": [
+          1.1195958333333333,
+          "EARLY_CUT"
+        ],
+        "2558516236": [
+          1.1195958333333333,
+          "EARLY_CUT"
+        ],
+        "2558516238": [
+          1.1195958333333333,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "898382",
+      "symbol": "BTCUSDm",
+      "strategy": "ICT",
+      "timeframe": "5m",
+      "baseline_pnl": -27.54,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -10.75,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 16.79,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558605304": [
+          83356.97166666666,
+          "EARLY_CUT"
+        ],
+        "2558605341": [
+          83356.97166666666,
+          "EARLY_CUT"
+        ],
+        "2558605384": [
+          83356.97166666666,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "898408",
+      "symbol": "USDCHFm",
+      "strategy": "STEVEN",
+      "timeframe": "5m",
+      "baseline_pnl": -29.21,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.24,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 16.97,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558608125": [
+          0.8317350000000001,
+          "EARLY_CUT"
+        ],
+        "2558608129": [
+          0.8317350000000001,
+          "EARLY_CUT"
+        ],
+        "2558608133": [
+          0.8317350000000001,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "898501",
+      "symbol": "EURUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "3m",
+      "baseline_pnl": -31.2,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -13.0,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 18.2,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558627550": [
+          1.1198083333333335,
+          "EARLY_CUT"
+        ],
+        "2558627568": [
+          1.1198083333333335,
+          "EARLY_CUT"
+        ],
+        "2558627574": [
+          1.1198083333333335,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "899043",
+      "symbol": "BTCUSDm",
+      "strategy": "WAQARA",
+      "timeframe": "5m",
+      "baseline_pnl": 11.69,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 4.12,
+      "smart_outcome": "WIN",
+      "pnl_delta": -7.57,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2558727831": [
+          83192.505,
+          "TP1_BANKED"
+        ],
+        "2558727903": [
+          83378.92,
+          "SOFT_BE_STOP"
+        ],
+        "2558728048": [
+          83378.92,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "899732",
+      "symbol": "XAUUSDm",
+      "strategy": "RICHAR",
+      "timeframe": "5m",
+      "baseline_pnl": 5.22,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 12.04,
+      "smart_outcome": "WIN",
+      "pnl_delta": 6.82,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2558839243": [
+          4167.94375,
+          "TP1_BANKED"
+        ],
+        "2558839252": [
+          4166.297,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "899743",
+      "symbol": "EURUSDm",
+      "strategy": "CRYPTO",
+      "timeframe": "1h",
+      "baseline_pnl": 4.2,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 3.3,
+      "smart_outcome": "WIN",
+      "pnl_delta": -0.9,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558840953": [
+          1.11884,
+          "MARKET_CLOSE"
+        ],
+        "2558840964": [
+          1.11884,
+          "MARKET_CLOSE"
+        ],
+        "2558840968": [
+          1.11884,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "899762",
+      "symbol": "USDCHFm",
+      "strategy": "ADAMKH",
+      "timeframe": "4h",
+      "baseline_pnl": 2.81,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -13.1,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -15.91,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558843177": [
+          0.8318966666666667,
+          "EARLY_CUT"
+        ],
+        "2558843179": [
+          0.8318966666666667,
+          "EARLY_CUT"
+        ],
+        "2558843181": [
+          0.8318966666666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "900304",
+      "symbol": "BTCUSDm",
+      "strategy": "ROSSCA",
+      "timeframe": "5m",
+      "baseline_pnl": 4.45,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 10.64,
+      "smart_outcome": "WIN",
+      "pnl_delta": 6.19,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2558946498": [
+          83524.97999999998,
+          "TP1_BANKED"
+        ],
+        "2558946547": [
+          83512.36,
+          "MARKET_CLOSE"
+        ],
+        "2558946603": [
+          83512.36,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "900386",
+      "symbol": "XAUUSDm",
+      "strategy": "STEVEN",
+      "timeframe": "15m",
+      "baseline_pnl": 1.37,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -8.26,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -9.63,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2558964798": [
+          4172.146,
+          "MARKET_CLOSE"
+        ],
+        "2558964801": [
+          4172.146,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "900485",
+      "symbol": "EURUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "15m",
+      "baseline_pnl": 3.97,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 6.0,
+      "smart_outcome": "WIN",
+      "pnl_delta": 2.03,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2558982553": [
+          1.1195583333333337,
+          "TP1_BANKED"
+        ],
+        "2558982562": [
+          1.1187022222222225,
+          "SOFT_BE_STOP"
+        ],
+        "2558982566": [
+          1.1187022222222225,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "901099",
+      "symbol": "EURUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "30m",
+      "baseline_pnl": 3.96,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -12.82,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -16.78,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2559088496": [
+          1.1185375,
+          "EARLY_CUT"
+        ],
+        "2559088500": [
+          1.1185375,
+          "EARLY_CUT"
+        ],
+        "2559088504": [
+          1.1185375,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "902205",
+      "symbol": "GBPAUDm",
+      "strategy": "LINDAR",
+      "timeframe": "15m",
+      "baseline_pnl": 3.72,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 9.25,
+      "smart_outcome": "WIN",
+      "pnl_delta": 5.53,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2559248453": [
+          1.8962075000000003,
+          "TP1_BANKED"
+        ],
+        "2559248461": [
+          1.89677,
+          "MARKET_CLOSE"
+        ],
+        "2559248463": [
+          1.89677,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "903576",
+      "symbol": "XAUUSDm",
+      "strategy": "STEVEN",
+      "timeframe": "15m",
+      "baseline_pnl": 2.2,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 11.49,
+      "smart_outcome": "WIN",
+      "pnl_delta": 9.29,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2559409391": [
+          4160.770333333333,
+          "TP1_BANKED"
+        ],
+        "2559409397": [
+          4161.938,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "903859",
+      "symbol": "GBPAUDm",
+      "strategy": "STEVEN",
+      "timeframe": "15m",
+      "baseline_pnl": -29.2,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.09,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 17.11,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2559451455": [
+          1.8978408333333334,
+          "EARLY_CUT"
+        ],
+        "2559451464": [
+          1.8978408333333334,
+          "EARLY_CUT"
+        ],
+        "2559451466": [
+          1.8978408333333334,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "903904",
+      "symbol": "BTCUSDm",
+      "strategy": "TOBYCR",
+      "timeframe": "5m",
+      "baseline_pnl": 3.95,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.26,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -15.21,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2559455104": [
+          83386.26666666666,
+          "EARLY_CUT"
+        ],
+        "2559455115": [
+          83386.26666666666,
+          "EARLY_CUT"
+        ],
+        "2559455135": [
+          83386.26666666666,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "904822",
+      "symbol": "XAGUSDm",
+      "strategy": "ALBROO",
+      "timeframe": "1h",
+      "baseline_pnl": 30.5,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 11.04,
+      "smart_outcome": "WIN",
+      "pnl_delta": -19.46,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2559553470": [
+          59.19716666666667,
+          "TP1_BANKED"
+        ]
+      }
+    },
+    {
+      "batch_id": "905375",
+      "symbol": "XAUUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "5m",
+      "baseline_pnl": 5.36,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 10.02,
+      "smart_outcome": "WIN",
+      "pnl_delta": 4.66,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2559623755": [
+          4155.829833333334,
+          "TP1_BANKED"
+        ],
+        "2559623765": [
+          4156.194,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "907502",
+      "symbol": "XAUUSDm",
+      "strategy": "BOBVOL",
+      "timeframe": "5m",
+      "baseline_pnl": 3.9,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 6.14,
+      "smart_outcome": "WIN",
+      "pnl_delta": 2.24,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2559912488": [
+          4150.858833333334,
+          "TP1_BANKED"
+        ],
+        "2559912507": [
+          4155.7,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "938616",
+      "symbol": "XAUUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": 6.75,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 2.29,
+      "smart_outcome": "WIN",
+      "pnl_delta": -4.46,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2561957560": [
+          4151.685166666667,
+          "TP1_BANKED"
+        ],
+        "2561957565": [
+          4159.199777777778,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "939292",
+      "symbol": "GBPAUDm",
+      "strategy": "EUGENE",
+      "timeframe": "30m",
+      "baseline_pnl": 6.47,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 8.51,
+      "smart_outcome": "WIN",
+      "pnl_delta": 2.04,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2561980814": [
+          1.8963508333333334,
+          "TP1_BANKED"
+        ],
+        "2561980815": [
+          1.89697,
+          "MARKET_CLOSE"
+        ],
+        "2561980816": [
+          1.89697,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "940494",
+      "symbol": "XAUUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": 2.99,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.38,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -14.37,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2562096392": [
+          4157.8874166666665,
+          "EARLY_CUT"
+        ],
+        "2562096404": [
+          4157.8874166666665,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "941153",
+      "symbol": "XAUUSDm",
+      "strategy": "RICHAR",
+      "timeframe": "1m",
+      "baseline_pnl": 2.11,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.76,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -13.87,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2562176814": [
+          4154.892666666667,
+          "EARLY_CUT"
+        ],
+        "2562176820": [
+          4154.892666666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "941912",
+      "symbol": "XAUUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": 4.14,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.74,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -15.88,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2562268584": [
+          4154.8724999999995,
+          "EARLY_CUT"
+        ],
+        "2562268594": [
+          4154.8724999999995,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "942065",
+      "symbol": "XAGUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": -17.85,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -7.44,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 10.41,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2562290295": [
+          58.948750000000004,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "942656",
+      "symbol": "XAUUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": -29.1,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.14,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 16.96,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2562347187": [
+          4156.296083333334,
+          "EARLY_CUT"
+        ],
+        "2562347190": [
+          4156.296083333334,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "952985",
+      "symbol": "GBPAUDm",
+      "strategy": "TRADEP",
+      "timeframe": "1h",
+      "baseline_pnl": 5.48,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 14.31,
+      "smart_outcome": "WIN",
+      "pnl_delta": 8.83,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2563082260": [
+          1.894911666666667,
+          "TP1_BANKED"
+        ],
+        "2563082263": [
+          1.89442,
+          "MARKET_CLOSE"
+        ],
+        "2563082266": [
+          1.89442,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "952989",
+      "symbol": "XAUUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "3m",
+      "baseline_pnl": -26.52,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -11.06,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 15.46,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2563082563": [
+          4159.2818333333325,
+          "EARLY_CUT"
+        ],
+        "2563082566": [
+          4159.2818333333325,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "957043",
+      "symbol": "XAGUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": 23.8,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 8.46,
+      "smart_outcome": "WIN",
+      "pnl_delta": -15.34,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2563400409": [
+          58.86983333333333,
+          "TP1_BANKED"
+        ]
+      }
+    },
+    {
+      "batch_id": "961317",
+      "symbol": "XAGUSDm",
+      "strategy": "ALBROO",
+      "timeframe": "30m",
+      "baseline_pnl": 29.7,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.27,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -40.97,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2563891832": [
+          58.74541666666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "961470",
+      "symbol": "GBPAUDm",
+      "strategy": "BOBVOL",
+      "timeframe": "5m",
+      "baseline_pnl": 13.75,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 16.91,
+      "smart_outcome": "WIN",
+      "pnl_delta": 3.16,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2563914401": [
+          1.8937708333333336,
+          "TP1_BANKED"
+        ],
+        "2563914410": [
+          1.8923995000000005,
+          "TP2_HIT"
+        ],
+        "2563914427": [
+          1.89268,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "962641",
+      "symbol": "XAUUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "15m",
+      "baseline_pnl": 3.46,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.22,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -14.68,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2564026790": [
+          4150.22375,
+          "EARLY_CUT"
+        ],
+        "2564026802": [
+          4150.22375,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "975411",
+      "symbol": "XAUUSDm",
+      "strategy": "BOBVOL",
+      "timeframe": "3m",
+      "baseline_pnl": 4.41,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 2.42,
+      "smart_outcome": "WIN",
+      "pnl_delta": -1.99,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2565172408": [
+          4139.457,
+          "MARKET_CLOSE"
+        ],
+        "2565172413": [
+          4139.457,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "976878",
+      "symbol": "XAUUSDm",
+      "strategy": "STEVEN",
+      "timeframe": "1h",
+      "baseline_pnl": 23.69,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -8.56,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -32.25,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2565377814": [
+          4148.719083333333,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "977022",
+      "symbol": "GBPAUDm",
+      "strategy": "NDEMAZ",
+      "timeframe": "15m",
+      "baseline_pnl": 3.78,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 5.51,
+      "smart_outcome": "WIN",
+      "pnl_delta": 1.73,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2565390288": [
+          1.8920133333333335,
+          "TP1_BANKED"
+        ],
+        "2565390291": [
+          1.8935722222222224,
+          "SOFT_BE_STOP"
+        ],
+        "2565390295": [
+          1.8935722222222224,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "979720",
+      "symbol": "USDCHFm",
+      "strategy": "CRYPTO",
+      "timeframe": "5m",
+      "baseline_pnl": 17.47,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -14.43,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -31.9,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2565652467": [
+          0.8330783333333334,
+          "EARLY_CUT"
+        ],
+        "2565652474": [
+          0.8330783333333334,
+          "EARLY_CUT"
+        ],
+        "2565652479": [
+          0.8330783333333334,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "980856",
+      "symbol": "ETHUSDm",
+      "strategy": "STEVEN",
+      "timeframe": "5m",
+      "baseline_pnl": 0.78,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 1.9,
+      "smart_outcome": "WIN",
+      "pnl_delta": 1.12,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2565899654": [
+          2515.541666666667,
+          "TP1_BANKED"
+        ],
+        "2565899734": [
+          2507.657777777778,
+          "SOFT_BE_STOP"
+        ],
+        "2565899821": [
+          2507.657777777778,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "981484",
+      "symbol": "XAGUSDm",
+      "strategy": "TOMHOU",
+      "timeframe": "30m",
+      "baseline_pnl": 1.9,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 11.94,
+      "smart_outcome": "WIN",
+      "pnl_delta": 10.04,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2566405873": [
+          57.71425,
+          "TP1_BANKED"
+        ]
+      }
+    },
+    {
+      "batch_id": "981683",
+      "symbol": "ETHUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "4h",
+      "baseline_pnl": 1.36,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 10.15,
+      "smart_outcome": "WIN",
+      "pnl_delta": 8.79,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2566525696": [
+          2451.81,
+          "MARKET_CLOSE"
+        ],
+        "2566525901": [
+          2451.81,
+          "MARKET_CLOSE"
+        ],
+        "2566526164": [
+          2451.81,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "982165",
+      "symbol": "GBPAUDm",
+      "strategy": "NDEMAZ",
+      "timeframe": "15m",
+      "baseline_pnl": 5.47,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -12.01,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -17.48,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2566737689": [
+          1.8940466666666669,
+          "EARLY_CUT"
+        ],
+        "2566737698": [
+          1.8940466666666669,
+          "EARLY_CUT"
+        ],
+        "2566737709": [
+          1.8940466666666669,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "982852",
+      "symbol": "XAUUSDm",
+      "strategy": "OLIVER",
+      "timeframe": "1m",
+      "baseline_pnl": 1.81,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.82,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -13.63,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2566929813": [
+          4094.983583333333,
+          "EARLY_CUT"
+        ],
+        "2566930070": [
+          4094.983583333333,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "984022",
+      "symbol": "USDCHFm",
+      "strategy": "MARKMI",
+      "timeframe": "3m",
+      "baseline_pnl": -34.18,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -14.43,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 19.75,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2567313104": [
+          0.8379383333333333,
+          "EARLY_CUT"
+        ],
+        "2567313123": [
+          0.8379383333333333,
+          "EARLY_CUT"
+        ],
+        "2567313147": [
+          0.8379383333333333,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "985738",
+      "symbol": "USDCHFm",
+      "strategy": "MARKMI",
+      "timeframe": "3m",
+      "baseline_pnl": 3.97,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -14.7,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -18.67,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2567711973": [
+          0.83792,
+          "EARLY_CUT"
+        ],
+        "2567711995": [
+          0.83792,
+          "EARLY_CUT"
+        ],
+        "2567712003": [
+          0.83792,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "985846",
+      "symbol": "XAUUSDm",
+      "strategy": "ALBROO",
+      "timeframe": "5m",
+      "baseline_pnl": 22.64,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 7.88,
+      "smart_outcome": "WIN",
+      "pnl_delta": -14.76,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2567737315": [
+          4089.88,
+          "TP1_BANKED"
+        ]
+      }
+    },
+    {
+      "batch_id": "986010",
+      "symbol": "GBPAUDm",
+      "strategy": "WAQARA",
+      "timeframe": "5m",
+      "baseline_pnl": 5.46,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -12.58,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -18.04,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2567784469": [
+          1.8918875000000002,
+          "EARLY_CUT"
+        ],
+        "2567784480": [
+          1.8918875000000002,
+          "EARLY_CUT"
+        ],
+        "2567784488": [
+          1.8918875000000002,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "987079",
+      "symbol": "GBPAUDm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": 5.27,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 15.4,
+      "smart_outcome": "WIN",
+      "pnl_delta": 10.13,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2568018289": [
+          1.8910516666666668,
+          "TP1_BANKED"
+        ],
+        "2568018297": [
+          1.89038,
+          "MARKET_CLOSE"
+        ],
+        "2568018304": [
+          1.89038,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "987958",
+      "symbol": "USDCHFm",
+      "strategy": "WAQARA",
+      "timeframe": "1m",
+      "baseline_pnl": 9.49,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -13.87,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -23.36,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2568176696": [
+          0.837855,
+          "EARLY_CUT"
+        ],
+        "2568176700": [
+          0.837855,
+          "EARLY_CUT"
+        ],
+        "2568176706": [
+          0.837855,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "988981",
+      "symbol": "GBPAUDm",
+      "strategy": "TOMHOU",
+      "timeframe": "15m",
+      "baseline_pnl": 3.56,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 13.48,
+      "smart_outcome": "WIN",
+      "pnl_delta": 9.92,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2568367325": [
+          1.889755,
+          "TP1_BANKED"
+        ],
+        "2568367332": [
+          1.88952,
+          "MARKET_CLOSE"
+        ],
+        "2568367336": [
+          1.88952,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "990546",
+      "symbol": "XAGUSDm",
+      "strategy": "MARKMI",
+      "timeframe": "5m",
+      "baseline_pnl": 20.35,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -7.33,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -27.68,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2568625750": [
+          56.147666666666666,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "990767",
+      "symbol": "GBPAUDm",
+      "strategy": "RICHAR",
+      "timeframe": "15m",
+      "baseline_pnl": -27.9,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -11.6,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 16.3,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2568665189": [
+          1.8908025000000002,
+          "EARLY_CUT"
+        ],
+        "2568665196": [
+          1.8908025000000002,
+          "EARLY_CUT"
+        ],
+        "2568665197": [
+          1.8908025000000002,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "993723",
+      "symbol": "XAUUSDm",
+      "strategy": "RICHAR",
+      "timeframe": "15m",
+      "baseline_pnl": -22.7,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -9.46,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 13.24,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2569119039": [
+          4085.1284166666665,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "994893",
+      "symbol": "XAUUSDm",
+      "strategy": "STEVEN",
+      "timeframe": "15m",
+      "baseline_pnl": -21.71,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -9.04,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 12.67,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2569280136": [
+          4085.03425,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "22292",
+      "symbol": "USDCHFm",
+      "strategy": "RICHAR",
+      "timeframe": "1h",
+      "baseline_pnl": 11.91,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 17.56,
+      "smart_outcome": "WIN",
+      "pnl_delta": 5.65,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2571147438": [
+          0.8305600000000001,
+          "TP1_BANKED"
+        ],
+        "2571147444": [
+          0.8286240000000001,
+          "TP2_HIT"
+        ],
+        "2571147452": [
+          0.82981,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "26302",
+      "symbol": "GBPAUDm",
+      "strategy": "RICHAR",
+      "timeframe": "4h",
+      "baseline_pnl": 3.29,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 9.59,
+      "smart_outcome": "WIN",
+      "pnl_delta": 6.3,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2571517967": [
+          1.906195,
+          "TP1_BANKED"
+        ],
+        "2571517993": [
+          1.90373,
+          "MARKET_CLOSE"
+        ],
+        "2571518006": [
+          1.90373,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "27176",
+      "symbol": "EURUSDm",
+      "strategy": "RICHAR",
+      "timeframe": "1h",
+      "baseline_pnl": 2.06,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 8.64,
+      "smart_outcome": "WIN",
+      "pnl_delta": 6.58,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2571602860": [
+          1.12284,
+          "MARKET_CLOSE"
+        ],
+        "2571602878": [
+          1.12284,
+          "MARKET_CLOSE"
+        ],
+        "2571602897": [
+          1.12284,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "27538",
+      "symbol": "BTCUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": 0.94,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -12.9,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -13.84,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2571627270": [
+          81660.31416666666,
+          "EARLY_CUT"
+        ],
+        "2571627288": [
+          81660.31416666666,
+          "EARLY_CUT"
+        ],
+        "2571627324": [
+          81660.31416666666,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "27590",
+      "symbol": "ETHUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": 2.93,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -4.67,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -7.6,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2571631124": [
+          2415.1341666666667,
+          "EARLY_CUT"
+        ],
+        "2571631150": [
+          2415.1341666666667,
+          "EARLY_CUT"
+        ],
+        "2571631209": [
+          2415.1341666666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "28661",
+      "symbol": "GBPAUDm",
+      "strategy": "RICHAR",
+      "timeframe": "4h",
+      "baseline_pnl": 3.64,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 1.87,
+      "smart_outcome": "WIN",
+      "pnl_delta": -1.77,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2571714718": [
+          1.90481,
+          "MARKET_CLOSE"
+        ],
+        "2571714745": [
+          1.90481,
+          "MARKET_CLOSE"
+        ],
+        "2571714774": [
+          1.90481,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "29568",
+      "symbol": "BTCUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": 5.01,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 6.91,
+      "smart_outcome": "WIN",
+      "pnl_delta": 1.9,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2571773393": [
+          81337.18416666667,
+          "TP1_BANKED"
+        ],
+        "2571773430": [
+          81606.89111111111,
+          "SOFT_BE_STOP"
+        ],
+        "2571773433": [
+          81606.89111111111,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "31004",
+      "symbol": "BTCUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": 1.07,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -13.39,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -14.46,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2571882240": [
+          81247.20250000001,
+          "EARLY_CUT"
+        ],
+        "2571882261": [
+          81247.20250000001,
+          "EARLY_CUT"
+        ],
+        "2571882296": [
+          81247.20250000001,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "31904",
+      "symbol": "GBPAUDm",
+      "strategy": "RICHAR",
+      "timeframe": "4h",
+      "baseline_pnl": 3.52,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -2.09,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -5.61,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2571956827": [
+          1.90412,
+          "MARKET_CLOSE"
+        ],
+        "2571956886": [
+          1.90412,
+          "MARKET_CLOSE"
+        ],
+        "2571956923": [
+          1.90412,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "34865",
+      "symbol": "BTCUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "30m",
+      "baseline_pnl": 3.42,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 5.13,
+      "smart_outcome": "WIN",
+      "pnl_delta": 1.71,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2572220273": [
+          80617.24583333333,
+          "TP1_BANKED"
+        ],
+        "2572220295": [
+          81153.53555555556,
+          "SOFT_BE_STOP"
+        ]
+      }
+    },
+    {
+      "batch_id": "40564",
+      "symbol": "BTCUSDm",
+      "strategy": "GCR",
+      "timeframe": "5m",
+      "baseline_pnl": 19.89,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 24.52,
+      "smart_outcome": "WIN",
+      "pnl_delta": 4.63,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2572590022": [
+          81304.26916666667,
+          "TP1_BANKED"
+        ],
+        "2572590037": [
+          81031.1685,
+          "TP2_HIT"
+        ],
+        "2572590053": [
+          80640.13799999999,
+          "TP3_HIT"
+        ]
+      }
+    },
+    {
+      "batch_id": "42308",
+      "symbol": "XAGUSDm",
+      "strategy": "RICHAR",
+      "timeframe": "15m",
+      "baseline_pnl": -15.95,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -6.65,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 9.3,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2572717080": [
+          55.93691666666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "43758",
+      "symbol": "GBPAUDm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": 4.33,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 16.75,
+      "smart_outcome": "WIN",
+      "pnl_delta": 12.42,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2572840017": [
+          1.9058558333333335,
+          "TP1_BANKED"
+        ],
+        "2572840021": [
+          1.90674,
+          "MARKET_CLOSE"
+        ],
+        "2572840024": [
+          1.90674,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "43821",
+      "symbol": "EURUSDm",
+      "strategy": "ADAMKH",
+      "timeframe": "15m",
+      "baseline_pnl": -30.24,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.59,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 17.65,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2572843031": [
+          1.121085,
+          "EARLY_CUT"
+        ],
+        "2572843036": [
+          1.121085,
+          "EARLY_CUT"
+        ],
+        "2572843038": [
+          1.121085,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "47578",
+      "symbol": "GBPAUDm",
+      "strategy": "TRADEP",
+      "timeframe": "4h",
+      "baseline_pnl": 3.71,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 1.5,
+      "smart_outcome": "WIN",
+      "pnl_delta": -2.21,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2573154785": [
+          1.90883,
+          "MARKET_CLOSE"
+        ],
+        "2573154790": [
+          1.90883,
+          "MARKET_CLOSE"
+        ],
+        "2573154796": [
+          1.90883,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "48548",
+      "symbol": "EURUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "30m",
+      "baseline_pnl": 3.77,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 8.78,
+      "smart_outcome": "WIN",
+      "pnl_delta": 5.01,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2573251716": [
+          1.1226116666666668,
+          "TP1_BANKED"
+        ],
+        "2573251719": [
+          1.12179,
+          "MARKET_CLOSE"
+        ],
+        "2573251724": [
+          1.12179,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "48741",
+      "symbol": "USDCHFm",
+      "strategy": "TOMHOU",
+      "timeframe": "30m",
+      "baseline_pnl": 5.31,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -9.11,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -14.42,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2573271436": [
+          0.83031,
+          "MARKET_CLOSE"
+        ],
+        "2573271446": [
+          0.83031,
+          "MARKET_CLOSE"
+        ],
+        "2573271450": [
+          0.83031,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "49391",
+      "symbol": "USDCHFm",
+      "strategy": "TOMHOU",
+      "timeframe": "30m",
+      "baseline_pnl": 4.46,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 7.02,
+      "smart_outcome": "WIN",
+      "pnl_delta": 2.56,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2573328835": [
+          0.8288825000000001,
+          "TP1_BANKED"
+        ],
+        "2573328837": [
+          0.82977,
+          "MARKET_CLOSE"
+        ],
+        "2573328840": [
+          0.82977,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "50580",
+      "symbol": "BTCUSDm",
+      "strategy": "CRYPTO",
+      "timeframe": "5m",
+      "baseline_pnl": 5.26,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -11.89,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -17.15,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2573423745": [
+          81361.6,
+          "EARLY_CUT"
+        ],
+        "2573423758": [
+          81361.6,
+          "EARLY_CUT"
+        ],
+        "2573423772": [
+          81361.6,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "51374",
+      "symbol": "XAUUSDm",
+      "strategy": "ALBROO",
+      "timeframe": "15m",
+      "baseline_pnl": 3.84,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 9.17,
+      "smart_outcome": "WIN",
+      "pnl_delta": 5.33,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2573489255": [
+          4151.517416666667,
+          "TP1_BANKED"
+        ],
+        "2573489260": [
+          4149.706,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "51816",
+      "symbol": "ETHUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "30m",
+      "baseline_pnl": 0.73,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 10.59,
+      "smart_outcome": "WIN",
+      "pnl_delta": 9.86,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2573541810": [
+          2345.5316666666668,
+          "TP1_BANKED"
+        ],
+        "2573541868": [
+          2354.18,
+          "MARKET_CLOSE"
+        ],
+        "2573541920": [
+          2354.18,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "51928",
+      "symbol": "BTCUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "30m",
+      "baseline_pnl": 2.94,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 7.86,
+      "smart_outcome": "WIN",
+      "pnl_delta": 4.92,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2573555388": [
+          80794.34,
+          "MARKET_CLOSE"
+        ],
+        "2573555810": [
+          80794.34,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "55099",
+      "symbol": "USDCHFm",
+      "strategy": "NDEMAZ",
+      "timeframe": "5m",
+      "baseline_pnl": 5.26,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -12.2,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -17.46,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2573888829": [
+          0.8298983333333334,
+          "EARLY_CUT"
+        ],
+        "2573889015": [
+          0.8298983333333334,
+          "EARLY_CUT"
+        ],
+        "2573889200": [
+          0.8298983333333334,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "55333",
+      "symbol": "EURUSDm",
+      "strategy": "NDEMAZ",
+      "timeframe": "15m",
+      "baseline_pnl": 1.74,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 8.64,
+      "smart_outcome": "WIN",
+      "pnl_delta": 6.9,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2573911058": [
+          1.12254,
+          "MARKET_CLOSE"
+        ],
+        "2573911095": [
+          1.12254,
+          "MARKET_CLOSE"
+        ],
+        "2573911132": [
+          1.12254,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "56263",
+      "symbol": "GBPAUDm",
+      "strategy": "MARKMI",
+      "timeframe": "5m",
+      "baseline_pnl": 2.98,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 19.91,
+      "smart_outcome": "WIN",
+      "pnl_delta": 16.93,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2573996937": [
+          1.915611666666667,
+          "TP1_BANKED"
+        ],
+        "2573996973": [
+          1.9172690000000003,
+          "TP2_HIT"
+        ],
+        "2573997039": [
+          1.91668,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "56909",
+      "symbol": "EURUSDm",
+      "strategy": "ALBROO",
+      "timeframe": "15m",
+      "baseline_pnl": -32.4,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -13.49,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 18.91,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2574067969": [
+          1.1220050000000001,
+          "EARLY_CUT"
+        ],
+        "2574067976": [
+          1.1220050000000001,
+          "EARLY_CUT"
+        ],
+        "2574067977": [
+          1.1220050000000001,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "57131",
+      "symbol": "USDCHFm",
+      "strategy": "ALBROO",
+      "timeframe": "15m",
+      "baseline_pnl": -26.21,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -10.98,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 15.23,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2574088057": [
+          0.8295566666666667,
+          "EARLY_CUT"
+        ],
+        "2574088074": [
+          0.8295566666666667,
+          "EARLY_CUT"
+        ],
+        "2574088077": [
+          0.8295566666666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "59073",
+      "symbol": "XAGUSDm",
+      "strategy": "CRYPTO",
+      "timeframe": "30m",
+      "baseline_pnl": 1.95,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 7.96,
+      "smart_outcome": "WIN",
+      "pnl_delta": 6.01,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2574270537": [
+          56.55283333333334,
+          "TP1_BANKED"
+        ]
+      }
+    },
+    {
+      "batch_id": "60354",
+      "symbol": "BTCUSDm",
+      "strategy": "LINDAR",
+      "timeframe": "1h",
+      "baseline_pnl": 5.48,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 9.0,
+      "smart_outcome": "WIN",
+      "pnl_delta": 3.52,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2574381154": [
+          80622.3225,
+          "TP1_BANKED"
+        ],
+        "2574381195": [
+          80534.21,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "60375",
+      "symbol": "EURUSDm",
+      "strategy": "VIVEKY",
+      "timeframe": "4h",
+      "baseline_pnl": 3.89,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 3.0,
+      "smart_outcome": "WIN",
+      "pnl_delta": -0.89,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2574382430": [
+          1.12012,
+          "MARKET_CLOSE"
+        ],
+        "2574382433": [
+          1.12012,
+          "MARKET_CLOSE"
+        ],
+        "2574382442": [
+          1.12012,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "62531",
+      "symbol": "GBPAUDm",
+      "strategy": "NDEMAZ",
+      "timeframe": "5m",
+      "baseline_pnl": 2.35,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -13.63,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -15.98,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2574566640": [
+          1.9150258333333334,
+          "EARLY_CUT"
+        ],
+        "2574566663": [
+          1.9150258333333334,
+          "EARLY_CUT"
+        ],
+        "2574566678": [
+          1.9150258333333334,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "72314",
+      "symbol": "USDCHFm",
+      "strategy": "ALBROO",
+      "timeframe": "1h",
+      "baseline_pnl": 3.9,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -2.46,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -6.36,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2576556382": [
+          0.82841,
+          "MARKET_CLOSE"
+        ],
+        "2576556396": [
+          0.82841,
+          "MARKET_CLOSE"
+        ],
+        "2576556422": [
+          0.82841,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "74508",
+      "symbol": "XAGUSDm",
+      "strategy": "WAQARA",
+      "timeframe": "5m",
+      "baseline_pnl": 7.7,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 7.25,
+      "smart_outcome": "WIN",
+      "pnl_delta": -0.45,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2576915866": [
+          57.082,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "83410",
+      "symbol": "GBPAUDm",
+      "strategy": "ALBROO",
+      "timeframe": "30m",
+      "baseline_pnl": -28.71,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -11.95,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 16.76,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2577877501": [
+          1.9179375,
+          "EARLY_CUT"
+        ],
+        "2577877502": [
+          1.9179375,
+          "EARLY_CUT"
+        ],
+        "2577877505": [
+          1.9179375,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "84635",
+      "symbol": "ETHUSDm",
+      "strategy": "ARIELZ",
+      "timeframe": "5m",
+      "baseline_pnl": 0.35,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -5.49,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -5.84,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2577968524": [
+          2445.4300000000003,
+          "EARLY_CUT"
+        ],
+        "2577968565": [
+          2445.4300000000003,
+          "EARLY_CUT"
+        ],
+        "2577968588": [
+          2445.4300000000003,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "84767",
+      "symbol": "BTCUSDm",
+      "strategy": "EUGENE",
+      "timeframe": "5m",
+      "baseline_pnl": -30.29,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.62,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 17.67,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2577982795": [
+          82352.57166666667,
+          "EARLY_CUT"
+        ],
+        "2577982826": [
+          82352.57166666667,
+          "EARLY_CUT"
+        ],
+        "2577982842": [
+          82352.57166666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "92123",
+      "symbol": "ETHUSDm",
+      "strategy": "RICHAR",
+      "timeframe": "15m",
+      "baseline_pnl": 1.23,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -5.71,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -6.94,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2578506505": [
+          2450.5158333333334,
+          "EARLY_CUT"
+        ],
+        "2578506538": [
+          2450.5158333333334,
+          "EARLY_CUT"
+        ],
+        "2578506557": [
+          2450.5158333333334,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "112087",
+      "symbol": "ETHUSDm",
+      "strategy": "ARIELZ",
+      "timeframe": "5m",
+      "baseline_pnl": 1.23,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -3.63,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -4.86,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2579528007": [
+          2439.815833333333,
+          "EARLY_CUT"
+        ],
+        "2579528067": [
+          2439.815833333333,
+          "EARLY_CUT"
+        ],
+        "2579528081": [
+          2439.815833333333,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "114461",
+      "symbol": "XAGUSDm",
+      "strategy": "CRYPTO",
+      "timeframe": "1h",
+      "baseline_pnl": -28.85,
+      "baseline_outcome": "LOSS",
+      "smart_pnl": -12.02,
+      "smart_outcome": "LOSS",
+      "pnl_delta": 16.83,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2579737480": [
+          57.32541666666667,
+          "EARLY_CUT"
+        ]
+      }
+    },
+    {
+      "batch_id": "115682",
+      "symbol": "BTCUSDm",
+      "strategy": "CRYPTO",
+      "timeframe": "1h",
+      "baseline_pnl": 0.72,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -0.58,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -1.3,
+      "invalidation_cut": false,
+      "tp1_banked": false,
+      "outcomes": {
+        "2579818561": [
+          82033.09,
+          "MARKET_CLOSE"
+        ],
+        "2579818617": [
+          82033.09,
+          "MARKET_CLOSE"
+        ]
+      }
+    },
+    {
+      "batch_id": "118249",
+      "symbol": "XAGUSDm",
+      "strategy": "EUGENE",
+      "timeframe": "15m",
+      "baseline_pnl": 0.55,
+      "baseline_outcome": "WIN",
+      "smart_pnl": 8.04,
+      "smart_outcome": "WIN",
+      "pnl_delta": 7.49,
+      "invalidation_cut": false,
+      "tp1_banked": true,
+      "outcomes": {
+        "2580017732": [
+          57.710833333333326,
+          "TP1_BANKED"
+        ]
+      }
+    },
+    {
+      "batch_id": "119429",
+      "symbol": "XAUUSDm",
+      "strategy": "TRADEP",
+      "timeframe": "30m",
+      "baseline_pnl": 1.97,
+      "baseline_outcome": "WIN",
+      "smart_pnl": -13.18,
+      "smart_outcome": "LOSS",
+      "pnl_delta": -15.15,
+      "invalidation_cut": true,
+      "tp1_banked": false,
+      "outcomes": {
+        "2580129920": [
+          4172.205916666667,
+          "EARLY_CUT"
+        ],
+        "2580129928": [
+          4172.205916666667,
+          "EARLY_CUT"
+        ]
+      }
+    }
+  ]
+}

@@ -826,16 +826,20 @@ class MT5TradeExecutor:
             elif b_info.get('breakeven_sl'):
                 target_be_sl = float(b_info['breakeven_sl'])
 
-            # Soft Breakeven SL (for Loose Mode Stage 1)
+            # Determine if Smart Solution is active (from batch info or engine breakeven_mode)
+            is_smart_batch = bool(b_info.get('smart_solution')) or (str(breakeven_mode).lower().strip() == 'smart_breathing_be')
+
+            # Soft Breakeven SL (for Smart Breathing Room / Loose Mode Stage 1)
             target_soft_sl = None
             if b_info.get('soft_breakeven_sl'):
                 target_soft_sl = float(b_info['soft_breakeven_sl'])
             elif init_sl > 0:
-                # Dynamic fallback: halfway between entry and initial stop loss
+                atr = abs(open_p - init_sl) / 1.8
+                be_cushion = 0.25 * atr if is_smart_batch else 0.45 * atr
                 if pos_type == 'BUY':
-                    target_soft_sl = round(open_p - (0.45 * abs(open_p - init_sl) / 1.8), 5)
+                    target_soft_sl = round(open_p - be_cushion, 5)
                 else:
-                    target_soft_sl = round(open_p + (0.45 * abs(init_sl - open_p) / 1.8), 5)
+                    target_soft_sl = round(open_p + be_cushion, 5)
 
             # If this batch has multiple tickets (TP1 scalp + runners), NEVER move TP1's own SL to breakeven!
             # TP1 exists to bank the initial 0.38 ATR scalp profit; moving its SL to entry suffocates it before banking profit.
@@ -850,7 +854,10 @@ class MT5TradeExecutor:
 
             batch_tp1_hit = (pos_batch is not None and str(pos_batch) in closed_tp1_batches)
 
-            active_be_mode = str(b_info.get('breakeven_mode') or breakeven_mode).lower().strip()
+            if is_smart_batch:
+                active_be_mode = 'smart_breathing_be'
+            else:
+                active_be_mode = str(b_info.get('breakeven_mode') or breakeven_mode).lower().strip()
 
             # ── 1. STRATEGY-SPECIFIC FIXED R:R TARGET (BREATHING ROOM WITH EXPANSION / TP1 PROTECTION) ──
             # Lets the trade breathe without premature choking, but ONCE TP1 is banked OR price expands >= 50% toward TP2,
@@ -882,10 +889,10 @@ class MT5TradeExecutor:
                 continue
 
             # ── 2. STRATEGY-SPECIFIC MOVING AVERAGE & EXPANSION TRAILING MODES ──
-            # (Rayner Teo, Oliver Velez, Qullamaggie, Paul FTMO, Turtle, Hougaard, Williams, Darvas, Raschke, Brooks, Volman, Crabel, Minervini)
+            # (Smart Breathing Room, Rayner Teo, Oliver Velez, Qullamaggie, Paul FTMO, Turtle, Hougaard, Williams, Darvas, Raschke, Brooks, Volman, Crabel, Minervini)
             # 2-Stage Breathing Room: Stage 1 sets soft buffer on TP1 hit, Stage 2 locks Hard Breakeven on expansion toward TP2
             if active_be_mode in [
-                'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be',
+                'smart_breathing_be', 'trailing_20_ema', 'trailing_20_sma', 'qullamaggie_ema_trail', 'fib_extension_be',
                 'gcr_cycle_be', 'delta_neutral_spread_be', 'atr_buffer_be', 'turtle_trailing_be',
                 'hougaard_vwap_trail', 'williams_volatility_be', 'darvas_box_trail', 'raschke_grail_be',
                 'brooks_signal_bar_be', 'volman_buildup_be', 'crabel_nr7_expansion_be', 'vcp_pivot_be'
