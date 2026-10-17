@@ -1,13 +1,8 @@
 {
   "selected_symbols": [
-    "ETH/USD",
-    "BTC/USD",
-    "XAU/USD",
     "EUR/USD",
-    "XAG/USD",
-    "GBP/AUD",
-    "USD/CHF",
-    "XAUUSD247"
+    "GBP/USD",
+    "USD/JPY"
   ],
   "timeframes": [
     "15m",
@@ -17,42 +12,22 @@
     "5m"
   ],
   "active_strategies": [
-    "VIVEK_YADAV",
-    "BERND_SKORUPINSKI",
     "ICT",
-    "STEVEN_HART",
-    "RAYNER_TEO",
-    "CRYPTO_CRED",
-    "NDEMAZEAH_GODLOVE",
-    "ROSS_CAMERON",
-    "ADAM_KHOO",
-    "ARIEL_ZWECHER",
-    "OLIVER_VELEZ",
+    "VIVEK_YADAV",
     "TRADE_PRO",
-    "KRISTJAN_QULLAMAGGIE",
-    "GCR",
-    "WAQAR_ZAKA",
-    "WAQAR_ASIM",
-    "EUGENE_NG_AH_SIO",
-    "PAUL_FTMO",
-    "RICHARD_DENNIS",
-    "MARK_MINERVINI",
-    "AL_BROOKS",
-    "BOB_VOLMAN",
-    "TOM_HOUGAARD",
-    "LARRY_WILLIAMS",
-    "NICOLAS_DARVAS",
+    "NDEMAZEAH_GODLOVE",
     "TOBY_CRABEL",
-    "LINDA_RASCHKE"
+    "ADAM_KHOO",
+    "PAUL_FTMO"
   ],
   "date_from": "2026-08-17",
   "date_to": "2026-09-17",
-  "initial_balance": 10000.0,
+  "initial_balance": 5.0,
   "target_trades_per_symbol": 1000,
   "scan_delay_mins": 0.25,
-  "batch_lot_size": 0.8,
-  "max_active_batches": 1000,
-  "max_dollar_risk": 30.0,
+  "batch_lot_size": 0.01,
+  "max_active_batches": 1,
+  "max_dollar_risk": 1.0,
   "min_pillars_required": 5,
   "allow_same_tf_trades": false,
   "allow_diff_strat_same_tf": true,
@@ -64,5 +39,6 @@
   "smart_solution_enabled": true,
   "news_filter_enabled": true,
   "spread_model": "broker",
-  "slippage_pips": 0.0
+  "slippage_pips": 0.0,
+  "current_capital_preset": 5
 }

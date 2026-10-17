@@ -2560,7 +2560,10 @@ def render_mt5_backtest_engine_view():
     st.markdown("### 🧪 Dedicated Exness MT5 Multi-Timeframe Historical Backtesting Engine")
     st.caption("Perform full chronological bar-by-bar walk-forward simulation across multi-year MT5 tick & candle history. Operates 100% decoupled from live autonomous trading.")
 
-    from src.engine.backtest_engine import get_backtest_engine, MT5BacktestEngine
+    from src.engine.backtest_engine import (
+        get_backtest_engine, MT5BacktestEngine,
+        BACKTEST_CAPITAL_PRESETS, apply_capital_preset_to_settings
+    )
     from src.engine.autonomous_manager import AVAILABLE_STRATEGIES, AVAILABLE_TIMEFRAMES, DEFAULT_TIMEFRAMES, DEFAULT_SYMBOLS
     from datetime import datetime, timezone, timedelta, date
 
@@ -2602,6 +2605,111 @@ def render_mt5_backtest_engine_view():
                 bt_state = {'last_results': {}}
         else:
             bt_state = {'last_results': {}}
+
+    # ── Smart Capital Tier Presets (Auto-Tuned by Backtest Forensics) ──
+    st.markdown("##### 🎯 Smart Capital Presets (Auto-Tuned by Backtest Forensics):")
+    st.caption("Select any capital preset ($5 to $10,000) to automatically set optimal Risk Cap, Batch Lot Size, Concurrency, Safe Trading Pairs, and Sniper Strategies tuned to eliminate drawdown blowouts.")
+
+    custom_preset_label = "⚙️ Custom / Manual Configuration (Keep My Settings)"
+    preset_opt_map = {custom_preset_label: None}
+    for amt, p_data in BACKTEST_CAPITAL_PRESETS.items():
+        preset_opt_map[f"${amt:,} Tier — {p_data['label']}"] = amt
+
+    curr_p_val = bt_settings.get('current_capital_preset')
+    default_p_idx = 0
+    if curr_p_val in BACKTEST_CAPITAL_PRESETS:
+        target_lbl = f"${curr_p_val:,} Tier — {BACKTEST_CAPITAL_PRESETS[curr_p_val]['label']}"
+        if target_lbl in preset_opt_map:
+            default_p_idx = list(preset_opt_map.keys()).index(target_lbl)
+
+    # Quick Pill Shortcut Buttons for Most Popular Tiers
+    qk_cols = st.columns(8)
+    quick_tiers = [
+        (qk_cols[0], 5, "🌱 $5"),
+        (qk_cols[1], 10, "🌱 $10"),
+        (qk_cols[2], 20, "🌱 $20"),
+        (qk_cols[3], 50, "📈 $50"),
+        (qk_cols[4], 100, "📈 $100"),
+        (qk_cols[5], 500, "💼 $500"),
+        (qk_cols[6], 1000, "🏛️ $1K"),
+        (qk_cols[7], 10000, "🏛️ $10K")
+    ]
+    for col, amt, btn_lbl in quick_tiers:
+        with col:
+            if st.button(btn_lbl, key=f"btn_qk_cap_{amt}", use_container_width=True, help=f"Quick apply {BACKTEST_CAPITAL_PRESETS[amt]['label']}"):
+                apply_capital_preset_to_settings(bt_settings, amt)
+                p_inf = BACKTEST_CAPITAL_PRESETS[amt]
+                st.session_state["bt_initial_bal_input"] = float(p_inf['initial_balance'])
+                st.session_state["bt_max_risk_input"] = float(p_inf['max_dollar_risk'])
+                st.session_state["bt_batch_lot_input"] = float(p_inf['batch_lot_size'])
+                st.session_state["bt_max_batches_input"] = int(p_inf['max_active_batches'])
+                st.session_state["bt_symbols_multiselect"] = list(p_inf['selected_symbols'])
+                st.session_state["bt_active_strats_ms"] = list(p_inf['active_strategies'])
+                bt_engine.save_settings(bt_settings)
+                st.toast(f"✅ Loaded {p_inf['label']}!", icon="🎯")
+                st.rerun()
+
+    sel_preset_str = st.selectbox(
+        "Choose Capital Tier Preset ($5, $10, $15, $20, $30 ... $10,000):",
+        options=list(preset_opt_map.keys()),
+        index=default_p_idx,
+        key="bt_capital_preset_dropdown",
+        help="Select any capital level to auto-configure optimal settings. Select 'Custom / Manual' to freely set your own."
+    )
+
+    chosen_amt = preset_opt_map.get(sel_preset_str)
+    if chosen_amt is not None and chosen_amt != bt_settings.get('current_capital_preset'):
+        apply_capital_preset_to_settings(bt_settings, chosen_amt)
+        p_inf = BACKTEST_CAPITAL_PRESETS[chosen_amt]
+        st.session_state["bt_initial_bal_input"] = float(p_inf['initial_balance'])
+        st.session_state["bt_max_risk_input"] = float(p_inf['max_dollar_risk'])
+        st.session_state["bt_batch_lot_input"] = float(p_inf['batch_lot_size'])
+        st.session_state["bt_max_batches_input"] = int(p_inf['max_active_batches'])
+        st.session_state["bt_symbols_multiselect"] = list(p_inf['selected_symbols'])
+        st.session_state["bt_active_strats_ms"] = list(p_inf['active_strategies'])
+        bt_engine.save_settings(bt_settings)
+        st.toast(f"✅ Loaded {p_inf['label']}!", icon="🎯")
+        st.rerun()
+    elif chosen_amt is None and bt_settings.get('current_capital_preset') is not None:
+        bt_settings['current_capital_preset'] = None
+        bt_engine.save_settings(bt_settings)
+        st.toast("⚙️ Switched to Custom / Manual Configuration mode.", icon="🔧")
+        st.rerun()
+
+    active_p_info = BACKTEST_CAPITAL_PRESETS.get(bt_settings.get('current_capital_preset'))
+    if active_p_info:
+        p_lbl = active_p_info['label']
+        p_cat = active_p_info['category']
+        p_bal = active_p_info['initial_balance']
+        p_r = active_p_info['max_dollar_risk']
+        p_lot = active_p_info['batch_lot_size']
+        p_b = active_p_info['max_active_batches']
+        p_desc = active_p_info['description']
+        p_sym_cnt = len(active_p_info['selected_symbols'])
+        p_strat_cnt = len(active_p_info['active_strategies'])
+
+        preset_banner_html = f"""
+        <div style='background:#0d1117;border:1px solid #1e293b;border-left:4px solid #38bdf8;border-radius:8px;padding:10px 14px;margin-top:6px;margin-bottom:14px;'>
+            <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;'>
+                <div>
+                    <span style='color:#38bdf8;font-weight:800;font-size:0.88rem;'>{p_lbl}</span>
+                    <span style='background:#1e293b;color:#94a3b8;font-size:0.7rem;padding:2px 6px;border-radius:4px;margin-left:6px;'>{p_cat}</span>
+                </div>
+                <div style='color:#94a3b8;font-size:0.78rem;'>
+                    <b>Balance:</b> <span style='color:#10b981;font-weight:700;'>${p_bal:,.2f}</span> &nbsp;|&nbsp;
+                    <b>Risk Cap:</b> <span style='color:#f87171;font-weight:700;'>${p_r:,.2f}</span> &nbsp;|&nbsp;
+                    <b>Lot Size:</b> <span style='color:#f59e0b;font-weight:700;'>{p_lot}</span> &nbsp;|&nbsp;
+                    <b>Batches:</b> <span style='color:#cbd5e1;font-weight:700;'>{p_b}</span> &nbsp;|&nbsp;
+                    <b>Pairs:</b> <span style='color:#38bdf8;font-weight:700;'>{p_sym_cnt}</span> &nbsp;|&nbsp;
+                    <b>Strategies:</b> <span style='color:#a78bfa;font-weight:700;'>{p_strat_cnt}</span>
+                </div>
+            </div>
+            <div style='color:#94a3b8;font-size:0.75rem;margin-top:5px;line-height:1.4;'>
+                {p_desc}
+            </div>
+        </div>
+        """
+        render_html(preset_banner_html)
 
     # 1. Date Range, Presets & Autonomous Mirror
     hdr_c1, hdr_c2 = st.columns([3, 1])
@@ -2709,6 +2817,7 @@ def render_mt5_backtest_engine_view():
         sel_date_from = st.date_input("From Date:", value=def_d_from, key="bt_date_from_input")
     with dt_col2:
         sel_date_to = st.date_input("To Date:", value=def_d_to, key="bt_date_to_input")
+    with dt_col3:
         raw_bal = float(bt_settings.get('initial_balance', 1000.0))
         sel_initial_bal = st.number_input("💰 Initial Test Balance ($ USD):", min_value=5.0, max_value=10000000.0, value=min(10000000.0, max(5.0, raw_bal)), step=10.0, key="bt_initial_bal_input", help="Set to any test balance (e.g. $10, $20, $100, $1,000, $10,000)")
 
@@ -3057,9 +3166,227 @@ def render_mt5_backtest_engine_view():
         </div>
         """, unsafe_allow_html=True)
 
+    # ── Capital Survival & Trough Safety Card ──
+    init_bal = float(res.get('initial_balance', 10000.0))
+    final_bal = float(res.get('final_balance', init_bal))
+    cap_safety = res.get('capital_safety')
+    if not cap_safety or not isinstance(cap_safety, dict):
+        lowest_bal = float(res.get('lowest_balance_ever', init_bal))
+        peak_bal = float(res.get('peak_balance', max(init_bal, final_bal)))
+        lowest_time = str(res.get('lowest_balance_time', '-'))
+        lowest_eq = float(res.get('lowest_equity_ever', lowest_bal))
+        news_saves = int(res.get('news_shield_saves', 0))
+        from src.engine.backtest_engine import MT5BacktestEngine
+        cap_safety = MT5BacktestEngine.compute_capital_safety(
+            initial_balance=init_bal,
+            peak_balance=peak_bal,
+            lowest_balance_ever=lowest_bal,
+            lowest_balance_time=lowest_time,
+            lowest_equity_ever=lowest_eq,
+            final_balance=final_bal,
+            news_shield_saves=news_saves
+        )
+
+    cap_badge = cap_safety.get('preservation_badge', '✅ CAPITAL PRESERVED')
+    cap_color = cap_safety.get('preservation_color', '#10b981')
+    cap_desc = cap_safety.get('preservation_desc', '')
+    lowest_bal = float(cap_safety.get('lowest_balance_ever', init_bal))
+    lowest_time = cap_safety.get('lowest_balance_time', '-')
+    peak_bal = float(cap_safety.get('peak_balance', init_bal))
+    news_saves = int(cap_safety.get('news_shield_saves', 0))
+    trough_color = "#10b981" if lowest_bal >= init_bal * 0.70 else ("#f59e0b" if lowest_bal > 0 else "#ef4444")
+    final_color = "#10b981" if final_bal >= init_bal else "#ef4444"
+
+    cap_card_html = f"""
+    <div style='background:#0d1117;border:1.5px solid {cap_color}66;border-left:5px solid {cap_color};border-radius:10px;padding:14px 18px;margin-top:14px;margin-bottom:18px;'>
+        <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px;'>
+            <div style='min-width:280px;'>
+                <div style='color:#8b949e;font-size:0.75rem;text-transform:uppercase;letter-spacing:0.8px;font-weight:700;'>Account Survival &amp; Drawdown Safety</div>
+                <div style='color:{cap_color};font-size:1.25rem;font-weight:900;margin-top:2px;'>{cap_badge}</div>
+                <div style='color:#94a3b8;font-size:0.82rem;margin-top:4px;'>{cap_desc}</div>
+            </div>
+            <div style='display:flex;gap:24px;flex-wrap:wrap;align-items:center;'>
+                <div style='text-align:right;'>
+                    <div style='color:#8b949e;font-size:0.72rem;text-transform:uppercase;'>Initial Capital</div>
+                    <div style='color:#f8fafc;font-size:1.15rem;font-weight:800;'>${init_bal:,.2f}</div>
+                </div>
+                <div style='text-align:right;'>
+                    <div style='color:#8b949e;font-size:0.72rem;text-transform:uppercase;'>Lowest Trough Touched</div>
+                    <div style='color:{trough_color};font-size:1.15rem;font-weight:900;'>${lowest_bal:,.2f}</div>
+                    <div style='color:#64748b;font-size:0.68rem;'>{lowest_time}</div>
+                </div>
+                <div style='text-align:right;'>
+                    <div style='color:#8b949e;font-size:0.72rem;text-transform:uppercase;'>Peak Balance Reached</div>
+                    <div style='color:#10b981;font-size:1.15rem;font-weight:800;'>${peak_bal:,.2f}</div>
+                </div>
+                <div style='text-align:right;'>
+                    <div style='color:#8b949e;font-size:0.72rem;text-transform:uppercase;'>Final Balance</div>
+                    <div style='color:{final_color};font-size:1.15rem;font-weight:900;'>${final_bal:,.2f}</div>
+                </div>
+                <div style='text-align:right;background:#0f172a;padding:6px 12px;border-radius:8px;border:1px solid #1e293b;'>
+                    <div style='color:#38bdf8;font-size:0.7rem;text-transform:uppercase;font-weight:700;'>News Shield</div>
+                    <div style='color:#38bdf8;font-size:1.0rem;font-weight:800;'>🛡️ {news_saves} Saves</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    render_html(cap_card_html)
+
+    # ── Week-by-Week Performance Breakdown ──
+    closed_batches_for_bd = res.get('closed_batches', [])
+    weekly_breakdown = res.get('weekly_breakdown')
+    if not weekly_breakdown and closed_batches_for_bd:
+        from src.engine.backtest_engine import MT5BacktestEngine
+        weekly_breakdown = MT5BacktestEngine.compute_weekly_breakdown(closed_batches_for_bd, res.get('date_from'), res.get('date_to'))
+
+    if weekly_breakdown:
+        st.markdown("##### 📅 Week-by-Week Granular Chronological Breakdown")
+        st.caption("Chronological audit of every 7-day period showing exact trades, Win Rate %, Net PnL, Profit Factor, TP targets, Max Single SL Hit, and Max Single TP Win.")
+
+        wk_rows_html = []
+        for w in weekly_breakdown:
+            w_trades = w.get('trades', 0)
+            w_wins = w.get('wins', 0)
+            w_losses = w.get('losses', 0)
+            w_bes = w.get('breakevens', 0)
+            w_wr = w.get('win_rate', 0.0)
+            w_pnl = w.get('net_pnl', 0.0)
+            w_pf = w.get('profit_factor', 0.0)
+            w_tp1 = w.get('tp1_hits', 0)
+            w_tp2 = w.get('tp2_hits', 0)
+            w_tp3 = w.get('tp3_hits', 0)
+            w_sl = w.get('sl_hits', 0)
+            w_max_sl = w.get('max_sl', 0.0)
+            w_max_tp = w.get('max_tp', 0.0)
+
+            pnl_color = "#10b981" if w_pnl > 0 else ("#ef4444" if w_pnl < 0 else "#94a3b8")
+            wr_color = "#10b981" if w_wr >= 65 else ("#f59e0b" if w_wr >= 50 else "#ef4444")
+            msl_html = f"<span style='color:#ef4444;font-weight:700;'>-${w_max_sl:,.2f}</span>" if w_max_sl > 0 else "<span style='color:#64748b;'>$0.00</span>"
+            mtp_html = f"<span style='color:#10b981;font-weight:800;'>+${w_max_tp:,.2f}</span>" if w_max_tp > 0 else "<span style='color:#64748b;'>$0.00</span>"
+
+            wk_rows_html.append(f"""
+            <tr style='border-bottom:1px solid #1e293b;'>
+                <td style='padding:8px 10px;font-weight:700;color:#f8fafc;'>{w.get('week_label', f"Week {w.get('week_number', '')}")}</td>
+                <td style='padding:8px 10px;text-align:center;font-weight:700;color:#cbd5e1;'>{w_trades}</td>
+                <td style='padding:8px 10px;text-align:center;font-size:0.8rem;'>
+                    <span style='color:#10b981;font-weight:700;'>{w_wins}W</span> / 
+                    <span style='color:#ef4444;font-weight:700;'>{w_losses}L</span> / 
+                    <span style='color:#f59e0b;font-weight:700;'>{w_bes}BE</span>
+                </td>
+                <td style='padding:8px 10px;text-align:center;'><span style='color:{wr_color};font-weight:700;'>{w_wr:.1f}%</span></td>
+                <td style='padding:8px 10px;text-align:right;'><b style='color:{pnl_color};font-size:0.9rem;'>${w_pnl:+,.2f}</b></td>
+                <td style='padding:8px 10px;text-align:center;color:#94a3b8;font-size:0.85rem;'>{w_pf:.2f}</td>
+                <td style='padding:8px 10px;text-align:center;color:#38bdf8;font-weight:700;'>{w_tp1}</td>
+                <td style='padding:8px 10px;text-align:center;color:#818cf8;font-weight:700;'>{w_tp2}</td>
+                <td style='padding:8px 10px;text-align:center;color:#c084fc;font-weight:700;'>{w_tp3}</td>
+                <td style='padding:8px 10px;text-align:center;color:#f87171;font-weight:700;'>{w_sl}</td>
+                <td style='padding:8px 10px;text-align:center;'>{msl_html}</td>
+                <td style='padding:8px 10px;text-align:center;'>{mtp_html}</td>
+            </tr>
+            """)
+
+        wk_table_html = f"""
+        <div style='margin-top:8px;margin-bottom:18px;border:1px solid #1e293b;border-radius:10px;overflow:hidden;background:#0b0f19;'>
+            <table style='width:100%;border-collapse:collapse;font-family:sans-serif;'>
+                <thead>
+                    <tr style='background:#0f172a;border-bottom:2px solid #334155;color:#94a3b8;font-size:0.75rem;text-transform:uppercase;'>
+                        <th style='padding:10px;text-align:left;'>Week / Period</th>
+                        <th style='padding:10px;text-align:center;width:55px;'>Trades</th>
+                        <th style='padding:10px;text-align:center;width:115px;'>W / L / BE</th>
+                        <th style='padding:10px;text-align:center;width:80px;'>Win Rate</th>
+                        <th style='padding:10px;text-align:right;width:95px;'>Net PnL</th>
+                        <th style='padding:10px;text-align:center;width:55px;'>PF</th>
+                        <th style='padding:10px;text-align:center;width:60px;'>TP1</th>
+                        <th style='padding:10px;text-align:center;width:60px;'>TP2</th>
+                        <th style='padding:10px;text-align:center;width:60px;'>TP3</th>
+                        <th style='padding:10px;text-align:center;width:55px;'>SL</th>
+                        <th style='padding:10px;text-align:center;width:100px;'>Max SL Hit</th>
+                        <th style='padding:10px;text-align:center;width:105px;'>Max TP Win</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(wk_rows_html)}
+                </tbody>
+            </table>
+        </div>
+        """
+        render_html(wk_table_html)
+
+    # ── Trading Pair Performance Breakdown ──
+    pair_breakdown = res.get('pair_breakdown')
+    if not pair_breakdown and closed_batches_for_bd:
+        from src.engine.backtest_engine import MT5BacktestEngine
+        pair_breakdown = MT5BacktestEngine.compute_pair_breakdown(closed_batches_for_bd, res.get('settings_used', {}).get('selected_symbols'))
+
+    if pair_breakdown:
+        st.markdown("##### 💱 Trading Pair Performance Breakdown")
+        st.caption("Per-asset analytics showing Win Rate %, Net PnL, Profit Factor, Max Single TP Win, and Max Single SL Hit.")
+
+        pair_rows_html = []
+        for p_item in pair_breakdown:
+            p_sym = p_item.get('symbol', '')
+            p_trades = p_item.get('trades', 0)
+            p_wins = p_item.get('wins', 0)
+            p_losses = p_item.get('losses', 0)
+            p_bes = p_item.get('breakevens', 0)
+            p_wr = p_item.get('win_rate', 0.0)
+            p_pnl = p_item.get('net_pnl', 0.0)
+            p_pf = p_item.get('profit_factor', 0.0)
+            p_msl = p_item.get('max_sl', 0.0)
+            p_mtp = p_item.get('max_tp', 0.0)
+            p_strat = p_item.get('top_strategy', '-')
+
+            pnl_col = "#10b981" if p_pnl > 0 else ("#ef4444" if p_pnl < 0 else "#94a3b8")
+            wr_col = "#10b981" if p_wr >= 65 else ("#f59e0b" if p_wr >= 50 else "#ef4444")
+            msl_html = f"<span style='color:#ef4444;font-weight:700;'>-${p_msl:,.2f}</span>" if p_msl > 0 else "<span style='color:#64748b;'>$0.00</span>"
+            mtp_html = f"<span style='color:#10b981;font-weight:800;'>+${p_mtp:,.2f}</span>" if p_mtp > 0 else "<span style='color:#64748b;'>$0.00</span>"
+
+            pair_rows_html.append(f"""
+            <tr style='border-bottom:1px solid #1e293b;'>
+                <td style='padding:8px 10px;font-weight:800;color:#f8fafc;'><span style='background:#1e293b;border:1px solid #334155;padding:3px 8px;border-radius:6px;'>{p_sym}</span></td>
+                <td style='padding:8px 10px;text-align:center;font-weight:700;color:#cbd5e1;'>{p_trades}</td>
+                <td style='padding:8px 10px;text-align:center;font-size:0.8rem;'>
+                    <span style='color:#10b981;font-weight:700;'>{p_wins}W</span> / 
+                    <span style='color:#ef4444;font-weight:700;'>{p_losses}L</span> / 
+                    <span style='color:#f59e0b;font-weight:700;'>{p_bes}BE</span>
+                </td>
+                <td style='padding:8px 10px;text-align:center;'><span style='color:{wr_col};font-weight:700;'>{p_wr:.1f}%</span></td>
+                <td style='padding:8px 10px;text-align:right;'><b style='color:{pnl_col};font-size:0.9rem;'>${p_pnl:+,.2f}</b></td>
+                <td style='padding:8px 10px;text-align:center;color:#94a3b8;font-size:0.85rem;'>{p_pf:.2f}</td>
+                <td style='padding:8px 10px;text-align:center;'>{mtp_html}</td>
+                <td style='padding:8px 10px;text-align:center;'>{msl_html}</td>
+                <td style='padding:8px 10px;color:#a78bfa;font-size:0.8rem;font-weight:600;'>{p_strat}</td>
+            </tr>
+            """)
+
+        pair_table_html = f"""
+        <div style='margin-top:8px;margin-bottom:18px;border:1px solid #1e293b;border-radius:10px;overflow:hidden;background:#0b0f19;'>
+            <table style='width:100%;border-collapse:collapse;font-family:sans-serif;'>
+                <thead>
+                    <tr style='background:#0f172a;border-bottom:2px solid #334155;color:#94a3b8;font-size:0.75rem;text-transform:uppercase;'>
+                        <th style='padding:10px;text-align:left;width:110px;'>Trading Pair</th>
+                        <th style='padding:10px;text-align:center;width:55px;'>Trades</th>
+                        <th style='padding:10px;text-align:center;width:115px;'>W / L / BE</th>
+                        <th style='padding:10px;text-align:center;width:80px;'>Win Rate</th>
+                        <th style='padding:10px;text-align:right;width:95px;'>Net PnL</th>
+                        <th style='padding:10px;text-align:center;width:55px;'>PF</th>
+                        <th style='padding:10px;text-align:center;width:105px;'>Max TP Win</th>
+                        <th style='padding:10px;text-align:center;width:100px;'>Max SL Hit</th>
+                        <th style='padding:10px;text-align:left;'>Top Strategy</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {''.join(pair_rows_html)}
+                </tbody>
+            </table>
+        </div>
+        """
+        render_html(pair_table_html)
+
     # ── Backtest Strategy Leaderboard ──
     st.markdown("##### 🏆 Backtest Streamer Strategies Performance Leaderboard")
-    st.caption("Empirical ranking of strategies across the chosen historical MT5 window, highlighting Biggest SL Hit and SL count.")
+    st.caption("Empirical ranking of strategies across the chosen historical MT5 window, highlighting Biggest SL Hit, Biggest TP Win, and SL count.")
 
     leaderboard = res.get('leaderboard', [])
     if leaderboard:

@@ -47,6 +47,276 @@ if not logger.handlers:
 BACKTEST_STATE_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '.backtest_engine_state.json'))
 BACKTEST_SETTINGS_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '.backtest_engine_settings.json'))
 
+BACKTEST_CAPITAL_PRESETS: Dict[int, Dict[str, Any]] = {
+    5: {
+        'label': '🌱 $5 Micro Sniper (Ultra-Tight FX Guard)',
+        'category': 'Micro ($5 - $30)',
+        'initial_balance': 5.0,
+        'max_dollar_risk': 1.0,
+        'batch_lot_size': 0.01,
+        'max_active_batches': 1,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO"],
+        'description': "Ultra-micro account: 0.01 lot FX majors only. $1.00 strict risk cap to prevent blowout. No Gold/Crypto (SL too wide for $5). DEFAULT disabled to eliminate chop."
+    },
+    10: {
+        'label': '🌱 $10 Micro Account (Empirical +255% ROI Tested)',
+        'category': 'Micro ($5 - $30)',
+        'initial_balance': 10.0,
+        'max_dollar_risk': 2.0,
+        'batch_lot_size': 0.01,
+        'max_active_batches': 1,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO"],
+        'description': "Empirically verified on MT5: Balance never dropped below $8.40 (100% preserved) and generated +$25.56 (+255.6% ROI). High-precision Forex snipers only. No Gold/Crypto."
+    },
+    15: {
+        'label': '🌱 $15 Micro Account (High-Precision FX Snipers)',
+        'category': 'Micro ($5 - $30)',
+        'initial_balance': 15.0,
+        'max_dollar_risk': 2.50,
+        'batch_lot_size': 0.01,
+        'max_active_batches': 1,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO"],
+        'description': "Micro buffer account: $2.50 risk cap with 0.01 lot FX majors. Strictly no Gold/Silver wicks."
+    },
+    20: {
+        'label': '🌱 $20 Micro Account (High-Precision FX Snipers)',
+        'category': 'Micro ($5 - $30)',
+        'initial_balance': 20.0,
+        'max_dollar_risk': 3.0,
+        'batch_lot_size': 0.01,
+        'max_active_batches': 2,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO"],
+        'description': "Allows up to 2 concurrent batches in liquid Forex majors with $3.00 risk cap."
+    },
+    30: {
+        'label': '🌱 $30 Micro Growth (Dual-Batch FX Snipers)',
+        'category': 'Micro ($5 - $30)',
+        'initial_balance': 30.0,
+        'max_dollar_risk': 4.0,
+        'batch_lot_size': 0.01,
+        'max_active_batches': 2,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "EUR/JPY"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO"],
+        'description': "Forex majors and EUR/JPY cross with $4.00 max risk cap."
+    },
+    50: {
+        'label': '📈 $50 Growth Account (Forex Multi-Pair Runners)',
+        'category': 'Small Growth ($50 - $250)',
+        'initial_balance': 50.0,
+        'max_dollar_risk': 3.0,
+        'batch_lot_size': 0.01,
+        'max_active_batches': 2,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "EUR/JPY"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE"],
+        'description': "Includes optimized Rayner Teo & Qullamaggie filters with 0.01 lot FX majors and crosses."
+    },
+    75: {
+        'label': '📈 $75 Growth Account (Forex Multi-Pair Runners)',
+        'category': 'Small Growth ($50 - $250)',
+        'initial_balance': 75.0,
+        'max_dollar_risk': 4.0,
+        'batch_lot_size': 0.02,
+        'max_active_batches': 2,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "EUR/JPY", "GBP/JPY"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE"],
+        'description': "0.02 lot enables partial banking on TP1 and runner expansion toward TP2."
+    },
+    100: {
+        'label': '📈 $100 Growth Account (Empirical Tested 7-Pair)',
+        'category': 'Small Growth ($50 - $250)',
+        'initial_balance': 100.0,
+        'max_dollar_risk': 5.0,
+        'batch_lot_size': 0.02,
+        'max_active_batches': 3,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "EUR/JPY", "GBP/JPY"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE", "WAQAR_ASIM"],
+        'description': "5% risk cap ($5.00) with 0.02 lot batch. Zero blowout risk when DEFAULT chop is excluded."
+    },
+    150: {
+        'label': '📈 $150 Growth Account (Multi-Pair Momentum)',
+        'category': 'Small Growth ($50 - $250)',
+        'initial_balance': 150.0,
+        'max_dollar_risk': 6.0,
+        'batch_lot_size': 0.02,
+        'max_active_batches': 3,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "EUR/JPY", "GBP/JPY"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE", "WAQAR_ASIM", "BERND_SKORUPINSKI"],
+        'description': "Expanded FX majors and Yen crosses with Bernd Skorupinski and Waqar Asim."
+    },
+    200: {
+        'label': '📈 $200 Growth Account (Multi-Pair Momentum)',
+        'category': 'Small Growth ($50 - $250)',
+        'initial_balance': 200.0,
+        'max_dollar_risk': 8.0,
+        'batch_lot_size': 0.02,
+        'max_active_batches': 3,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "EUR/JPY", "GBP/JPY"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE", "WAQAR_ASIM", "BERND_SKORUPINSKI"],
+        'description': "Solid growth foundation with 4% risk cap ($8.00) and 3 concurrent batches."
+    },
+    250: {
+        'label': '📈 $250 Growth Account (Multi-Pair Momentum)',
+        'category': 'Small Growth ($50 - $250)',
+        'initial_balance': 250.0,
+        'max_dollar_risk': 10.0,
+        'batch_lot_size': 0.03,
+        'max_active_batches': 3,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "EUR/JPY", "GBP/JPY"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE", "WAQAR_ASIM", "BERND_SKORUPINSKI", "TAMER_SMC"],
+        'description': "0.03 lot batch size allows full 3-target execution (0.01 on TP1 scalp, 0.01 on TP2, 0.01 on TP3 runner)."
+    },
+    300: {
+        'label': '💼 $300 Mid-Tier Portfolio (FX + Safe Gold Entry)',
+        'category': 'Medium ($300 - $800)',
+        'initial_balance': 300.0,
+        'max_dollar_risk': 12.0,
+        'batch_lot_size': 0.03,
+        'max_active_batches': 3,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "EUR/JPY", "GBP/JPY", "XAU/USD"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE", "WAQAR_ASIM", "BERND_SKORUPINSKI", "TAMER_SMC"],
+        'description': "Capital allows safe addition of Gold (XAU/USD) with $12.00 risk cap (4% risk)."
+    },
+    400: {
+        'label': '💼 $400 Mid-Tier Portfolio (FX + Gold Safe Expansion)',
+        'category': 'Medium ($300 - $800)',
+        'initial_balance': 400.0,
+        'max_dollar_risk': 15.0,
+        'batch_lot_size': 0.03,
+        'max_active_batches': 4,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "EUR/JPY", "GBP/JPY", "XAU/USD"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE", "WAQAR_ASIM", "BERND_SKORUPINSKI", "TAMER_SMC"],
+        'description': "Up to 4 concurrent running batches across Forex majors and Gold with $15.00 risk cap."
+    },
+    500: {
+        'label': '💼 $500 Mid-Tier Portfolio (Institutional Swing + Scalp)',
+        'category': 'Medium ($300 - $800)',
+        'initial_balance': 500.0,
+        'max_dollar_risk': 15.0,
+        'batch_lot_size': 0.03,
+        'max_active_batches': 4,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "EUR/GBP", "EUR/JPY", "GBP/JPY", "XAU/USD"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE", "WAQAR_ASIM", "BERND_SKORUPINSKI", "TAMER_SMC", "BOB_VOLMAN", "AL_BROOKS"],
+        'description': "Diversified multi-pair portfolio with 3% risk cap ($15.00) and professional runner scaling."
+    },
+    800: {
+        'label': '💼 $800 Mid-Tier Portfolio (Institutional Swing + Scalp)',
+        'category': 'Medium ($300 - $800)',
+        'initial_balance': 800.0,
+        'max_dollar_risk': 20.0,
+        'batch_lot_size': 0.04,
+        'max_active_batches': 5,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "EUR/GBP", "EUR/JPY", "GBP/JPY", "XAU/USD"],
+        'active_strategies': ["ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE", "WAQAR_ASIM", "BERND_SKORUPINSKI", "TAMER_SMC", "BOB_VOLMAN", "AL_BROOKS"],
+        'description': "0.04 lot size with $20.00 risk cap (2.5% risk) across 10 asset feeds."
+    },
+    1000: {
+        'label': '🏛️ $1,000 Prop / Large Account (Multi-Asset Diversified)',
+        'category': 'Institutional / Large ($1,000 - $10,000)',
+        'initial_balance': 1000.0,
+        'max_dollar_risk': 20.0,
+        'batch_lot_size': 0.05,
+        'max_active_batches': 5,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "NZD/USD", "USD/CAD", "EUR/GBP", "EUR/JPY", "GBP/JPY", "XAU/USD", "BTC/USD"],
+        'active_strategies': ["DEFAULT", "ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE", "WAQAR_ASIM", "BERND_SKORUPINSKI", "TAMER_SMC", "BOB_VOLMAN", "AL_BROOKS", "ROSS_CAMERON"],
+        'description': "Standard 2% prop firm risk management ($20 risk cap). Re-enables DEFAULT Institutional Core across multi-pair portfolio."
+    },
+    1500: {
+        'label': '🏛️ $1,500 Prop / Large Account (Multi-Asset Diversified)',
+        'category': 'Institutional / Large ($1,000 - $10,000)',
+        'initial_balance': 1500.0,
+        'max_dollar_risk': 30.0,
+        'batch_lot_size': 0.06,
+        'max_active_batches': 6,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "NZD/USD", "USD/CAD", "EUR/GBP", "EUR/JPY", "GBP/JPY", "XAU/USD", "BTC/USD"],
+        'active_strategies': ["DEFAULT", "ICT", "VIVEK_YADAV", "TRADE_PRO", "NDEMAZEAH_GODLOVE", "TOBY_CRABEL", "ADAM_KHOO", "PAUL_FTMO", "RAYNER_TEO", "KRISTJAN_QULLAMAGGIE", "WAQAR_ASIM", "BERND_SKORUPINSKI", "TAMER_SMC", "BOB_VOLMAN", "AL_BROOKS", "ROSS_CAMERON"],
+        'description': "0.06 lot batch with 2.0% risk cap ($30.00) and 6 concurrent batches."
+    },
+    2000: {
+        'label': '🏛️ $2,000 Prop / Large Account (Multi-Asset Diversified)',
+        'category': 'Institutional / Large ($1,000 - $10,000)',
+        'initial_balance': 2000.0,
+        'max_dollar_risk': 40.0,
+        'batch_lot_size': 0.08,
+        'max_active_batches': 6,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "NZD/USD", "USD/CAD", "EUR/GBP", "EUR/JPY", "GBP/JPY", "XAU/USD", "BTC/USD", "ETH/USD"],
+        'active_strategies': list(AVAILABLE_STRATEGIES.keys()),
+        'description': "Full 28-strategy coverage across all liquid FX, Metals, and Crypto feeds with 2% risk cap ($40.00)."
+    },
+    2500: {
+        'label': '🏛️ $2,500 Prop / Large Account (Multi-Asset Diversified)',
+        'category': 'Institutional / Large ($1,000 - $10,000)',
+        'initial_balance': 2500.0,
+        'max_dollar_risk': 50.0,
+        'batch_lot_size': 0.10,
+        'max_active_batches': 7,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "NZD/USD", "USD/CAD", "EUR/GBP", "EUR/JPY", "GBP/JPY", "XAU/USD", "BTC/USD", "ETH/USD"],
+        'active_strategies': list(AVAILABLE_STRATEGIES.keys()),
+        'description': "0.10 lot batch with 2.0% risk cap ($50.00) and up to 7 concurrent batches."
+    },
+    3000: {
+        'label': '🏛️ $3,000 Prop / Large Account (Multi-Asset Diversified)',
+        'category': 'Institutional / Large ($1,000 - $10,000)',
+        'initial_balance': 3000.0,
+        'max_dollar_risk': 60.0,
+        'batch_lot_size': 0.12,
+        'max_active_batches': 8,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "NZD/USD", "USD/CAD", "EUR/GBP", "EUR/JPY", "GBP/JPY", "XAU/USD", "BTC/USD", "ETH/USD"],
+        'active_strategies': list(AVAILABLE_STRATEGIES.keys()),
+        'description': "0.12 lot batch with 2.0% risk cap ($60.00) and institutional macro runners."
+    },
+    5000: {
+        'label': '🏛️ $5,000 Institutional Portfolio (Full Diversified)',
+        'category': 'Institutional / Large ($1,000 - $10,000)',
+        'initial_balance': 5000.0,
+        'max_dollar_risk': 100.0,
+        'batch_lot_size': 0.15,
+        'max_active_batches': 10,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "NZD/USD", "USD/CAD", "EUR/GBP", "EUR/JPY", "GBP/JPY", "XAU/USD", "BTC/USD", "ETH/USD"],
+        'active_strategies': list(AVAILABLE_STRATEGIES.keys()),
+        'description': "High-liquidity institutional portfolio: 0.15 lot size, $100 risk cap (2%), 10 concurrent active batches."
+    },
+    10000: {
+        'label': '🏛️ $10,000 Master Institutional Account (1.5% Risk Cap)',
+        'category': 'Institutional / Large ($1,000 - $10,000)',
+        'initial_balance': 10000.0,
+        'max_dollar_risk': 150.0,
+        'batch_lot_size': 0.25,
+        'max_active_batches': 12,
+        'selected_symbols': ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "NZD/USD", "USD/CAD", "EUR/GBP", "EUR/JPY", "GBP/JPY", "XAU/USD", "BTC/USD", "ETH/USD"],
+        'active_strategies': list(AVAILABLE_STRATEGIES.keys()),
+        'description': "Full institutional hedge fund setup: 1.5% risk cap ($150), 0.25 lot size, 12 concurrent batches."
+    }
+}
+
+
+def get_capital_preset(amount: int) -> Optional[Dict[str, Any]]:
+    """Returns preset definition for a specific capital level."""
+    return BACKTEST_CAPITAL_PRESETS.get(amount)
+
+
+def apply_capital_preset_to_settings(settings: Dict[str, Any], amount: int) -> Dict[str, Any]:
+    """Applies capital preset to settings dictionary without touching live autonomous state."""
+    preset = BACKTEST_CAPITAL_PRESETS.get(amount)
+    if not preset:
+        return settings
+    settings['initial_balance'] = float(preset['initial_balance'])
+    settings['max_dollar_risk'] = float(preset['max_dollar_risk'])
+    settings['batch_lot_size'] = float(preset['batch_lot_size'])
+    settings['max_active_batches'] = int(preset['max_active_batches'])
+    settings['selected_symbols'] = list(preset['selected_symbols'])
+    settings['active_strategies'] = list(preset['active_strategies'])
+    settings['breakeven_mode'] = 'smart_breathing_be'
+    settings['htf_filter_enabled'] = True
+    settings['smart_solution_enabled'] = True
+    settings['news_filter_enabled'] = True
+    settings['current_capital_preset'] = amount
+    return settings
+
+
 MT5_TF_LOOKUP = {
     '1m': 1,       # TIMEFRAME_M1
     '3m': 3,       # TIMEFRAME_M3
@@ -500,8 +770,13 @@ class MT5BacktestEngine:
         balance = initial_balance
         equity = initial_balance
         peak_equity = initial_balance
+        peak_balance = initial_balance
+        lowest_balance_ever = initial_balance
+        lowest_balance_time = d_from.strftime("%Y-%m-%d %H:%M")
+        lowest_equity_ever = initial_balance
         max_drawdown_usd = 0.0
         max_drawdown_pct = 0.0
+        news_shield_saves = 0
 
         open_batches: List[Dict[str, Any]] = []
         closed_batches: List[Dict[str, Any]] = []
@@ -588,6 +863,8 @@ class MT5BacktestEngine:
                             if is_imminent and (cur_close > entry_p or cur_high > entry_p + (0.05 * cur_atr)):
                                 b['sl_price'] = max(b['sl_price'], entry_p)
                                 b['is_breakeven'] = True
+                                b['news_shield_triggered'] = True
+                                news_shield_saves += 1
                         except Exception:
                             pass
 
@@ -720,6 +997,8 @@ class MT5BacktestEngine:
                             if is_imminent and (cur_close < entry_p or cur_low < entry_p - (0.05 * cur_atr)):
                                 b['sl_price'] = min(b['sl_price'], entry_p)
                                 b['is_breakeven'] = True
+                                b['news_shield_triggered'] = True
+                                news_shield_saves += 1
                         except Exception:
                             pass
 
@@ -1173,6 +1452,13 @@ class MT5BacktestEngine:
             current_equity = balance + unrealized_pnl
             if current_equity > peak_equity:
                 peak_equity = current_equity
+            if balance > peak_balance:
+                peak_balance = round(balance, 2)
+            if balance < lowest_balance_ever:
+                lowest_balance_ever = round(balance, 2)
+                lowest_balance_time = cur_time.strftime("%Y-%m-%d %H:%M")
+            if current_equity < lowest_equity_ever:
+                lowest_equity_ever = round(current_equity, 2)
 
             dd_usd = peak_equity - current_equity
             dd_pct = (dd_usd / peak_equity * 100.0) if peak_equity > 0 else 0.0
@@ -1346,8 +1632,9 @@ class MT5BacktestEngine:
         gross_loss = sum(abs(b.get('profit', 0)) for b in closed_batches if b.get('profit', 0) < 0)
         profit_factor = round(gross_profit / gross_loss, 2) if gross_loss > 0 else (99.9 if gross_profit > 0 else 0.0)
 
-        # Calculate Biggest SL Loss and SL Hits across all trades
+        # Calculate Biggest SL Loss, Biggest TP Win, and SL Hits across all trades
         biggest_sl_loss = 0.0
+        biggest_tp_win = 0.0
         sl_hits = 0
         for b in closed_batches:
             pnl = float(b.get('profit', 0.0))
@@ -1356,8 +1643,23 @@ class MT5BacktestEngine:
                 sl_hits += 1
                 if abs(pnl) > biggest_sl_loss:
                     biggest_sl_loss = round(abs(pnl), 2)
+            if pnl > 0.15 and pnl > biggest_tp_win:
+                biggest_tp_win = round(pnl, 2)
 
-        # 6. Compute Backtest Strategy Leaderboard
+        # 6. Compute Granular Reports: Weekly Breakdown, Pair Breakdown, and Capital Preservation
+        weekly_breakdown = self.compute_weekly_breakdown(closed_batches, d_from, d_to)
+        pair_breakdown = self.compute_pair_breakdown(closed_batches, symbols)
+        capital_safety = self.compute_capital_safety(
+            initial_balance=initial_balance,
+            peak_balance=peak_balance,
+            lowest_balance_ever=lowest_balance_ever,
+            lowest_balance_time=lowest_balance_time,
+            lowest_equity_ever=lowest_equity_ever,
+            final_balance=equity,
+            news_shield_saves=news_shield_saves
+        )
+
+        # 7. Compute Backtest Strategy Leaderboard
         leaderboard = self.compute_backtest_strategy_leaderboard(closed_batches, strategies)
 
         results = {
@@ -1381,7 +1683,16 @@ class MT5BacktestEngine:
             'max_drawdown_usd': round(max_drawdown_usd, 2),
             'max_drawdown_pct': round(max_drawdown_pct, 2),
             'biggest_sl_loss': biggest_sl_loss,
+            'biggest_tp_win': biggest_tp_win,
             'sl_hits': sl_hits,
+            'weekly_breakdown': weekly_breakdown,
+            'pair_breakdown': pair_breakdown,
+            'capital_safety': capital_safety,
+            'lowest_balance_ever': lowest_balance_ever,
+            'lowest_balance_time': lowest_balance_time,
+            'peak_balance': peak_balance,
+            'is_account_zeroed': capital_safety['is_account_zeroed'],
+            'news_shield_saves': news_shield_saves,
             'equity_curve': equity_curve,
             'leaderboard': leaderboard,
             'closed_batches': closed_batches,
@@ -1397,6 +1708,259 @@ class MT5BacktestEngine:
             progress_callback(1.0, f"Backtest complete! Net Profit: ${net_profit:+,.2f} ({win_rate}% Win Rate)")
 
         return results
+
+    @classmethod
+    def compute_weekly_breakdown(
+        cls,
+        closed_batches: List[Dict[str, Any]],
+        d_from: Any,
+        d_to: Any
+    ) -> List[Dict[str, Any]]:
+        """
+        Generates granular chronological week-by-week performance analytics,
+        mirroring audit reports with Trades, W/L/BE, WR%, Net PnL, PF,
+        TP1, TP2, TP3, SL, Max Single SL Hit, and Max Single TP Win.
+        """
+        def _is_be(b):
+            stt = str(b.get('status', '')).upper()
+            exit_r = str(b.get('exit_reason', '')).upper()
+            p = float(b.get('profit', 0.0))
+            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
+
+        def _is_loss(b):
+            if _is_be(b):
+                return False
+            stt = str(b.get('status', '')).upper()
+            exit_r = str(b.get('exit_reason', '')).upper()
+            p = float(b.get('profit', 0.0))
+            tp1_hit = bool(b.get('tp1_hit', False))
+            return (stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15)
+
+        def _is_win(b):
+            return not _is_be(b) and not _is_loss(b)
+
+        # Standardize dates
+        try:
+            start_dt = d_from if isinstance(d_from, datetime) else datetime.fromisoformat(str(d_from))
+        except Exception:
+            start_dt = datetime.now() - timedelta(days=30)
+        try:
+            end_dt = d_to if isinstance(d_to, datetime) else datetime.fromisoformat(str(d_to))
+        except Exception:
+            end_dt = datetime.now()
+
+        if start_dt.tzinfo is not None:
+            start_dt = start_dt.replace(tzinfo=None)
+        if end_dt.tzinfo is not None:
+            end_dt = end_dt.replace(tzinfo=None)
+
+        weekly_rows = []
+        cur_w_start = start_dt
+        week_idx = 1
+
+        while cur_w_start < end_dt:
+            cur_w_end = min(cur_w_start + timedelta(days=7), end_dt)
+            w_batches = []
+            for b in closed_batches:
+                c_str = b.get('closed_at') or b.get('executed_at')
+                if not c_str:
+                    continue
+                try:
+                    c_dt = datetime.fromisoformat(str(c_str).replace('Z', '+00:00'))
+                    if c_dt.tzinfo is not None:
+                        c_dt = c_dt.replace(tzinfo=None)
+                except Exception:
+                    continue
+
+                if cur_w_end >= end_dt:
+                    if cur_w_start <= c_dt <= cur_w_end:
+                        w_batches.append(b)
+                else:
+                    if cur_w_start <= c_dt < cur_w_end:
+                        w_batches.append(b)
+
+            w_trades = len(w_batches)
+            w_bes = sum(1 for b in w_batches if _is_be(b))
+            w_losses = sum(1 for b in w_batches if _is_loss(b))
+            w_wins = sum(1 for b in w_batches if _is_win(b))
+            w_prof = sum(1 for b in w_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+            w_wr = round((w_prof / max(w_trades, 1)) * 100.0, 1) if w_trades > 0 else 0.0
+            w_pnl = round(sum(b.get('profit', 0.0) for b in w_batches), 2)
+
+            w_gp = sum(b.get('profit', 0.0) for b in w_batches if b.get('profit', 0.0) > 0)
+            w_gl = sum(abs(b.get('profit', 0.0)) for b in w_batches if b.get('profit', 0.0) < 0)
+            w_pf = round(w_gp / w_gl, 2) if w_gl > 0 else (99.9 if w_gp > 0 else 0.0)
+
+            w_tp1 = sum(1 for b in w_batches if b.get('tp1_hit') or 'TP1' in str(b.get('exit_reason', '')).upper())
+            w_tp2 = sum(1 for b in w_batches if b.get('tp2_hit') or 'TP2' in str(b.get('exit_reason', '')).upper())
+            w_tp3 = sum(1 for b in w_batches if 'TP3' in str(b.get('exit_reason', '')).upper())
+            w_sl = sum(1 for b in w_batches if _is_loss(b))
+
+            w_max_sl = 0.0
+            w_max_tp = 0.0
+            for b in w_batches:
+                p = float(b.get('profit', 0.0))
+                if p < -0.15 and abs(p) > w_max_sl:
+                    w_max_sl = round(abs(p), 2)
+                if p > 0.15 and p > w_max_tp:
+                    w_max_tp = round(p, 2)
+
+            weekly_rows.append({
+                'week_number': week_idx,
+                'week_label': f"Week {week_idx} ({cur_w_start.strftime('%b %d')} - {cur_w_end.strftime('%b %d')})",
+                'start_date': cur_w_start.strftime("%Y-%m-%d"),
+                'end_date': cur_w_end.strftime("%Y-%m-%d"),
+                'trades': w_trades,
+                'wins': w_wins,
+                'losses': w_losses,
+                'breakevens': w_bes,
+                'win_rate': w_wr,
+                'net_pnl': w_pnl,
+                'profit_factor': w_pf,
+                'tp1_hits': w_tp1,
+                'tp2_hits': w_tp2,
+                'tp3_hits': w_tp3,
+                'sl_hits': w_sl,
+                'max_sl': w_max_sl,
+                'max_tp': w_max_tp
+            })
+
+            week_idx += 1
+            cur_w_start = cur_w_end
+
+        return weekly_rows
+
+    @classmethod
+    def compute_pair_breakdown(
+        cls,
+        closed_batches: List[Dict[str, Any]],
+        symbols: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Computes granular per-trading-pair performance table with
+        Trades, W/L/BE, Win Rate %, Net PnL, Profit Factor,
+        Max Single SL Hit, and Max Single TP Win.
+        """
+        def _is_be(b):
+            stt = str(b.get('status', '')).upper()
+            exit_r = str(b.get('exit_reason', '')).upper()
+            p = float(b.get('profit', 0.0))
+            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
+
+        def _is_loss(b):
+            if _is_be(b):
+                return False
+            stt = str(b.get('status', '')).upper()
+            exit_r = str(b.get('exit_reason', '')).upper()
+            p = float(b.get('profit', 0.0))
+            tp1_hit = bool(b.get('tp1_hit', False))
+            return (stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15)
+
+        def _is_win(b):
+            return not _is_be(b) and not _is_loss(b)
+
+        if not symbols:
+            symbols = sorted(list({b.get('symbol') for b in closed_batches if b.get('symbol')}))
+
+        pair_rows = []
+        for s in symbols:
+            s_batches = [b for b in closed_batches if b.get('symbol') == s]
+            s_trades = len(s_batches)
+            if s_trades == 0:
+                continue
+
+            s_bes = sum(1 for b in s_batches if _is_be(b))
+            s_losses = sum(1 for b in s_batches if _is_loss(b))
+            s_wins = sum(1 for b in s_batches if _is_win(b))
+            s_prof = sum(1 for b in s_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+            s_wr = round((s_prof / max(s_trades, 1)) * 100.0, 1) if s_trades > 0 else 0.0
+            s_pnl = round(sum(b.get('profit', 0.0) for b in s_batches), 2)
+
+            s_gp = sum(b.get('profit', 0.0) for b in s_batches if b.get('profit', 0.0) > 0)
+            s_gl = sum(abs(b.get('profit', 0.0)) for b in s_batches if b.get('profit', 0.0) < 0)
+            s_pf = round(s_gp / s_gl, 2) if s_gl > 0 else (99.9 if s_gp > 0 else 0.0)
+
+            s_max_sl = 0.0
+            s_max_tp = 0.0
+            strat_pnl_map = {}
+            for b in s_batches:
+                p = float(b.get('profit', 0.0))
+                sk = b.get('strategy_used', 'DEFAULT')
+                strat_pnl_map[sk] = strat_pnl_map.get(sk, 0.0) + p
+                if p < -0.15 and abs(p) > s_max_sl:
+                    s_max_sl = round(abs(p), 2)
+                if p > 0.15 and p > s_max_tp:
+                    s_max_tp = round(p, 2)
+
+            top_sk = max(strat_pnl_map.items(), key=lambda x: x[1])[0] if strat_pnl_map else '-'
+            top_strat_name = AVAILABLE_STRATEGIES.get(top_sk, top_sk)
+
+            pair_rows.append({
+                'symbol': s,
+                'trades': s_trades,
+                'wins': s_wins,
+                'losses': s_losses,
+                'breakevens': s_bes,
+                'win_rate': s_wr,
+                'net_pnl': s_pnl,
+                'profit_factor': s_pf,
+                'max_sl': s_max_sl,
+                'max_tp': s_max_tp,
+                'top_strategy': top_strat_name
+            })
+
+        pair_rows.sort(key=lambda x: x['net_pnl'], reverse=True)
+        return pair_rows
+
+    @classmethod
+    def compute_capital_safety(
+        cls,
+        initial_balance: float,
+        peak_balance: float,
+        lowest_balance_ever: float,
+        lowest_balance_time: str,
+        lowest_equity_ever: float,
+        final_balance: float,
+        news_shield_saves: int = 0
+    ) -> Dict[str, Any]:
+        """
+        Assesses capital safety and account survival metrics to definitively
+        confirm whether the account ever zeroed or sustained critical drawdown.
+        """
+        is_account_zeroed = (lowest_balance_ever <= 0.0) or (lowest_equity_ever <= 0.0)
+        capital_preserved = (not is_account_zeroed) and (lowest_balance_ever >= initial_balance * 0.70)
+
+        if is_account_zeroed:
+            badge = "❌ CAPITAL ZEROED / BLOWN OUT"
+            color = "#ef4444"
+            desc = "Account balance breached $0.00 during historical simulation."
+        elif lowest_balance_ever < (initial_balance * 0.50):
+            badge = "⚠️ CRITICAL DRAWDOWN (>50% Capital Dipped)"
+            color = "#f59e0b"
+            desc = f"Account survived, but dipped heavily to ${lowest_balance_ever:,.2f}."
+        elif lowest_balance_ever < (initial_balance * 0.70):
+            badge = "⚡ MODERATE DRAWDOWN (30-50% Dip)"
+            color = "#f59e0b"
+            desc = f"Account dipped to ${lowest_balance_ever:,.2f} before recovering."
+        else:
+            badge = "✅ CAPITAL 100% PRESERVED (NO BLOWOUT RISK)"
+            color = "#10b981"
+            desc = f"Capital remained rock-solid. Lowest balance touched was ${lowest_balance_ever:,.2f}."
+
+        return {
+            'initial_balance': round(initial_balance, 2),
+            'peak_balance': round(peak_balance, 2),
+            'lowest_balance_ever': round(lowest_balance_ever, 2),
+            'lowest_balance_time': lowest_balance_time,
+            'lowest_equity_ever': round(lowest_equity_ever, 2),
+            'final_balance': round(final_balance, 2),
+            'is_account_zeroed': is_account_zeroed,
+            'capital_preserved': capital_preserved,
+            'preservation_badge': badge,
+            'preservation_color': color,
+            'preservation_desc': desc,
+            'news_shield_saves': news_shield_saves
+        }
 
     @classmethod
     def compute_backtest_strategy_leaderboard(
@@ -1487,8 +2051,8 @@ class MT5BacktestEngine:
                     stats_map[k]['tp_hits'] += 1
                 if bool(b.get('tp2_hit', False)) or ('TP2' in exit_r):
                     stats_map[k]['tp2_hits'] += 1
-                if pnl > stats_map[k]['biggest_tp']:
-                    stats_map[k]['biggest_tp'] = round(pnl, 2)
+            if pnl > 0.15 and pnl > stats_map[k]['biggest_tp']:
+                stats_map[k]['biggest_tp'] = round(pnl, 2)
 
             if tf:
                 if tf not in strat_tfs[k]:
