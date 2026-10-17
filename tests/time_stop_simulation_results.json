@@ -1,21 +1,21 @@
 {
   "baseline": {
-    "total_trades": 175,
-    "wins": 134,
+    "total_trades": 178,
+    "wins": 136,
     "losses": 40,
-    "be": 1,
-    "win_rate_pct": 76.6,
-    "net_pnl_usd": -158.04
+    "be": 2,
+    "win_rate_pct": 76.4,
+    "net_pnl_usd": -134.63
   },
   "models": {
     "Model_1_TimeStop_12Bars": {
       "name": "Time-Stop Expiry (Exit if negative after 12 bars)",
-      "wins": 121,
+      "wins": 123,
       "losses": 51,
-      "be": 3,
+      "be": 4,
       "win_rate_pct": 69.1,
-      "win_rate_diff": -7.4,
-      "net_pnl_usd": -60.08,
+      "win_rate_diff": -7.3,
+      "net_pnl_usd": -36.67,
       "net_pnl_diff": 97.96,
       "saved_losses_count": 14,
       "saved_losses_dollars": 190.49,
@@ -123,12 +123,12 @@
     },
     "Model_2_Structural_BarClose_0.50ATR": {
       "name": "Structural Bar-Close Invalidation (Candle closes > 0.50 ATR against entry)",
-      "wins": 103,
+      "wins": 105,
       "losses": 71,
-      "be": 1,
-      "win_rate_pct": 58.9,
-      "win_rate_diff": -17.7,
-      "net_pnl_usd": 5.77,
+      "be": 2,
+      "win_rate_pct": 59.0,
+      "win_rate_diff": -17.4,
+      "net_pnl_usd": 29.18,
       "net_pnl_diff": 163.81,
       "saved_losses_count": 31,
       "saved_losses_dollars": 467.97,
@@ -195,7 +195,7 @@
           "killed": 2,
           "net_diff": 28.869999999999997
         },
-        "Crypto Cred (S/R & RSI Confluence)": {
+        "Institutional Core (5-Pillars)": {
           "saved": 0,
           "killed": 3,
           "net_diff": -35.61
@@ -261,12 +261,12 @@
     },
     "Model_3_Hybrid_6Bars_0.50ATR": {
       "name": "Hybrid Time-Stop (Elapsed >= 6 bars AND Candle closes > 0.50 ATR against entry)",
-      "wins": 121,
+      "wins": 123,
       "losses": 53,
-      "be": 1,
+      "be": 2,
       "win_rate_pct": 69.1,
-      "win_rate_diff": -7.4,
-      "net_pnl_usd": -34.47,
+      "win_rate_diff": -7.3,
+      "net_pnl_usd": -11.06,
       "net_pnl_diff": 123.57,
       "saved_losses_count": 21,
       "saved_losses_dollars": 274.44,

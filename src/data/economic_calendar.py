@@ -156,6 +156,9 @@ class EconomicCalendarManager:
         """
         Fetches calendar from live feed or cache with guaranteed deduplication.
         """
+        if not force_refresh and self._cached_events is not None:
+            return self._cached_events
+
         if not force_refresh:
             cached = self._load_cache()
             if cached is not None:
@@ -218,6 +221,9 @@ class EconomicCalendarManager:
                 if parsed:
                     merged = self.deduplicate_events(parsed + FALLBACK_2026_EVENTS)
                     self._save_cache(merged)
+                    for ev in merged:
+                        if '_dt_parsed' not in ev:
+                            ev['_dt_parsed'] = self._parse_event_datetime(ev.get('date', ''))
                     self._cached_events = merged
                     self._last_fetch_time = time.time()
                     return merged
@@ -232,6 +238,9 @@ class EconomicCalendarManager:
                     events = data.get('events', [])
                     if events:
                         merged = self.deduplicate_events(events + FALLBACK_2026_EVENTS)
+                        for ev in merged:
+                            if '_dt_parsed' not in ev:
+                                ev['_dt_parsed'] = self._parse_event_datetime(ev.get('date', ''))
                         self._cached_events = merged
                         return merged
             except Exception:
@@ -239,6 +248,9 @@ class EconomicCalendarManager:
 
         # Fallback 4: Built-in high-impact schedule
         self._cached_events = self.deduplicate_events(FALLBACK_2026_EVENTS)
+        for ev in self._cached_events:
+            if '_dt_parsed' not in ev:
+                ev['_dt_parsed'] = self._parse_event_datetime(ev.get('date', ''))
         return self._cached_events
 
     @staticmethod
@@ -337,7 +349,10 @@ class EconomicCalendarManager:
             if not affects_pair or not is_high_impact:
                 continue
 
-            dt = self._parse_event_datetime(date_str)
+            dt = e.get('_dt_parsed')
+            if dt is None:
+                dt = self._parse_event_datetime(date_str)
+                e['_dt_parsed'] = dt
             if dt is None:
                 continue
 

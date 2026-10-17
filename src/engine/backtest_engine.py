@@ -437,6 +437,7 @@ class MT5BacktestEngine:
             for tf in timeframes:
                 df, broker_sym, sp_val = self.fetch_mt5_data(sym, tf, d_from, d_to)
                 if df is not None and len(df) >= 30:
+                    df.attrs['symbol'] = sym
                     data_feeds[sym][tf] = df
                     if broker_sym:
                         broker_symbols[sym] = broker_sym
@@ -511,6 +512,7 @@ class MT5BacktestEngine:
 
         # Trade ID sequence
         next_trade_id = 100001
+        incompatible_cache = set()
 
         # Track stats
         total_events = len(timeline_events)
@@ -861,24 +863,60 @@ class MT5BacktestEngine:
 
                 if can_open:
                     slice_start = max(0, idx - 250)
-                    historical_slice = df.iloc[slice_start:idx + 1].copy()
-                    historical_slice.attrs['symbol'] = sym
+                    historical_slice = df.iloc[slice_start:idx + 1]
+
+                    # Pre-calculate news blackout once per candle
+                    is_cur_news_blackout = False
+                    if news_filter_enabled and econ_manager:
+                        try:
+                            n_st = econ_manager.check_blackout_status(sym, asset_type, check_time=cur_time, blackout_minutes=30)
+                            is_cur_news_blackout = bool(n_st.get('is_blackout', False))
+                        except Exception:
+                            pass
 
                     # Evaluate only the active strategies selected in settings
                     triggered_candidates = []
                     for s_k in strategies:
+                        # 0. Incompatible asset/timeframe cache check (Instant O(1) skip)
+                        if (s_k, sym, tf) in incompatible_cache:
+                            continue
+
+                        # 1. HARD GUARD: Macroeconomic News Blackout (WAQAR_ZAKA trades news volatility)
+                        if is_cur_news_blackout and s_k != 'WAQAR_ZAKA':
+                            continue
+
+                        # 2. Check Diff-Strat Same-TF Rule
+                        if allow_diff_strat:
+                            if any(b['strategy_used'] == s_k for b in batches_on_sym_tf):
+                                continue
+
+                        # 3. Check Strategy Killzones & Session Rules
+                        is_sess_ok, _ = SessionManager.is_strategy_session_allowed(
+                            strategy_key=s_k,
+                            dt=cur_time,
+                            generic_allowed_sessions=allowed_sessions,
+                            asset_type=asset_type
+                        )
+                        if not is_sess_ok:
+                            continue
+
                         st_res = None
                         if s_k in MasterStreamerPlaybook.STRATEGY_MAP:
                             strat_cls = MasterStreamerPlaybook.STRATEGY_MAP[s_k]
                             try:
                                 st_res = strat_cls.evaluate(historical_slice, atr=cur_atr, timeframe=tf)
+                                if st_res and 'INCOMPATIBLE' in str(st_res.get('status', '')):
+                                    incompatible_cache.add((s_k, sym, tf))
+                                    continue
                             except Exception:
                                 pass
                         elif s_k == 'DEFAULT':
-                            # Asset & Timeframe Guard: Institutional Core 5-Pillar operates on 15m, 30m, 1h, and 4h
-                            # Institutional Core is calibrated for Forex Majors (EUR/USD, GBP/USD, etc.)
-                            # Crypto (BTC, ETH) and Metals (Gold, Silver) have specialized streamer models
+                            # Asset & Timeframe Guard: Institutional Core operates on 15m, 30m, 1h, 4h
+                            if tf not in ['15m', '30m', '1h', '4h']:
+                                incompatible_cache.add((s_k, sym, tf))
+                                continue
                             if any(m in sym.upper() for m in ['XAU', 'GOLD', 'BTC', 'ETH', 'XAG', 'SILVER']):
+                                incompatible_cache.add((s_k, sym, tf))
                                 continue
 
                             # Institutional Core 5-Pillar Confluence (Trend, Pullback/Breakout, Candle, RSI, ATR)
@@ -923,11 +961,6 @@ class MT5BacktestEngine:
                                 req_cand_body = 0.35 * cur_atr if is_gold else 0.25 * cur_atr
 
                                 cand_act = None
-                                # Bullish 5-Pillar Trigger:
-                                # 1. Trend: EMA20 > EMA50 with non-falling slope & Price > 200 SMA with rising slope & ADX >= req_adx
-                                # 2. Pullback Test of 20 EMA or fresh crossover
-                                # 3. Candle Confirmation: Green close in top 40% of bar
-                                # 4. RSI Sweet Spot: 45 <= RSI <= 62 (not overbought)
                                 cand_rng = max(h_s.iloc[-1] - l_s.iloc[-1], 1e-6)
                                 cand_body = abs(cur_close - o_s.iloc[-1])
                                 is_buy_trend = (ema20 > ema50) and (ema50 > sma200) and ((ema20 - ema50) >= 0.20 * cur_atr) and (ema20 >= ema20_prev * 0.9999) and (cur_close > sma200) and slope_up_200 and (adx_val >= req_adx)
@@ -935,7 +968,6 @@ class MT5BacktestEngine:
                                 is_buy_candle = cur_close > o_s.iloc[-1] and cur_close >= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) >= 0.58 * cand_rng) and (cand_rng >= 0.45 * cur_atr) and (cand_body >= req_cand_body)
                                 is_buy_rsi = (45.0 <= rsi_val <= 62.0)
 
-                                # Bearish 5-Pillar Trigger:
                                 is_sell_trend = (ema20 < ema50) and (ema50 < sma200) and ((ema50 - ema20) >= 0.20 * cur_atr) and (ema20 <= ema20_prev * 1.0001) and (cur_close < sma200) and slope_down_200 and (adx_val >= req_adx)
                                 is_sell_trigger = (h_s.iloc[-1] >= ema20 * 0.999 and cur_close <= ema20) or (c_s.iloc[-2] >= ema20 and cur_close < ema20)
                                 is_sell_candle = cur_close < o_s.iloc[-1] and cur_close <= c_s.iloc[-2] and ((cur_close - l_s.iloc[-1]) <= 0.28 * cand_rng) and (cand_rng >= 0.45 * cur_atr) and (cand_body >= req_cand_body)
@@ -946,7 +978,6 @@ class MT5BacktestEngine:
                                 elif is_sell_trend and is_sell_trigger and is_sell_candle and is_sell_rsi:
                                     cand_act = 'SELL'
 
-                                # Higher Timeframe Confluence Check if enabled
                                 if cand_act and htf_filter_enabled and len(historical_slice) >= 40:
                                     htf_span = min(200, len(historical_slice))
                                     ema_htf = float(c_s.ewm(span=htf_span, adjust=False).mean().iloc[-1])
@@ -977,16 +1008,6 @@ class MT5BacktestEngine:
                         if not st_res or st_res.get('action') not in ['BUY', 'SELL']:
                             continue
 
-                        # Check Strategy Killzones & Session Rules
-                        is_sess_ok, sess_desc = SessionManager.is_strategy_session_allowed(
-                            strategy_key=s_k,
-                            dt=cur_time,
-                            generic_allowed_sessions=allowed_sessions,
-                            asset_type=asset_type
-                        )
-                        if not is_sess_ok:
-                            continue
-
                         # UNIVERSAL HTF (Higher Timeframe) Trend Confluence Guard (Matching Autonomous Engine)
                         if htf_filter_enabled and s_k != 'GCR':
                             clean_dir = 'BUY' if 'BUY' in str(st_res.get('action', '')).upper() else ('SELL' if 'SELL' in str(st_res.get('action', '')).upper() else '')
@@ -1010,23 +1031,6 @@ class MT5BacktestEngine:
                                         continue
                                     elif clean_dir == 'SELL' and cur_close > c_sma200 * 1.005:
                                         continue
-
-                        # HARD GUARD: High-Impact Macroeconomic News Blackout (30m pre/post window)
-                        # (Matching Autonomous Engine autonomous_manager.py line 2019 & 2287)
-                        # WAQAR_ZAKA is explicitly designed to trade High-Volatility News Events & Liquidation Sweeps
-                        if news_filter_enabled and econ_manager:
-                            try:
-                                news_st = econ_manager.check_blackout_status(sym, asset_type, check_time=cur_time, blackout_minutes=30)
-                                if news_st.get('is_blackout', False) and s_k != 'WAQAR_ZAKA':
-                                    continue
-                            except Exception:
-                                pass
-
-                        # Check Diff-Strat Same-TF Rule
-                        if allow_diff_strat:
-                            already_running_strat = any(b['strategy_used'] == s_k for b in batches_on_sym_tf)
-                            if already_running_strat:
-                                continue
 
                         conf = float(st_res.get('confidence', 50.0))
                         # Enforce Minimum Pillars / Confidence Threshold
@@ -1145,6 +1149,7 @@ class MT5BacktestEngine:
                                 'accumulated_pnl': 0.0,
                                 'realized_balance_credited': 0.0,
                                 'executed_at': cur_time.isoformat(),
+                                'entry_time': cur_time.isoformat(),
                                 'status': 'OPEN'
                             }
                             open_batches.append(new_batch)
@@ -1183,7 +1188,7 @@ class MT5BacktestEngine:
             current_prog = 0.35 + (0.60 * ((e_idx + 1) / max(total_events, 1)))
             now_perf = time.time()
             is_final_bar = (e_idx == total_events - 1)
-            if (now_perf - last_ui_update_time >= 0.35) or is_final_bar:
+            if (now_perf - last_ui_update_time >= 2.5) or is_final_bar:
                 be_c = sum(1 for b in closed_batches if b.get('status') == 'BREAKEVEN' or 'BE' in str(b.get('exit_reason', '')).upper() or abs(b.get('profit', 0.0)) <= 0.15)
                 losses_c = sum(1 for b in closed_batches if not (b.get('status') == 'BREAKEVEN' or 'BE' in str(b.get('exit_reason', '')).upper()) and (b.get('status') == 'LOSS' or 'FULL_SL' in str(b.get('exit_reason', '')).upper() or (not b.get('tp1_hit') and b.get('profit', 0.0) < -0.15)))
                 wins_c = max(0, len(closed_batches) - be_c - losses_c)
