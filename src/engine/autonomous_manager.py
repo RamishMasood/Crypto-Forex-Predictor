@@ -784,8 +784,10 @@ class AutonomousTraderEngine:
             return False
 
     def is_thread_alive(self) -> bool:
+        if self._thread is not None and self._thread.is_alive():
+            return True
         for t in threading.enumerate():
-            if t.name == "Auto5PillarTraderThread" and t.is_alive():
+            if t.name.startswith("Auto5PillarTraderThread") and t.is_alive():
                 return True
         return False
 
@@ -795,7 +797,7 @@ class AutonomousTraderEngine:
             return False
         if _SCAN_STOP_EVENT.is_set():
             return False
-        return self.is_thread_alive()
+        return self.is_thread_alive() and getattr(self, '_is_running', False)
 
     def is_managing_active(self) -> bool:
         return not self.is_scan_active() and self.has_active_batches()
@@ -1461,6 +1463,13 @@ class AutonomousTraderEngine:
             open_batches = dict(state.get('open_batches', {}))
             state_changed = False
             reset_at = state.get('reset_at')
+
+            # Purge corrupt phantom batches that have neither valid tickets nor entry_price
+            for bid, binfo in list(open_batches.items()):
+                if not binfo.get('tickets') and not binfo.get('entry_price'):
+                    logger.warning(f"Purging phantom batch #{bid} ({binfo.get('symbol')}) with no tickets and no entry price.")
+                    del open_batches[bid]
+                    state_changed = True
 
             # Auto breakeven check with institutional breakeven SL map & mode
             current_settings = self.load_settings()
@@ -2805,6 +2814,9 @@ class AutonomousTraderEngine:
                             if _FORCE_STOP_EVENT.is_set() or (not _SCAN_STOP_EVENT.is_set() and self.load_settings().get('enabled', False)):
                                 break
                             time.sleep(0.5)
+                        if not _SCAN_STOP_EVENT.is_set() and self.load_settings().get('enabled', False):
+                            logger.info("Scanning resumed by user. Exiting trade management mode and launching scan pass.")
+                            break
                         continue
                     else:
                         logger.info("Autonomous scanner stopped and 0 active batches remain. Worker loop exiting cleanly.")
@@ -2985,13 +2997,19 @@ class AutonomousTraderEngine:
         state['engine_status'] = "RUNNING"
         self.save_state(state)
 
-        if not self.is_thread_alive():
-            self._thread = threading.Thread(target=self.run_worker_loop, daemon=True, name="Auto5PillarTraderThread")
+        # Check if background thread is genuinely running the loop
+        thread_active = self.is_thread_alive() and getattr(self, '_is_running', False)
+        if not thread_active:
+            self._is_running = True
+            self._thread = threading.Thread(
+                target=self.run_worker_loop,
+                daemon=True,
+                name=f"Auto5PillarTraderThread_{int(time.time())}"
+            )
             self._thread.start()
             logger.info("Background trader thread started.")
         else:
             logger.info("Background trader thread already alive; resumed scanning mode.")
-        self._is_running = True
 
     def stop(self):
         settings = self.load_settings()
@@ -3017,9 +3035,14 @@ class AutonomousTraderEngine:
                 "details": f"Stopped scanning. Autonomously managing {len(state.get('open_batches', {}))} active batch(es)."
             })
             logger.info("Scan stop signal sent. Active batches will continue being monitored autonomously.")
-            if not self.is_thread_alive():
+            if not self.is_thread_alive() or not getattr(self, '_is_running', False):
                 _FORCE_STOP_EVENT.clear()
-                self._thread = threading.Thread(target=self.run_worker_loop, daemon=True, name="Auto5PillarTraderThread")
+                self._is_running = True
+                self._thread = threading.Thread(
+                    target=self.run_worker_loop,
+                    daemon=True,
+                    name=f"Auto5PillarTraderThread_{int(time.time())}"
+                )
                 self._thread.start()
         else:
             _FORCE_STOP_EVENT.set()
@@ -3037,7 +3060,7 @@ class AutonomousTraderEngine:
             logger.info("Stop signal sent to autonomous trader worker thread (0 active trades).")
 
         self.save_state(state)
-        self._is_running = False
+        self._is_running = has_trades
 
     def is_running(self) -> bool:
         return self.is_scan_active()
