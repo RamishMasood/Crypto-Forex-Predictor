@@ -217,12 +217,15 @@ class CFTCAutoScraper:
             req = urllib.request.Request(
                 cls.CFTC_FEED_URL,
                 headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                    'Accept': '*/*',
-                    'Accept-Encoding': 'identity'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'identity',
+                    'Referer': 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm',
+                    'Connection': 'keep-alive',
                 }
             )
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 raw_bytes = resp.read()
                 lines = raw_bytes.decode('utf-8', errors='ignore').splitlines()
 
@@ -317,7 +320,7 @@ class CFTCAutoScraper:
 
         except Exception as e:
             cls._last_fetch_time = time.time() - (CACHE_TTL_SECONDS - 300)  # retry after 5 mins
-            logger.warning(f"Live CFTC COT scraper failed (falling back to baseline/cache): {e}")
+            logger.info(f"Live CFTC COT scraper notice (falling back to baseline/cache): {e}")
 
         return None
 
