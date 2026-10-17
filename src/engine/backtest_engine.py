@@ -904,7 +904,7 @@ class MT5BacktestEngine:
                         if s_k in MasterStreamerPlaybook.STRATEGY_MAP:
                             strat_cls = MasterStreamerPlaybook.STRATEGY_MAP[s_k]
                             try:
-                                st_res = strat_cls.evaluate(historical_slice, atr=cur_atr, timeframe=tf)
+                                st_res = strat_cls.evaluate(historical_slice, atr=cur_atr, timeframe=tf, symbol=sym)
                                 if st_res and 'INCOMPATIBLE' in str(st_res.get('status', '')):
                                     incompatible_cache.add((s_k, sym, tf))
                                     continue

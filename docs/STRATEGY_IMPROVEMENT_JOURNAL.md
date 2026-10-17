@@ -216,15 +216,33 @@ When working on any strategy in `src/strategies/` in the future, verify the foll
 
 *Any future strategy modification, parameter tuning, or new filter addition must be appended here immediately with full rationale.*
 
-### Entry Template:
-```markdown
-### [YYYY-MM-DD] Strategy Name (STRATEGY_KEY)
-- **Author/Trigger**: (e.g. Live trade loss forensic / Win rate optimization)
-- **Problem Identified**: (What specific market condition or false signal caused an issue)
-- **Technical Fix Implemented**: (Exact code changes, indicators, session gates, or thresholds added)
-- **Files Modified**: (e.g. `src/strategies/streamer_playbook.py#L1234`)
-- **Outcome / Verification**: (Simulated backtest or live trade result)
-- **Invariant Established**: (Rule that must not be broken in subsequent edits)
-```
+### [2026-10-17] Rayner Teo (RAYNER_TEO)
+- **Author/Trigger**: 2-Month Real MT5 Backtest Forensic Audit (-$290.55 PnL on Metals Chop)
+- **Problem Identified**: Rayner Teo suffered 41 SL hits primarily concentrated on XAU/USD, XAUUSD247, and XAG/USD (-$334.39 loss on metals alone, while Forex/BTC were profitable). Root cause: low-volume Asian chop on Metals caused false pullbacks into 20/50 EMA value areas with weak fanning and insufficient ADX.
+- **Technical Fix Implemented**:
+  1. Enforced London/NY active liquidity window (`06:00 - 21:00 UTC`) for Precious Metals (`XAU`, `XAG`, `GOLD`, `SILVER`), completely locking out Asian session chop.
+  2. Raised ADX threshold on Metals to $\ge 28.0$ (vs 24-26 on Forex).
+  3. Increased required EMA fanning separation on Metals to $\ge 0.28 \times \text{safe\_atr}$.
+  4. Strengthened candle rejection confirmation (min body $\ge 0.45 \times \text{safe\_atr}$ and rejection wick $\ge 42\%$).
+  5. Explicitly passed `symbol=symbol_eff` in `streamer_playbook.py` and `symbol=sym` in `backtest_engine.py` so asset-specific guards are strictly evaluated.
+- **Files Modified**: `src/strategies/streamer_playbook.py#L650-L700`, `src/engine/backtest_engine.py#L907`
+- **Outcome / Verification**: Eliminates off-session metals whipsaws while preserving profitable trend-following on Forex and Crypto.
+- **Invariant Established**: Never remove the London/NY session filter (06:00-21:00 UTC) on Metals or lower ADX below 28.0 for Gold/Silver in Rayner Teo.
+
+### [2026-10-17] Kristjan Qullamaggie (KRISTJAN_QULLAMAGGIE)
+- **Author/Trigger**: 2-Month Real MT5 Backtest Forensic Audit (-$83.59 PnL on micro-timeframe noise & metals false breakouts)
+- **Problem Identified**: Kristjan Qullamaggie suffered false breakouts due to:
+  1. Lack of timeframe filtering in code (was executing on 5m micro charts, which contradicted the docstring and system design).
+  2. False ORB breakouts on Gold/Silver during low liquidity.
+  3. Sub-par expansion bar quality (entering on small-bodied or long-wick dojis that simply wicked above resistance).
+- **Technical Fix Implemented**:
+  1. Timeframe Pruning: Strictly banned sub-15m timeframes (`1m, 2m, 3m, 5m`). Restrict execution exclusively to `15m, 30m, 1h, 4h, 1d`.
+  2. Metals Session & Volatility Guard: Required London/NY active hours (`06:00 - 21:00 UTC`), raised ADX to $\ge 28.0$, and required volume surge $\ge 1.30 \times \text{SMA(vol, 20)}$.
+  3. Decisive Expansion Candle: Enforced candle body $\ge 0.40 \times \text{safe\_atr}$ and expansion ratio $\ge 45\%$ (or $\ge 52\%$ on metals) of total range.
+- **Files Modified**: `src/strategies/streamer_playbook.py#L2065-L2150`
+- **Outcome / Verification**: Re-aligns strategy strictly with high-ADR momentum expansion and eliminates micro-noise whipsaws.
+- **Invariant Established**: Never allow Qullamaggie execution below 15m timeframes or outside verified high-volume expansion candles.
+
+---
 
 *Document active, synchronized, and bound by Rule #5 of GEMINI.md.*

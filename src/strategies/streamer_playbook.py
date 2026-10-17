@@ -648,18 +648,39 @@ class RaynerTeoStrategy:
 
         ema_20_series = closes.ewm(span=20, adjust=False).mean()
         ema_20_prev = float(ema_20_series.iloc[-2]) if len(ema_20_series) >= 2 else ema_20
-        # Rayner Teo Rule #1: Trade strictly in the direction of the 200 SMA baseline with non-falling slope and ADX >= 24.0 (26.0 on 15m/30m)
-        min_adx_rayner = 26.0 if tf_clean in ['15m', '30m'] else 24.0
-        min_body_rayner = 0.40 * safe_atr if tf_clean in ['15m', '30m'] else 0.32 * safe_atr
-        is_uptrend = (current_price > sma_200) and (ema_20 > ema_50) and ((ema_20 - ema_50) >= 0.18 * safe_atr) and (ema_20 >= ema_20_prev * 0.9999) and slope_up_200 and (adx_val >= min_adx_rayner)
-        is_downtrend = (current_price < sma_200) and (ema_20 < ema_50) and ((ema_50 - ema_20) >= 0.18 * safe_atr) and (ema_20 <= ema_20_prev * 1.0001) and slope_down_200 and (adx_val >= min_adx_rayner)
+
+        # Session and asset-specific calibration for Metals (Gold/Silver) & Forex
+        is_metals = any(m in sym_str for m in ['XAU', 'GOLD', 'XAG', 'SILVER'])
+        curr_ts = df['timestamp'].iloc[-1] if 'timestamp' in df.columns and len(df['timestamp']) > 0 else (df.index[-1] if hasattr(df.index[-1], 'hour') else None)
+        curr_hour = curr_ts.hour if hasattr(curr_ts, 'hour') else 12
+
+        if is_metals and not (6 <= curr_hour <= 21):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'SESSION_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Rayner Teo Trend Pullback on Metals ({sym_str}) requires active London/NY liquidity hours (06:00-21:00 UTC) to prevent low-volume Asian chop."]
+            }
+
+        # Rayner Teo Rule #1: Trade strictly in the direction of the 200 SMA baseline with non-falling slope and calibrated ADX
+        min_adx_rayner = 28.0 if is_metals else (26.0 if tf_clean in ['15m', '30m'] else 24.0)
+        min_fanning = 0.28 * safe_atr if is_metals else 0.18 * safe_atr
+        min_body_rayner = 0.45 * safe_atr if is_metals else (0.40 * safe_atr if tf_clean in ['15m', '30m'] else 0.32 * safe_atr)
+        min_wick_ratio = 0.42 if is_metals else 0.38
+
+        is_uptrend = (current_price > sma_200) and (ema_20 > ema_50) and ((ema_20 - ema_50) >= min_fanning) and (ema_20 >= ema_20_prev * 0.9999) and slope_up_200 and (adx_val >= min_adx_rayner)
+        is_downtrend = (current_price < sma_200) and (ema_20 < ema_50) and ((ema_50 - ema_20) >= min_fanning) and (ema_20 <= ema_20_prev * 1.0001) and slope_down_200 and (adx_val >= min_adx_rayner)
 
         # Pullback in value area between 20 & 50 EMA
         in_buy_value_area = (last_l <= ema_20) and (last_c >= ema_50 * 0.998) and is_uptrend
         in_sell_value_area = (last_h >= ema_20) and (last_c <= ema_50 * 1.002) and is_downtrend
 
-        bull_pin_confirm = (lower_wick >= 0.38) or (last_c - last_o >= 0.50 * rng)
-        bear_pin_confirm = (upper_wick >= 0.38) or (last_o - last_c >= 0.50 * rng)
+        bull_pin_confirm = (lower_wick >= min_wick_ratio) or (last_c - last_o >= 0.50 * rng)
+        bear_pin_confirm = (upper_wick >= min_wick_ratio) or (last_o - last_c >= 0.50 * rng)
 
         action = 'HOLD'
         status = 'WAITING_EMA_PULLBACK'
@@ -2046,6 +2067,19 @@ class KristjanQullamaggieStrategy:
         sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
+        tf_clean = str(timeframe or '1h').lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Kristjan Qullamaggie Momentum Expansion requires structural momentum timeframes (15m, 30m, 1h, 4h, 1d). Timeframe '{tf_clean}' micro noise whipsaws 10/20 EMA surfing."]
+            }
+
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = compute_playbook_safe_atr(df, atr, current_price, symbol=sym_str)
@@ -2072,10 +2106,34 @@ class KristjanQullamaggieStrategy:
         sma_50 = float(closes.rolling(window=min(n, 50), min_periods=min(n, 15)).mean().iloc[-1])
         sma_200 = float(closes.rolling(window=min(n, 200), min_periods=min(n, 25)).mean().iloc[-1])
 
+        # Session and asset-specific calibration for Metals (Gold/Silver) vs Momentum Crypto
+        is_metals = any(m in sym_str for m in ['XAU', 'GOLD', 'XAG', 'SILVER'])
+        if is_metals:
+            min_adx_kq = 28.0
+            min_vol_mult = 1.30
+            min_body_ratio = 0.52
+            curr_ts = df['timestamp'].iloc[-1] if 'timestamp' in df.columns and len(df['timestamp']) > 0 else (df.index[-1] if hasattr(df.index[-1], 'hour') else None)
+            curr_hour = curr_ts.hour if hasattr(curr_ts, 'hour') else 12
+            if not (6 <= curr_hour <= 21):
+                return {
+                    'strategy_key': cls.KEY,
+                    'strategy_name': cls.NAME,
+                    'breakeven_mode': cls.BE_MODE,
+                    'action': 'HOLD',
+                    'status': 'SESSION_INCOMPATIBLE',
+                    'confidence': 0.0,
+                    'trade_setup': {},
+                    'reasons': [f"Kristjan Qullamaggie on Metals ({sym_str}) requires London/NY active session liquidity (06:00-21:00 UTC)."]
+                }
+        else:
+            min_adx_kq = 25.0 if tf_clean in ['15m', '30m'] else 22.0
+            min_vol_mult = 1.15
+            min_body_ratio = 0.45
+
         # Volume confirmation
         avg_vol = float(volumes.iloc[-21:-1].mean()) if len(volumes) >= 21 else float(volumes.mean())
         curr_vol = float(volumes.iloc[-1])
-        vol_surge = (curr_vol >= avg_vol * 1.10) or ('volume' not in df.columns)
+        vol_surge = (curr_vol >= avg_vol * min_vol_mult) or ('volume' not in df.columns)
 
         # True Wilder's ADX 14 calculation
         up_move = highs.diff()
@@ -2121,7 +2179,7 @@ class KristjanQullamaggieStrategy:
         rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
 
         # Bullish Breakout across consolidation resistance with solid expansion bar (Strictly Long-Only)
-        if is_ma_surfing_long and is_adr_ok and (current_price > resistance) and (closes.iloc[-1] > df['open'].iloc[-1]) and (cand_body >= 0.35 * safe_atr) and (48.0 <= rsi_val <= 68.0) and (adx_val >= 22.0) and vol_surge:
+        if is_ma_surfing_long and is_adr_ok and (current_price > resistance) and (closes.iloc[-1] > df['open'].iloc[-1]) and (cand_body >= 0.40 * safe_atr) and (cand_body >= min_body_ratio * cand_rng) and (48.0 <= rsi_val <= 68.0) and (adx_val >= min_adx_kq) and vol_surge:
             action = 'BUY'
             status = 'ORB_BREAKOUT'
             confidence = 89.0
@@ -4848,7 +4906,7 @@ class MasterStreamerPlaybook:
             active_setups.append(res_sh)
 
         # 5. Rayner Teo
-        res_rt = RaynerTeoStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        res_rt = RaynerTeoStrategy.evaluate(df, atr=atr, timeframe=timeframe, symbol=symbol_eff)
         results['RAYNER_TEO'] = res_rt
         if res_rt['action'] in ['BUY', 'SELL']:
             active_setups.append(res_rt)
@@ -4896,7 +4954,7 @@ class MasterStreamerPlaybook:
             active_setups.append(res_tp)
 
         # 13. Kristjan Qullamaggie
-        res_kq = KristjanQullamaggieStrategy.evaluate(df, atr=atr, timeframe=timeframe)
+        res_kq = KristjanQullamaggieStrategy.evaluate(df, atr=atr, timeframe=timeframe, symbol=symbol_eff)
         results['KRISTJAN_QULLAMAGGIE'] = res_kq
         if res_kq['action'] in ['BUY', 'SELL']:
             active_setups.append(res_kq)

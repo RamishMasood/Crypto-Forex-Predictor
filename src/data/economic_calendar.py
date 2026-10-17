@@ -35,6 +35,38 @@ HIGH_IMPACT_KEYWORDS = [
 # Static fallback schedule of major 2026 macroeconomic dates (UTC)
 # Ensures zero-failure resilience even during total network or Cloudflare outages
 FALLBACK_2026_EVENTS = [
+    # ── April 2026 Macro Calendar ──
+    {'title': 'US Core Retail Sales & Retail Sales m/m', 'country': 'USD', 'date': '2026-04-16T12:30:00Z', 'impact': 'High'},
+    {'title': 'ECB Monetary Policy Statement & Rate Decision', 'country': 'EUR', 'date': '2026-04-23T12:15:00Z', 'impact': 'High'},
+    {'title': 'Bank of Japan Policy Rate', 'country': 'JPY', 'date': '2026-04-24T03:00:00Z', 'impact': 'High'},
+    {'title': 'FOMC Interest Rate Decision & Projections', 'country': 'USD', 'date': '2026-04-29T18:00:00Z', 'impact': 'High'},
+    {'title': 'FOMC Press Conference (Fed Chair)', 'country': 'USD', 'date': '2026-04-29T18:30:00Z', 'impact': 'High'},
+    {'title': 'US Core PCE Price Index', 'country': 'USD', 'date': '2026-04-30T12:30:00Z', 'impact': 'High'},
+    # ── May 2026 Macro Calendar ──
+    {'title': 'US Non-Farm Payrolls (NFP) & Unemployment', 'country': 'USD', 'date': '2026-05-08T12:30:00Z', 'impact': 'High'},
+    {'title': 'Canada Net Change in Employment & Unemployment', 'country': 'CAD', 'date': '2026-05-08T12:30:00Z', 'impact': 'High'},
+    {'title': 'Bank of England (BOE) Rate Decision', 'country': 'GBP', 'date': '2026-05-07T11:00:00Z', 'impact': 'High'},
+    {'title': 'US Consumer Price Index (CPI)', 'country': 'USD', 'date': '2026-05-13T12:30:00Z', 'impact': 'High'},
+    {'title': 'FOMC Meeting Minutes', 'country': 'USD', 'date': '2026-05-20T18:00:00Z', 'impact': 'High'},
+    {'title': 'US Core PCE Price Index', 'country': 'USD', 'date': '2026-05-29T12:30:00Z', 'impact': 'High'},
+    # ── June 2026 Macro Calendar ──
+    {'title': 'Bank of Canada (BOC) Overnight Rate', 'country': 'CAD', 'date': '2026-06-03T13:45:00Z', 'impact': 'High'},
+    {'title': 'ECB Monetary Policy & Refinancing Rate', 'country': 'EUR', 'date': '2026-06-04T12:15:00Z', 'impact': 'High'},
+    {'title': 'US Non-Farm Payrolls (NFP) & Unemployment', 'country': 'USD', 'date': '2026-06-05T12:30:00Z', 'impact': 'High'},
+    {'title': 'US Consumer Price Index (CPI)', 'country': 'USD', 'date': '2026-06-10T12:30:00Z', 'impact': 'High'},
+    {'title': 'FOMC Interest Rate Decision & Projections', 'country': 'USD', 'date': '2026-06-17T18:00:00Z', 'impact': 'High'},
+    {'title': 'FOMC Press Conference (Fed Chair)', 'country': 'USD', 'date': '2026-06-17T18:30:00Z', 'impact': 'High'},
+    {'title': 'Bank of England (BOE) Rate Decision', 'country': 'GBP', 'date': '2026-06-18T11:00:00Z', 'impact': 'High'},
+    {'title': 'US Core PCE Price Index', 'country': 'USD', 'date': '2026-06-26T12:30:00Z', 'impact': 'High'},
+    # ── July 2026 Macro Calendar ──
+    {'title': 'US Non-Farm Payrolls (NFP)', 'country': 'USD', 'date': '2026-07-02T12:30:00Z', 'impact': 'High'},
+    {'title': 'Canada Net Change in Employment & Unemployment', 'country': 'CAD', 'date': '2026-07-03T12:30:00Z', 'impact': 'High'},
+    {'title': 'RBA Interest Rate Decision', 'country': 'AUD', 'date': '2026-07-07T04:30:00Z', 'impact': 'High'},
+    {'title': 'US Consumer Price Index (CPI)', 'country': 'USD', 'date': '2026-07-14T12:30:00Z', 'impact': 'High'},
+    {'title': 'ECB Monetary Policy Meeting & Statement', 'country': 'EUR', 'date': '2026-07-16T12:15:00Z', 'impact': 'High'},
+    {'title': 'FOMC Interest Rate Decision & Projections', 'country': 'USD', 'date': '2026-07-29T18:00:00Z', 'impact': 'High'},
+    {'title': 'FOMC Press Conference (Fed Chair)', 'country': 'USD', 'date': '2026-07-29T18:30:00Z', 'impact': 'High'},
+    {'title': 'US Core PCE Price Index', 'country': 'USD', 'date': '2026-07-31T12:30:00Z', 'impact': 'High'},
     # ── August 2026 Macro Calendar ──
     {'title': 'RBA Interest Rate Decision', 'country': 'AUD', 'date': '2026-08-04T04:30:00Z', 'impact': 'High'},
     {'title': 'Bank of England (BOE) Bank Rate & Policy Summary', 'country': 'GBP', 'date': '2026-08-06T11:00:00Z', 'impact': 'High'},

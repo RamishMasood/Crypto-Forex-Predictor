@@ -2709,8 +2709,8 @@ def render_mt5_backtest_engine_view():
         sel_date_from = st.date_input("From Date:", value=def_d_from, key="bt_date_from_input")
     with dt_col2:
         sel_date_to = st.date_input("To Date:", value=def_d_to, key="bt_date_to_input")
-        raw_bal = float(bt_settings.get('initial_balance', 10000.0))
-        sel_initial_bal = st.number_input("💰 Initial Test Balance ($ USD):", min_value=100.0, max_value=1000000.0, value=min(1000000.0, max(100.0, raw_bal)), step=500.0, key="bt_initial_bal_input")
+        raw_bal = float(bt_settings.get('initial_balance', 1000.0))
+        sel_initial_bal = st.number_input("💰 Initial Test Balance ($ USD):", min_value=5.0, max_value=10000000.0, value=min(10000000.0, max(5.0, raw_bal)), step=10.0, key="bt_initial_bal_input", help="Set to any test balance (e.g. $10, $20, $100, $1,000, $10,000)")
 
     # 2. Pairs & Timeframes (Exact copy of Autonomous)
     st.markdown("##### 💱 Pairs & Multi-Timeframe Scan Feeds:")
@@ -2849,13 +2849,13 @@ def render_mt5_backtest_engine_view():
             help="Maximum concurrent running trade batches allowed simultaneously."
         )
     with rc5:
-        raw_risk = float(bt_settings.get('max_dollar_risk', 50.0))
+        raw_risk = float(bt_settings.get('max_dollar_risk', 20.0))
         sel_max_risk = st.number_input(
             "🛡️ Max Risk Cap ($ USD):",
             min_value=0.0,
             max_value=50000.0,
             value=min(50000.0, max(0.0, raw_risk)),
-            step=5.0,
+            step=1.0,
             key="bt_max_risk_input",
             help="Maximum dollar risk cap per batch. Trades exceeding this cap are scaled down or skipped."
         )
