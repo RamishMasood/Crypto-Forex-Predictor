@@ -1197,7 +1197,7 @@ def render_mt5_autonomous_engine_view(live_exec):
                     </table>
                 </div>
                 """
-                st.markdown(html_table, unsafe_allow_html=True)
+                render_html(html_table)
             else:
                 st.info("No economic events scheduled for today.")
 
