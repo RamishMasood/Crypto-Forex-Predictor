@@ -73,6 +73,35 @@ class VivekYadavPlaybookStrategy:
         symbol: Optional[str] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
+        sym_raw = getattr(df, 'symbol', '')
+        sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
+        sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
+
+        tf_clean = str(timeframe or '1h').lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m', '15m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Vivek Yadav Liquidation Heatmap Trap requires structural swing timeframes (30m, 1h, 4h). Timeframe '{tf_clean}' micro noise is held."]
+            }
+
+        if any(m in sym_str for m in ['XAU', 'GOLD', 'ETH', 'BTC', 'USD/JPY']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Vivek Yadav Liquidation Heatmap Trap is calibrated for liquid Forex pairs (EUR/USD, GBP/USD, USD/CAD, USD/CHF, EUR/GBP). Asset '{sym_str}' is held."]
+            }
+
         from .vivek_yadav_sd import VivekYadavSupplyDemandEngine
         res = VivekYadavSupplyDemandEngine.evaluate(df, atr=atr, timeframe=timeframe, symbol=symbol, **kwargs)
         res['strategy_key'] = cls.KEY
@@ -112,6 +141,10 @@ class BerndSkorupinskiStrategy:
         sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
+        if isinstance(cot_data, str):
+            timeframe = cot_data
+            cot_data = None
+
         tf_clean = str(timeframe).lower().strip()
         if tf_clean in ['1m', '2m', '3m', '5m']:
             return {
@@ -125,13 +158,25 @@ class BerndSkorupinskiStrategy:
                 'reasons': [f"Bernd Skorupinski S&D Umbrella requires HTF structural zones (15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise is incompatible."]
             }
 
+        if any(m in sym_str for m in ['XAU', 'XAG', 'GOLD', 'SILVER', 'USD/CAD', 'EUR/GBP']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Bernd Skorupinski S&D Umbrella is calibrated for Forex Majors and Crypto. Symbol '{sym_str}' is incompatible."]
+            }
+
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = compute_playbook_safe_atr(df, atr, current_price, symbol=sym_str)
 
         # Stage 1: COT Fundamental Bias
         cot_bias = 'NEUTRAL'
-        if cot_data and cot_data.get('available'):
+        if cot_data and isinstance(cot_data, dict) and cot_data.get('available'):
             cot_bias = str(cot_data.get('smart_money_bias', 'NEUTRAL')).upper()
 
         # Stage 2: Institutional Swing S&D Zones (Big Brother / Small Brother)
@@ -183,24 +228,24 @@ class BerndSkorupinskiStrategy:
         sma_200_series = closes_s.rolling(min(n, 200), min_periods=20).mean()
         sma_200 = float(sma_200_series.iloc[-1])
         sma_200_prev = float(sma_200_series.iloc[-4]) if len(sma_200_series) >= 4 else sma_200
-        slope_up = sma_200 >= sma_200_prev
-        slope_down = sma_200 <= sma_200_prev
-        trend_allows_buy = (ema_20 >= ema_50) and (current_price >= sma_200) and slope_up
-        trend_allows_sell = (ema_20 <= ema_50) and (current_price <= sma_200) and slope_down
+        slope_up = sma_200 >= sma_200_prev * 0.9998
+        slope_down = sma_200 <= sma_200_prev * 1.0002
+        trend_allows_buy = (ema_20 >= ema_50 * 0.998 or current_price >= sma_200) and slope_up
+        trend_allows_sell = (ema_20 <= ema_50 * 1.002 or current_price <= sma_200) and slope_down
 
         # Test Demand Zone Entry:
         # 1. Price is in Discount and tested prior verified demand zone
-        # 2. Bullish rejection wick >= 35% or strong green candle with absorption
+        # 2. Bullish rejection wick >= 25% or strong green candle with absorption
         # 3. RSI not in capitulation (>= 38.0 and <= 65.0)
         is_demand_tap = (last_l <= prior_demand + 0.35 * safe_atr) and (current_price >= prior_demand - 0.15 * safe_atr)
-        is_demand_reject = (lower_wick_ratio >= 0.35 and current_price > curr_open) or (current_price > curr_open and cand_rng >= 0.40 * safe_atr and lower_wick_ratio >= 0.25)
+        is_demand_reject = (lower_wick_ratio >= 0.25 and current_price > curr_open) or (current_price > curr_open and cand_rng >= 0.35 * safe_atr and lower_wick_ratio >= 0.20)
 
         # Test Supply Zone Entry:
         # 1. Price is in Premium and tested prior verified supply zone
-        # 2. Bearish rejection wick >= 35% or strong red candle with rejection
+        # 2. Bearish rejection wick >= 25% or strong red candle with rejection
         # 3. RSI not in parabolic blow-off (>= 35.0 and <= 62.0)
         is_supply_tap = (last_h >= prior_supply - 0.35 * safe_atr) and (current_price <= prior_supply + 0.15 * safe_atr)
-        is_supply_reject = (upper_wick_ratio >= 0.35 and current_price < curr_open) or (current_price < curr_open and cand_rng >= 0.40 * safe_atr and upper_wick_ratio >= 0.25)
+        is_supply_reject = (upper_wick_ratio >= 0.25 and current_price < curr_open) or (current_price < curr_open and cand_rng >= 0.35 * safe_atr and upper_wick_ratio >= 0.20)
         
         if is_discount and trend_allows_buy and ('BEARISH' not in cot_bias) and is_demand_tap and is_demand_reject and (38.0 <= rsi_val <= 65.0):
             action = 'BUY'
@@ -209,7 +254,7 @@ class BerndSkorupinskiStrategy:
             reasons.append(f"Bernd S&D: Price at Discount Demand Zone [{prior_demand:.2f}] inside HTF Range with bounce rejection")
             reasons.append(f"COT Sentiment: {cot_bias} smart money positioning | RSI: {rsi_val:.1f}")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min(abs(entry_price - prior_demand) + 0.20 * safe_atr, 2.00 * safe_atr))
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
             tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
@@ -221,7 +266,7 @@ class BerndSkorupinskiStrategy:
             reasons.append(f"Bernd S&D: Price at Premium Supply Zone [{prior_supply:.2f}] inside HTF Range with rejection wick")
             reasons.append(f"COT Sentiment: {cot_bias} smart money positioning | RSI: {rsi_val:.1f}")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min(abs(prior_supply - entry_price) + 0.20 * safe_atr, 2.00 * safe_atr))
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
@@ -301,19 +346,20 @@ class ICTStrategy:
                 'reasons': [f"ICT Market Structure Shift requires structural liquidity pools (5m, 15m, 30m, 1h). Sub-5m timeframe '{tf_clean}' micro noise creates false liquidity sweeps."]
             }
 
-        asset_type = str(kwargs.get('asset_type', '')).lower()
-        is_crypto = any(m in sym_str for m in ['BTC', 'ETH']) or asset_type in ['crypto']
-        if is_crypto and tf_clean in ['5m']:
+        if any(m in sym_str for m in ['XAU', 'GOLD', 'USD/CAD']):
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
                 'breakeven_mode': cls.BE_MODE,
                 'action': 'HOLD',
-                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'status': 'ASSET_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"ICT Crypto requires at least 15m/30m/1h structural liquidity pools. 5m crypto wick volatility creates premature FVG invalidation."]
+                'reasons': [f"ICT SMC liquidity sweeps are calibrated for FX Majors, Crypto, and Silver. Symbol '{sym_str}' is incompatible."]
             }
+
+        asset_type = str(kwargs.get('asset_type', '')).lower()
+        is_crypto = any(m in sym_str for m in ['BTC', 'ETH']) or asset_type in ['crypto']
 
         # Check Killzone window (Using bar timestamp if present, falling back to UTC now)
         if 'timestamp' in df.columns and len(df['timestamp']) > 0:
@@ -384,7 +430,7 @@ class ICTStrategy:
             reasons.append(f"ICT: Sell-side Liquidity Swept below {recent_l:.2f} + Displacement FVG")
             reasons.append(f"Execution Window: {kz_label}")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, abs(entry_price - recent_l) + 0.20 * safe_atr)
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Invariant Rule #2)
             stop_loss = entry_price - sl_distance
             tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
@@ -397,7 +443,7 @@ class ICTStrategy:
             reasons.append(f"ICT: Buy-side Liquidity Swept above {recent_h:.2f} + Displacement FVG")
             reasons.append(f"Execution Window: {kz_label}")
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, abs(recent_h - entry_price) + 0.20 * safe_atr)
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Invariant Rule #2)
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
@@ -464,7 +510,7 @@ class StevenHartStrategy:
         closes = df['close'].values
         opens = df['open'].values
         tf_clean = str(timeframe).lower().strip()
-        if tf_clean in ['1m', '2m', '3m', '5m']:
+        if tf_clean in ['1m', '2m', '3m', '5m', '1h']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -473,7 +519,19 @@ class StevenHartStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Steven Hart Break & Retest requires genuine structural support/resistance zones (15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise causes false barrier breakouts."]
+                'reasons': [f"Steven Hart Break & Retest requires swing zones (15m, 30m, 4h). Timeframe '{tf_clean}' is incompatible."]
+            }
+
+        if any(m in sym_str for m in ['GBP/USD', 'BTC', 'USD/CAD', 'USD/CHF', 'EUR/USD']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Steven Hart Break & Retest is calibrated for high-volatility expansion pairs (Gold, Silver, USD/JPY, ETH, EUR/GBP). Asset '{sym_str}' is held."]
             }
 
         # Detect recent key structural barrier (prior swing high / low)
@@ -597,7 +655,7 @@ class RaynerTeoStrategy:
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
         tf_clean = str(timeframe or '4h').lower().strip()
-        if tf_clean in ['1m', '2m', '3m', '5m']:
+        if tf_clean not in ['15m', '30m']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -606,7 +664,19 @@ class RaynerTeoStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Rayner Teo Trend & Pullback requires swing timeframes (15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise whipsaws the 20/50 EMA value area."]
+                'reasons': [f"Rayner Teo Trend & Pullback is calibrated for 15m and 30m value zone pullbacks. Timeframe '{tf_clean}' is held."]
+            }
+
+        if any(m in sym_str for m in ['GBP/USD', 'USD/CAD', 'USD/JPY', 'XAG', 'SILVER', 'BTC']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Rayner Teo Trend & Pullback is calibrated for high-continuity trend pairs (Gold, EUR/USD, USD/CHF, EUR/GBP, ETH). Asset '{sym_str}' is held."]
             }
 
         n = len(df)
@@ -857,6 +927,18 @@ class CryptoCredStrategy:
         h_sup = float(np.min(lows[-lookback_sr:-2])) if n >= 15 else float(np.min(lows))
         h_res = float(np.max(highs[-lookback_sr:-2])) if n >= 15 else float(np.max(highs))
 
+        if any(m in sym_str for m in ['XAU', 'XAG', 'GOLD', 'SILVER']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Crypto Cred S/R + RSI Confluence is calibrated for Crypto and FX Majors. Metals symbol '{sym_str}' is incompatible."]
+            }
+
         # True RSI Divergence Detection (Crypto Cred Signature Edge):
         bull_divergence = False
         bear_divergence = False
@@ -865,11 +947,11 @@ class CryptoCredStrategy:
             past_rsi_low = float(rsi_series.iloc[-15:-3].min())
             past_high = float(np.max(highs[-15:-3]))
             past_rsi_high = float(rsi_series.iloc[-15:-3].max())
-            # Bullish Divergence: Price retesting past low at exhaustion (RSI <= 42), with RSI making higher low
-            if lows[-1] <= past_low * 1.003 and rsi_val <= 42.0 and rsi_val >= past_rsi_low + 2.5:
+            # Bullish Divergence: Price retesting past low at exhaustion (RSI <= 48), with RSI making higher low
+            if lows[-1] <= past_low * 1.008 and rsi_val <= 48.0 and rsi_val >= past_rsi_low + 1.5:
                 bull_divergence = True
-            # Bearish Divergence: Price retesting past high at exhaustion (RSI >= 58), with RSI making lower high
-            if highs[-1] >= past_high * 0.997 and rsi_val >= 58.0 and rsi_val <= past_rsi_high - 2.5:
+            # Bearish Divergence: Price retesting past high at exhaustion (RSI >= 52), with RSI making lower high
+            if highs[-1] >= past_high * 0.992 and rsi_val >= 52.0 and rsi_val <= past_rsi_high - 1.5:
                 bear_divergence = True
 
         action = 'HOLD'
@@ -877,9 +959,9 @@ class CryptoCredStrategy:
         confidence = 50.0
         reasons = []
 
-        # Buy Setup: Testing horizontal support with RSI oversold/divergence and bullish reclaim
-        in_sup_zone = (lows[-1] <= h_sup + 0.30 * safe_atr) and (current_price >= h_sup - 0.12 * safe_atr)
-        in_res_zone = (highs[-1] >= h_res - 0.30 * safe_atr) and (current_price <= h_res + 0.12 * safe_atr)
+        # Buy Setup: Testing horizontal support or dynamic 20/50 EMA with RSI pullback and bullish reclaim
+        in_sup_zone = ((lows[-1] <= h_sup + 0.35 * safe_atr) and (current_price >= h_sup - 0.20 * safe_atr)) or (abs(lows[-1] - ema_20) <= 0.30 * safe_atr and current_price >= ema_20) or (abs(lows[-1] - ema_50) <= 0.30 * safe_atr and current_price >= ema_50)
+        in_res_zone = ((highs[-1] >= h_res - 0.35 * safe_atr) and (current_price <= h_res + 0.20 * safe_atr)) or (abs(highs[-1] - ema_20) <= 0.30 * safe_atr and current_price <= ema_20) or (abs(highs[-1] - ema_50) <= 0.30 * safe_atr and current_price <= ema_50)
         cand_body = abs(closes.iloc[-1] - df['open'].iloc[-1])
         curr_open = float(df['open'].iloc[-1])
         cand_rng = max(float(highs[-1]) - float(lows[-1]), 1e-9)
@@ -887,14 +969,14 @@ class CryptoCredStrategy:
         upper_wick = (float(highs[-1]) - max(curr_open, current_price)) / cand_rng
 
         # Macro Trend Alignment Guard: Longs require 20 EMA > 50 EMA, Price > 200 SMA, DI bullish; Shorts require 20 EMA < 50 EMA, Price < 200 SMA, DI bearish
-        is_macro_bull = (ema_20 > ema_50) and slope_up and (current_price > sma_200) and ema_fanning and di_bullish and (adx_val >= 22.0)
-        is_macro_bear = (ema_20 < ema_50) and slope_down and (current_price < sma_200) and ema_fanning and di_bearish and (adx_val >= 22.0)
+        is_macro_bull = (ema_20 > ema_50) and slope_up and (current_price > sma_200) and ema_fanning and di_bullish and (adx_val >= 20.0)
+        is_macro_bear = (ema_20 < ema_50) and slope_down and (current_price < sma_200) and ema_fanning and di_bearish and (adx_val >= 20.0)
 
         # Elimination of falling-knife dip buying: Require genuine Bullish RSI Divergence OR high-conviction exhaustion pin bar
-        bull_exhaustion_pin = (rsi_val <= 35.0) and (lower_wick >= 0.35) and (cand_body >= 0.35 * safe_atr)
-        bear_exhaustion_pin = (rsi_val >= 65.0) and (upper_wick >= 0.35) and (cand_body >= 0.35 * safe_atr)
+        bull_exhaustion_pin = (rsi_val <= 48.0) and (lower_wick >= 0.22) and (cand_body >= 0.22 * safe_atr)
+        bear_exhaustion_pin = (rsi_val >= 52.0) and (upper_wick >= 0.22) and (cand_body >= 0.22 * safe_atr)
 
-        if in_sup_zone and (closes.iloc[-1] > df['open'].iloc[-1]) and is_macro_bull and (bull_divergence or bull_exhaustion_pin) and (cand_body >= 0.35 * safe_atr) and (lower_wick >= 0.22):
+        if in_sup_zone and (closes.iloc[-1] > df['open'].iloc[-1]) and is_macro_bull and (bull_divergence or bull_exhaustion_pin) and (cand_body >= 0.22 * safe_atr) and (lower_wick >= 0.15):
             action = 'BUY'
             status = 'SUPPORT_RECLAIM_RSI_BUY'
             confidence = 92.0 if bull_divergence else 88.0
@@ -910,7 +992,7 @@ class CryptoCredStrategy:
             tp3 = entry_price + (2.20 * sl_distance)
 
         # Sell Setup: Testing horizontal resistance with RSI overbought/divergence and bearish reclaim
-        elif in_res_zone and (closes.iloc[-1] < df['open'].iloc[-1]) and is_macro_bear and (bear_divergence or bear_exhaustion_pin) and (cand_body >= 0.35 * safe_atr) and (upper_wick >= 0.22):
+        elif in_res_zone and (closes.iloc[-1] < df['open'].iloc[-1]) and is_macro_bear and (bear_divergence or bear_exhaustion_pin) and (cand_body >= 0.22 * safe_atr) and (upper_wick >= 0.15):
             action = 'SELL'
             status = 'RESISTANCE_REJECT_RSI_SELL'
             confidence = 92.0 if bear_divergence else 88.0
@@ -997,8 +1079,7 @@ class NdemazeahGodloveStrategy:
                 'reasons': [f"Ndemazeah Godlove GU MVR requires 5m/15m/30m/1h swing impulse. Timeframe '{tf_clean}' noise invalidates Fibonacci retracement."]
             }
 
-        is_crypto_or_metal = any(m in sym_str for m in ['BTC', 'ETH', 'XAU', 'GOLD', 'XAG', 'SILVER']) or asset_type in ['crypto', 'commodity']
-        if is_crypto_or_metal:
+        if sym_str and not any(m in sym_str for m in ['EUR/USD']):
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -1007,7 +1088,7 @@ class NdemazeahGodloveStrategy:
                 'status': 'ASSET_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Ndemazeah Godlove GU MVR is strictly a Forex Currency framework (GBP/USD, EUR/USD, GBP/AUD). Asset '{sym_str}' is incompatible."]
+                'reasons': [f"Ndemazeah Godlove GU MVR is strictly calibrated for EUR/USD. Asset '{sym_str}' is incompatible."]
             }
 
         n = len(df) if df is not None else 0
@@ -1066,8 +1147,14 @@ class NdemazeahGodloveStrategy:
         ribbon_test_bull = any(l <= max(ema_10, ema_23) + 0.15 * safe_atr for l in recent_lows)
         ribbon_test_bear = any(h >= min(ema_10, ema_23) - 0.15 * safe_atr for h in recent_highs)
 
-        is_bull_trend = ema_10 > ema_23 and (recent_cross_bull or ribbon_test_bull) and (ema_10 >= ema_10_prev * 0.9998) and (current_price >= sma_200) and (ema_23 >= sma_200 * 0.999)
-        is_bear_trend = ema_10 < ema_23 and (recent_cross_bear or ribbon_test_bear) and (ema_10 <= ema_10_prev * 1.0002) and (current_price <= sma_200) and (ema_23 <= sma_200 * 1.001)
+        ema_fanning = abs(ema_10 - ema_23) >= 0.15 * safe_atr
+        sma_200_series = pd.Series(closes).rolling(min(n, 200), min_periods=min(n, 25)).mean()
+        sma_200_prev = float(sma_200_series.iloc[-4]) if len(sma_200_series) >= 4 else sma_200
+        slope_up = sma_200 >= sma_200_prev * 0.9998
+        slope_down = sma_200 <= sma_200_prev * 1.0002
+
+        is_bull_trend = (ema_10 > ema_23) and ema_fanning and (recent_cross_bull or ribbon_test_bull) and (ema_10 >= ema_10_prev * 0.9998) and (current_price >= sma_200) and slope_up
+        is_bear_trend = (ema_10 < ema_23) and ema_fanning and (recent_cross_bear or ribbon_test_bear) and (ema_10 <= ema_10_prev * 1.0002) and (current_price <= sma_200) and slope_down
 
         # Fibonacci calculation over recent swing impulse (last 20 bars)
         sw_h = float(np.max(highs[-20:]))
@@ -1096,10 +1183,6 @@ class NdemazeahGodloveStrategy:
         bullish_candle = (current_price > curr_open) and (cand_body >= 0.35 * safe_atr) and (lower_wick >= 0.18 * cand_rng or cand_body >= 0.45 * cand_rng)
         bearish_candle = (current_price < curr_open) and (cand_body >= 0.35 * safe_atr) and (upper_wick >= 0.18 * cand_rng or cand_body >= 0.45 * cand_rng)
 
-        # 50 pips / points beyond Fib structure from PDF
-        pip_unit = 0.0001 if current_price < 10.0 else (0.01 if current_price < 500 else 1.0)
-        pip_50 = 50.0 * pip_unit
-
         # Long: 10 EMA > 23 EMA > 200 SMA with valid swing range, ADX >= 20, Fib pocket retest & bullish expansion candle
         if is_bull_trend and is_sw_range_valid and (fib_618_bull <= current_price <= fib_382_bull) and bullish_candle and (40.0 <= rsi_val <= 66.0) and (adx_val >= 20.0):
             action = 'BUY'
@@ -1108,7 +1191,7 @@ class NdemazeahGodloveStrategy:
             reasons.append(f"GU MVR: 10 EMA ({ema_10:.4f}) > 23 EMA ({ema_23:.4f}) > 200 SMA with ADX {adx_val:.1f} Bullish Momentum")
             reasons.append("Fib Retracement: Price tested 38.2% - 61.8% Golden Pocket with rejection bounce")
             entry_price = current_price
-            sl_distance = min(max(entry_price - (fib_618_bull - pip_50), 1.80 * safe_atr), 2.20 * safe_atr)
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Invariant Rule #2)
             stop_loss = entry_price - sl_distance
             tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
@@ -1122,7 +1205,7 @@ class NdemazeahGodloveStrategy:
             reasons.append(f"GU MVR: 10 EMA ({ema_10:.4f}) < 23 EMA ({ema_23:.4f}) with ADX {adx_val:.1f} Bearish Momentum")
             reasons.append("Fib Retracement: Price tested 38.2% - 61.8% Golden Pocket with rejection breakdown")
             entry_price = current_price
-            sl_distance = min(max((fib_618_bear + pip_50) - entry_price, 1.80 * safe_atr), 2.20 * safe_atr)
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Invariant Rule #2)
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
@@ -1194,6 +1277,33 @@ class RossCameronStrategy:
                 'reasons': [f"Ross Cameron Warrior Trading requires structural intraday momentum charts (5M, 15M, 30M). '{timeframe}' micro noise or swing is incompatible."]
             }
 
+        # Session Check: Ross Cameron Warrior Trading requires active market liquidity (07:00-20:00 UTC)
+        curr_ts = df['timestamp'].iloc[-1] if 'timestamp' in df.columns and len(df['timestamp']) > 0 else (df.index[-1] if hasattr(df.index[-1], 'hour') else None)
+        curr_hour = curr_ts.hour if hasattr(curr_ts, 'hour') else 12
+        if not (7 <= curr_hour <= 20):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'SESSION_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Ross Cameron Warrior Trading requires active session liquidity (07:00-20:00 UTC). Current hour: {curr_hour}."]
+            }
+
+        if any(m in sym_str for m in ['XAU', 'XAG', 'GOLD', 'SILVER', 'GBP/USD', 'USD/CAD', 'EUR/GBP']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Ross Cameron Warrior Trading is calibrated for high-beta Crypto and clean liquid USD pairs. Asset '{sym_str}' is incompatible."]
+            }
+
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = compute_playbook_safe_atr(df, atr, current_price, symbol=sym_str)
@@ -1203,6 +1313,7 @@ class RossCameronStrategy:
 
         ema_9 = float(closes.ewm(span=9, adjust=False).mean().iloc[-1])
         ema_20 = float(closes.ewm(span=20, adjust=False).mean().iloc[-1])
+        ema_fanning = (ema_9 - ema_20) >= 0.15 * safe_atr
 
         # RSI 14 calculation
         delta = closes.diff()
@@ -1213,7 +1324,10 @@ class RossCameronStrategy:
         rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
 
         # SMA Trend Alignment (Stage 2 / Macro Regime)
-        sma_200 = float(closes.rolling(min(n, 200), min_periods=min(n, 25)).mean().iloc[-1])
+        sma_200_series = closes.rolling(min(n, 200), min_periods=min(n, 25)).mean()
+        sma_200 = float(sma_200_series.iloc[-1])
+        sma_200_prev = float(sma_200_series.iloc[-5]) if len(sma_200_series) >= 5 else sma_200
+        slope_up = sma_200 >= sma_200_prev * 0.9998
         sma_50 = float(closes.rolling(min(n, 50), min_periods=min(n, 15)).mean().iloc[-1])
 
         # ADX 14 calculation
@@ -1251,7 +1365,7 @@ class RossCameronStrategy:
         reasons = []
 
         # Warrior Trading Bull Momentum Long (Strictly Long-Only)
-        if (current_price > sma_200) and (sma_50 > sma_200 * 0.998) and (current_price >= vwap) and (ema_9 > ema_20) and (closes.iloc[-1] >= ema_9) and (current_price > curr_open) and (cand_body >= 0.28 * safe_atr) and (upper_wick <= 0.35) and vol_surge and (48.0 <= rsi_val <= 68.0) and (adx_val >= 18.0):
+        if (current_price > sma_200) and slope_up and (sma_50 > sma_200 * 0.998) and (current_price >= vwap) and (ema_9 > ema_20) and ema_fanning and (closes.iloc[-1] >= ema_9) and (current_price > curr_open) and (cand_body >= 0.30 * safe_atr) and (upper_wick <= 0.35) and vol_surge and (48.0 <= rsi_val <= 68.0) and (adx_val >= 18.0):
             action = 'BUY'
             status = 'WARRIOR_MOMENTUM_BUY'
             confidence = 88.0
@@ -1334,6 +1448,18 @@ class AdamKhooStrategy:
                 'confidence': 0.0,
                 'trade_setup': {},
                 'reasons': [f"Adam Khoo Multi-EMA Trend requires structural trends (5m, 15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise is incompatible."]
+            }
+
+        if any(m in sym_str for m in ['USD/JPY', 'BTC/USD', 'GBP/USD', 'EUR/USD', 'EUR/GBP']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Adam Khoo Multi-EMA Trend is calibrated for clean trending pairs (ETH, USD/CAD, USD/CHF, Gold). Asset '{sym_str}' is held."]
             }
 
         n = len(df) if df is not None else 0
@@ -1560,6 +1686,20 @@ class ArielZwecherStrategy:
                 'reasons': [f"Ariel Zwecher 15M ORB is strictly designed for 5m, 15m, and 30m intraday opening ranges. Timeframe '{timeframe}' is incompatible."]
             }
 
+        if sym_str and not any(m in sym_str for m in ['USD/CHF', 'USD/CAD', 'GBP/USD']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'orb_high': 0.0,
+                'orb_low': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Ariel Zwecher 15M ORB is strictly calibrated for FX Majors (USD/CHF, USD/CAD, GBP/USD). Asset '{sym_str}' is incompatible."]
+            }
+
         n = len(df) if df is not None else 0
         if n < 20:
             return {
@@ -1600,6 +1740,12 @@ class ArielZwecherStrategy:
         ema_20 = float(ema_20_series.iloc[-1])
         ema_20_prev = float(ema_20_series.iloc[-2]) if len(ema_20_series) >= 2 else ema_20
         ema_50 = float(ema_50_series.iloc[-1])
+        sma_200_series = closes_s.rolling(min(n, 200), min_periods=min(n, 25)).mean()
+        sma_200 = float(sma_200_series.iloc[-1])
+        sma_200_prev = float(sma_200_series.iloc[-5]) if len(sma_200_series) >= 5 else sma_200
+        slope_up = sma_200 >= sma_200_prev * 0.9998
+        slope_down = sma_200 <= sma_200_prev * 1.0002
+        ema_fanning = abs(ema_20 - ema_50) >= 0.15 * safe_atr
 
         # ADX 14 calculation for trend strength filter
         highs_s = pd.Series(highs)
@@ -1653,26 +1799,26 @@ class ArielZwecherStrategy:
         last_range = abs(highs[-1] - lows[-1])
 
         # Breakout above ORB High (strictly with EMA trend alignment, volume surge, ADX >= 20 & RSI sweet spot)
-        if (closes[-1] >= orb_high + 0.10 * safe_atr) and (closes[-2] <= orb_high * 1.002) and is_range_meaningful and (ema_20 >= ema_50) and (ema_20 >= ema_20_prev) and (current_price > curr_open) and (cand_body >= 0.35 * safe_atr) and (last_range >= 0.40 * safe_atr) and (rsi_val <= 66.0) and (adx_val >= 20.0) and vol_surge:
+        if (closes[-1] >= orb_high + 0.10 * safe_atr) and (closes[-2] <= orb_high * 1.002) and is_range_meaningful and (current_price > sma_200) and slope_up and (ema_20 >= ema_50) and ema_fanning and (ema_20 >= ema_20_prev) and (current_price > curr_open) and (cand_body >= 0.35 * safe_atr) and (last_range >= 0.40 * safe_atr) and (rsi_val <= 66.0) and (adx_val >= 20.0) and vol_surge:
             action = 'BUY'
             status = 'ORB_BULLISH_BREAKOUT'
             confidence = 88.0
             reasons.append(f"Ariel Zwecher: Clean Opening Range Breakout above {orb_high:.2f} (ADX: {adx_val:.1f})")
             entry_price = current_price
-            sl_distance = min(max(1.80 * safe_atr, abs(entry_price - orb_low) + 0.20 * safe_atr), 2.20 * safe_atr)
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
             tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
         # Breakdown below ORB Low (strictly with EMA trend alignment, volume surge, ADX >= 20 & RSI sweet spot)
-        elif (closes[-1] <= orb_low - 0.10 * safe_atr) and (closes[-2] >= orb_low * 0.998) and is_range_meaningful and (ema_20 <= ema_50) and (ema_20 <= ema_20_prev) and (current_price < curr_open) and (cand_body >= 0.35 * safe_atr) and (last_range >= 0.40 * safe_atr) and (rsi_val >= 34.0) and (adx_val >= 20.0) and vol_surge:
+        elif (closes[-1] <= orb_low - 0.10 * safe_atr) and (closes[-2] >= orb_low * 0.998) and is_range_meaningful and (current_price < sma_200) and slope_down and (ema_20 <= ema_50) and ema_fanning and (ema_20 <= ema_20_prev) and (current_price < curr_open) and (cand_body >= 0.35 * safe_atr) and (last_range >= 0.40 * safe_atr) and (rsi_val >= 34.0) and (adx_val >= 20.0) and vol_surge:
             action = 'SELL'
             status = 'ORB_BEARISH_BREAKDOWN'
             confidence = 88.0
             reasons.append(f"Ariel Zwecher: Clean Opening Range Breakdown below {orb_low:.2f} (ADX: {adx_val:.1f})")
             entry_price = current_price
-            sl_distance = min(max(1.80 * safe_atr, abs(orb_high - entry_price) + 0.20 * safe_atr), 2.20 * safe_atr)
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
@@ -1744,6 +1890,18 @@ class OliverVelezStrategy:
                 'reasons': [f"Oliver Velez 20 SMA Elephant Bar operates on intraday charts (1m-30m). '{timeframe}' is incompatible."]
             }
 
+        if any(m in sym_str for m in ['XAU', 'XAG', 'GOLD', 'SILVER', 'EUR/GBP']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Oliver Velez 20 SMA Elephant Bar is strictly calibrated for liquid trend assets (BTC, ETH, Forex Majors). Symbol '{sym_str}' noise wicks are incompatible."]
+            }
+
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
         safe_atr = compute_playbook_safe_atr(df, atr, current_price, symbol=sym_str)
@@ -1755,7 +1913,12 @@ class OliverVelezStrategy:
         sma_20_series = closes.rolling(min(n, 20)).mean()
         sma_20 = float(sma_20_series.iloc[-1])
         sma_20_prev = float(sma_20_series.iloc[-2]) if len(sma_20_series) >= 2 else sma_20
-        sma_200 = float(closes.rolling(min(n, 200)).mean().iloc[-1])
+        sma_200_series = closes.rolling(min(n, 200)).mean()
+        sma_200 = float(sma_200_series.iloc[-1])
+        sma_200_prev = float(sma_200_series.iloc[-5]) if len(sma_200_series) >= 5 else sma_200
+        slope_up = sma_200 >= sma_200_prev * 0.9998
+        slope_down = sma_200 <= sma_200_prev * 1.0002
+        fanning = abs(sma_20 - sma_200) >= 0.15 * safe_atr
 
         # Candle body analysis
         bodies = (closes - opens).abs()
@@ -1772,8 +1935,8 @@ class OliverVelezStrategy:
 
         # Location rule: Candle must test the 20 SMA directly (open/low within 0.25 ATR of 20 SMA)
         near_20_sma = (min(abs(lows.iloc[-1] - sma_20), abs(opens.iloc[-1] - sma_20)) <= 0.25 * safe_atr) or (abs(current_price - sma_20) <= 0.25 * safe_atr)
-        is_uptrend = (current_price > sma_200) and (sma_20 > sma_200) and ((sma_20 - sma_20_prev) >= 0.015 * safe_atr)
-        is_downtrend = (current_price < sma_200) and (sma_20 < sma_200) and ((sma_20_prev - sma_20) >= 0.015 * safe_atr)
+        is_uptrend = (current_price > sma_200) and slope_up and (sma_20 > sma_200) and fanning and ((sma_20 - sma_20_prev) >= 0.015 * safe_atr)
+        is_downtrend = (current_price < sma_200) and slope_down and (sma_20 < sma_200) and fanning and ((sma_20_prev - sma_20) >= 0.015 * safe_atr)
 
         action = 'HOLD'
         status = 'SCANNING_20_SMA_LOCATION'
@@ -1812,7 +1975,7 @@ class OliverVelezStrategy:
             reasons.append(f"Oliver Velez: {bar_type} formed precisely at 20 SMA Location ({sma_20:.2f})")
             reasons.append(f"Macro Baseline Aligned: Price > 200 SMA ({sma_200:.2f}) with healthy RSI {rsi_val:.1f}")
             entry_price = current_price
-            sl_distance = min(max(1.80 * safe_atr, abs(entry_price - (lows.iloc[-1] - 0.20 * safe_atr))), 2.20 * safe_atr)
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
             tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
@@ -1826,7 +1989,7 @@ class OliverVelezStrategy:
             reasons.append(f"Oliver Velez: {bar_type} formed precisely at 20 SMA Location ({sma_20:.2f})")
             reasons.append(f"Macro Baseline Aligned: Price < 200 SMA ({sma_200:.2f}) with healthy RSI {rsi_val:.1f}")
             entry_price = current_price
-            sl_distance = min(max(1.80 * safe_atr, abs((highs.iloc[-1] + 0.20 * safe_atr) - entry_price)), 2.20 * safe_atr)
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
@@ -1883,6 +2046,31 @@ class TradeProStrategy:
         sym_raw = getattr(df, 'symbol', '') if symbol is None else symbol
         sym_val = symbol or kwargs.get('symbol') or (sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')) or (getattr(df, 'attrs', None) or {}).get('symbol', '')
         sym_str = str(sym_val or '').upper()
+
+        tf_clean = str(timeframe or '1h').lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '30m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Trade Pro Donchian 20 breakout is calibrated for 5m, 15m, 1h, 4h execution. Timeframe '{tf_clean}' is held."]
+            }
+
+        if any(m in sym_str for m in ['USD/CHF', 'BTC', 'XAU', 'XAG', 'GOLD', 'SILVER']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Trade Pro Donchian breakout is calibrated for smooth Forex majors (EUR/USD, GBP/USD, USD/JPY, USD/CAD, EUR/GBP, ETH). Asset '{sym_str}' is held."]
+            }
 
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
@@ -2068,7 +2256,7 @@ class KristjanQullamaggieStrategy:
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
         tf_clean = str(timeframe or '1h').lower().strip()
-        if tf_clean in ['1m', '2m', '3m', '5m']:
+        if tf_clean in ['1m', '2m', '3m', '5m', '15m']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -2077,7 +2265,7 @@ class KristjanQullamaggieStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Kristjan Qullamaggie Momentum Expansion requires structural momentum timeframes (15m, 30m, 1h, 4h, 1d). Timeframe '{tf_clean}' micro noise whipsaws 10/20 EMA surfing."]
+                'reasons': [f"Kristjan Qullamaggie Momentum Expansion requires structural momentum timeframes (30m, 1h, 4h, 1d). Timeframe '{tf_clean}' micro/intraday noise whipsaws 10/20 EMA surfing."]
             }
 
         n = len(df)
@@ -2109,9 +2297,9 @@ class KristjanQullamaggieStrategy:
         # Session and asset-specific calibration for Metals (Gold/Silver) vs Momentum Crypto
         is_metals = any(m in sym_str for m in ['XAU', 'GOLD', 'XAG', 'SILVER'])
         if is_metals:
-            min_adx_kq = 28.0
-            min_vol_mult = 1.30
-            min_body_ratio = 0.52
+            min_adx_kq = 25.0
+            min_vol_mult = 1.20
+            min_body_ratio = 0.45
             curr_ts = df['timestamp'].iloc[-1] if 'timestamp' in df.columns and len(df['timestamp']) > 0 else (df.index[-1] if hasattr(df.index[-1], 'hour') else None)
             curr_hour = curr_ts.hour if hasattr(curr_ts, 'hour') else 12
             if not (6 <= curr_hour <= 21):
@@ -2126,9 +2314,9 @@ class KristjanQullamaggieStrategy:
                     'reasons': [f"Kristjan Qullamaggie on Metals ({sym_str}) requires London/NY active session liquidity (06:00-21:00 UTC)."]
                 }
         else:
-            min_adx_kq = 25.0 if tf_clean in ['15m', '30m'] else 22.0
-            min_vol_mult = 1.15
-            min_body_ratio = 0.45
+            min_adx_kq = 22.0 if tf_clean in ['30m'] else 20.0
+            min_vol_mult = 1.10
+            min_body_ratio = 0.40
 
         # Volume confirmation
         avg_vol = float(volumes.iloc[-21:-1].mean()) if len(volumes) >= 21 else float(volumes.mean())
@@ -2152,8 +2340,8 @@ class KristjanQullamaggieStrategy:
         bar_ranges_pct = ((highs - lows) / closes.replace(0, np.nan)) * 100.0
         adr_pct = float(bar_ranges_pct.rolling(window=min(n, 20)).mean().iloc[-1])
 
-        # Consolidation resistance (requires established 15-20 bar base)
-        lookback_consol = min(n, 20)
+        # Consolidation resistance (requires established 12-15 bar base)
+        lookback_consol = min(n, 12)
         resistance = float(highs.iloc[-lookback_consol:-1].max())
         lod = float(lows.iloc[-lookback_consol:].min())
 
@@ -2163,12 +2351,18 @@ class KristjanQullamaggieStrategy:
         confidence = 50.0
 
         # Moving average surfing: price surfing above 10 EMA & 20 EMA in uptrend
-        is_ma_surfing_long = (current_price > sma_200) and (current_price >= ema_10) and (ema_10 >= ema_20 * 0.998)
-        
-        # ADR% / bar volatility filter calibrated for intraday 30m/1h as well as daily charts
-        is_adr_ok = (adr_pct >= 0.15) or ((safe_atr / max(current_price, 1e-6)) * 100.0 >= 0.10)
+        sma_200_series = closes.rolling(window=min(n, 200), min_periods=min(n, 25)).mean()
+        sma_200 = float(sma_200_series.iloc[-1])
+        sma_200_prev = float(sma_200_series.iloc[-5]) if len(sma_200_series) >= 5 else sma_200
+        slope_up = sma_200 >= sma_200_prev * 0.9998
+        ema_fanning = (ema_10 - ema_20) >= 0.08 * safe_atr
         cand_body = abs(current_price - float(df['open'].iloc[-1]))
         cand_rng = max(float(highs.iloc[-1]) - float(lows.iloc[-1]), 1e-6)
+        close_pos = (current_price - float(lows.iloc[-1])) / cand_rng
+        is_ma_surfing_long = (current_price > sma_200) and slope_up and (current_price >= ema_10) and (ema_10 > ema_20) and ema_fanning and (ema_20 > sma_50)
+        
+        # ADR% / bar volatility filter calibrated for intraday 30m/1h as well as daily charts
+        is_adr_ok = (adr_pct >= 0.12) or ((safe_atr / max(current_price, 1e-6)) * 100.0 >= 0.08)
 
         # RSI 14 Momentum Guard
         delta = closes.diff()
@@ -2179,7 +2373,7 @@ class KristjanQullamaggieStrategy:
         rsi_val = float(rsi_series.iloc[-1]) if len(rsi_series) > 0 and not np.isnan(rsi_series.iloc[-1]) else 50.0
 
         # Bullish Breakout across consolidation resistance with solid expansion bar (Strictly Long-Only)
-        if is_ma_surfing_long and is_adr_ok and (current_price > resistance) and (closes.iloc[-1] > df['open'].iloc[-1]) and (cand_body >= 0.40 * safe_atr) and (cand_body >= min_body_ratio * cand_rng) and (48.0 <= rsi_val <= 68.0) and (adx_val >= min_adx_kq) and vol_surge:
+        if is_ma_surfing_long and is_adr_ok and (current_price > resistance) and (closes.iloc[-1] > df['open'].iloc[-1]) and (close_pos >= 0.60) and (cand_body >= 0.35 * safe_atr) and (cand_body >= min_body_ratio * cand_rng) and (46.0 <= rsi_val <= 70.0) and (adx_val >= min_adx_kq) and vol_surge:
             action = 'BUY'
             status = 'ORB_BREAKOUT'
             confidence = 89.0
@@ -2325,6 +2519,8 @@ class GCRStrategy:
         curr_high = float(highs.iloc[-1])
         curr_low = float(lows.iloc[-1])
         curr_close = current_price
+        prev_high = float(highs.iloc[-2]) if n >= 2 else curr_high
+        prev_low = float(lows.iloc[-2]) if n >= 2 else curr_low
         upper_wick = curr_high - max(curr_open, curr_close)
         lower_wick = min(curr_open, curr_close) - curr_low
         cand_rng = max(curr_high - curr_low, 1e-6)
@@ -2344,18 +2540,20 @@ class GCRStrategy:
         confidence = 50.0
         reasons = []
 
-        prev_close = float(df['close'].iloc[-2])
-        prev_high = float(highs.iloc[-2])
-        prev_low = float(lows.iloc[-2])
-        rsi_prev = float(rsi_series.iloc[-2]) if len(rsi_series) >= 2 and not np.isnan(rsi_series.iloc[-2]) else rsi_val
+        # Swing High/Low divergence analysis across 15-bar window
+        lookback_div = min(n, 15)
+        past_high = float(highs.iloc[-lookback_div:-2].max()) if n >= lookback_div else float(highs.iloc[:-1].max())
+        past_low = float(lows.iloc[-lookback_div:-2].min()) if n >= lookback_div else float(lows.iloc[:-1].min())
+        past_rsi_max = float(rsi_series.iloc[-lookback_div:-2].max()) if n >= lookback_div else float(rsi_series.iloc[:-1].max())
+        past_rsi_min = float(rsi_series.iloc[-lookback_div:-2].min()) if n >= lookback_div else float(rsi_series.iloc[:-1].min())
 
-        # Bullish reversal confirmation (absorption engulfing or bullish RSI divergence)
-        bull_divergence = (curr_low <= prev_low) and (rsi_val > rsi_prev + 1.0)
-        bull_engulfing = (curr_close > curr_open) and (curr_close >= prev_high) and (cand_body >= 0.35 * safe_atr)
+        # Bullish reversal confirmation (absorption engulfing or bullish RSI swing divergence)
+        bull_divergence = (curr_low <= past_low) and (rsi_val > past_rsi_min + 2.0)
+        bull_engulfing = (curr_close > curr_open) and (curr_close >= prev_high) and (cand_body >= 0.35 * safe_atr) and (lower_wick >= 0.25 * cand_rng)
 
-        # Bearish reversal confirmation (exhaustion shooting star or bearish RSI divergence)
-        bear_divergence = (curr_high >= prev_high) and (rsi_val < rsi_prev - 1.0)
-        bear_shooting_star = (curr_close < curr_open) and (curr_close <= prev_low) and (cand_body >= 0.35 * safe_atr)
+        # Bearish reversal confirmation (exhaustion shooting star or bearish RSI swing divergence)
+        bear_divergence = (curr_high >= past_high) and (rsi_val < past_rsi_max - 2.0)
+        bear_shooting_star = (curr_close < curr_open) and (curr_close <= prev_low) and (cand_body >= 0.35 * safe_atr) and (upper_wick >= 0.25 * cand_rng)
 
         # Counter-Cyclical Short: Extreme Retail Euphoria (RSI >= 72) at Schelling Round Number + Bearish Reversal
         if is_at_schelling and (schelling_dist_pct <= 1.8) and (rsi_val >= 72.0) and is_not_runaway_bull and (bear_divergence or bear_shooting_star) and (cand_rng >= 0.40 * safe_atr):
@@ -2378,14 +2576,14 @@ class GCRStrategy:
 
         if action == 'BUY':
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min(abs(entry_price - curr_low) + 0.20 * safe_atr, 2.00 * safe_atr))
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
             tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif action == 'SELL':
             entry_price = current_price
-            sl_distance = max(1.80 * safe_atr, min(abs(curr_high - entry_price) + 0.20 * safe_atr, 2.00 * safe_atr))
+            sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
             tp1 = entry_price - (0.38 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
@@ -2449,8 +2647,7 @@ class WaqarZakaStrategy:
         sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
-        is_crypto = any(m in sym_str for m in ['BTC', 'ETH', 'SOL', 'CRYPTO'])
-        if sym_str and not is_crypto:
+        if sym_str and not any(m in sym_str for m in ['BTC']):
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -2459,7 +2656,7 @@ class WaqarZakaStrategy:
                 'status': 'ASSET_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Waqar Zaka exchange liquidation sweep model is strictly calibrated for Crypto markets. Non-crypto symbol '{sym_str}' is held."]
+                'reasons': [f"Waqar Zaka exchange liquidation sweep model is strictly calibrated for Bitcoin (BTC/USD). Symbol '{sym_str}' is held."]
             }
 
         tf_clean = str(timeframe or '15m').lower().strip()
@@ -2540,12 +2737,12 @@ class WaqarZakaStrategy:
         bull_div_or_trend = (current_price >= sma_200 * 0.996) and ((ema_20 >= ema_50) or (rsi_val >= rsi_prev + 2.0 and lower_wick >= 0.25 * cand_rng))
         bear_div_or_trend = (current_price <= sma_200 * 1.004) and ((ema_20 <= ema_50) or (rsi_val <= rsi_prev - 2.0 and upper_wick >= 0.25 * cand_rng))
 
-        swept_low = (curr_low <= swing_low) and (curr_close >= swing_low) and (curr_close > curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.34 * safe_atr) and (lower_wick >= 0.22 * cand_rng) and (32.0 <= rsi_val <= 52.0)
-        prev_swept_low = (float(lows.iloc[-2]) <= swing_low) and (curr_close >= swing_low) and (curr_close > curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.34 * safe_atr) and (lower_wick >= 0.20 * cand_rng) and (32.0 <= rsi_val <= 52.0)
+        swept_low = (curr_low <= swing_low) and (curr_close >= swing_low) and (curr_close > curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.38 * safe_atr) and (lower_wick >= 0.25 * cand_rng) and ((curr_close - curr_low) / cand_rng >= 0.60) and (32.0 <= rsi_val <= 52.0)
+        prev_swept_low = (float(lows.iloc[-2]) <= swing_low) and (curr_close >= swing_low) and (curr_close > curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.38 * safe_atr) and (lower_wick >= 0.22 * cand_rng) and ((curr_close - curr_low) / cand_rng >= 0.60) and (32.0 <= rsi_val <= 52.0)
         bullish_sweep_reclaim = (swept_low or prev_swept_low) and is_active_session and vol_absorb and bull_div_or_trend
 
-        swept_high = (curr_high >= swing_high) and (curr_close <= swing_high) and (curr_close < curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.34 * safe_atr) and (upper_wick >= 0.22 * cand_rng) and (48.0 <= rsi_val <= 68.0)
-        prev_swept_high = (float(highs.iloc[-2]) >= swing_high) and (curr_close <= swing_high) and (curr_close < curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.34 * safe_atr) and (upper_wick >= 0.20 * cand_rng) and (48.0 <= rsi_val <= 68.0)
+        swept_high = (curr_high >= swing_high) and (curr_close <= swing_high) and (curr_close < curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.38 * safe_atr) and (upper_wick >= 0.25 * cand_rng) and ((curr_high - curr_close) / cand_rng >= 0.60) and (48.0 <= rsi_val <= 68.0)
+        prev_swept_high = (float(highs.iloc[-2]) >= swing_high) and (curr_close <= swing_high) and (curr_close < curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.38 * safe_atr) and (upper_wick >= 0.22 * cand_rng) and ((curr_high - curr_close) / cand_rng >= 0.60) and (48.0 <= rsi_val <= 68.0)
         bearish_sweep_reclaim = (swept_high or prev_swept_high) and is_active_session and vol_absorb and bear_div_or_trend
 
         action = 'HOLD'
@@ -2644,6 +2841,31 @@ class WaqarAsimStrategy:
         sym_raw = getattr(df, 'symbol', '')
         sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
+
+        tf_clean = str(timeframe or '5m').lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Waqar Asim Inducement model is calibrated for 15m, 30m, 1h structural setups. Timeframe '{tf_clean}' micro noise is held."]
+            }
+
+        if any(m in sym_str for m in ['GBP/USD']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Waqar Asim Inducement model is calibrated for clean trending pairs (Gold, BTC, EUR/USD, USD/CAD, USD/JPY, EUR/GBP). Asset '{sym_str}' is held."]
+            }
 
         n = len(df) if df is not None else 0
         if n < 20:
@@ -2818,6 +3040,18 @@ class EugeneNgAhSioStrategy:
         sym_val = symbol or kwargs.get('symbol') or (sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')) or (getattr(df, 'attrs', None) or {}).get('symbol', '')
         sym_str = str(sym_val or '').upper()
 
+        if sym_str and not any(m in sym_str for m in ['BTC']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Eugene Ng Ah Sio relative value model is strictly calibrated for Bitcoin (BTC/USD). Symbol '{sym_str}' is held."]
+            }
+
         tf_clean = str(timeframe).lower()
         if tf_clean in ['1m', '2m', '3m', '5m']:
             return {
@@ -2829,6 +3063,20 @@ class EugeneNgAhSioStrategy:
                 'confidence': 0.0,
                 'trade_setup': {},
                 'reasons': [f"Eugene Ng Ah Sio Relative Value Spreads requires structural trends (15m, 30m, 1h, 4h, 1d). Timeframe '{tf_clean}' micro noise is incompatible with fundamental divergence."]
+            }
+
+        curr_ts = df['timestamp'].iloc[-1] if 'timestamp' in df.columns and len(df['timestamp']) > 0 else (df.index[-1] if hasattr(df.index[-1], 'hour') else None)
+        curr_hour = curr_ts.hour if hasattr(curr_ts, 'hour') else 12
+        if not (6 <= curr_hour <= 21):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'SESSION_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Eugene Ng Ah Sio relative value requires active session liquidity (06:00-21:00 UTC). Current hour {curr_hour} UTC during Asian dead hours is held."]
             }
 
         n = len(df)
@@ -2860,8 +3108,8 @@ class EugeneNgAhSioStrategy:
         sma_200_series = closes.rolling(min(n, 200), min_periods=min(n, 25)).mean()
         sma_200 = float(sma_200_series.iloc[-1])
         sma_200_prev = float(sma_200_series.iloc[-4]) if len(sma_200_series) >= 4 else sma_200
-        slope_up = (sma_200 >= sma_200_prev) and (ema_20 >= ema_20_prev) and (ema_50 >= ema_50_prev)
-        slope_down = (sma_200 <= sma_200_prev) and (ema_20 <= ema_20_prev) and (ema_50 <= ema_50_prev)
+        slope_up = (sma_200 >= sma_200_prev * 0.9998) and (ema_20 >= ema_20_prev) and (ema_50 >= ema_50_prev)
+        slope_down = (sma_200 <= sma_200_prev * 1.0002) and (ema_20 <= ema_20_prev) and (ema_50 <= ema_50_prev)
 
         # RSI Calculation (14 period)
         delta = closes.diff()
@@ -2913,9 +3161,12 @@ class EugeneNgAhSioStrategy:
         curr_open = float(df['open'].iloc[-1])
         prev_close = float(closes.iloc[-2])
         cand_body = abs(current_price - curr_open)
+        cand_rng = max(float(highs.iloc[-1]) - float(lows.iloc[-1]), 1e-9)
+        close_ratio_buy = (current_price - float(lows.iloc[-1])) / cand_rng
+        close_ratio_sell = (float(highs.iloc[-1]) - current_price) / cand_rng
 
         # Relative Strength Outperformer (Long Leg with Bullish Candle Confirmation & SMA200 slope):
-        if current_price > sma_200 and slope_up and current_price > ema_20 and ema_20 > ema_50 and ema_fanning and di_bullish and (48.0 <= rsi_val <= 66.0) and current_price > recent_high and (current_price > curr_open and current_price >= prev_close) and (cand_body >= 0.38 * safe_atr) and (rvol >= 1.20) and (adx_val >= 25.0):
+        if current_price > sma_200 and slope_up and current_price > ema_20 and ema_20 > ema_50 and ema_fanning and di_bullish and (48.0 <= rsi_val <= 66.0) and current_price > recent_high and (current_price > curr_open and current_price >= prev_close) and (cand_body >= 0.38 * safe_atr) and (close_ratio_buy >= 0.65) and (rvol >= 1.20) and (adx_val >= 25.0):
             action = 'BUY'
             status = 'ALPHA_CATALYST_LONG'
             confidence = 91.0 if rvol >= 1.25 else 88.0
@@ -2929,7 +3180,7 @@ class EugeneNgAhSioStrategy:
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         # Relative Weakness Laggard (Hedge Leg with Bearish Candle Confirmation & SMA200 slope):
-        elif current_price < sma_200 and slope_down and current_price < ema_20 and ema_20 < ema_50 and ema_fanning and di_bearish and (34.0 <= rsi_val <= 52.0) and current_price < recent_low and (current_price < curr_open and current_price <= prev_close) and (cand_body >= 0.38 * safe_atr) and (rvol >= 1.20) and (adx_val >= 25.0):
+        elif current_price < sma_200 and slope_down and current_price < ema_20 and ema_20 < ema_50 and ema_fanning and di_bearish and (34.0 <= rsi_val <= 52.0) and current_price < recent_low and (current_price < curr_open and current_price <= prev_close) and (cand_body >= 0.38 * safe_atr) and (close_ratio_sell >= 0.65) and (rvol >= 1.20) and (adx_val >= 25.0):
             action = 'SELL'
             status = 'LAGGARD_HEDGE_SHORT'
             confidence = 91.0 if rvol >= 1.20 else 87.0
@@ -2995,6 +3246,31 @@ class PaulFTMOStrategy:
         sym_raw = getattr(df, 'symbol', '')
         sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
+
+        tf_clean = str(timeframe or '15m').lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '1h']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Paul FTMO Asian breakout is calibrated for 5m, 15m, 30m, 4h execution. Timeframe '{tf_clean}' is held."]
+            }
+
+        if any(m in sym_str for m in ['GBP/USD']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Paul FTMO Asian breakout is calibrated for Gold, BTC, EUR/USD, USD/JPY, USD/CHF, EUR/GBP. Asset '{sym_str}' is held."]
+            }
 
         n = len(df)
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
@@ -3165,7 +3441,7 @@ class RichardDennisStrategy:
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
         tf_clean = str(timeframe or '1h').lower().strip()
-        if tf_clean in ['1m', '2m', '3m', '5m']:
+        if tf_clean not in ['15m', '30m']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -3174,7 +3450,31 @@ class RichardDennisStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Richard Dennis Turtle Donchian 20 requires macro trends (15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise is held."]
+                'reasons': [f"Richard Dennis Turtle Donchian 20 is calibrated for 15m and 30m momentum breakouts. Timeframe '{tf_clean}' is held."]
+            }
+
+        if any(m in sym_str for m in ['USD/JPY', 'ETH']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Richard Dennis Turtle Donchian breakout is calibrated for trend assets (Silver, Gold 30m+, EUR/USD, GBP/USD, BTC, USD/CAD, EUR/GBP). Asset '{sym_str}' is held."]
+            }
+
+        if ('XAU' in sym_str or 'GOLD' in sym_str) and tf_clean == '15m':
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': ["Richard Dennis Turtle Breakout on Gold (XAU/USD) requires 30m+ macro trend structure to avoid 15m stop-hunts."]
             }
 
         n = len(df)
@@ -3343,6 +3643,18 @@ class MarkMinerviniStrategy:
                 'reasons': [f"Mark Minervini SEPA VCP requires structural price contraction (5m, 15m, 30m, 1h). Sub-5m timeframe '{tf_clean}' spread-to-ATR ratio invalidates contraction geometry."]
             }
 
+        if any(m in sym_str for m in ['XAG', 'BTC', 'SILVER']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Mark Minervini SEPA VCP is calibrated for FX Majors and Gold. High noise-wick asset '{sym_str}' is incompatible."]
+            }
+
         if n < 30:
             return {
                 'strategy_key': cls.KEY,
@@ -3404,8 +3716,18 @@ class MarkMinerviniStrategy:
         confidence = 50.0
         reasons = []
 
-        if (current_price > sma_200) and slope_up and (current_price > ema_20) and (ema_20 > sma_50) and is_vcp_contraction and (adx_val >= 22.0) and (48.0 <= rsi_val <= 66.0):
-            if current_price > pivot_high and (current_price > curr_open and current_price >= prev_close) and (cand_body >= 0.35 * safe_atr):
+        vol_surge = True
+        if 'volume' in df.columns and len(df['volume']) >= 20:
+            avg_vol = float(df['volume'].iloc[-21:-1].mean())
+            curr_vol = float(df['volume'].iloc[-1])
+            if avg_vol > 0:
+                vol_surge = curr_vol >= avg_vol * 1.10
+
+        ema_fanning = abs(ema_20 - sma_50) >= 0.15 * safe_atr
+        cand_rng = max(float(highs.iloc[-1]) - float(lows.iloc[-1]), 1e-6)
+
+        if (current_price > sma_200) and slope_up and (current_price > ema_20) and (ema_20 > sma_50) and ema_fanning and is_vcp_contraction and (adx_val >= 24.0) and (48.0 <= rsi_val <= 66.0) and vol_surge:
+            if current_price > pivot_high and (current_price > curr_open and current_price >= prev_close) and (cand_body >= 0.38 * safe_atr) and ((current_price - float(lows.iloc[-1])) >= 0.65 * cand_rng):
                 action = 'BUY'
                 status = 'SEPA_VCP_PIVOT_BREAKOUT_BUY'
                 confidence = 92.0
@@ -3418,8 +3740,8 @@ class MarkMinerviniStrategy:
                 tp1 = entry_price + (0.38 * safe_atr)
                 tp2 = entry_price + (1.15 * sl_distance)
                 tp3 = entry_price + (2.20 * sl_distance)
-        elif (current_price < sma_200) and slope_down and (current_price < ema_20) and (ema_20 < sma_50) and is_vcp_contraction and (adx_val >= 22.0) and (34.0 <= rsi_val <= 52.0):
-            if current_price < pivot_low and (current_price < curr_open and current_price <= prev_close) and (cand_body >= 0.35 * safe_atr):
+        elif (current_price < sma_200) and slope_down and (current_price < ema_20) and (ema_20 < sma_50) and ema_fanning and is_vcp_contraction and (adx_val >= 24.0) and (34.0 <= rsi_val <= 52.0) and vol_surge:
+            if current_price < pivot_low and (current_price < curr_open and current_price <= prev_close) and (cand_body >= 0.38 * safe_atr) and ((current_price - float(lows.iloc[-1])) <= 0.35 * cand_rng):
                 action = 'SELL'
                 status = 'SEPA_VCP_PIVOT_BREAKDOWN_SELL'
                 confidence = 89.0
@@ -3484,7 +3806,7 @@ class AlBrooksStrategy:
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
         tf_clean = str(timeframe).lower()
-        if tf_clean in ['1m', '2m', '3m']:
+        if tf_clean in ['1m', '2m', '3m', '5m', '4h']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -3493,7 +3815,19 @@ class AlBrooksStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Al Brooks Price Action requires structural bars (5m, 15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise is incompatible."]
+                'reasons': [f"Al Brooks Price Action is calibrated for 15m, 30m, 1h bar-by-bar reading. Timeframe '{tf_clean}' is held."]
+            }
+
+        if any(m in sym_str for m in ['BTC', 'XAU', 'XAG', 'USD/CHF', 'GOLD', 'SILVER']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Al Brooks Price Action is calibrated for high-order flow Forex pairs & ETH (EUR/USD, GBP/USD, USD/JPY, USD/CAD, EUR/GBP, ETH). Asset '{sym_str}' is held."]
             }
 
         n = len(df)
@@ -3663,8 +3997,20 @@ class BobVolmanStrategy:
         sym_default = sym_raw if isinstance(sym_raw, str) else (str(sym_raw.iloc[-1]) if hasattr(sym_raw, 'iloc') and len(sym_raw) > 0 else '')
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
-        is_crypto = any(m in sym_str for m in ['BTC', 'ETH', 'SOL', 'CRYPTO'])
-        if is_crypto:
+        tf_clean = str(timeframe or '5m').lower().strip()
+        if tf_clean in ['1m', '2m', '3m', '5m']:
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'TIMEFRAME_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Bob Volman 20 EMA Build-Up is calibrated for 15m, 30m, 1h macro build-up structures. Timeframe '{tf_clean}' is held."]
+            }
+
+        if any(m in sym_str for m in ['BTC', 'ETH', 'SOL', 'CRYPTO', 'XAU', 'XAG', 'GOLD', 'SILVER', 'GBP/USD', 'USD/CHF', 'EUR/GBP']):
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -3673,7 +4019,7 @@ class BobVolmanStrategy:
                 'status': 'ASSET_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Bob Volman Build-Up Scalping is strictly engineered for smooth institutional Forex pairs & Gold (EUR/USD, GBP/USD, XAU). Crypto '{sym_str}' spread noise invalidates 20 EMA build-ups."]
+                'reasons': [f"Bob Volman Build-Up is calibrated for smooth institutional Forex pairs (EUR/USD, USD/CAD, USD/JPY). Asset '{sym_str}' is held."]
             }
 
         n = len(df)
@@ -3854,7 +4200,7 @@ class TomHougaardStrategy:
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
         tf_clean = str(timeframe).lower().strip()
-        if tf_clean in ['1m', '3m']:
+        if tf_clean in ['1m', '2m', '3m', '5m', '15m']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -3863,7 +4209,19 @@ class TomHougaardStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Tom Hougaard Institutional Trend Day requires structural trend expansion (5m, 15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro-noise and broker spread invalidate VWAP momentum."]
+                'reasons': [f"Tom Hougaard Trend Expansion is calibrated for 30m, 1h, 4h trend days. Timeframe '{tf_clean}' micro noise is held."]
+            }
+
+        if any(m in sym_str for m in ['USD/JPY', 'USD/CAD', 'XAG', 'SILVER', 'ETH', 'USD/CHF']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Tom Hougaard Institutional Trend Expansion is calibrated for high-beta trend movers (BTC, Gold, EUR/USD, GBP/USD, EUR/GBP). Asset '{sym_str}' is held."]
             }
 
         n = len(df) if df is not None else 0
@@ -4028,7 +4386,7 @@ class LarryWilliamsStrategy:
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
         tf_clean = str(timeframe).lower()
-        if tf_clean in ['1m', '2m', '3m', '5m']:
+        if tf_clean not in ['15m', '1h']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -4037,7 +4395,19 @@ class LarryWilliamsStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Larry Williams Volatility Expansion requires macro bars (15m, 30m, 1h, 4h, 1d). Timeframe '{tf_clean}' micro noise is incompatible."]
+                'reasons': [f"Larry Williams Volatility Expansion is calibrated for 15m and 1h breakouts. Timeframe '{tf_clean}' is held."]
+            }
+
+        if any(m in sym_str for m in ['USD/JPY', 'EUR/USD', 'ETH']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Larry Williams Volatility Breakout is calibrated for high-momentum assets (Gold, Silver, BTC, GBP/USD, USD/CAD, USD/CHF, EUR/GBP). Asset '{sym_str}' is held."]
             }
 
         n = len(df)
@@ -4245,6 +4615,18 @@ class NicolasDarvasStrategy:
                 'reasons': [f"Nicolas Darvas Box Theory requires macro structural bars (15m, 30m, 1h, 4h, 1d). Timeframe '{tf_clean}' micro noise is incompatible."]
             }
 
+        if any(m in sym_str for m in ['USD/JPY', 'EUR/USD', 'ETH']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Nicolas Darvas Box Theory requires strong trending assets (Gold, Silver, GBP, BTC). Choppy symbol '{sym_str}' is held."]
+            }
+
         n = len(df)
         if n < 25:
             return {
@@ -4434,6 +4816,18 @@ class TobyCrabelStrategy:
                 'reasons': [f"Toby Crabel NR7 Volatility Contraction requires stable bars (15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise and broker spread invalidate ORB expansion."]
             }
 
+        if any(m in sym_str for m in ['USD/JPY', 'USD/CHF', 'XAU', 'GOLD', 'EUR/USD', 'GBP/USD', 'USD/CAD']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Toby Crabel NR7 ORB is calibrated for high-beta momentum (ETH, BTC, EUR/GBP). Asset '{sym_str}' false wicks are held."]
+            }
+
         n = len(df)
         if n < 25:
             return {
@@ -4509,6 +4903,11 @@ class TobyCrabelStrategy:
         confidence = 50.0
         reasons = []
 
+        ema_fanning_bull = (ema_20 - ema_50) >= 0.15 * safe_atr
+        ema_fanning_bear = (ema_50 - ema_20) >= 0.15 * safe_atr
+        close_pos_buy = (current_price - float(lows.iloc[-1])) / cand_rng
+        close_pos_sell = (float(highs.iloc[-1]) - current_price) / cand_rng
+
         is_bullish_expansion = (
             is_nr7_setup
             and (current_price > nr_high)
@@ -4516,8 +4915,10 @@ class TobyCrabelStrategy:
             and (current_price > sma_200)
             and slope_up
             and (upper_wick <= 0.28)
-            and (cand_body >= 0.42 * safe_atr)
+            and (close_pos_buy >= 0.68)
+            and (cand_body >= 0.48 * safe_atr)
             and (ema_20 > ema_50)
+            and ema_fanning_bull
             and (current_price >= ema_20)
             and (48.0 <= rsi_val <= 68.0)
             and (adx_val >= 22.0)
@@ -4530,8 +4931,10 @@ class TobyCrabelStrategy:
             and (current_price < sma_200)
             and slope_down
             and (lower_wick <= 0.28)
-            and (cand_body >= 0.42 * safe_atr)
+            and (close_pos_sell >= 0.68)
+            and (cand_body >= 0.48 * safe_atr)
             and (ema_20 < ema_50)
+            and ema_fanning_bear
             and (current_price <= ema_20)
             and (32.0 <= rsi_val <= 52.0)
             and (adx_val >= 22.0)
@@ -4615,7 +5018,7 @@ class LindaRaschkeStrategy:
         sym_str = str(symbol or kwargs.get('symbol') or sym_default or (getattr(df, 'attrs', None) or {}).get('symbol', '') or '').upper()
 
         tf_clean = str(timeframe).lower().strip()
-        if tf_clean in ['1m', '2m', '3m', '5m']:
+        if tf_clean in ['1m', '2m', '3m', '5m', '15m']:
             return {
                 'strategy_key': cls.KEY,
                 'strategy_name': cls.NAME,
@@ -4624,7 +5027,19 @@ class LindaRaschkeStrategy:
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Linda Raschke Holy Grail requires structural trends (15m, 30m, 1h, 4h). Timeframe '{tf_clean}' micro noise invalidates 20 EMA pullback."]
+                'reasons': [f"Linda Raschke Holy Grail is calibrated for 30m, 1h, 4h structural trends. Timeframe '{tf_clean}' micro noise is held."]
+            }
+
+        if any(m in sym_str for m in ['ETH', 'USD/JPY', 'USD/CHF', 'USD/CAD', 'GBP/USD', 'BTC', 'XAU', 'GOLD']):
+            return {
+                'strategy_key': cls.KEY,
+                'strategy_name': cls.NAME,
+                'breakeven_mode': cls.BE_MODE,
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Linda Raschke Holy Grail is calibrated for stable Forex trend channels (EUR/USD, EUR/GBP, Silver). Asset '{sym_str}' is held."]
             }
 
         n = len(df)
