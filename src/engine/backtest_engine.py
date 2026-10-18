@@ -1287,8 +1287,9 @@ class MT5BacktestEngine:
                         if not st_res or st_res.get('action') not in ['BUY', 'SELL']:
                             continue
 
-                        # UNIVERSAL HTF (Higher Timeframe) Trend Confluence Guard (Matching Autonomous Engine)
-                        if htf_filter_enabled and s_k != 'GCR':
+                        # UNIVERSAL HTF (Higher Timeframe) Trend Confluence Guard (Matching Autonomous Engine lines 2301-2303)
+                        # Streamers evaluate their own native trend/fanning rules; generic HTF guard only applies to DEFAULT
+                        if htf_filter_enabled and s_k == 'DEFAULT':
                             clean_dir = 'BUY' if 'BUY' in str(st_res.get('action', '')).upper() else ('SELL' if 'SELL' in str(st_res.get('action', '')).upper() else '')
                             if clean_dir:
                                 htf_tf = HTFConfluenceChecker.get_htf_timeframe(tf)
@@ -1312,10 +1313,13 @@ class MT5BacktestEngine:
                                         continue
 
                         conf = float(st_res.get('confidence', 50.0))
-                        # Enforce Minimum Pillars / Confidence Threshold
-                        min_conf = 85.0 if min_pillars == 5 else (75.0 if min_pillars == 4 else (65.0 if min_pillars == 3 else 50.0))
-                        if conf >= min_conf:
-                            triggered_candidates.append(st_res)
+                        # Enforce Minimum Pillars / Confidence Threshold (DEFAULT only, matching Autonomous Manager lines 2204-2205)
+                        if s_k == 'DEFAULT':
+                            min_conf = 85.0 if min_pillars == 5 else (75.0 if min_pillars == 4 else (65.0 if min_pillars == 3 else 50.0))
+                            if conf < min_conf:
+                                continue
+
+                        triggered_candidates.append(st_res)
 
                     if triggered_candidates:
                         # Select highest-conviction setup
@@ -1646,8 +1650,9 @@ class MT5BacktestEngine:
             if pnl > 0.15 and pnl > biggest_tp_win:
                 biggest_tp_win = round(pnl, 2)
 
-        # 6. Compute Granular Reports: Weekly Breakdown, Pair Breakdown, and Capital Preservation
+        # 6. Compute Granular Reports: Weekly Breakdown, Daily Breakdown, Pair Breakdown, and Capital Preservation
         weekly_breakdown = self.compute_weekly_breakdown(closed_batches, d_from, d_to)
+        daily_breakdown = self.compute_daily_breakdown(closed_batches, d_from, d_to)
         pair_breakdown = self.compute_pair_breakdown(closed_batches, symbols)
         capital_safety = self.compute_capital_safety(
             initial_balance=initial_balance,
@@ -1686,6 +1691,7 @@ class MT5BacktestEngine:
             'biggest_tp_win': biggest_tp_win,
             'sl_hits': sl_hits,
             'weekly_breakdown': weekly_breakdown,
+            'daily_breakdown': daily_breakdown,
             'pair_breakdown': pair_breakdown,
             'capital_safety': capital_safety,
             'lowest_balance_ever': lowest_balance_ever,
@@ -1829,6 +1835,123 @@ class MT5BacktestEngine:
             cur_w_start = cur_w_end
 
         return weekly_rows
+
+    @classmethod
+    def compute_daily_breakdown(
+        cls,
+        closed_batches: List[Dict[str, Any]],
+        d_from: Any,
+        d_to: Any
+    ) -> List[Dict[str, Any]]:
+        """
+        Generates granular chronological day-by-day performance analytics,
+        mirroring audit reports with Date, Day Name, Trades, W/L/BE, WR%, Net PnL, PF,
+        TP1, TP2, TP3, SL, Max Single SL Hit, and Max Single TP Win.
+        """
+        def _is_be(b):
+            stt = str(b.get('status', '')).upper()
+            exit_r = str(b.get('exit_reason', '')).upper()
+            p = float(b.get('profit', 0.0))
+            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
+
+        def _is_loss(b):
+            if _is_be(b):
+                return False
+            stt = str(b.get('status', '')).upper()
+            exit_r = str(b.get('exit_reason', '')).upper()
+            p = float(b.get('profit', 0.0))
+            tp1_hit = bool(b.get('tp1_hit', False))
+            return (stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15)
+
+        def _is_win(b):
+            return not _is_be(b) and not _is_loss(b)
+
+        # Standardize dates
+        try:
+            start_dt = d_from if isinstance(d_from, datetime) else datetime.fromisoformat(str(d_from))
+        except Exception:
+            start_dt = datetime.now() - timedelta(days=30)
+        try:
+            end_dt = d_to if isinstance(d_to, datetime) else datetime.fromisoformat(str(d_to))
+        except Exception:
+            end_dt = datetime.now()
+
+        if start_dt.tzinfo is not None:
+            start_dt = start_dt.replace(tzinfo=None)
+        if end_dt.tzinfo is not None:
+            end_dt = end_dt.replace(tzinfo=None)
+
+        daily_rows = []
+        cur_d_start = start_dt
+
+        while cur_d_start < end_dt:
+            cur_d_end = min(cur_d_start + timedelta(days=1), end_dt)
+            d_batches = []
+            for b in closed_batches:
+                c_str = b.get('closed_at') or b.get('executed_at')
+                if not c_str:
+                    continue
+                try:
+                    c_dt = datetime.fromisoformat(str(c_str).replace('Z', '+00:00'))
+                    if c_dt.tzinfo is not None:
+                        c_dt = c_dt.replace(tzinfo=None)
+                except Exception:
+                    continue
+
+                if cur_d_end >= end_dt:
+                    if cur_d_start <= c_dt <= cur_d_end:
+                        d_batches.append(b)
+                else:
+                    if cur_d_start <= c_dt < cur_d_end:
+                        d_batches.append(b)
+
+            d_trades = len(d_batches)
+            d_bes = sum(1 for b in d_batches if _is_be(b))
+            d_losses = sum(1 for b in d_batches if _is_loss(b))
+            d_wins = sum(1 for b in d_batches if _is_win(b))
+            d_prof = sum(1 for b in d_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+            d_wr = round((d_prof / max(d_trades, 1)) * 100.0, 1) if d_trades > 0 else 0.0
+            d_pnl = round(sum(b.get('profit', 0.0) for b in d_batches), 2)
+
+            d_gp = sum(b.get('profit', 0.0) for b in d_batches if b.get('profit', 0.0) > 0)
+            d_gl = sum(abs(b.get('profit', 0.0)) for b in d_batches if b.get('profit', 0.0) < 0)
+            d_pf = round(d_gp / d_gl, 2) if d_gl > 0 else (99.9 if d_gp > 0 else 0.0)
+
+            d_tp1 = sum(1 for b in d_batches if b.get('tp1_hit') or 'TP1' in str(b.get('exit_reason', '')).upper())
+            d_tp2 = sum(1 for b in d_batches if b.get('tp2_hit') or 'TP2' in str(b.get('exit_reason', '')).upper())
+            d_tp3 = sum(1 for b in d_batches if 'TP3' in str(b.get('exit_reason', '')).upper())
+            d_sl = sum(1 for b in d_batches if _is_loss(b))
+
+            d_max_sl = 0.0
+            d_max_tp = 0.0
+            for b in d_batches:
+                p = float(b.get('profit', 0.0))
+                if p < -0.15 and abs(p) > d_max_sl:
+                    d_max_sl = round(abs(p), 2)
+                if p > 0.15 and p > d_max_tp:
+                    d_max_tp = round(p, 2)
+
+            daily_rows.append({
+                'date': cur_d_start.strftime("%Y-%m-%d"),
+                'day_name': cur_d_start.strftime("%A"),
+                'trades': d_trades,
+                'wins': d_wins,
+                'losses': d_losses,
+                'breakevens': d_bes,
+                'win_rate': d_wr,
+                'net_pnl': d_pnl,
+                'profit_factor': d_pf,
+                'tp1_hits': d_tp1,
+                'tp2_hits': d_tp2,
+                'tp3_hits': d_tp3,
+                'sl_hits': d_sl,
+                'max_sl': d_max_sl,
+                'max_tp': d_max_tp
+            })
+
+            cur_d_start = cur_d_end
+
+        return daily_rows
 
     @classmethod
     def compute_pair_breakdown(

@@ -2,7 +2,10 @@
   "selected_symbols": [
     "EUR/USD",
     "GBP/USD",
-    "USD/JPY"
+    "USD/JPY",
+    "BTC/USD",
+    "ETH/USD",
+    "XAU/USD"
   ],
   "timeframes": [
     "15m",
@@ -12,22 +15,22 @@
     "5m"
   ],
   "active_strategies": [
-    "ICT",
+    "OLIVER_VELEZ",
+    "STEVEN_HART",
     "VIVEK_YADAV",
     "TRADE_PRO",
-    "NDEMAZEAH_GODLOVE",
-    "TOBY_CRABEL",
-    "ADAM_KHOO",
-    "PAUL_FTMO"
+    "ARIEL_ZWECHER",
+    "RAYNER_TEO",
+    "WAQAR_ZAKA"
   ],
-  "date_from": "2026-08-17",
-  "date_to": "2026-09-17",
-  "initial_balance": 5.0,
+  "date_from": "2026-07-01",
+  "date_to": "2026-10-16",
+  "initial_balance": 100.0,
   "target_trades_per_symbol": 1000,
   "scan_delay_mins": 0.25,
-  "batch_lot_size": 0.01,
-  "max_active_batches": 1,
-  "max_dollar_risk": 1.0,
+  "batch_lot_size": 2.0,
+  "max_active_batches": 1000,
+  "max_dollar_risk": 15.0,
   "min_pillars_required": 5,
   "allow_same_tf_trades": false,
   "allow_diff_strat_same_tf": true,
