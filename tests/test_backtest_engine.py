@@ -36,6 +36,20 @@ class TestMT5BacktestEngine(unittest.TestCase):
             with open(self.live_state_path, 'r', encoding='utf-8') as f:
                 self.initial_live_state_content = f.read()
 
+        # Capture and protect canonical backtest state file so unit tests never overwrite it
+        self.bt_state_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.backtest_engine_state.json'))
+        self.initial_bt_state_content = None
+        if os.path.exists(self.bt_state_path):
+            with open(self.bt_state_path, 'r', encoding='utf-8') as f:
+                self.initial_bt_state_content = f.read()
+
+    def tearDown(self):
+        # Restore canonical backtest state if mutated during test execution
+        if self.initial_bt_state_content is not None and os.path.exists(self.bt_state_path):
+            with open(self.bt_state_path, 'w', encoding='utf-8') as f:
+                f.write(self.initial_bt_state_content)
+
+
     def test_engine_initialization_and_settings(self):
         """Engine loads settings with all required autonomous fields."""
         settings = self.engine.load_settings()

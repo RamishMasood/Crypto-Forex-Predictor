@@ -37,8 +37,15 @@ import numpy as np
 from ..strategies.streamer_playbook import MasterStreamerPlaybook
 from ..engine.session_manager import SessionManager
 from ..engine.htf_confluence import HTFConfluenceChecker
-from ..engine.autonomous_manager import AVAILABLE_STRATEGIES
 from ..data.economic_calendar import EconomicCalendarManager
+
+AVAILABLE_STRATEGIES: Dict[str, str] = {
+    'DEFAULT': 'Institutional Core 5-Pillar Confluence (Trend, Pullback, Candle, RSI, ATR)'
+}
+for _k, _cls in MasterStreamerPlaybook.STRATEGY_MAP.items():
+    AVAILABLE_STRATEGIES[_k] = getattr(_cls, 'NAME', _k)
+
+ALL_PLAYBOOK_STRATEGIES = list(AVAILABLE_STRATEGIES.keys())
 
 logger = logging.getLogger("MT5BacktestEngine")
 if not logger.handlers:
@@ -512,7 +519,7 @@ class MT5BacktestEngine:
         try:
             tmp = BACKTEST_STATE_FILE + ".tmp"
             with open(tmp, 'w', encoding='utf-8') as f:
-                json.dump(results, f, indent=2)
+                json.dump(results, f, indent=2, default=str)
             os.replace(tmp, BACKTEST_STATE_FILE)
         except Exception as e:
             logger.error(f"Error saving backtest results: {e}")
@@ -613,8 +620,8 @@ class MT5BacktestEngine:
             tf_code = MT5_TF_LOOKUP.get(timeframe, 16385)
             rates = mt5.copy_rates_range(broker_sym, tf_code, date_from, date_to)
             if rates is None or len(rates) == 0:
-                # Fallback to copy_rates_from_pos if date range is very far back
-                rates = mt5.copy_rates_from_pos(broker_sym, tf_code, 0, 5000)
+                # Fallback to copy_rates_from_pos if date range is very far back (up to max broker depth)
+                rates = mt5.copy_rates_from_pos(broker_sym, tf_code, 0, 80000)
                 if rates is None or len(rates) == 0:
                     return None, broker_sym, None
 
@@ -624,6 +631,10 @@ class MT5BacktestEngine:
 
             df = pd.DataFrame(rates)
             df['timestamp'] = pd.to_datetime(df['time'], unit='s', utc=True)
+            # Filter within date range
+            df = df[(df['timestamp'] >= date_from) & (df['timestamp'] <= date_to)]
+            if len(df) == 0:
+                return None, broker_sym, None
             df = df.rename(columns={'tick_volume': 'volume'})
             df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume', 'spread']].copy()
             df = df.sort_values('timestamp').reset_index(drop=True)
@@ -655,7 +666,7 @@ class MT5BacktestEngine:
 
         symbols = cfg.get('selected_symbols', ["BTC/USD", "EUR/USD", "XAU/USD"])
         timeframes = cfg.get('timeframes', ["15m", "1h"])
-        strategies = cfg.get('active_strategies', list(AVAILABLE_STRATEGIES.keys()))
+        strategies = cfg.get('active_strategies', ALL_PLAYBOOK_STRATEGIES)
         date_from_str = cfg.get('date_from')
         date_to_str = cfg.get('date_to')
         initial_balance = float(cfg.get('initial_balance', 10000.0))
@@ -692,31 +703,37 @@ class MT5BacktestEngine:
             progress_callback(0.05, "Connecting to Exness MT5 and downloading historical price feeds...")
 
         # 1. Ingest Data for all symbols and timeframes
-        data_feeds: Dict[str, Dict[str, pd.DataFrame]] = {}
-        broker_symbols: Dict[str, str] = {}
-        spread_maps: Dict[str, float] = {}
+        preloaded_feeds = cfg.get('preloaded_feeds')
+        if preloaded_feeds:
+            data_feeds = preloaded_feeds.get('data_feeds', {})
+            broker_symbols = preloaded_feeds.get('broker_symbols', {})
+            spread_maps = preloaded_feeds.get('spread_maps', {})
+        else:
+            data_feeds: Dict[str, Dict[str, pd.DataFrame]] = {}
+            broker_symbols: Dict[str, str] = {}
+            spread_maps: Dict[str, float] = {}
 
-        total_pairs = len(symbols)
-        for p_idx, sym in enumerate(symbols):
-            if self._stop_requested.is_set():
-                logger.info("Backtest halted by user during data ingestion.")
-                self._is_running = False
-                return {}
+            total_pairs = len(symbols)
+            for p_idx, sym in enumerate(symbols):
+                if self._stop_requested.is_set():
+                    logger.info("Backtest halted by user during data ingestion.")
+                    self._is_running = False
+                    return {}
 
-            data_feeds[sym] = {}
-            for tf in timeframes:
-                df, broker_sym, sp_val = self.fetch_mt5_data(sym, tf, d_from, d_to)
-                if df is not None and len(df) >= 30:
-                    df.attrs['symbol'] = sym
-                    data_feeds[sym][tf] = df
-                    if broker_sym:
-                        broker_symbols[sym] = broker_sym
-                    if sp_val:
-                        spread_maps[sym] = sp_val
-            
-            prog = 0.05 + (0.25 * ((p_idx + 1) / max(total_pairs, 1)))
-            if progress_callback:
-                progress_callback(prog, f"Ingested MT5 data for {sym}...")
+                data_feeds[sym] = {}
+                for tf in timeframes:
+                    df, broker_sym, sp_val = self.fetch_mt5_data(sym, tf, d_from, d_to)
+                    if df is not None and len(df) >= 30:
+                        df.attrs['symbol'] = sym
+                        data_feeds[sym][tf] = df
+                        if broker_sym:
+                            broker_symbols[sym] = broker_sym
+                        if sp_val:
+                            spread_maps[sym] = sp_val
+                
+                prog = 0.05 + (0.25 * ((p_idx + 1) / max(total_pairs, 1)))
+                if progress_callback:
+                    progress_callback(prog, f"Ingested MT5 data for {sym}...")
 
         # Check if any feeds were retrieved
         has_data = any(len(tfs) > 0 for tfs in data_feeds.values())
@@ -753,16 +770,26 @@ class MT5BacktestEngine:
         # 2. Build Chronological Event Timeline
         # Collect all candle close events across symbols and timeframes
         timeline_events = []
+        feed_arrays = {}
         for sym, tfs in data_feeds.items():
+            feed_arrays[sym] = {}
             for tf, df in tfs.items():
-                for idx, row in df.iterrows():
-                    if idx >= 20: # Require 20 bars minimum warm-up
-                        timeline_events.append({
-                            'timestamp': row['timestamp'],
-                            'symbol': sym,
-                            'timeframe': tf,
-                            'bar_idx': idx
-                        })
+                feed_arrays[sym][tf] = {
+                    'open': df['open'].to_numpy(dtype=float),
+                    'high': df['high'].to_numpy(dtype=float),
+                    'low': df['low'].to_numpy(dtype=float),
+                    'close': df['close'].to_numpy(dtype=float),
+                    'atr': df['atr'].to_numpy(dtype=float),
+                }
+                ts_arr = df['timestamp'].to_numpy()
+                n_rows = len(df)
+                for idx in range(20, n_rows):
+                    timeline_events.append({
+                        'timestamp': pd.Timestamp(ts_arr[idx]),
+                        'symbol': sym,
+                        'timeframe': tf,
+                        'bar_idx': idx
+                    })
 
         timeline_events.sort(key=lambda x: x['timestamp'])
 
@@ -777,6 +804,7 @@ class MT5BacktestEngine:
         max_drawdown_usd = 0.0
         max_drawdown_pct = 0.0
         news_shield_saves = 0
+        news_blackout_blocks = 0
 
         open_batches: List[Dict[str, Any]] = []
         closed_batches: List[Dict[str, Any]] = []
@@ -804,14 +832,14 @@ class MT5BacktestEngine:
             tf = ev['timeframe']
             idx = ev['bar_idx']
             df = data_feeds[sym][tf]
-            bar = df.iloc[idx]
+            arr = feed_arrays[sym][tf]
             cur_time = ev['timestamp']
             last_sim_time = cur_time
-            cur_open = float(bar['open'])
-            cur_high = float(bar['high'])
-            cur_low = float(bar['low'])
-            cur_close = float(bar['close'])
-            cur_atr = float(bar['atr'])
+            cur_open = float(arr['open'][idx])
+            cur_high = float(arr['high'][idx])
+            cur_low = float(arr['low'][idx])
+            cur_close = float(arr['close'][idx])
+            cur_atr = float(arr['atr'][idx])
             latest_prices[sym] = cur_close
 
             contract_size = self.compute_contract_size(sym)
@@ -1141,6 +1169,11 @@ class MT5BacktestEngine:
                     can_open = False
 
                 if can_open:
+                    candidate_strats = [s for s in strategies if (s, sym, tf) not in incompatible_cache]
+                    if not candidate_strats:
+                        can_open = False
+
+                if can_open:
                     slice_start = max(0, idx - 250)
                     historical_slice = df.iloc[slice_start:idx + 1]
 
@@ -1162,6 +1195,7 @@ class MT5BacktestEngine:
 
                         # 1. HARD GUARD: Macroeconomic News Blackout (WAQAR_ZAKA trades news volatility)
                         if is_cur_news_blackout and s_k != 'WAQAR_ZAKA':
+                            news_blackout_blocks += 1
                             continue
 
                         # 2. Check Diff-Strat Same-TF Rule
@@ -1184,9 +1218,13 @@ class MT5BacktestEngine:
                             strat_cls = MasterStreamerPlaybook.STRATEGY_MAP[s_k]
                             try:
                                 st_res = strat_cls.evaluate(historical_slice, atr=cur_atr, timeframe=tf, symbol=sym)
-                                if st_res and 'INCOMPATIBLE' in str(st_res.get('status', '')):
-                                    incompatible_cache.add((s_k, sym, tf))
-                                    continue
+                                if st_res:
+                                    st_status = str(st_res.get('status', ''))
+                                    if 'ASSET_INCOMPATIBLE' in st_status or 'TIMEFRAME_INCOMPATIBLE' in st_status:
+                                        incompatible_cache.add((s_k, sym, tf))
+                                        continue
+                                    if 'SESSION_INCOMPATIBLE' in st_status:
+                                        continue
                             except Exception:
                                 pass
                         elif s_k == 'DEFAULT':
@@ -1478,7 +1516,7 @@ class MT5BacktestEngine:
             current_prog = 0.35 + (0.60 * ((e_idx + 1) / max(total_events, 1)))
             now_perf = time.time()
             is_final_bar = (e_idx == total_events - 1)
-            if (now_perf - last_ui_update_time >= 2.5) or is_final_bar:
+            if progress_callback and ((now_perf - last_ui_update_time >= 2.5) or is_final_bar):
                 be_c = sum(1 for b in closed_batches if b.get('status') == 'BREAKEVEN' or 'BE' in str(b.get('exit_reason', '')).upper() or abs(b.get('profit', 0.0)) <= 0.15)
                 losses_c = sum(1 for b in closed_batches if not (b.get('status') == 'BREAKEVEN' or 'BE' in str(b.get('exit_reason', '')).upper()) and (b.get('status') == 'LOSS' or 'FULL_SL' in str(b.get('exit_reason', '')).upper() or (not b.get('tp1_hit') and b.get('profit', 0.0) < -0.15)))
                 wins_c = max(0, len(closed_batches) - be_c - losses_c)
@@ -1699,10 +1737,11 @@ class MT5BacktestEngine:
             'peak_balance': peak_balance,
             'is_account_zeroed': capital_safety['is_account_zeroed'],
             'news_shield_saves': news_shield_saves,
+            'news_blackout_blocks': news_blackout_blocks,
             'equity_curve': equity_curve,
             'leaderboard': leaderboard,
             'closed_batches': closed_batches,
-            'settings_used': cfg
+            'settings_used': {k: v for k, v in cfg.items() if k != 'preloaded_feeds'}
         }
 
         # Save to disk

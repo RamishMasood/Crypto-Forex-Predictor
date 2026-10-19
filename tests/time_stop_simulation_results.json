@@ -1,376 +1,60 @@
 {
   "baseline": {
-    "total_trades": 178,
-    "wins": 136,
-    "losses": 40,
-    "be": 2,
-    "win_rate_pct": 76.4,
-    "net_pnl_usd": -134.63
+    "total_trades": 0,
+    "wins": 0,
+    "losses": 0,
+    "be": 0,
+    "win_rate_pct": 0.0,
+    "net_pnl_usd": 0.0
   },
   "models": {
     "Model_1_TimeStop_12Bars": {
       "name": "Time-Stop Expiry (Exit if negative after 12 bars)",
-      "wins": 123,
-      "losses": 51,
-      "be": 4,
-      "win_rate_pct": 69.1,
-      "win_rate_diff": -7.3,
-      "net_pnl_usd": -36.67,
-      "net_pnl_diff": 97.96,
-      "saved_losses_count": 14,
-      "saved_losses_dollars": 190.49,
-      "killed_winners_count": 13,
-      "killed_winners_dollars": 89.74,
-      "by_strategy": {
-        "Adam Khoo (Multi-EMA Trend)": {
-          "saved": 3,
-          "killed": 0,
-          "net_diff": 38.34
-        },
-        "Michael Huddleston (ICT - Inner Circle Trader)": {
-          "saved": 1,
-          "killed": 0,
-          "net_diff": 23.78
-        },
-        "Waqar Asim (Forex 1M S&D Inducement Scalp)": {
-          "saved": 1,
-          "killed": 2,
-          "net_diff": -18.310000000000002
-        },
-        "Bob Volman (Price Action Scalping & Buildup)": {
-          "saved": 1,
-          "killed": 1,
-          "net_diff": 3.6099999999999994
-        },
-        "Mark Minervini (SEPA - Volatility Contraction Pattern)": {
-          "saved": 0,
-          "killed": 2,
-          "net_diff": -8.870000000000001
-        },
-        "Al Brooks (Price Action - Major Trend Reversals)": {
-          "saved": 2,
-          "killed": 2,
-          "net_diff": 22.96
-        },
-        "Trade Pro (Donchian & 200 SMA)": {
-          "saved": 3,
-          "killed": 2,
-          "net_diff": 31.779999999999994
-        },
-        "Tom Hougaard (TraderTom - Institutional Trend Expansion & VWAP)": {
-          "saved": 0,
-          "killed": 1,
-          "net_diff": -1.8
-        },
-        "Linda Raschke (Holy Grail - ADX Trend & 20 EMA Pullback)": {
-          "saved": 0,
-          "killed": 1,
-          "net_diff": -10.110000000000001
-        },
-        "Steven Hart (The Trading Channel)": {
-          "saved": 1,
-          "killed": 0,
-          "net_diff": 17.18
-        },
-        "Richard Dennis (Turtle Trading Trend Following)": {
-          "saved": 2,
-          "killed": 1,
-          "net_diff": 12.0
-        },
-        "Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)": {
-          "saved": 0,
-          "killed": 1,
-          "net_diff": -12.6
-        }
-      },
-      "by_timeframe": {
-        "3m": {
-          "saved": 3,
-          "killed": 3,
-          "net_diff": -2.0200000000000014
-        },
-        "15m": {
-          "saved": 6,
-          "killed": 1,
-          "net_diff": 69.11999999999999
-        },
-        "1h": {
-          "saved": 1,
-          "killed": 1,
-          "net_diff": 13.67
-        },
-        "1m": {
-          "saved": 2,
-          "killed": 2,
-          "net_diff": 11.67
-        },
-        "5m": {
-          "saved": 1,
-          "killed": 5,
-          "net_diff": -6.280000000000001
-        },
-        "4h": {
-          "saved": 0,
-          "killed": 1,
-          "net_diff": -3.71
-        },
-        "30m": {
-          "saved": 1,
-          "killed": 0,
-          "net_diff": 15.510000000000002
-        }
-      }
+      "wins": 0,
+      "losses": 0,
+      "be": 0,
+      "win_rate_pct": 0.0,
+      "win_rate_diff": 0.0,
+      "net_pnl_usd": 0.0,
+      "net_pnl_diff": 0.0,
+      "saved_losses_count": 0,
+      "saved_losses_dollars": 0.0,
+      "killed_winners_count": 0,
+      "killed_winners_dollars": 0.0,
+      "by_strategy": {},
+      "by_timeframe": {}
     },
     "Model_2_Structural_BarClose_0.50ATR": {
       "name": "Structural Bar-Close Invalidation (Candle closes > 0.50 ATR against entry)",
-      "wins": 105,
-      "losses": 71,
-      "be": 2,
-      "win_rate_pct": 59.0,
-      "win_rate_diff": -17.4,
-      "net_pnl_usd": 29.18,
-      "net_pnl_diff": 163.81,
-      "saved_losses_count": 31,
-      "saved_losses_dollars": 467.97,
-      "killed_winners_count": 31,
-      "killed_winners_dollars": 304.16,
-      "by_strategy": {
-        "Adam Khoo (Multi-EMA Trend)": {
-          "saved": 8,
-          "killed": 3,
-          "net_diff": 112.28999999999999
-        },
-        "Trade Pro (Donchian & 200 SMA)": {
-          "saved": 5,
-          "killed": 4,
-          "net_diff": 37.690000000000005
-        },
-        "Michael Huddleston (ICT - Inner Circle Trader)": {
-          "saved": 2,
-          "killed": 1,
-          "net_diff": 25.88
-        },
-        "Waqar Asim (Forex 1M S&D Inducement Scalp)": {
-          "saved": 1,
-          "killed": 2,
-          "net_diff": -13.0
-        },
-        "Bob Volman (Price Action Scalping & Buildup)": {
-          "saved": 1,
-          "killed": 0,
-          "net_diff": 5.6899999999999995
-        },
-        "Linda Raschke (Holy Grail - ADX Trend & 20 EMA Pullback)": {
-          "saved": 1,
-          "killed": 1,
-          "net_diff": -14.99
-        },
-        "Steven Hart (The Trading Channel)": {
-          "saved": 3,
-          "killed": 2,
-          "net_diff": 43.3
-        },
-        "Waqar Zaka (Off-Exchange Reserve & ATR Buffer Model)": {
-          "saved": 1,
-          "killed": 0,
-          "net_diff": 12.47
-        },
-        "Al Brooks (Price Action - Major Trend Reversals)": {
-          "saved": 4,
-          "killed": 3,
-          "net_diff": -18.430000000000014
-        },
-        "Toby Crabel (NR7 Volatility Contraction Breakout)": {
-          "saved": 1,
-          "killed": 1,
-          "net_diff": 9.869999999999997
-        },
-        "Mark Minervini (SEPA - Volatility Contraction Pattern)": {
-          "saved": 1,
-          "killed": 2,
-          "net_diff": -13.98
-        },
-        "Richard Dennis (Turtle Trading Trend Following)": {
-          "saved": 2,
-          "killed": 2,
-          "net_diff": 28.869999999999997
-        },
-        "Institutional Core (5-Pillars)": {
-          "saved": 0,
-          "killed": 3,
-          "net_diff": -35.61
-        },
-        "Ndemazeah Godlove (GU MVR)": {
-          "saved": 0,
-          "killed": 3,
-          "net_diff": -18.94
-        },
-        "Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)": {
-          "saved": 1,
-          "killed": 2,
-          "net_diff": 5.510000000000002
-        },
-        "Ariel Zwecher (Quantitative ORB)": {
-          "saved": 0,
-          "killed": 1,
-          "net_diff": -1.76
-        },
-        "Tom Hougaard (TraderTom - Institutional Trend Expansion & VWAP)": {
-          "saved": 0,
-          "killed": 1,
-          "net_diff": -1.05
-        }
-      },
-      "by_timeframe": {
-        "3m": {
-          "saved": 5,
-          "killed": 4,
-          "net_diff": 43.769999999999996
-        },
-        "30m": {
-          "saved": 8,
-          "killed": 4,
-          "net_diff": 49.980000000000004
-        },
-        "15m": {
-          "saved": 10,
-          "killed": 9,
-          "net_diff": 100.77999999999997
-        },
-        "1h": {
-          "saved": 2,
-          "killed": 0,
-          "net_diff": 23.36
-        },
-        "1m": {
-          "saved": 2,
-          "killed": 1,
-          "net_diff": 12.309999999999999
-        },
-        "5m": {
-          "saved": 4,
-          "killed": 12,
-          "net_diff": -62.46999999999999
-        },
-        "4h": {
-          "saved": 0,
-          "killed": 1,
-          "net_diff": -3.92
-        }
-      }
+      "wins": 0,
+      "losses": 0,
+      "be": 0,
+      "win_rate_pct": 0.0,
+      "win_rate_diff": 0.0,
+      "net_pnl_usd": 0.0,
+      "net_pnl_diff": 0.0,
+      "saved_losses_count": 0,
+      "saved_losses_dollars": 0.0,
+      "killed_winners_count": 0,
+      "killed_winners_dollars": 0.0,
+      "by_strategy": {},
+      "by_timeframe": {}
     },
     "Model_3_Hybrid_6Bars_0.50ATR": {
       "name": "Hybrid Time-Stop (Elapsed >= 6 bars AND Candle closes > 0.50 ATR against entry)",
-      "wins": 123,
-      "losses": 53,
-      "be": 2,
-      "win_rate_pct": 69.1,
-      "win_rate_diff": -7.3,
-      "net_pnl_usd": -11.06,
-      "net_pnl_diff": 123.57,
-      "saved_losses_count": 21,
-      "saved_losses_dollars": 274.44,
-      "killed_winners_count": 13,
-      "killed_winners_dollars": 150.87,
-      "by_strategy": {
-        "Adam Khoo (Multi-EMA Trend)": {
-          "saved": 3,
-          "killed": 0,
-          "net_diff": 56.01
-        },
-        "Michael Huddleston (ICT - Inner Circle Trader)": {
-          "saved": 2,
-          "killed": 0,
-          "net_diff": 32.24
-        },
-        "Waqar Asim (Forex 1M S&D Inducement Scalp)": {
-          "saved": 1,
-          "killed": 2,
-          "net_diff": -11.770000000000003
-        },
-        "Bob Volman (Price Action Scalping & Buildup)": {
-          "saved": 1,
-          "killed": 0,
-          "net_diff": 5.6899999999999995
-        },
-        "Linda Raschke (Holy Grail - ADX Trend & 20 EMA Pullback)": {
-          "saved": 1,
-          "killed": 0,
-          "net_diff": 7.5699999999999985
-        },
-        "Waqar Zaka (Off-Exchange Reserve & ATR Buffer Model)": {
-          "saved": 1,
-          "killed": 0,
-          "net_diff": 12.15
-        },
-        "Al Brooks (Price Action - Major Trend Reversals)": {
-          "saved": 2,
-          "killed": 3,
-          "net_diff": -51.620000000000005
-        },
-        "Trade Pro (Donchian & 200 SMA)": {
-          "saved": 4,
-          "killed": 2,
-          "net_diff": 23.309999999999995
-        },
-        "Mark Minervini (SEPA - Volatility Contraction Pattern)": {
-          "saved": 1,
-          "killed": 1,
-          "net_diff": -7.380000000000001
-        },
-        "Richard Dennis (Turtle Trading Trend Following)": {
-          "saved": 2,
-          "killed": 2,
-          "net_diff": 21.68
-        },
-        "Steven Hart (The Trading Channel)": {
-          "saved": 2,
-          "killed": 0,
-          "net_diff": 29.54
-        },
-        "Eugene Ng Ah Sio (Relative Value Delta-Neutral Spreads)": {
-          "saved": 1,
-          "killed": 2,
-          "net_diff": 7.1800000000000015
-        },
-        "Tom Hougaard (TraderTom - Institutional Trend Expansion & VWAP)": {
-          "saved": 0,
-          "killed": 1,
-          "net_diff": -1.03
-        }
-      },
-      "by_timeframe": {
-        "3m": {
-          "saved": 5,
-          "killed": 3,
-          "net_diff": 5.419999999999996
-        },
-        "15m": {
-          "saved": 7,
-          "killed": 3,
-          "net_diff": 93.57000000000001
-        },
-        "1h": {
-          "saved": 2,
-          "killed": 0,
-          "net_diff": 24.29
-        },
-        "1m": {
-          "saved": 2,
-          "killed": 1,
-          "net_diff": 13.029999999999998
-        },
-        "30m": {
-          "saved": 3,
-          "killed": 1,
-          "net_diff": 4.770000000000003
-        },
-        "5m": {
-          "saved": 2,
-          "killed": 5,
-          "net_diff": -17.510000000000005
-        }
-      }
+      "wins": 0,
+      "losses": 0,
+      "be": 0,
+      "win_rate_pct": 0.0,
+      "win_rate_diff": 0.0,
+      "net_pnl_usd": 0.0,
+      "net_pnl_diff": 0.0,
+      "saved_losses_count": 0,
+      "saved_losses_dollars": 0.0,
+      "killed_winners_count": 0,
+      "killed_winners_dollars": 0.0,
+      "by_strategy": {},
+      "by_timeframe": {}
     }
   }
 }
