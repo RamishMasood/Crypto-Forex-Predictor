@@ -1,60 +1,106 @@
 {
   "baseline": {
-    "total_trades": 0,
+    "total_trades": 3,
     "wins": 0,
-    "losses": 0,
+    "losses": 3,
     "be": 0,
     "win_rate_pct": 0.0,
-    "net_pnl_usd": 0.0
+    "net_pnl_usd": -27.37
   },
   "models": {
     "Model_1_TimeStop_12Bars": {
       "name": "Time-Stop Expiry (Exit if negative after 12 bars)",
       "wins": 0,
-      "losses": 0,
+      "losses": 3,
       "be": 0,
       "win_rate_pct": 0.0,
       "win_rate_diff": 0.0,
-      "net_pnl_usd": 0.0,
-      "net_pnl_diff": 0.0,
-      "saved_losses_count": 0,
-      "saved_losses_dollars": 0.0,
+      "net_pnl_usd": -21.0,
+      "net_pnl_diff": 6.37,
+      "saved_losses_count": 1,
+      "saved_losses_dollars": 6.37,
       "killed_winners_count": 0,
       "killed_winners_dollars": 0.0,
-      "by_strategy": {},
-      "by_timeframe": {}
+      "by_strategy": {
+        "Ndemazeah Godlove (GU MVR)": {
+          "saved": 1,
+          "killed": 0,
+          "net_diff": 6.37
+        }
+      },
+      "by_timeframe": {
+        "1h": {
+          "saved": 1,
+          "killed": 0,
+          "net_diff": 6.37
+        }
+      }
     },
     "Model_2_Structural_BarClose_0.50ATR": {
       "name": "Structural Bar-Close Invalidation (Candle closes > 0.50 ATR against entry)",
       "wins": 0,
-      "losses": 0,
+      "losses": 3,
       "be": 0,
       "win_rate_pct": 0.0,
       "win_rate_diff": 0.0,
-      "net_pnl_usd": 0.0,
-      "net_pnl_diff": 0.0,
-      "saved_losses_count": 0,
-      "saved_losses_dollars": 0.0,
+      "net_pnl_usd": -11.66,
+      "net_pnl_diff": 15.71,
+      "saved_losses_count": 3,
+      "saved_losses_dollars": 15.71,
       "killed_winners_count": 0,
       "killed_winners_dollars": 0.0,
-      "by_strategy": {},
-      "by_timeframe": {}
+      "by_strategy": {
+        "Michael Huddleston (ICT - Inner Circle Trader)": {
+          "saved": 2,
+          "killed": 0,
+          "net_diff": 11.17
+        },
+        "Ndemazeah Godlove (GU MVR)": {
+          "saved": 1,
+          "killed": 0,
+          "net_diff": 4.54
+        }
+      },
+      "by_timeframe": {
+        "30m": {
+          "saved": 2,
+          "killed": 0,
+          "net_diff": 11.17
+        },
+        "1h": {
+          "saved": 1,
+          "killed": 0,
+          "net_diff": 4.54
+        }
+      }
     },
     "Model_3_Hybrid_6Bars_0.50ATR": {
       "name": "Hybrid Time-Stop (Elapsed >= 6 bars AND Candle closes > 0.50 ATR against entry)",
       "wins": 0,
-      "losses": 0,
+      "losses": 3,
       "be": 0,
       "win_rate_pct": 0.0,
       "win_rate_diff": 0.0,
-      "net_pnl_usd": 0.0,
-      "net_pnl_diff": 0.0,
-      "saved_losses_count": 0,
-      "saved_losses_dollars": 0.0,
+      "net_pnl_usd": -23.9,
+      "net_pnl_diff": 3.47,
+      "saved_losses_count": 1,
+      "saved_losses_dollars": 3.47,
       "killed_winners_count": 0,
       "killed_winners_dollars": 0.0,
-      "by_strategy": {},
-      "by_timeframe": {}
+      "by_strategy": {
+        "Ndemazeah Godlove (GU MVR)": {
+          "saved": 1,
+          "killed": 0,
+          "net_diff": 3.4699999999999998
+        }
+      },
+      "by_timeframe": {
+        "1h": {
+          "saved": 1,
+          "killed": 0,
+          "net_diff": 3.4699999999999998
+        }
+      }
     }
   }
 }

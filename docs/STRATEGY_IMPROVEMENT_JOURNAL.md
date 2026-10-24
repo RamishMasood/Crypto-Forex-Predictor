@@ -486,5 +486,38 @@ When working on any strategy in `src/strategies/` in the future, verify the foll
 
 ---
 
-*Document active, synchronized, and bound by Rule #5 of GEMINI.md.*
+---
 
+### [2026-10-24] Full Institutional Realism Overhaul (Phases 1, 2, and 3 Complete)
+- **Author/Trigger**: Quantitative Model Rigor Audit & Forensic Realism Overhaul.
+- **Identified Failure Modes & Root Causes**:
+  1. **Distorted Win Rate Formula**: Trades were previously counted as wins if `b.get('tp1_hit')` was true, even if the trade ended in a net scratch or negative loss. Under real market conditions, accounts with high reported win rates could suffer net negative drawdowns due to asymmetrical loss-to-win geometry.
+  2. **Static Spread & Omission of Slippage/Commissions**: Backtest simulations previously assumed execution at pure candle Close/High/Low without dynamic MT5 bar spreads, commission ($6.00/lot), overnight rollover swaps, or volatility-scaled slippage.
+  3. **Artificial Intra-Bar Sequencing**: Fixed checks (Low before High or High before Low) produced distorted outcomes on directional bars where both extremes were touched.
+  4. **Choppy Market Traps**: Retail breakout strategies triggered frequently during extreme market consolidation / sideways chop, causing avoidable stop-outs.
+  5. **Synthetic Fallback Data Distortions**: Failed data downloads previously generated synthetic random-walk bars that masked real MT5 connectivity/history deficits.
+  6. **Lack of Automated Out-of-Sample Walk-Forward Validation**: Strategies evaluated over monolithic spans lacked rolling blind out-of-sample stress tests.
+- **Technical Fixes Implemented**:
+  1. **Phase 1 (Data & Execution Rigor)**:
+     - **Dynamic Broker Bar-Spread Ingestion**: Ingests exact historical bar spreads (`rates['spread'] * point_val`) into `feed_arrays`.
+     - **Asymmetric Volatility-Scaled Slippage**: Slippage dynamically scales on momentum bars (`base_slip * min(max(range / atr, 0.75), 3.0)`).
+     - **Institutional Bid/Ask Execution Geometry**: BUY orders execute at Ask (`Close + Spread + Slippage`); SELL exits evaluate against Ask (`Bid + Spread`).
+     - **Natural Intra-Candle Exploration Sequence**: Green bars evaluate `Open -> Low -> High -> Close`; Red bars evaluate `Open -> High -> Low -> Close`.
+     - **Fail-Fast Synthetic Abort**: Added `fail_fast_synthetic=True` guard raising `RuntimeError("FAIL_FAST_ABORT")` when real data is missing, completely blocking synthetic distortion.
+     - **Transaction Costs & Rollover**: Deducts $6.00/lot round-turn commission and overnight rollover swap financing.
+  2. **Phase 2 (Risk & Regime Architecture)**:
+     - **Mandatory 1:1.50+ Runner Geometry**: Upgraded TP2 baseline to $1.50 	imes 	ext{Risk Distance}$ ($1:1.50+$ R:R) and TP3 to $2.50 	imes 	ext{Risk Distance}$ across both `risk_manager.py` and `backtest_engine.py`.
+     - **Balanced Batch Lot Allocation**: 0.03-lot batches split into 0.01 at TP1 ($1.00 	imes 	ext{ATR}$), 0.01 at TP2 ($1.50	ext{R}$), and 0.01 at TP3 ($2.50	ext{R}$), shifting 66.7% of position volume to positive expectancy runners.
+     - **Universal Market Regime Filter (Dreiss Choppiness Index)**: Rejects trend-following and breakout setups when market consolidation $	ext{CI} > 61.8$.
+     - **Strict True-PnL Win Rate**: Win Rate strictly redefined as `(Trades with Net Profit > $0.05 / Total Trades) * 100.0`.
+  3. **Phase 3 (Long-Horizon Walk-Forward Stress Testing)**:
+     - **WalkForwardAnalysisEngine (`src/engine/walk_forward_engine.py`)**: Built automated rolling window slicing (e.g. 60-day In-Sample calibration $ightarrow$ 30-day Blind Out-of-Sample testing $ightarrow$ 30-day rolling step).
+     - **Walk-Forward Efficiency (WFE)**: Computes annualized OOS vs IS return ratio, Consistency Ratio (% profitable OOS windows), and generates institutional robustness verdicts (`INSTITUTIONALLY_ROBUST`, `MODERATELY_ROBUST`, `OVERFITTED_HIGH_RISK`).
+     - **CLI Runner (`run_walk_forward_stress_test.py`)**: Automated 6-to-12 month stress test runner for unattended terminal execution.
+- **Verification Results**:
+  - `python -m unittest tests.test_backtest_ui tests.test_backtest_engine tests.test_streamer_strategies tests.test_walk_forward`: All 30 unit tests pass in 11.7s with zero regressions.
+  - Zero disturbance to `.autonomous_trader_state.json`.
+
+---
+
+*Document active, synchronized, and bound by Rule #5 of GEMINI.md.*

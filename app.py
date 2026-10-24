@@ -3129,6 +3129,9 @@ def render_mt5_backtest_engine_view():
     status_label = f" | Status: <b style='color:#ef4444;'>HALTED BY USER AT {sim_until} UTC</b>" if res.get('status') == 'STOPPED' else (f" | Status: <b style='color:#10b981;'>COMPLETED (100%)</b>" if res.get('status') == 'COMPLETED' else "")
     st.caption(f"📅 Target Window: **{res.get('date_from')}** to **{res.get('date_to')}**{status_label} | Initial Balance: **${res.get('initial_balance', 10000):,.2f}** | Final Balance: **${res.get('final_balance', 10000):,.2f}**")
 
+    if res.get('is_synthetic_feed'):
+        st.warning("⚠️ **Notice: Synthetic Fallback Data Active.** MetaTrader 5 terminal was offline or returned empty history during this run. Results were simulated on synthetic calibrated test feeds for pipeline verification.")
+
     # ── Top-Level Weekend Exclusion Filter ──
     flt_col1, flt_col2 = st.columns([3, 1])
     with flt_col1:
@@ -3838,7 +3841,7 @@ def render_mt5_backtest_engine_view():
         st.markdown("##### 📜 Backtest Executed Batches Ledger:")
         with st.expander(f"🔍 Inspect {len(closed_batches)} Simulated Batches & Exit Reasons", expanded=False):
             b_df = pd.DataFrame(closed_batches)
-            disp_cols = [c for c in ['batch_id', 'symbol', 'strategy_name', 'action', 'timeframe', 'entry_price', 'spread_applied', 'sl_price', 'risk_usd', 'tp1_price', 'tp2_price', 'tp3_price', 'profit', 'status', 'exit_reason', 'closed_at'] if c in b_df.columns]
+            disp_cols = [c for c in ['batch_id', 'symbol', 'strategy_name', 'action', 'timeframe', 'entry_price', 'spread_applied', 'sl_price', 'risk_usd', 'tp1_price', 'tp2_price', 'tp3_price', 'costs_usd', 'profit', 'status', 'exit_reason', 'closed_at'] if c in b_df.columns]
             st.dataframe(
                 b_df[disp_cols].rename(columns={
                     'batch_id': 'Batch #',
@@ -3853,6 +3856,7 @@ def render_mt5_backtest_engine_view():
                     'tp1_price': 'TP1',
                     'tp2_price': 'TP2',
                     'tp3_price': 'TP3',
+                    'costs_usd': 'Costs ($)',
                     'profit': 'PnL ($)',
                     'status': 'Result',
                     'exit_reason': 'Exit Reason',

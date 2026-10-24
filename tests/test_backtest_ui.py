@@ -385,7 +385,7 @@ class TestBacktesterUIRendering(unittest.TestCase):
             eng_code = f.read()
 
         # Check BUY entry executes at Ask
-        self.assertIn("c_entry = (cur_close + cur_spread) if c_act == 'BUY' else cur_close", eng_code)
+        self.assertIn("c_entry = (cur_close + cur_spread + slippage_dist) if c_act == 'BUY' else (cur_close - slippage_dist)", eng_code)
         # Check SELL exits evaluate at Ask = Price + Spread
         self.assertIn("cur_ask_high = cur_high + b_spread", eng_code)
         self.assertIn("cur_ask_low = cur_low + b_spread", eng_code)
@@ -397,6 +397,47 @@ class TestBacktesterUIRendering(unittest.TestCase):
         with open(app_file, 'r', encoding='utf-8') as f:
             app_code = f.read()
         self.assertIn("'spread_applied': 'Spread'", app_code)
+
+    def test_true_pnl_win_rate_and_costs(self):
+        """Ensure win rate is purely based on real positive profit, and transaction costs are modeled."""
+        # 1. Test True-PnL Win Rate: Trade with tp1_hit=True but negative PnL must NOT count as a WIN
+        mock_batches = [
+            {'batch_id': 'b1', 'strategy_used': 'STRAT_A', 'symbol': 'BTC/USD', 'status': 'LOSS', 'profit': -25.0, 'tp1_hit': True},
+            {'batch_id': 'b2', 'strategy_used': 'STRAT_A', 'symbol': 'BTC/USD', 'status': 'WIN', 'profit': 40.0, 'tp1_hit': True},
+            {'batch_id': 'b3', 'strategy_used': 'STRAT_A', 'symbol': 'BTC/USD', 'status': 'BREAKEVEN', 'profit': 0.00, 'tp1_hit': True},
+        ]
+        lb = MT5BacktestEngine.compute_backtest_strategy_leaderboard(mock_batches, ['STRAT_A'])
+        self.assertEqual(len(lb), 1)
+        # Only b2 is positive (1 out of 3 = 33.3%, NOT 100%!)
+        self.assertAlmostEqual(lb[0]['win_rate'], 33.3, places=1)
+
+        # 2. Test Transaction Costs & Currency Conversion
+        # EUR/USD: 10 pips on 0.01 lot = $1.00
+        pnl_eur = MT5BacktestEngine.convert_delta_to_usd(0.0010, 'EUR/USD', 1.0850, 100000.0, 0.01)
+        self.assertAlmostEqual(pnl_eur, 1.00, places=2)
+
+        # USD/JPY: 10 pips on 0.01 lot at 150.0 = $100 / 150 = $0.67
+        pnl_jpy = MT5BacktestEngine.convert_delta_to_usd(0.10, 'USD/JPY', 150.0, 100000.0, 0.01)
+        self.assertAlmostEqual(pnl_jpy, 0.67, places=2)
+
+        # GBP/AUD: 10 pips on 0.01 lot with AUD/USD=0.66 = $0.66 (not $1.00!)
+        pnl_cross = MT5BacktestEngine.convert_delta_to_usd(0.0010, 'GBP/AUD', 1.95, 100000.0, 0.01, {'AUD/USD': 0.66})
+        self.assertAlmostEqual(pnl_cross, 0.66, places=2)
+
+        # Slippage calculation
+        slip = MT5BacktestEngine.compute_slippage_distance('EUR/USD', 0.5)
+        self.assertEqual(slip, 0.00005)
+
+        # Swap calculation
+        swap = MT5BacktestEngine.compute_swap_fee('2024-05-15T10:00:00', '2024-05-17T10:00:00', 0.03, 'EUR/USD')
+        self.assertGreater(swap, 0.0)
+
+        # App.py has costs_usd and synthetic notice
+        app_file = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'app.py'))
+        with open(app_file, 'r', encoding='utf-8') as f:
+            app_code = f.read()
+        self.assertIn("'costs_usd': 'Costs ($)'", app_code)
+        self.assertIn('is_synthetic_feed', app_code)
 
 
 if __name__ == '__main__':

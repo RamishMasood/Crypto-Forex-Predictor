@@ -463,7 +463,9 @@ class MT5BacktestEngine:
             "smart_solution_enabled": True,
             "news_filter_enabled": True,
             "spread_model": "broker",
-            "slippage_pips": 0.0
+            "commission_per_lot": 6.0,
+            "slippage_pips": 0.5,
+            "enable_swaps": True
         }
 
         if os.path.exists(BACKTEST_SETTINGS_FILE):
@@ -575,6 +577,133 @@ class MT5BacktestEngine:
             return 0.00015 # ~1.5 pips on Forex majors
 
     @staticmethod
+    def compute_slippage_distance(symbol: str, slippage_pips: float = 0.5, candle_range: float = 0.0, atr: float = 0.0) -> float:
+        """
+        Computes price distance corresponding to execution slippage.
+        Includes dynamic volatility scaling when candle_range > atr (violent momentum bars).
+        """
+        if slippage_pips <= 0:
+            return 0.0
+        sym_u = str(symbol).upper()
+        if 'BTC' in sym_u:
+            base = slippage_pips * 5.0
+        elif 'ETH' in sym_u:
+            base = slippage_pips * 0.50
+        elif 'XAU' in sym_u or 'GOLD' in sym_u:
+            base = slippage_pips * 0.05
+        elif 'JPY' in sym_u:
+            base = slippage_pips * 0.01
+        else:
+            base = slippage_pips * 0.0001
+
+        if atr > 0 and candle_range > 0:
+            vol_factor = min(max(candle_range / atr, 0.75), 3.0)
+            return base * vol_factor
+        return base
+
+    @staticmethod
+    def compute_choppiness_index(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, period: int = 14) -> float:
+        """
+        Computes Dreiss Choppiness Index (CI).
+        Values > 61.8 indicate high consolidation/chop (high false breakout rate).
+        Values < 38.2 indicate strong directional trending market.
+        """
+        if len(highs) < period + 1:
+            return 50.0
+        h_slice = highs[-period:]
+        l_slice = lows[-period:]
+        c_prev = closes[-period - 1:-1]
+
+        tr1 = h_slice - l_slice
+        tr2 = np.abs(h_slice - c_prev)
+        tr3 = np.abs(l_slice - c_prev)
+        tr = np.maximum(tr1, np.maximum(tr2, tr3))
+        sum_tr = np.sum(tr)
+
+        max_h = np.max(h_slice)
+        min_l = np.min(l_slice)
+        denom = max_h - min_l
+        if denom <= 0 or sum_tr <= 0:
+            return 50.0
+        ci = 100.0 * (np.log10(sum_tr / denom) / np.log10(period))
+        return float(ci)
+
+    @staticmethod
+    def compute_swap_fee(entry_time_str: str, close_time_str: str, lots: float, symbol: str) -> float:
+        """
+        Calculates realistic overnight rollover financing for positions held across 00:00 UTC.
+        Standard raw/ECN swap is approximately -$1.80 per standard lot per night.
+        """
+        if not entry_time_str or not close_time_str or lots <= 0:
+            return 0.0
+        try:
+            e_dt = datetime.fromisoformat(str(entry_time_str).replace('Z', '+00:00'))
+            c_dt = datetime.fromisoformat(str(close_time_str).replace('Z', '+00:00'))
+            days_held = (c_dt.date() - e_dt.date()).days
+            if days_held <= 0:
+                return 0.0
+            swap_rate = 1.80
+            return round(days_held * swap_rate * lots, 2)
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def convert_delta_to_usd(
+        delta_p: float,
+        symbol: str,
+        cur_price: float,
+        contract_size: float,
+        lots: float,
+        latest_prices: Optional[Dict[str, float]] = None
+    ) -> float:
+        """
+        Converts price delta * lots * contract_size into USD dollars accurately
+        handling USD quote pairs, USD base pairs (USD/JPY, USD/CHF, USD/CAD), and cross pairs.
+        """
+        if lots <= 0 or contract_size <= 0:
+            return 0.0
+        raw_val = delta_p * lots * contract_size
+        sym_clean = str(symbol).upper().replace('_', '/')
+        parts = sym_clean.split('/')
+        base = parts[0] if len(parts) == 2 else sym_clean[:3]
+        quote = parts[1] if len(parts) == 2 else sym_clean[3:]
+
+        # 1. Quoted in USD
+        if quote in ('USD', 'USDT', 'USDC') or any(k in sym_clean for k in ['XAU', 'BTC', 'ETH', 'SOL', 'GOLD', 'SILVER']):
+            return raw_val
+
+        # 2. USD Base Pairs (USD/JPY, USD/CHF, USD/CAD) -> divide by exchange rate
+        if base == 'USD' and cur_price > 0:
+            return raw_val / cur_price
+
+        # 3. Cross pairs
+        if latest_prices is None:
+            latest_prices = {}
+
+        if quote == 'JPY':
+            usd_jpy = latest_prices.get('USD/JPY') or latest_prices.get('USDJPY') or (cur_price if 'JPY' in base else 150.0)
+            return raw_val / max(usd_jpy, 1.0)
+        elif quote == 'CHF':
+            usd_chf = latest_prices.get('USD/CHF') or latest_prices.get('USDCHF') or 0.88
+            return raw_val / max(usd_chf, 0.1)
+        elif quote == 'CAD':
+            usd_cad = latest_prices.get('USD/CAD') or latest_prices.get('USDCAD') or 1.35
+            return raw_val / max(usd_cad, 0.1)
+        elif quote == 'GBP':
+            gbp_usd = latest_prices.get('GBP/USD') or latest_prices.get('GBPUSD') or 1.28
+            return raw_val * gbp_usd
+        elif quote == 'AUD':
+            aud_usd = latest_prices.get('AUD/USD') or latest_prices.get('AUDUSD') or 0.66
+            return raw_val * aud_usd
+        elif quote == 'NZD':
+            nzd_usd = latest_prices.get('NZD/USD') or latest_prices.get('NZDUSD') or 0.60
+            return raw_val * nzd_usd
+
+        if cur_price > 0 and base == 'USD':
+            return raw_val / cur_price
+        return raw_val
+
+    @staticmethod
     def compute_batch_lot_split(batch_lot_size: float, vol_min: float = 0.01, vol_step: float = 0.01) -> Tuple[float, float, float]:
         """
         Exact institutional lot allocation matching Autonomous MT5 Executor:
@@ -588,10 +717,10 @@ class MT5BacktestEngine:
         """
         total_lots = max(vol_min, round(round(batch_lot_size / vol_step) * vol_step, 4))
         if abs(total_lots - round(3 * vol_min, 4)) < 1e-5:
-            # 0.03 lots: TP1 gets 0.02 lots (66.7% ~ 65%), TP2 gets 0.01 lot (33.3%)
-            lot1 = round(2 * vol_min, 4)
+            # 0.03 lots: Positive Expectancy 1/3 split across TP1 (1.0 ATR), TP2 (1.50R), TP3 (2.50R)
+            lot1 = round(vol_min, 4)
             lot2 = round(vol_min, 4)
-            lot3 = 0.0
+            lot3 = round(vol_min, 4)
         elif abs(total_lots - round(2 * vol_min, 4)) < 1e-5:
             lot1 = round(vol_min, 4)
             lot2 = round(vol_min, 4)
@@ -601,14 +730,15 @@ class MT5BacktestEngine:
             lot2 = 0.0
             lot3 = 0.0
         elif total_lots > round(3 * vol_min, 4):
+            # Institutional Positive Expectancy Split: 40% TP1 scalp, 36% TP2 runner, 24% TP3 macro runner
             max_lot1 = round(total_lots - 2 * vol_min, 4)
-            raw_lot1 = round(total_lots * 0.65, 4)
+            raw_lot1 = round(total_lots * 0.40, 4)
             steps1 = max(1, min(int(round(max_lot1 / vol_step)), int(round(raw_lot1 / vol_step))))
             lot1 = round(steps1 * vol_step, 4)
 
             remaining = round(total_lots - lot1, 4)
             max_lot2 = round(remaining - vol_min, 4)
-            raw_lot2 = round(remaining * 0.60, 4)
+            raw_lot2 = round(remaining * 0.60, 4) # 60% of remaining 60% = 36% of total
             steps2 = max(1, min(int(round(max_lot2 / vol_step)), int(round(raw_lot2 / vol_step))))
             lot2 = round(steps2 * vol_step, 4)
 
@@ -662,7 +792,11 @@ class MT5BacktestEngine:
             if len(df) == 0:
                 return None, broker_sym, None
             df = df.rename(columns={'tick_volume': 'volume'})
-            df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume', 'spread']].copy()
+            if 'spread' in df.columns:
+                df['spread_price'] = df['spread'].astype(float) * point_val
+            else:
+                df['spread_price'] = float(spread_val) * point_val
+            df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume', 'spread', 'spread_price']].copy()
             df = df.sort_values('timestamp').reset_index(drop=True)
 
             # Compute ATR(14)
@@ -709,6 +843,10 @@ class MT5BacktestEngine:
         htf_filter_enabled = bool(cfg.get('htf_filter_enabled', True))
         smart_solution_enabled = bool(cfg.get('smart_solution_enabled', True))
         news_filter_enabled = bool(cfg.get('news_filter_enabled', True))
+        comm_per_lot = float(cfg.get('commission_per_lot', 6.0))
+        slippage_pips = float(cfg.get('slippage_pips', 0.5))
+        enable_swaps = bool(cfg.get('enable_swaps', True))
+        regime_filter_enabled = bool(cfg.get('regime_filter_enabled', True))
         if smart_solution_enabled:
             breakeven_mode = 'smart_breathing_be'
         econ_manager = EconomicCalendarManager() if news_filter_enabled else None
@@ -762,9 +900,15 @@ class MT5BacktestEngine:
                     progress_callback(prog, f"Ingested MT5 data for {sym}...")
 
         # Check if any feeds were retrieved
+        is_synthetic_feed = False
         has_data = any(len(tfs) > 0 for tfs in data_feeds.values())
         if not has_data:
-            # Generate synthetic fallback if MT5 not active so backtest never crashes
+            fail_fast = bool(cfg.get('fail_fast_synthetic', False))
+            if fail_fast:
+                logger.error("Fail-fast abort: Real MT5 broker data feeds could not be loaded and synthetic fallback is disabled.")
+                self._is_running = False
+                raise RuntimeError("FAIL_FAST_ABORT: MT5 broker connection or historical rates unavailable. Aborted to guarantee 100% realistic institutional data.")
+            is_synthetic_feed = True
             logger.warning("No MT5 data feeds returned; generating calibrated test feed.")
             for sym in symbols[:2]:
                 data_feeds[sym] = {}
@@ -806,6 +950,7 @@ class MT5BacktestEngine:
                     'low': df['low'].to_numpy(dtype=float),
                     'close': df['close'].to_numpy(dtype=float),
                     'atr': df['atr'].to_numpy(dtype=float),
+                    'spread': df['spread_price'].to_numpy(dtype=float) if 'spread_price' in df.columns else np.zeros(len(df), dtype=float),
                 }
                 ts_arr = df['timestamp'].to_numpy()
                 n_rows = len(df)
@@ -871,14 +1016,22 @@ class MT5BacktestEngine:
             contract_size = self.compute_contract_size(sym)
             asset_type = 'crypto' if any(c in sym for c in ['BTC', 'ETH', 'SOL']) else 'forex'
             is_jpy = ('JPY' in sym.upper())
-            cur_spread = self.get_symbol_spread(sym, spread_maps)
+            bar_spread = float(arr['spread'][idx]) if ('spread' in arr and len(arr['spread']) > idx and float(arr['spread'][idx]) > 0) else 0.0
+            cur_spread = bar_spread if bar_spread > 0 else self.get_symbol_spread(sym, spread_maps)
 
             # ── A. Update Existing Open Batches for this Symbol ───────────────
             surviving_batches = []
             for b in open_batches:
-                if b['symbol'] != sym or b.get('timeframe') != tf:
+                if b['symbol'] != sym:
                     surviving_batches.append(b)
                     continue
+
+                # Multi-Timeframe deduplication:
+                # Prevent auditing the exact same batch twice if multiple timeframe events have identical timestamp
+                if b.get('last_eval_time') == cur_time:
+                    surviving_batches.append(b)
+                    continue
+                b['last_eval_time'] = cur_time
 
                 act = b['action']
                 entry_p = b['entry_price']
@@ -897,11 +1050,14 @@ class MT5BacktestEngine:
                 exit_price = cur_close
                 be_mode = str(b.get('breakeven_mode', 'tight')).lower().strip()
 
+                # Candle geometry for realistic intra-bar sequence
+                is_green = (cur_close >= cur_open)
+
                 # BUY Trade Management
                 if act == 'BUY':
                     profit_dist = cur_high - entry_p
                     tp2_dist = tp2_p - entry_p if tp2_p > entry_p else (1.15 * (entry_p - sl_p))
-                    tp1_dist = tp1_p - entry_p if tp1_p > entry_p else (0.38 * cur_atr)
+                    tp1_dist = tp1_p - entry_p if tp1_p > entry_p else (1.00 * cur_atr)
 
                     hit_tp1_this_bar = False
                     # ── Trade Progression Logic ──
@@ -923,44 +1079,72 @@ class MT5BacktestEngine:
                         except Exception:
                             pass
 
+                    # Natural intra-candle exploration sequence:
+                    # Green candle: Open -> Low -> High -> Close (Check Low/SL first)
+                    # Red candle: Open -> High -> Low -> Close (Check High/TP1 first)
                     if not b['tp1_hit']:
-                        # 1. Initial Stop Loss Check (before TP1 is hit)
-                        if cur_low <= b['sl_price']:
-                            exit_price = b['sl_price']
-                            exit_pnl = (exit_price - entry_p) * b['remaining_lots'] * contract_size
-                            if is_jpy and cur_close > 0:
-                                exit_pnl /= cur_close
-                            b['accumulated_pnl'] += exit_pnl
-                            closed_this_bar = True
-                            exit_reason = "FULL_SL"
-                            b['status'] = "LOSS"
-                        # 2. Check TP1 Hit (Major Scalp Lock - 65%)
-                        elif cur_high >= tp1_p:
-                            b['tp1_hit'] = True
-                            hit_tp1_this_bar = True
-                            p1_lots = min(lot_p1, b['remaining_lots'])
-                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p1_lots), 4)
-                            p1_pnl = (tp1_p - entry_p) * p1_lots * contract_size
-                            if is_jpy and cur_close > 0:
-                                p1_pnl /= cur_close
-                            b['accumulated_pnl'] += p1_pnl
-                            balance += p1_pnl
-                            b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p1_pnl
-
-                            # Auto-Breakeven on TP1 hit (Rule #2: Mandatory for all strategies)
-                            b['is_breakeven'] = True
-                            if be_mode == 'smart_breathing_be' or smart_solution_enabled:
-                                b['sl_price'] = max(b['sl_price'], entry_p - (0.25 * cur_atr))
-                            elif be_mode == 'loose':
-                                b['sl_price'] = max(b['sl_price'], entry_p - (0.45 * cur_atr))
-                            else:
-                                b['sl_price'] = max(b['sl_price'], entry_p)
-
-                            if b['remaining_lots'] <= 0.0001:
+                        if is_green:
+                            # 1. Low checked first on green candle
+                            if cur_low <= b['sl_price']:
+                                exit_price = b['sl_price']
+                                exit_pnl = self.convert_delta_to_usd(exit_price - entry_p, sym, cur_close, contract_size, b['remaining_lots'], latest_prices)
+                                b['accumulated_pnl'] += exit_pnl
                                 closed_this_bar = True
-                                exit_reason = "TP1_SCALP_WIN"
-                                b['status'] = "WIN"
-                                exit_price = tp1_p
+                                exit_reason = "FULL_SL"
+                                b['status'] = "LOSS"
+                            elif cur_high >= tp1_p:
+                                b['tp1_hit'] = True
+                                hit_tp1_this_bar = True
+                                p1_lots = min(lot_p1, b['remaining_lots'])
+                                b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p1_lots), 4)
+                                p1_pnl = self.convert_delta_to_usd(tp1_p - entry_p, sym, cur_close, contract_size, p1_lots, latest_prices)
+                                b['accumulated_pnl'] += p1_pnl
+                                balance += p1_pnl
+                                b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p1_pnl
+                                b['is_breakeven'] = True
+                                if be_mode == 'smart_breathing_be' or smart_solution_enabled:
+                                    b['sl_price'] = max(b['sl_price'], entry_p - (0.25 * cur_atr))
+                                elif be_mode == 'loose':
+                                    b['sl_price'] = max(b['sl_price'], entry_p - (0.45 * cur_atr))
+                                else:
+                                    b['sl_price'] = max(b['sl_price'], entry_p)
+
+                                if b['remaining_lots'] <= 0.0001:
+                                    closed_this_bar = True
+                                    exit_reason = "TP1_SCALP_WIN"
+                                    b['status'] = "WIN"
+                                    exit_price = tp1_p
+                        else:
+                            # 1. High checked first on red candle (rally to TP1 before collapsing)
+                            if cur_high >= tp1_p:
+                                b['tp1_hit'] = True
+                                hit_tp1_this_bar = True
+                                p1_lots = min(lot_p1, b['remaining_lots'])
+                                b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p1_lots), 4)
+                                p1_pnl = self.convert_delta_to_usd(tp1_p - entry_p, sym, cur_close, contract_size, p1_lots, latest_prices)
+                                b['accumulated_pnl'] += p1_pnl
+                                balance += p1_pnl
+                                b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p1_pnl
+                                b['is_breakeven'] = True
+                                if be_mode == 'smart_breathing_be' or smart_solution_enabled:
+                                    b['sl_price'] = max(b['sl_price'], entry_p - (0.25 * cur_atr))
+                                elif be_mode == 'loose':
+                                    b['sl_price'] = max(b['sl_price'], entry_p - (0.45 * cur_atr))
+                                else:
+                                    b['sl_price'] = max(b['sl_price'], entry_p)
+
+                                if b['remaining_lots'] <= 0.0001:
+                                    closed_this_bar = True
+                                    exit_reason = "TP1_SCALP_WIN"
+                                    b['status'] = "WIN"
+                                    exit_price = tp1_p
+                            elif cur_low <= b['sl_price']:
+                                exit_price = b['sl_price']
+                                exit_pnl = self.convert_delta_to_usd(exit_price - entry_p, sym, cur_close, contract_size, b['remaining_lots'], latest_prices)
+                                b['accumulated_pnl'] += exit_pnl
+                                closed_this_bar = True
+                                exit_reason = "FULL_SL"
+                                b['status'] = "LOSS"
 
                     if not closed_this_bar and b['tp1_hit']:
                         # ── Runner Management (TP1 already locked in bank) ──
@@ -976,36 +1160,29 @@ class MT5BacktestEngine:
                         else:
                             b['sl_price'] = max(b['sl_price'], entry_p)
 
-                        # Check Runner Stop (Breakeven or Trailing Stop) - evaluated from subsequent bars
+                        # Check Runner Stop (Breakeven or Trailing Stop)
                         if not hit_tp1_this_bar and cur_low <= b['sl_price']:
                             exit_price = b['sl_price']
-                            exit_pnl = (exit_price - entry_p) * b['remaining_lots'] * contract_size
-                            if is_jpy and cur_close > 0:
-                                exit_pnl /= cur_close
+                            exit_pnl = self.convert_delta_to_usd(exit_price - entry_p, sym, cur_close, contract_size, b['remaining_lots'], latest_prices)
                             b['accumulated_pnl'] += exit_pnl
                             b['remaining_lots'] = 0.0
                             closed_this_bar = True
-                            if b.get('is_breakeven', False) or b['tp1_hit']:
-                                exit_reason = "TP1_BANKED_BE_EXIT" if b['accumulated_pnl'] > 0.15 else "BREAKEVEN_SL"
-                                b['status'] = "BREAKEVEN"
-                            elif b['accumulated_pnl'] > 0.15:
-                                exit_reason = "TRAILING_STOP_WIN"
-                                b['status'] = "WIN"
-                            elif b['accumulated_pnl'] < -0.15:
-                                exit_reason = "STOP_LOSS"
-                                b['status'] = "LOSS"
-                            else:
-                                exit_reason = "BREAKEVEN_SL"
-                                b['status'] = "BREAKEVEN"
+                            exit_reason = "TP1_BANKED_BE_EXIT" if b['accumulated_pnl'] > 0.05 else "BREAKEVEN_SL"
+                        elif hit_tp1_this_bar and ((not is_green and cur_low <= b['sl_price']) or cur_close <= b['sl_price']):
+                            # Intra-bar reversal on TP1 bar: price spiked to TP1 but collapsed & hit breakeven SL
+                            exit_price = b['sl_price']
+                            exit_pnl = self.convert_delta_to_usd(exit_price - entry_p, sym, cur_close, contract_size, b['remaining_lots'], latest_prices)
+                            b['accumulated_pnl'] += exit_pnl
+                            b['remaining_lots'] = 0.0
+                            closed_this_bar = True
+                            exit_reason = "TP1_BANKED_BE_EXIT" if b['accumulated_pnl'] > 0.05 else "BREAKEVEN_SL"
 
                         # Check TP2 Hit (Structural Runner 1:1+)
                         if not closed_this_bar and not b['tp2_hit'] and lot_p2 > 0 and cur_high >= tp2_p:
                             b['tp2_hit'] = True
                             p2_lots = min(lot_p2, b['remaining_lots'])
                             b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p2_lots), 4)
-                            p2_pnl = (tp2_p - entry_p) * p2_lots * contract_size
-                            if is_jpy and cur_close > 0:
-                                p2_pnl /= cur_close
+                            p2_pnl = self.convert_delta_to_usd(tp2_p - entry_p, sym, cur_close, contract_size, p2_lots, latest_prices)
                             b['accumulated_pnl'] += p2_pnl
                             balance += p2_pnl
                             b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p2_pnl
@@ -1014,14 +1191,11 @@ class MT5BacktestEngine:
                             if b['remaining_lots'] <= 0.0001:
                                 closed_this_bar = True
                                 exit_reason = "TP2_RUNNER_WIN"
-                                b['status'] = "WIN"
                                 exit_price = tp2_p
 
                         # Check TP3 Hit (Macro Runner 2.20R)
                         if not closed_this_bar and b['tp2_hit'] and b['remaining_lots'] > 0.0001 and cur_high >= tp3_p:
-                            p3_pnl = (tp3_p - entry_p) * b['remaining_lots'] * contract_size
-                            if is_jpy and cur_close > 0:
-                                p3_pnl /= cur_close
+                            p3_pnl = self.convert_delta_to_usd(tp3_p - entry_p, sym, cur_close, contract_size, b['remaining_lots'], latest_prices)
                             b['accumulated_pnl'] += p3_pnl
                             balance += p3_pnl
                             b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p3_pnl
@@ -1040,7 +1214,7 @@ class MT5BacktestEngine:
 
                     profit_dist = entry_p - cur_ask_low
                     tp2_dist = entry_p - tp2_p if (tp2_p > 0 and tp2_p < entry_p) else (1.15 * (sl_p - entry_p))
-                    tp1_dist = entry_p - tp1_p if (tp1_p > 0 and tp1_p < entry_p) else (0.38 * cur_atr)
+                    tp1_dist = entry_p - tp1_p if (tp1_p > 0 and tp1_p < entry_p) else (1.00 * cur_atr)
 
                     hit_tp1_this_bar = False
                     # ── Trade Progression Logic ──
@@ -1061,44 +1235,72 @@ class MT5BacktestEngine:
                         except Exception:
                             pass
 
+                    # Natural intra-candle exploration sequence for SELL:
+                    # Red candle: Open -> High -> Low -> Close (Check High/SL first)
+                    # Green candle: Open -> Low -> High -> Close (Check Low/TP1 first)
                     if not b['tp1_hit']:
-                        # 1. Initial Stop Loss Check (before TP1 is hit): Ask = High + Spread >= SL
-                        if cur_ask_high >= b['sl_price']:
-                            exit_price = b['sl_price']
-                            exit_pnl = (entry_p - exit_price) * b['remaining_lots'] * contract_size
-                            if is_jpy and cur_close > 0:
-                                exit_pnl /= cur_close
-                            b['accumulated_pnl'] += exit_pnl
-                            closed_this_bar = True
-                            exit_reason = "FULL_SL"
-                            b['status'] = "LOSS"
-                        # 2. Check TP1 Hit (Major Scalp Lock - 65%): Ask = Low + Spread <= TP1
-                        elif cur_ask_low <= tp1_p:
-                            b['tp1_hit'] = True
-                            hit_tp1_this_bar = True
-                            p1_lots = min(lot_p1, b['remaining_lots'])
-                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p1_lots), 4)
-                            p1_pnl = (entry_p - tp1_p) * p1_lots * contract_size
-                            if is_jpy and cur_close > 0:
-                                p1_pnl /= cur_close
-                            b['accumulated_pnl'] += p1_pnl
-                            balance += p1_pnl
-                            b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p1_pnl
-
-                            # Auto-Breakeven on TP1 hit (Rule #2: Mandatory for all strategies)
-                            b['is_breakeven'] = True
-                            if be_mode == 'smart_breathing_be' or smart_solution_enabled:
-                                b['sl_price'] = min(b['sl_price'], entry_p + (0.25 * cur_atr))
-                            elif be_mode == 'loose':
-                                b['sl_price'] = min(b['sl_price'], entry_p + (0.45 * cur_atr))
-                            else:
-                                b['sl_price'] = min(b['sl_price'], entry_p)
-
-                            if b['remaining_lots'] <= 0.0001:
+                        if not is_green:
+                            # 1. High checked first on red candle: Ask = High + Spread >= SL
+                            if cur_ask_high >= b['sl_price']:
+                                exit_price = b['sl_price']
+                                exit_pnl = self.convert_delta_to_usd(entry_p - exit_price, sym, cur_close, contract_size, b['remaining_lots'], latest_prices)
+                                b['accumulated_pnl'] += exit_pnl
                                 closed_this_bar = True
-                                exit_reason = "TP1_SCALP_WIN"
-                                b['status'] = "WIN"
-                                exit_price = tp1_p
+                                exit_reason = "FULL_SL"
+                                b['status'] = "LOSS"
+                            elif cur_ask_low <= tp1_p:
+                                b['tp1_hit'] = True
+                                hit_tp1_this_bar = True
+                                p1_lots = min(lot_p1, b['remaining_lots'])
+                                b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p1_lots), 4)
+                                p1_pnl = self.convert_delta_to_usd(entry_p - tp1_p, sym, cur_close, contract_size, p1_lots, latest_prices)
+                                b['accumulated_pnl'] += p1_pnl
+                                balance += p1_pnl
+                                b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p1_pnl
+                                b['is_breakeven'] = True
+                                if be_mode == 'smart_breathing_be' or smart_solution_enabled:
+                                    b['sl_price'] = min(b['sl_price'], entry_p + (0.25 * cur_atr))
+                                elif be_mode == 'loose':
+                                    b['sl_price'] = min(b['sl_price'], entry_p + (0.45 * cur_atr))
+                                else:
+                                    b['sl_price'] = min(b['sl_price'], entry_p)
+
+                                if b['remaining_lots'] <= 0.0001:
+                                    closed_this_bar = True
+                                    exit_reason = "TP1_SCALP_WIN"
+                                    b['status'] = "WIN"
+                                    exit_price = tp1_p
+                        else:
+                            # 1. Low checked first on green candle (drop to TP1 before rallying)
+                            if cur_ask_low <= tp1_p:
+                                b['tp1_hit'] = True
+                                hit_tp1_this_bar = True
+                                p1_lots = min(lot_p1, b['remaining_lots'])
+                                b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p1_lots), 4)
+                                p1_pnl = self.convert_delta_to_usd(entry_p - tp1_p, sym, cur_close, contract_size, p1_lots, latest_prices)
+                                b['accumulated_pnl'] += p1_pnl
+                                balance += p1_pnl
+                                b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p1_pnl
+                                b['is_breakeven'] = True
+                                if be_mode == 'smart_breathing_be' or smart_solution_enabled:
+                                    b['sl_price'] = min(b['sl_price'], entry_p + (0.25 * cur_atr))
+                                elif be_mode == 'loose':
+                                    b['sl_price'] = min(b['sl_price'], entry_p + (0.45 * cur_atr))
+                                else:
+                                    b['sl_price'] = min(b['sl_price'], entry_p)
+
+                                if b['remaining_lots'] <= 0.0001:
+                                    closed_this_bar = True
+                                    exit_reason = "TP1_SCALP_WIN"
+                                    b['status'] = "WIN"
+                                    exit_price = tp1_p
+                            elif cur_ask_high >= b['sl_price']:
+                                exit_price = b['sl_price']
+                                exit_pnl = self.convert_delta_to_usd(entry_p - exit_price, sym, cur_close, contract_size, b['remaining_lots'], latest_prices)
+                                b['accumulated_pnl'] += exit_pnl
+                                closed_this_bar = True
+                                exit_reason = "FULL_SL"
+                                b['status'] = "LOSS"
 
                     if not closed_this_bar and b['tp1_hit']:
                         # ── Runner Management (TP1 already locked in bank) ──
@@ -1117,33 +1319,26 @@ class MT5BacktestEngine:
                         # Check Runner Stop (Breakeven or Trailing Stop) evaluated at Ask = High + Spread
                         if not hit_tp1_this_bar and cur_ask_high >= b['sl_price']:
                             exit_price = b['sl_price']
-                            exit_pnl = (entry_p - exit_price) * b['remaining_lots'] * contract_size
-                            if is_jpy and cur_close > 0:
-                                exit_pnl /= cur_close
+                            exit_pnl = self.convert_delta_to_usd(entry_p - exit_price, sym, cur_close, contract_size, b['remaining_lots'], latest_prices)
                             b['accumulated_pnl'] += exit_pnl
                             b['remaining_lots'] = 0.0
                             closed_this_bar = True
-                            if b.get('is_breakeven', False) or b['tp1_hit']:
-                                exit_reason = "TP1_BANKED_BE_EXIT" if b['accumulated_pnl'] > 0.15 else "BREAKEVEN_SL"
-                                b['status'] = "BREAKEVEN"
-                            elif b['accumulated_pnl'] > 0.15:
-                                exit_reason = "TRAILING_STOP_WIN"
-                                b['status'] = "WIN"
-                            elif b['accumulated_pnl'] < -0.15:
-                                exit_reason = "STOP_LOSS"
-                                b['status'] = "LOSS"
-                            else:
-                                exit_reason = "BREAKEVEN_SL"
-                                b['status'] = "BREAKEVEN"
+                            exit_reason = "TP1_BANKED_BE_EXIT" if b['accumulated_pnl'] > 0.05 else "BREAKEVEN_SL"
+                        elif hit_tp1_this_bar and ((is_green and cur_ask_high >= b['sl_price']) or cur_ask_close >= b['sl_price']):
+                            # Intra-bar reversal on TP1 bar: short spiked to TP1 but collapsed up & hit breakeven SL
+                            exit_price = b['sl_price']
+                            exit_pnl = self.convert_delta_to_usd(entry_p - exit_price, sym, cur_close, contract_size, b['remaining_lots'], latest_prices)
+                            b['accumulated_pnl'] += exit_pnl
+                            b['remaining_lots'] = 0.0
+                            closed_this_bar = True
+                            exit_reason = "TP1_BANKED_BE_EXIT" if b['accumulated_pnl'] > 0.05 else "BREAKEVEN_SL"
 
                         # Check TP2 Hit (Structural Runner 1:1+) evaluated at Ask = Low + Spread
                         if not closed_this_bar and not b['tp2_hit'] and lot_p2 > 0 and cur_ask_low <= tp2_p:
                             b['tp2_hit'] = True
                             p2_lots = min(lot_p2, b['remaining_lots'])
                             b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p2_lots), 4)
-                            p2_pnl = (entry_p - tp2_p) * p2_lots * contract_size
-                            if is_jpy and cur_close > 0:
-                                p2_pnl /= cur_close
+                            p2_pnl = self.convert_delta_to_usd(entry_p - tp2_p, sym, cur_close, contract_size, p2_lots, latest_prices)
                             b['accumulated_pnl'] += p2_pnl
                             balance += p2_pnl
                             b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p2_pnl
@@ -1152,14 +1347,11 @@ class MT5BacktestEngine:
                             if b['remaining_lots'] <= 0.0001:
                                 closed_this_bar = True
                                 exit_reason = "TP2_RUNNER_WIN"
-                                b['status'] = "WIN"
                                 exit_price = tp2_p
 
                         # Check TP3 Hit (Macro Runner 2.20R) evaluated at Ask = Low + Spread
                         if not closed_this_bar and b['tp2_hit'] and b['remaining_lots'] > 0.0001 and cur_ask_low <= tp3_p:
-                            p3_pnl = (entry_p - tp3_p) * b['remaining_lots'] * contract_size
-                            if is_jpy and cur_close > 0:
-                                p3_pnl /= cur_close
+                            p3_pnl = self.convert_delta_to_usd(entry_p - tp3_p, sym, cur_close, contract_size, b['remaining_lots'], latest_prices)
                             b['accumulated_pnl'] += p3_pnl
                             balance += p3_pnl
                             b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p3_pnl
@@ -1170,6 +1362,17 @@ class MT5BacktestEngine:
                             exit_price = tp3_p
 
                 if closed_this_bar:
+                    # Deduct authentic transaction costs (broker round-trip commission + overnight swaps)
+                    b_lots = float(b.get('total_lots', b.get('remaining_lots', 0.03)))
+                    comm_usd = round(comm_per_lot * b_lots, 2)
+                    swap_usd = self.compute_swap_fee(b.get('executed_at'), cur_time.isoformat(), b_lots, sym) if enable_swaps else 0.0
+                    costs_usd = round(comm_usd + swap_usd, 2)
+
+                    b['commission'] = comm_usd
+                    b['swap'] = swap_usd
+                    b['costs_usd'] = costs_usd
+                    b['accumulated_pnl'] -= costs_usd
+
                     final_pnl = round(b['accumulated_pnl'], 2)
                     already_credited = round(b.get('realized_balance_credited', 0.0), 2)
                     balance += round(final_pnl - already_credited, 2)
@@ -1178,6 +1381,15 @@ class MT5BacktestEngine:
                     b['closed_at'] = cur_time.isoformat()
                     b['exit_price'] = round(exit_price, 5)
                     b['exit_reason'] = exit_reason
+
+                    # Institutional True-PnL Status Classification
+                    if final_pnl > 0.05:
+                        b['status'] = "WIN"
+                    elif final_pnl < -0.05:
+                        b['status'] = "LOSS"
+                    else:
+                        b['status'] = "BREAKEVEN"
+
                     closed_batches.append(b)
                 else:
                     surviving_batches.append(b)
@@ -1207,6 +1419,16 @@ class MT5BacktestEngine:
                 if can_open:
                     slice_start = max(0, idx - 250)
                     historical_slice = df.iloc[slice_start:idx + 1]
+
+                    # Pre-calculate Choppiness Index (CI) for market regime detection
+                    cur_ci = 50.0
+                    if len(historical_slice) >= 15:
+                        cur_ci = self.compute_choppiness_index(
+                            historical_slice['high'].to_numpy(dtype=float),
+                            historical_slice['low'].to_numpy(dtype=float),
+                            historical_slice['close'].to_numpy(dtype=float),
+                            period=14
+                        )
 
                     # Pre-calculate news blackout once per candle
                     is_cur_news_blackout = False
@@ -1243,6 +1465,13 @@ class MT5BacktestEngine:
                         )
                         if not is_sess_ok:
                             continue
+
+                        # 4. Universal Market Regime Filter (Dreiss Choppiness Index)
+                        # When CI > 61.8, the market is severely consolidative/choppy.
+                        # Breakout and trend-following setups generate false wicks; suppress entries during high chop.
+                        if regime_filter_enabled and cur_ci > 61.8:
+                            if s_k in ['DEFAULT', 'ARIEL_ORB', 'ADAM_KHOO', 'ICT_SILVER_BULLET', 'QULLAMAGGIE_EP']:
+                                continue
 
                         st_res = None
                         if s_k in MasterStreamerPlaybook.STRATEGY_MAP:
@@ -1405,8 +1634,10 @@ class MT5BacktestEngine:
                         else:
                             c_be_mode = str(best_candidate.get('breakeven_mode') or 'tight').lower().strip()
 
-                        # Enforce Bid/Ask Execution Geometry: BUY at Ask = Close + Spread; SELL at Bid = Close
-                        c_entry = (cur_close + cur_spread) if c_act == 'BUY' else cur_close
+                        cand_rng = cur_high - cur_low
+                        slippage_dist = self.compute_slippage_distance(sym, slippage_pips, candle_range=cand_rng, atr=cur_atr)
+                        # Enforce Bid/Ask Execution Geometry & Slippage: BUY at Ask = Close + Spread + Slippage; SELL at Bid = Close - Slippage
+                        c_entry = (cur_close + cur_spread + slippage_dist) if c_act == 'BUY' else (cur_close - slippage_dist)
                         setup_sl = float(setup.get('stop_loss', 0.0))
                         setup_tp1 = float(setup.get('tp1', 0.0))
                         setup_tp2 = float(setup.get('tp2', 0.0))
@@ -1417,14 +1648,14 @@ class MT5BacktestEngine:
                             sl_dist = max(abs(c_entry - setup_sl) if setup_sl > 0 else (1.80 * cur_atr), 1.80 * cur_atr)
                             if c_act == 'BUY':
                                 c_sl = c_entry - sl_dist
-                                c_tp1 = c_entry + (0.38 * cur_atr)
-                                c_tp2 = c_entry + (1.15 * sl_dist)
-                                c_tp3 = c_entry + (2.20 * sl_dist)
+                                c_tp1 = c_entry + (1.00 * cur_atr)
+                                c_tp2 = c_entry + (1.50 * sl_dist)
+                                c_tp3 = c_entry + (2.50 * sl_dist)
                             else:
                                 c_sl = c_entry + sl_dist
-                                c_tp1 = c_entry - (0.38 * cur_atr)
-                                c_tp2 = c_entry - (1.15 * sl_dist)
-                                c_tp3 = c_entry - (2.20 * sl_dist)
+                                c_tp1 = c_entry - (1.00 * cur_atr)
+                                c_tp2 = c_entry - (1.50 * sl_dist)
+                                c_tp3 = c_entry - (2.50 * sl_dist)
                         else:
                             # Streamer Playbook Exact Geometry (Waqar Asim 5 pips, Ariel ORB, Steven Hart 1:2 R:R, Qullamaggie LOD, etc.)
                             c_sl = setup_sl
@@ -1432,14 +1663,15 @@ class MT5BacktestEngine:
                             if sl_dist <= 0:
                                 sl_dist = 1.80 * cur_atr
 
+                            min_tp1_dist = 0.85 * cur_atr
                             if c_act == 'BUY':
-                                c_tp1 = setup_tp1 if setup_tp1 > c_entry else (c_entry + (0.38 * cur_atr))
-                                c_tp2 = setup_tp2 if setup_tp2 > c_entry else (c_entry + (1.15 * sl_dist))
-                                c_tp3 = setup_tp3 if setup_tp3 > c_entry else (c_entry + (2.20 * sl_dist))
+                                c_tp1 = setup_tp1 if setup_tp1 >= (c_entry + min_tp1_dist) else (c_entry + (1.00 * cur_atr))
+                                c_tp2 = setup_tp2 if setup_tp2 > c_entry else (c_entry + (1.50 * sl_dist))
+                                c_tp3 = setup_tp3 if setup_tp3 > c_entry else (c_entry + (2.50 * sl_dist))
                             else:
-                                c_tp1 = setup_tp1 if (setup_tp1 > 0 and setup_tp1 < c_entry) else (c_entry - (0.38 * cur_atr))
-                                c_tp2 = setup_tp2 if (setup_tp2 > 0 and setup_tp2 < c_entry) else (c_entry - (1.15 * sl_dist))
-                                c_tp3 = setup_tp3 if (setup_tp3 > 0 and setup_tp3 < c_entry) else (c_entry - (2.20 * sl_dist))
+                                c_tp1 = setup_tp1 if (setup_tp1 > 0 and setup_tp1 <= (c_entry - min_tp1_dist)) else (c_entry - (1.00 * cur_atr))
+                                c_tp2 = setup_tp2 if (setup_tp2 > 0 and setup_tp2 < c_entry) else (c_entry - (1.50 * sl_dist))
+                                c_tp3 = setup_tp3 if (setup_tp3 > 0 and setup_tp3 < c_entry) else (c_entry - (2.50 * sl_dist))
 
                         # Determine symbol minimum volume (e.g. 0.10 for ETH, 0.01 for others)
                         sym_vol_min = self.compute_symbol_vol_min(sym)
@@ -1484,7 +1716,10 @@ class MT5BacktestEngine:
                                 'action': c_act,
                                 'entry_price': round(c_entry, 5),
                                 'spread_applied': round(cur_spread, 5),
+                                'slippage_applied': round(slippage_dist, 5),
+                                'commission_rate': comm_per_lot,
                                 'entry_type': 'ASK (Close+Spread)' if c_act == 'BUY' else 'BID (Close)',
+                                'total_lots': tot_lots,
                                 'sl_price': round(c_sl, 5),
                                 'tp1_price': round(c_tp1, 5),
                                 'tp2_price': round(c_tp2, 5),
@@ -1524,9 +1759,7 @@ class MT5BacktestEngine:
                     delta_p = b_price - b['entry_price']
                 else:
                     delta_p = b['entry_price'] - (b_price + b_sp)
-                u_val = delta_p * b['remaining_lots'] * b_c_size
-                if b_is_jpy and b_price > 0:
-                    u_val /= b_price
+                u_val = self.convert_delta_to_usd(delta_p, b_sym, b_price, b_c_size, b['remaining_lots'], latest_prices)
                 unrealized_pnl += u_val
 
             current_equity = balance + unrealized_pnl
@@ -1555,11 +1788,11 @@ class MT5BacktestEngine:
             now_perf = time.time()
             is_final_bar = (e_idx == total_events - 1)
             if progress_callback and ((now_perf - last_ui_update_time >= 2.5) or is_final_bar):
-                be_c = sum(1 for b in closed_batches if b.get('status') == 'BREAKEVEN' or 'BE' in str(b.get('exit_reason', '')).upper() or abs(b.get('profit', 0.0)) <= 0.15)
-                losses_c = sum(1 for b in closed_batches if not (b.get('status') == 'BREAKEVEN' or 'BE' in str(b.get('exit_reason', '')).upper()) and (b.get('status') == 'LOSS' or 'FULL_SL' in str(b.get('exit_reason', '')).upper() or (not b.get('tp1_hit') and b.get('profit', 0.0) < -0.15)))
-                wins_c = max(0, len(closed_batches) - be_c - losses_c)
                 comp_c = len(closed_batches)
-                prof_c = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+                wins_c = sum(1 for b in closed_batches if float(b.get('profit', 0.0)) > 0.05)
+                losses_c = sum(1 for b in closed_batches if float(b.get('profit', 0.0)) < -0.05)
+                be_c = max(0, comp_c - wins_c - losses_c)
+                prof_c = wins_c
                 wr_c = round((prof_c / max(comp_c, 1)) * 100.0, 1) if comp_c > 0 else 0.0
                 net_pnl_c = round(current_equity - initial_balance, 2)
                 roi_c = round((net_pnl_c / initial_balance) * 100.0, 2)
@@ -1572,13 +1805,8 @@ class MT5BacktestEngine:
                     c_is_jpy = ('JPY' in sym_c.upper())
                     sym_price = latest_prices.get(sym_c, ob['entry_price'])
                     ob_sp = ob.get('spread_applied', self.get_symbol_spread(sym_c, spread_maps))
-                    if ob['action'] == 'BUY':
-                        delta_p = sym_price - ob['entry_price']
-                    else:
-                        delta_p = ob['entry_price'] - (sym_price + ob_sp)
-                    flt_rem = delta_p * ob['remaining_lots'] * c_size
-                    if c_is_jpy and sym_price > 0:
-                        flt_rem /= sym_price
+                    delta_p = (sym_price - ob['entry_price']) if ob['action'] == 'BUY' else (ob['entry_price'] - (sym_price + ob_sp))
+                    flt_rem = self.convert_delta_to_usd(delta_p, sym_c, sym_price, c_size, ob['remaining_lots'], latest_prices)
                     flt_pnl = round(ob.get('accumulated_pnl', 0.0) + flt_rem, 2)
                     open_preview.append({
                         'trade_id': ob.get('trade_id', ob.get('batch_id')),
@@ -1687,29 +1915,27 @@ class MT5BacktestEngine:
         # 3. WIN (W): Full runner expansion target reached (TP2/TP3 hit, status == 'WIN')
         # 4. Overall Win Rate: Percentage of all trades that locked positive profit (> $0.15 or TP1 banked)
         def _is_batch_be(batch_obj):
+            p = float(batch_obj.get('profit', 0.0))
             stt = str(batch_obj.get('status', '')).upper()
             exit_r = str(batch_obj.get('exit_reason', '')).upper()
-            p = float(batch_obj.get('profit', 0.0))
-            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
+            return (abs(p) <= 0.05) or (stt == 'BREAKEVEN') or ('BE' in exit_r)
 
         def _is_batch_loss(batch_obj):
-            if _is_batch_be(batch_obj):
-                return False
+            p = float(batch_obj.get('profit', 0.0))
             stt = str(batch_obj.get('status', '')).upper()
             exit_r = str(batch_obj.get('exit_reason', '')).upper()
-            p = float(batch_obj.get('profit', 0.0))
-            tp1_hit = bool(batch_obj.get('tp1_hit', False))
-            return (stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15)
+            return (p < -0.05) or (stt == 'LOSS') or ('FULL_SL' in exit_r)
 
         def _is_batch_win(batch_obj):
-            return not _is_batch_be(batch_obj) and not _is_batch_loss(batch_obj)
+            p = float(batch_obj.get('profit', 0.0))
+            return p > 0.05 and not _is_batch_be(batch_obj)
 
-        breakevens = sum(1 for b in closed_batches if _is_batch_be(b))
-        losses = sum(1 for b in closed_batches if _is_batch_loss(b))
         wins = sum(1 for b in closed_batches if _is_batch_win(b))
+        losses = sum(1 for b in closed_batches if _is_batch_loss(b))
+        breakevens = max(0, total_trades - wins - losses)
 
-        # Win Rate is based on all profitable trades (TP1 banked or runner targets reached)
-        profitable_trades = sum(1 for b in closed_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+        # Institutional True-PnL Win Rate: strictly trades that closed in net positive dollar profit
+        profitable_trades = wins
         win_rate = round((profitable_trades / max(total_trades, 1)) * 100.0, 1) if total_trades > 0 else 0.0
 
         gross_profit = sum(b.get('profit', 0) for b in closed_batches if b.get('profit', 0) > 0)
@@ -1774,6 +2000,7 @@ class MT5BacktestEngine:
 
         results = {
             'status': 'STOPPED' if self._stop_requested.is_set() else 'COMPLETED',
+            'is_synthetic_feed': is_synthetic_feed,
             'backtest_executed_at': datetime.now(timezone.utc).isoformat(),
             'date_from': d_from.strftime("%Y-%m-%d"),
             'date_to': d_to.strftime("%Y-%m-%d"),
@@ -1808,6 +2035,7 @@ class MT5BacktestEngine:
             'is_account_zeroed': capital_safety['is_account_zeroed'],
             'news_shield_saves': news_shield_saves,
             'news_blackout_blocks': news_blackout_blocks,
+            'is_synthetic_feed': is_synthetic_feed,
             'equity_curve': equity_curve,
             'leaderboard': leaderboard,
             'closed_batches': closed_batches,
@@ -1962,7 +2190,7 @@ class MT5BacktestEngine:
             trades = len(s_batches)
             net_pnl = round(cur_bal - initial_balance, 2)
             roi_pct = round((net_pnl / initial_balance) * 100.0, 2) if initial_balance > 0 else 0.0
-            prof_cnt = sum(1 for b in s_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+            prof_cnt = sum(1 for b in s_batches if float(b.get('profit', 0.0)) > 0.05)
             win_rate = round((prof_cnt / max(trades, 1)) * 100.0, 1) if trades > 0 else 0.0
             pf = round(gp / gl, 2) if gl > 0 else (99.9 if gp > 0 else 0.0)
 
@@ -2065,7 +2293,7 @@ class MT5BacktestEngine:
             stt = str(b.get('status', '')).upper()
             exit_r = str(b.get('exit_reason', '')).upper()
             p = float(b.get('profit', 0.0))
-            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
+            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.05)
 
         def _is_loss(b):
             if _is_be(b):
@@ -2073,8 +2301,7 @@ class MT5BacktestEngine:
             stt = str(b.get('status', '')).upper()
             exit_r = str(b.get('exit_reason', '')).upper()
             p = float(b.get('profit', 0.0))
-            tp1_hit = bool(b.get('tp1_hit', False))
-            return (stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15)
+            return (p < -0.05) or (stt == 'LOSS') or ('FULL_SL' in exit_r)
 
         def _is_win(b):
             return not _is_be(b) and not _is_loss(b)
@@ -2123,7 +2350,7 @@ class MT5BacktestEngine:
             w_bes = sum(1 for b in w_batches if _is_be(b))
             w_losses = sum(1 for b in w_batches if _is_loss(b))
             w_wins = sum(1 for b in w_batches if _is_win(b))
-            w_prof = sum(1 for b in w_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+            w_prof = sum(1 for b in w_batches if float(b.get('profit', 0.0)) > 0.05)
             w_wr = round((w_prof / max(w_trades, 1)) * 100.0, 1) if w_trades > 0 else 0.0
             w_pnl = round(sum(b.get('profit', 0.0) for b in w_batches), 2)
 
@@ -2205,7 +2432,7 @@ class MT5BacktestEngine:
             stt = str(b.get('status', '')).upper()
             exit_r = str(b.get('exit_reason', '')).upper()
             p = float(b.get('profit', 0.0))
-            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
+            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.05)
 
         def _is_loss(b):
             if _is_be(b):
@@ -2213,8 +2440,7 @@ class MT5BacktestEngine:
             stt = str(b.get('status', '')).upper()
             exit_r = str(b.get('exit_reason', '')).upper()
             p = float(b.get('profit', 0.0))
-            tp1_hit = bool(b.get('tp1_hit', False))
-            return (stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15)
+            return (p < -0.05) or (stt == 'LOSS') or ('FULL_SL' in exit_r)
 
         def _is_win(b):
             return not _is_be(b) and not _is_loss(b)
@@ -2268,7 +2494,7 @@ class MT5BacktestEngine:
             d_bes = sum(1 for b in d_batches if _is_be(b))
             d_losses = sum(1 for b in d_batches if _is_loss(b))
             d_wins = sum(1 for b in d_batches if _is_win(b))
-            d_prof = sum(1 for b in d_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+            d_prof = sum(1 for b in d_batches if float(b.get('profit', 0.0)) > 0.05)
             d_wr = round((d_prof / max(d_trades, 1)) * 100.0, 1) if d_trades > 0 else 0.0
             d_pnl = round(sum(b.get('profit', 0.0) for b in d_batches), 2)
 
@@ -2347,7 +2573,7 @@ class MT5BacktestEngine:
             stt = str(b.get('status', '')).upper()
             exit_r = str(b.get('exit_reason', '')).upper()
             p = float(b.get('profit', 0.0))
-            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
+            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.05)
 
         def _is_loss(b):
             if _is_be(b):
@@ -2355,8 +2581,7 @@ class MT5BacktestEngine:
             stt = str(b.get('status', '')).upper()
             exit_r = str(b.get('exit_reason', '')).upper()
             p = float(b.get('profit', 0.0))
-            tp1_hit = bool(b.get('tp1_hit', False))
-            return (stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15)
+            return (p < -0.05) or (stt == 'LOSS') or ('FULL_SL' in exit_r)
 
         def _is_win(b):
             return not _is_be(b) and not _is_loss(b)
@@ -2374,7 +2599,7 @@ class MT5BacktestEngine:
             s_bes = sum(1 for b in s_batches if _is_be(b))
             s_losses = sum(1 for b in s_batches if _is_loss(b))
             s_wins = sum(1 for b in s_batches if _is_win(b))
-            s_prof = sum(1 for b in s_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+            s_prof = sum(1 for b in s_batches if float(b.get('profit', 0.0)) > 0.05)
             s_wr = round((s_prof / max(s_trades, 1)) * 100.0, 1) if s_trades > 0 else 0.0
             s_pnl = round(sum(b.get('profit', 0.0) for b in s_batches), 2)
 
@@ -2574,7 +2799,7 @@ class MT5BacktestEngine:
             if pnl > 0.15 and pnl > stats_map[k]['biggest_tp']:
                 stats_map[k]['biggest_tp'] = round(pnl, 2)
 
-            is_profitable = (pnl > 0.15) or tp1_hit or is_win
+            is_profitable = pnl > 0.05
             if tf:
                 if tf not in strat_tfs[k]:
                     strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'losses': 0, 'breakevens': 0, 'pnl': 0.0}
@@ -2657,8 +2882,8 @@ class MT5BacktestEngine:
             item['tp2_hits'] = int(item['tp2_hits'])
             item['active_trades'] = 0
 
-            # Win Rate is based on all profitable trades (TP1 banked or runner targets reached)
-            prof_cnt = sum(1 for b in closed_batches if b.get('strategy_used') == k and (b.get('profit', 0.0) > 0.15 or b.get('tp1_hit')))
+            # Institutional True-PnL Win Rate: strictly trades that closed in net positive dollar profit
+            prof_cnt = sum(1 for b in closed_batches if b.get('strategy_used') == k and float(b.get('profit', 0.0)) > 0.05)
             item['win_rate'] = round((prof_cnt / max(trades, 1)) * 100.0, 1) if trades > 0 else 0.0
 
             # Profit Factor
@@ -2723,7 +2948,7 @@ class MT5BacktestEngine:
                 s_l = sd['losses']
                 s_be = sd['breakevens']
                 s_tot = s_w + s_l + s_be
-                s_prof = sum(1 for b in closed_batches if b.get('strategy_used') == k and b.get('symbol') == s and (b.get('profit', 0.0) > 0.15 or b.get('tp1_hit')))
+                s_prof = sum(1 for b in closed_batches if b.get('strategy_used') == k and b.get('symbol') == s and float(b.get('profit', 0.0)) > 0.05)
                 s_wr = round((s_prof / max(s_tot, 1)) * 100.0, 1) if s_tot > 0 else 0.0
                 formatted_breakdown[s] = {
                     'wins': s_w,
@@ -2857,13 +3082,9 @@ class MT5BacktestEngine:
             if dd_p > max_drawdown_pct:
                 max_drawdown_pct = round(dd_p, 2)
 
-            stt = str(b.get('status', '')).upper()
-            exit_r = str(b.get('exit_reason', '')).upper()
-            tp1_hit = bool(b.get('tp1_hit', False))
-
-            is_be = (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(pnl) <= 0.15)
-            is_loss = (not is_be) and ((stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and pnl < -0.15))
-            is_win = (not is_be) and (not is_loss)
+            is_be = abs(pnl) <= 0.05
+            is_loss = pnl < -0.05
+            is_win = pnl > 0.05
 
             if is_be:
                 breakevens += 1
@@ -2872,7 +3093,7 @@ class MT5BacktestEngine:
             else:
                 wins += 1
 
-            if pnl > 0.15 or tp1_hit:
+            if pnl > 0.05:
                 profitable_trades += 1
 
             if pnl > 0:

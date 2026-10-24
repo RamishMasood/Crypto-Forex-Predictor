@@ -150,6 +150,49 @@ class TestMT5BacktestEngine(unittest.TestCase):
         self.assertEqual(bs['sl_hits'], 0)
         self.assertEqual(bs['biggest_sl_loss'], 0.0)
 
+    def test_choppiness_index_regime_classification(self):
+        """Choppiness index must detect trending (<45) vs consolidative (>55) market regimes."""
+        # Trending sequence
+        trend = np.linspace(100, 200, 30)
+        ci_trend = MT5BacktestEngine.compute_choppiness_index(trend + 0.5, trend - 0.5, trend, period=14)
+        self.assertLess(ci_trend, 45.0, f"Trending market expected CI < 45, got {ci_trend}")
+
+        # Choppy / ranging sequence
+        chop = 100 + np.sin(np.linspace(0, 20, 30)) * 2.0
+        ci_chop = MT5BacktestEngine.compute_choppiness_index(chop + 1.0, chop - 1.0, chop, period=14)
+        self.assertGreater(ci_chop, 55.0, f"Choppy market expected CI > 55, got {ci_chop}")
+
+    def test_volatility_scaled_slippage(self):
+        """Slippage must scale dynamically on violent momentum candles (range > ATR)."""
+        base_slip = MT5BacktestEngine.compute_slippage_distance("EUR/USD", slippage_pips=1.0)
+        self.assertEqual(base_slip, 0.0001)
+
+        # On violent 2x ATR candle, slippage expands
+        expanded_slip = MT5BacktestEngine.compute_slippage_distance("EUR/USD", slippage_pips=1.0, candle_range=0.0040, atr=0.0020)
+        self.assertGreater(expanded_slip, base_slip)
+        self.assertAlmostEqual(expanded_slip, base_slip * 2.0)
+
+    def test_fail_fast_synthetic_abort(self):
+        """When fail_fast_synthetic=True, engine must raise RuntimeError rather than generate fake price data."""
+        custom_settings = {
+            "selected_symbols": ["NONEXISTENT_SYM_XYZ"],
+            "timeframes": ["1h"],
+            "active_strategies": ["DEFAULT"],
+            "fail_fast_synthetic": True,
+            "date_from": "2026-01-01T00:00:00Z",
+            "date_to": "2026-01-02T00:00:00Z"
+        }
+        with self.assertRaises(RuntimeError) as ctx:
+            self.engine.run_backtest(custom_settings)
+        self.assertIn("FAIL_FAST_ABORT", str(ctx.exception))
+
+    def test_positive_expectancy_batch_lot_split_003(self):
+        """Batch lot 0.03 must allocate 0.01 TP1, 0.01 TP2, and 0.01 TP3 for 1:1.5+ runner balance."""
+        lot1, lot2, lot3 = MT5BacktestEngine.compute_batch_lot_split(0.03, vol_min=0.01, vol_step=0.01)
+        self.assertEqual(lot1, 0.01)
+        self.assertEqual(lot2, 0.01)
+        self.assertEqual(lot3, 0.01)
+
     def test_zero_disturbance_to_autonomous_live_state(self):
         """Ensure that running backtest operations never mutates .autonomous_trader_state.json."""
         if self.initial_live_state_content is not None and os.path.exists(self.live_state_path):

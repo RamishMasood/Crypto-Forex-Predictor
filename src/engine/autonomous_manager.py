@@ -477,12 +477,13 @@ class AutonomousTraderEngine:
             stats_map[k]['closed_trades'] += 1
             stats_map[k]['net_pnl'] += pnl
 
-            # User Trading Invariant:
-            # At least TP1 hit is a WIN; Full SL without TP1 is a LOSS; pure scratch is BREAKEVEN.
-            tp1_hit = bool(b.get('tp1_hit', False))
-            has_tp1 = tp1_hit or ('TP1' in exit_r)
-            is_win = has_tp1 or ('TP' in exit_r) or pnl > 0.15 or status == 'WIN'
-            is_loss = (not has_tp1) and (pnl < -0.15 or status == 'LOSS' or 'FULL_SL' in exit_r)
+            # Institutional True-PnL Classification:
+            # A trade is a WIN only if net realized profit > 0.05.
+            # A trade is a LOSS if net realized profit < -0.05.
+            # A trade is a BREAKEVEN if abs(pnl) <= 0.05.
+            is_win = (pnl > 0.05)
+            is_loss = (pnl < -0.05)
+            is_be = (not is_win) and (not is_loss)
 
             if is_win:
                 stats_map[k]['wins'] += 1
