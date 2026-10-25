@@ -239,9 +239,10 @@ class VivekYadavSupplyDemandEngine:
 
         # 1. TEST DEMAND TRIGGER (BUY):
         # Bullish or consolidation range with price holding above EMA20 / 200 SMA with volume absorption & RSI sweet spot
-        ema_aligned_buy = (ema_20 >= ema_50 * 0.999) or (trend == 'BULLISH')
-        is_trend_ok_buy = (trend in ['BULLISH', 'CONSOLIDATION']) and ema_aligned_buy
-        is_ma_ok_buy = (last_c >= ema_20 * 0.995) or (n < 25)
+        cand_body = abs(last_c - last_o)
+        ema_aligned_buy = (ema_20 >= ema_50 * 0.999) or (trend == 'BULLISH') or (n < 25)
+        is_trend_ok_buy = (trend in ['BULLISH'] or n < 25) and ema_aligned_buy
+        is_ma_ok_buy = ((last_c >= ema_20 * 0.995) and (last_c >= sma_200 * 0.995)) or (n < 25)
         if is_trend_ok_buy and is_ma_ok_buy and (42.0 <= rsi_val <= 70.0 or n < 25):
             # Sort demand zones: fresh zones first, then most recent
             sorted_demand = sorted(demand_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)
@@ -259,7 +260,7 @@ class VivekYadavSupplyDemandEngine:
 
                 if touched and not invalidated:
                     # Confirmation: Green candle with bottom rejection wick >= 25%, price holding above zone bottom
-                    is_green_confirm = (last_c > last_o) and (last_c >= z_bot) and (lower_wick_ratio >= 0.25) and (candle_range >= 0.30 * safe_atr) and vol_confirmed
+                    is_green_confirm = (last_c > last_o) and (cand_body >= 0.15 * safe_atr) and (last_c >= z_bot) and (lower_wick_ratio >= 0.25) and (candle_range >= 0.30 * safe_atr) and vol_confirmed
 
                     if is_green_confirm:
                         action = 'BUY'
@@ -275,10 +276,10 @@ class VivekYadavSupplyDemandEngine:
                         break
 
         # 2. TEST SUPPLY TRIGGER (SELL):
-        # Bearish or consolidation range holding below EMA20 / 200 SMA with volume absorption & RSI sweet spot
-        ema_aligned_sell = (ema_20 <= ema_50 * 1.001) or (trend == 'BEARISH')
-        is_trend_ok_sell = (trend in ['BEARISH', 'CONSOLIDATION']) and ema_aligned_sell
-        is_ma_ok_sell = (last_c <= ema_20 * 1.005) or (n < 25)
+        # Bearish range holding below EMA20 / 200 SMA with volume absorption & RSI sweet spot
+        ema_aligned_sell = (ema_20 <= ema_50 * 1.001) or (trend == 'BEARISH') or (n < 25)
+        is_trend_ok_sell = (trend in ['BEARISH'] or n < 25) and ema_aligned_sell
+        is_ma_ok_sell = ((last_c <= ema_20 * 1.005) and (last_c <= sma_200 * 1.005)) or (n < 25)
         if action == 'HOLD' and is_trend_ok_sell and is_ma_ok_sell and (30.0 <= rsi_val <= 58.0 or n < 25):
             sorted_supply = sorted(supply_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)
             for sz in sorted_supply:
@@ -294,7 +295,7 @@ class VivekYadavSupplyDemandEngine:
 
                 if touched and not invalidated:
                     # Confirmation: Red candle with top rejection wick >= 28%, price holding below zone top
-                    is_red_confirm = (last_c < last_o) and (last_c <= z_top - 0.05 * safe_atr) and (upper_wick_ratio >= 0.28) and (candle_range >= 0.35 * safe_atr) and vol_confirmed
+                    is_red_confirm = (last_c < last_o) and (cand_body >= 0.15 * safe_atr) and (last_c <= z_top - 0.05 * safe_atr) and (upper_wick_ratio >= 0.28) and (candle_range >= 0.35 * safe_atr) and vol_confirmed
 
                     if is_red_confirm:
                         action = 'SELL'

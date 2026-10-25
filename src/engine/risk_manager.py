@@ -100,8 +100,8 @@ class RiskManager:
         # Entry Price determination (current price or optimal pullback)
         entry_price = current_price
 
-        # 1. Precision Positive-Expectancy TP1 Target: 1.00 * atr (providing healthy 1:0.55+ scalp reward)
-        tp1_dist = 1.00 * atr
+        # 1. Precision TP1 Target: Kept at 0.38 * atr so quick scalp target is locked in
+        tp1_dist = 0.38 * atr
 
         # Spread-Adaptive Target Guard:
         # If broker spread eats > 25% of the scalp target on 1m/3m, reject setup immediately
@@ -163,12 +163,12 @@ class RiskManager:
 
             risk_per_unit = max(entry_price - stop_loss, entry_price * 0.001)
 
-            # TP1: Precision Positive-Expectancy scalp bank (1.00 ATR)
+            # TP1: High-probability instant scalp bank (0.38 ATR)
             tp1 = entry_price + tp1_dist
-            # TP2: Structural runner with at least 1:1.25+ Risk-to-Reward (1.25R)
-            tp2 = entry_price + (1.50 * risk_per_unit)
-            # TP3: Macro expansion runner (2.50R)
-            tp3 = entry_price + (2.50 * risk_per_unit)
+            # TP2: Structural runner with at least 1:1+ Risk-to-Reward (1.15R)
+            tp2 = entry_price + (1.15 * risk_per_unit)
+            # TP3: Macro expansion runner (2.20R)
+            tp3 = entry_price + (2.20 * risk_per_unit)
             # Precision Breakeven:
             breakeven_sl = entry_price + (0.02 * atr)
             # Loose Breakeven protocol:
@@ -185,12 +185,12 @@ class RiskManager:
 
             risk_per_unit = max(stop_loss - entry_price, entry_price * 0.001)
 
-            # TP1: Precision Positive-Expectancy scalp bank (1.00 ATR)
+            # TP1: High-probability instant scalp bank (0.38 ATR)
             tp1 = max(entry_price * 0.001, entry_price - tp1_dist)
-            # TP2: Structural runner with at least 1:1.25+ Risk-to-Reward (1.25R)
-            tp2 = max(entry_price * 0.001, entry_price - (1.50 * risk_per_unit))
-            # TP3: Macro expansion runner (2.50R)
-            tp3 = max(entry_price * 0.001, entry_price - (2.50 * risk_per_unit))
+            # TP2: Structural runner with at least 1:1+ Risk-to-Reward (1.15R)
+            tp2 = max(entry_price * 0.001, entry_price - (1.15 * risk_per_unit))
+            # TP3: Macro expansion runner (2.20R)
+            tp3 = max(entry_price * 0.001, entry_price - (2.20 * risk_per_unit))
             breakeven_sl = max(entry_price * 0.001, entry_price - (0.02 * atr))
             soft_breakeven_sl = entry_price + (0.45 * atr)
             loose_be_trigger = max(entry_price * 0.001, entry_price - (0.85 * atr))
@@ -203,9 +203,9 @@ class RiskManager:
         # Half-Kelly sizing: f = (p * b - q) / b
         # Realistic dynamic payoff ratio b: weighted average of TP1 scalp (0.38 ATR / risk)
         # and TP2/TP3 runners (1.15R / 2.20R), reflecting actual trade geometry (~0.85R - 1.15R)
-        r1 = (tp1_dist / risk_per_unit) if risk_per_unit > 0 else 0.55
-        r2 = 1.50
-        r3 = 2.50
+        r1 = (tp1_dist / risk_per_unit) if risk_per_unit > 0 else 0.25
+        r2 = 1.15
+        r3 = 2.20
         b = round((0.50 * r1) + (0.30 * r2) + (0.20 * r3), 2)  # realistic blended realized payoff
         p = max(0.40, min(0.97, win_probability))
         q = 1.0 - p
@@ -228,13 +228,13 @@ class RiskManager:
             'invalidation_level': round(invalidation_level, 5),
             'sl_distance_pct': round((abs(entry_price - stop_loss) / entry_price) * 100.0, 2),
             'tp1': round(tp1, 5),
-            'tp1_type': 'POSITIVE_EXPECTANCY_SCALP (1.00 ATR)',
+            'tp1_type': 'PRECISION_SCALP_SECURE (0.38 ATR)',
             'tp1_gain_pct': round((abs(tp1 - entry_price) / entry_price) * 100.0, 2),
             'tp2': round(tp2, 5),
-            'tp2_type': 'STRUCTURAL_TREND_RUNNER (1.50R - 1:1.5+ R:R)',
+            'tp2_type': 'STRUCTURAL_TREND_RUNNER (1.15R - 1:1+ R:R)',
             'tp2_gain_pct': round((abs(tp2 - entry_price) / entry_price) * 100.0, 2),
             'tp3': round(tp3, 5),
-            'tp3_type': 'MACRO_EXPANSION_RUNNER (2.50R - 1:2.5+ R:R)',
+            'tp3_type': 'MACRO_EXPANSION_RUNNER (2.20R - 1:2+ R:R)',
             'tp3_gain_pct': round((abs(tp3 - entry_price) / entry_price) * 100.0, 2),
             'breakeven_sl': round(breakeven_sl, 5),
             'soft_breakeven_sl': round(soft_breakeven_sl, 5),

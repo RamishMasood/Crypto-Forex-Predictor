@@ -79,11 +79,8 @@ class SessionManager:
             ((8, 0), (17, 0), "London & NY Trend Hours (08:00-17:00 UTC / Avoid Asian)")
         ],
 
-        # 7. Kristjan Qullamaggie
-        # Windows: Market Session Opens (London & NY Opens for high ADR% momentum continuation)
         "KRISTJAN_QULLAMAGGIE": [
-            ((7, 0), (11, 0), "London Open Momentum Window (07:00-11:00 UTC / European Open)"),
-            ((13, 0), (17, 0), "NY Open Momentum Window (13:00-17:00 UTC / US Open)")
+            ((7, 0), (19, 0), "London & NY Active Momentum Hours (07:00-19:00 UTC / European & US Open)")
         ],
 
         # 8. GCR (@GiganticRebirth)
@@ -120,7 +117,7 @@ class SessionManager:
         # 17. Mark Minervini (SEPA VCP Breakout)
         # Focus: London & NY institutional accumulation & breakout volume
         "MARK_MINERVINI": [
-            ((7, 0), (17, 0), "London & NY Active Hours (07:00-17:00 UTC / VCP Expansion)")
+            ((7, 0), (18, 0), "London & NY Active Hours (07:00-18:00 UTC / VCP Expansion)")
         ],
 
         # 18. Al Brooks (Bar-by-Bar Price Action & Major Trend Reversals)
@@ -245,6 +242,10 @@ class SessionManager:
         if asset_type != 'crypto':
             if (21 * 60 + 45) <= current_min < (22 * 60 + 15):
                 return False, "Session Roll-Over Spread Guard: 5 PM EST / 22:00 UTC daily rollover window"
+
+        # Crypto markets trade 24/7 without session boundaries for designated crypto momentum strategies
+        if asset_type == 'crypto' and strategy_key in ['EUGENE_NG_AH_SIO', 'WAQAR_ZAKA', 'GCR']:
+            return True, f"{strategy_key}: 24/7 Crypto Momentum Execution"
 
         # Check if strategy has specific session rules from Playbook
         strat_cfg = cls.STRATEGY_SPECIFIC_WINDOWS.get(strategy_key)

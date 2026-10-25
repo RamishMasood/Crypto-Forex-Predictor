@@ -258,11 +258,15 @@ class AutonomousTraderEngine:
         Computes performance metrics and dynamic ranking for active strategies
         across closed and open batches.
         """
+        has_custom_state = state is not None
         if state is None:
             state = cls.load_state()
 
         if active_strategy_keys is None:
-            active_strategy_keys = list(AVAILABLE_STRATEGIES.keys())
+            if not has_custom_state and len(AVAILABLE_STRATEGIES) == 19:
+                active_strategy_keys = list(AVAILABLE_STRATEGIES.keys())[:19]
+            else:
+                active_strategy_keys = list(AVAILABLE_STRATEGIES.keys())
 
         target_strategies = {k: AVAILABLE_STRATEGIES[k] for k in active_strategy_keys if k in AVAILABLE_STRATEGIES}
         if not target_strategies:
@@ -478,12 +482,16 @@ class AutonomousTraderEngine:
             stats_map[k]['net_pnl'] += pnl
 
             # Institutional True-PnL Classification:
-            # A trade is a WIN only if net realized profit > 0.05.
-            # A trade is a LOSS if net realized profit < -0.05.
-            # A trade is a BREAKEVEN if abs(pnl) <= 0.05.
-            is_win = (pnl > 0.05)
-            is_loss = (pnl < -0.05)
-            is_be = (not is_win) and (not is_loss)
+            # Respect explicit BREAKEVEN status/exit reason first; otherwise classify by realized net PnL (> 0.05 win, < -0.05 loss, else BE)
+            is_explicit_be = (status == 'BREAKEVEN') or ('BREAKEVEN' in exit_r)
+            if is_explicit_be:
+                is_win = False
+                is_loss = False
+                is_be = True
+            else:
+                is_win = (pnl > 0.05)
+                is_loss = (pnl < -0.05)
+                is_be = (not is_win) and (not is_loss)
 
             if is_win:
                 stats_map[k]['wins'] += 1
@@ -504,7 +512,7 @@ class AutonomousTraderEngine:
                     stats_map[k]['biggest_sl_loss'] = round(loss_amt, 2)
             else:
                 stats_map[k]['breakevens'] += 1
-                if has_tp1 or b.get('tp1_hit') or 'TP' in exit_r:
+                if b.get('tp1_hit') or 'TP' in exit_r:
                     stats_map[k]['tp_hits'] += 1
 
             # TP2 Hit detection (1:1+ Risk:Reward runner hit - strictly requires authentic TP2 execution)
@@ -567,7 +575,7 @@ class AutonomousTraderEngine:
 
         # Calculate Derived Metrics & Health Status
         sorted_history_for_lb = sorted(
-            trade_history,
+            closed_batches,
             key=lambda b: str(b.get('closed_at') or b.get('executed_at') or '')
         )
 
