@@ -565,8 +565,38 @@ class AutonomousTraderEngine:
                 strat_pairs[k][sym]['trades'] += 1
 
         # Calculate Derived Metrics & Health Status
+        sorted_history_for_lb = sorted(
+            trade_history,
+            key=lambda b: str(b.get('closed_at') or b.get('executed_at') or '')
+        )
+
         leaderboard = []
         for k, item in stats_map.items():
+            strat_batches = [b for b in sorted_history_for_lb if b.get('strategy_used') == k]
+            s_cur_c = 0
+            s_cur_usd = 0.0
+            s_max_c = 0
+            s_max_usd = 0.0
+            for b in strat_batches:
+                p = float(b.get('profit', 0.0))
+                stt = str(b.get('status', '')).upper()
+                exit_r = str(b.get('exit_reason', '')).upper()
+                tp1_hit = bool(b.get('tp1_hit', False))
+                is_be = (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
+                is_l = (not is_be) and ((stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15))
+                if is_l:
+                    s_cur_c += 1
+                    s_cur_usd += abs(p)
+                    if s_cur_c > s_max_c:
+                        s_max_c = s_cur_c
+                    if s_cur_usd > s_max_usd:
+                        s_max_usd = s_cur_usd
+                else:
+                    s_cur_c = 0
+                    s_cur_usd = 0.0
+
+            item['max_cons_losses'] = s_max_c
+            item['max_cons_loss_usd'] = round(s_max_usd, 2)
             wins = item['wins']
             losses = item['losses']
             bes = item['breakevens']
@@ -597,34 +627,56 @@ class AutonomousTraderEngine:
             else:
                 item['profit_factor'] = 0.0
 
-            # Synthesize Best Timeframes: prioritize most profitable timeframes, then wins, then trade volume
+            # Synthesize Best Timeframes & Pairs (Ranked by Profitability + Win Rate)
             pb_entry = playbook_profiles.get(k, {})
-            valid_tf_items = [
-                (t_name, t_data) for t_name, t_data in strat_tfs[k].items()
+
+            def _rank_best_entries(entries_dict):
+                valid_entries = []
+                for name, d in entries_dict.items():
+                    tr = d.get('trades', 0)
+                    if tr <= 0:
+                        continue
+                    w = d.get('wins', 0)
+                    p = round(float(d.get('pnl', 0.0)), 2)
+                    wr = round((w / max(tr, 1)) * 100.0, 1)
+                    d['win_rate'] = wr
+                    d['pnl'] = p
+
+                    is_prof = 1 if p > 0.05 else (0 if p >= -0.05 else -1)
+                    if p > 0:
+                        score = p * (wr / 100.0)
+                    else:
+                        score = p * (2.0 - (wr / 100.0))
+                    valid_entries.append((name, d, is_prof, score, p, wr, tr))
+
+                valid_entries.sort(key=lambda x: (x[2], x[3], x[4], x[5], x[6]), reverse=True)
+                return valid_entries
+
+            valid_tf_dict = {
+                t_name: t_data for t_name, t_data in strat_tfs[k].items()
                 if (t_name in VALID_TFS or re.match(r'^\d+[mhd]$', t_name))
-            ]
-            t_items = sorted(
-                valid_tf_items,
-                key=lambda x: (x[1]['pnl'], x[1]['wins'], x[1]['trades']),
-                reverse=True
-            )
-            if t_items:
-                top_tfs = [t[0] for t in t_items[:2]]
-                item['best_timeframes'] = ', '.join(top_tfs)
+            }
+            t_ranked = _rank_best_entries(valid_tf_dict)
+            if t_ranked:
+                item['best_timeframes'] = ', '.join([f"{t[0]} ({t[1]['win_rate']:.0f}%)" for t in t_ranked[:2]])
+                item['best_timeframes_tooltip'] = ' | '.join([
+                    f"{t[0]}: ${t[1]['pnl']:+,.2f} PnL ({t[1]['win_rate']:.1f}% WR, {t[1]['trades']}T)"
+                    for t in t_ranked[:2]
+                ])
             else:
                 item['best_timeframes'] = pb_entry.get('default_tfs', '15m, 1h')
+                item['best_timeframes_tooltip'] = 'Default Playbook Profile'
 
-            # Synthesize Best Trading Pairs
-            p_items = sorted(
-                strat_pairs[k].items(),
-                key=lambda x: (x[1]['wins'], x[1]['pnl'], x[1]['trades']),
-                reverse=True
-            )
-            if p_items:
-                top_pairs = [p[0] for p in p_items[:2]]
-                item['best_pairs'] = ', '.join(top_pairs)
+            p_ranked = _rank_best_entries(strat_pairs[k])
+            if p_ranked:
+                item['best_pairs'] = ', '.join([f"{p[0]} ({p[1]['win_rate']:.0f}%)" for p in p_ranked[:2]])
+                item['best_pairs_tooltip'] = ' | '.join([
+                    f"{p[0]}: ${p[1]['pnl']:+,.2f} PnL ({p[1]['win_rate']:.1f}% WR, {p[1]['trades']}T)"
+                    for p in p_ranked[:2]
+                ])
             else:
                 item['best_pairs'] = pb_entry.get('default_pairs', 'BTC/USD, Gold')
+                item['best_pairs_tooltip'] = 'Default Playbook Profile'
 
             # Attach per-symbol breakdown (wins/losses/breakevens/pnl + win_rate per symbol)
             sym_bd = strat_sym_breakdown.get(k, {})
@@ -764,11 +816,15 @@ class AutonomousTraderEngine:
                 'Profit Factor': float(item.get('profit_factor', 0.0)),
                 'Biggest SL Hit ($)': bsl_str,
                 'SL Hits': int(item.get('sl_hits', 0)),
+                'Max Cons Losses': int(item.get('max_cons_losses', 0)),
+                'Max Cons Loss ($)': f"-${float(item.get('max_cons_loss_usd', 0.0)):,.2f}" if float(item.get('max_cons_loss_usd', 0.0)) > 0 else "$0.00",
                 'TP Hits': int(item.get('tp_hits', 0)),
                 'TP2 Hits': int(item.get('tp2_hits', 0)),
                 'Biggest TP ($)': btp_str,
                 'Best Timeframes': clean_txt(item.get('best_timeframes', '-')),
+                'Best Timeframes Detail': clean_txt(item.get('best_timeframes_tooltip', item.get('best_timeframes', '-'))),
                 'Best Trading Pairs': clean_txt(item.get('best_pairs', '-')),
+                'Best Trading Pairs Detail': clean_txt(item.get('best_pairs_tooltip', item.get('best_pairs', '-'))),
                 'Active Trades': int(item.get('active_trades', 0)),
                 'Performance Status': clean_txt(item.get('status_badge', '-'))
             })

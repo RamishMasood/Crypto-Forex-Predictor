@@ -549,6 +549,32 @@ class MT5BacktestEngine:
         return 0.01
 
     @staticmethod
+    def get_symbol_spread(sym: str, spread_maps: Optional[Dict[str, float]] = None) -> float:
+        """
+        Retrieves real broker spread or calibrated asset-class spread.
+        Enforces institutional market geometry:
+        - BUY entries executed at Ask = Close + Spread; exits at Bid = Low/High.
+        - SELL entries executed at Bid = Close; exits at Ask = High/Low + Spread.
+        """
+        if spread_maps and sym in spread_maps and float(spread_maps[sym]) > 0:
+            return float(spread_maps[sym])
+        sym_u = sym.upper()
+        if 'BTC' in sym_u:
+            return 18.0
+        elif 'ETH' in sym_u:
+            return 1.50
+        elif 'SOL' in sym_u:
+            return 0.15
+        elif 'XAU' in sym_u or 'GOLD' in sym_u:
+            return 0.25 # 25 cents spread on Gold
+        elif 'XAG' in sym_u or 'SILVER' in sym_u:
+            return 0.03
+        elif 'JPY' in sym_u:
+            return 0.018 # ~1.8 pips on JPY pairs
+        else:
+            return 0.00015 # ~1.5 pips on Forex majors
+
+    @staticmethod
     def compute_batch_lot_split(batch_lot_size: float, vol_min: float = 0.01, vol_step: float = 0.01) -> Tuple[float, float, float]:
         """
         Exact institutional lot allocation matching Autonomous MT5 Executor:
@@ -845,6 +871,7 @@ class MT5BacktestEngine:
             contract_size = self.compute_contract_size(sym)
             asset_type = 'crypto' if any(c in sym for c in ['BTC', 'ETH', 'SOL']) else 'forex'
             is_jpy = ('JPY' in sym.upper())
+            cur_spread = self.get_symbol_spread(sym, spread_maps)
 
             # ── A. Update Existing Open Batches for this Symbol ───────────────
             surviving_batches = []
@@ -1004,16 +1031,20 @@ class MT5BacktestEngine:
                             b['status'] = "WIN"
                             exit_price = tp3_p
 
-                # SELL Trade Management
+                # SELL Trade Management (Exits evaluated at Ask = Bid + Spread)
                 else:
-                    profit_dist = entry_p - cur_low
+                    b_spread = b.get('spread_applied', cur_spread)
+                    cur_ask_high = cur_high + b_spread
+                    cur_ask_low = cur_low + b_spread
+                    cur_ask_close = cur_close + b_spread
+
+                    profit_dist = entry_p - cur_ask_low
                     tp2_dist = entry_p - tp2_p if (tp2_p > 0 and tp2_p < entry_p) else (1.15 * (sl_p - entry_p))
                     tp1_dist = entry_p - tp1_p if (tp1_p > 0 and tp1_p < entry_p) else (0.38 * cur_atr)
 
                     hit_tp1_this_bar = False
                     # ── Trade Progression Logic ──
-                    # Pre-News Defensive Shield (Matching autonomous_manager.py line 1516-1540):
-                    # Advance floating profitable trades to Breakeven 15m ahead of High-Impact Macro releases
+                    # Pre-News Defensive Shield: Advance floating profitable trades to Breakeven 15m ahead of High-Impact Macro releases
                     if news_filter_enabled and econ_manager and not b.get('is_breakeven'):
                         try:
                             n_st = econ_manager.check_blackout_status(sym, asset_type, check_time=cur_time, blackout_minutes=15)
@@ -1022,7 +1053,7 @@ class MT5BacktestEngine:
                                 next_ev = n_st['upcoming_high_impact_events'][0]
                                 if float(next_ev.get('minutes_away', 99)) <= 15.0:
                                     is_imminent = True
-                            if is_imminent and (cur_close < entry_p or cur_low < entry_p - (0.05 * cur_atr)):
+                            if is_imminent and (cur_ask_close < entry_p or cur_ask_low < entry_p - (0.05 * cur_atr)):
                                 b['sl_price'] = min(b['sl_price'], entry_p)
                                 b['is_breakeven'] = True
                                 b['news_shield_triggered'] = True
@@ -1031,8 +1062,8 @@ class MT5BacktestEngine:
                             pass
 
                     if not b['tp1_hit']:
-                        # 1. Initial Stop Loss Check (before TP1 is hit)
-                        if cur_high >= b['sl_price']:
+                        # 1. Initial Stop Loss Check (before TP1 is hit): Ask = High + Spread >= SL
+                        if cur_ask_high >= b['sl_price']:
                             exit_price = b['sl_price']
                             exit_pnl = (entry_p - exit_price) * b['remaining_lots'] * contract_size
                             if is_jpy and cur_close > 0:
@@ -1041,8 +1072,8 @@ class MT5BacktestEngine:
                             closed_this_bar = True
                             exit_reason = "FULL_SL"
                             b['status'] = "LOSS"
-                        # 2. Check TP1 Hit (Major Scalp Lock - 65%)
-                        elif cur_low <= tp1_p:
+                        # 2. Check TP1 Hit (Major Scalp Lock - 65%): Ask = Low + Spread <= TP1
+                        elif cur_ask_low <= tp1_p:
                             b['tp1_hit'] = True
                             hit_tp1_this_bar = True
                             p1_lots = min(lot_p1, b['remaining_lots'])
@@ -1083,8 +1114,8 @@ class MT5BacktestEngine:
                         else:
                             b['sl_price'] = min(b['sl_price'], entry_p)
 
-                        # Check Runner Stop (Breakeven or Trailing Stop) - evaluated from subsequent bars
-                        if not hit_tp1_this_bar and cur_high >= b['sl_price']:
+                        # Check Runner Stop (Breakeven or Trailing Stop) evaluated at Ask = High + Spread
+                        if not hit_tp1_this_bar and cur_ask_high >= b['sl_price']:
                             exit_price = b['sl_price']
                             exit_pnl = (entry_p - exit_price) * b['remaining_lots'] * contract_size
                             if is_jpy and cur_close > 0:
@@ -1105,8 +1136,8 @@ class MT5BacktestEngine:
                                 exit_reason = "BREAKEVEN_SL"
                                 b['status'] = "BREAKEVEN"
 
-                        # Check TP2 Hit (Structural Runner 1:1+)
-                        if not closed_this_bar and not b['tp2_hit'] and lot_p2 > 0 and cur_low <= tp2_p:
+                        # Check TP2 Hit (Structural Runner 1:1+) evaluated at Ask = Low + Spread
+                        if not closed_this_bar and not b['tp2_hit'] and lot_p2 > 0 and cur_ask_low <= tp2_p:
                             b['tp2_hit'] = True
                             p2_lots = min(lot_p2, b['remaining_lots'])
                             b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p2_lots), 4)
@@ -1124,8 +1155,8 @@ class MT5BacktestEngine:
                                 b['status'] = "WIN"
                                 exit_price = tp2_p
 
-                        # Check TP3 Hit (Macro Runner 2.20R)
-                        if not closed_this_bar and b['tp2_hit'] and b['remaining_lots'] > 0.0001 and cur_low <= tp3_p:
+                        # Check TP3 Hit (Macro Runner 2.20R) evaluated at Ask = Low + Spread
+                        if not closed_this_bar and b['tp2_hit'] and b['remaining_lots'] > 0.0001 and cur_ask_low <= tp3_p:
                             p3_pnl = (entry_p - tp3_p) * b['remaining_lots'] * contract_size
                             if is_jpy and cur_close > 0:
                                 p3_pnl /= cur_close
@@ -1374,7 +1405,8 @@ class MT5BacktestEngine:
                         else:
                             c_be_mode = str(best_candidate.get('breakeven_mode') or 'tight').lower().strip()
 
-                        c_entry = cur_close
+                        # Enforce Bid/Ask Execution Geometry: BUY at Ask = Close + Spread; SELL at Bid = Close
+                        c_entry = (cur_close + cur_spread) if c_act == 'BUY' else cur_close
                         setup_sl = float(setup.get('stop_loss', 0.0))
                         setup_tp1 = float(setup.get('tp1', 0.0))
                         setup_tp2 = float(setup.get('tp2', 0.0))
@@ -1451,6 +1483,8 @@ class MT5BacktestEngine:
                                 'strategy_name': c_strat_name,
                                 'action': c_act,
                                 'entry_price': round(c_entry, 5),
+                                'spread_applied': round(cur_spread, 5),
+                                'entry_type': 'ASK (Close+Spread)' if c_act == 'BUY' else 'BID (Close)',
                                 'sl_price': round(c_sl, 5),
                                 'tp1_price': round(c_tp1, 5),
                                 'tp2_price': round(c_tp2, 5),
@@ -1485,7 +1519,11 @@ class MT5BacktestEngine:
                 b_price = latest_prices.get(b_sym, b['entry_price'])
                 b_c_size = self.compute_contract_size(b_sym)
                 b_is_jpy = ('JPY' in b_sym.upper())
-                delta_p = (b_price - b['entry_price']) if b['action'] == 'BUY' else (b['entry_price'] - b_price)
+                b_sp = b.get('spread_applied', self.get_symbol_spread(b_sym, spread_maps))
+                if b['action'] == 'BUY':
+                    delta_p = b_price - b['entry_price']
+                else:
+                    delta_p = b['entry_price'] - (b_price + b_sp)
                 u_val = delta_p * b['remaining_lots'] * b_c_size
                 if b_is_jpy and b_price > 0:
                     u_val /= b_price
@@ -1533,7 +1571,11 @@ class MT5BacktestEngine:
                     c_size = self.compute_contract_size(sym_c)
                     c_is_jpy = ('JPY' in sym_c.upper())
                     sym_price = latest_prices.get(sym_c, ob['entry_price'])
-                    delta_p = (sym_price - ob['entry_price']) if ob['action'] == 'BUY' else (ob['entry_price'] - sym_price)
+                    ob_sp = ob.get('spread_applied', self.get_symbol_spread(sym_c, spread_maps))
+                    if ob['action'] == 'BUY':
+                        delta_p = sym_price - ob['entry_price']
+                    else:
+                        delta_p = ob['entry_price'] - (sym_price + ob_sp)
                     flt_rem = delta_p * ob['remaining_lots'] * c_size
                     if c_is_jpy and sym_price > 0:
                         flt_rem /= sym_price
@@ -1674,17 +1716,41 @@ class MT5BacktestEngine:
         gross_loss = sum(abs(b.get('profit', 0)) for b in closed_batches if b.get('profit', 0) < 0)
         profit_factor = round(gross_profit / gross_loss, 2) if gross_loss > 0 else (99.9 if gross_profit > 0 else 0.0)
 
-        # Calculate Biggest SL Loss, Biggest TP Win, and SL Hits across all trades
+        # Calculate Biggest SL Loss, Biggest TP Win, SL Hits, and Max Consecutive Losses
         biggest_sl_loss = 0.0
         biggest_tp_win = 0.0
         sl_hits = 0
-        for b in closed_batches:
+        cur_cons_losses = 0
+        cur_cons_loss_usd = 0.0
+        max_cons_losses = 0
+        max_cons_loss_usd = 0.0
+
+        sorted_closed_for_run = sorted(
+            closed_batches,
+            key=lambda b: str(b.get('closed_at') or b.get('executed_at') or '')
+        )
+        for b in sorted_closed_for_run:
             pnl = float(b.get('profit', 0.0))
-            stt = str(b.get('status', ''))
-            if stt == 'LOSS' or pnl < -0.15:
+            stt = str(b.get('status', '')).upper()
+            exit_r = str(b.get('exit_reason', '')).upper()
+            tp1_hit = bool(b.get('tp1_hit', False))
+            is_be = (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(pnl) <= 0.15)
+            is_loss = (not is_be) and ((stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and pnl < -0.15))
+
+            if is_loss:
                 sl_hits += 1
                 if abs(pnl) > biggest_sl_loss:
                     biggest_sl_loss = round(abs(pnl), 2)
+                cur_cons_losses += 1
+                cur_cons_loss_usd += abs(pnl)
+                if cur_cons_losses > max_cons_losses:
+                    max_cons_losses = cur_cons_losses
+                if cur_cons_loss_usd > max_cons_loss_usd:
+                    max_cons_loss_usd = cur_cons_loss_usd
+            else:
+                cur_cons_losses = 0
+                cur_cons_loss_usd = 0.0
+
             if pnl > 0.15 and pnl > biggest_tp_win:
                 biggest_tp_win = round(pnl, 2)
 
@@ -1692,6 +1758,7 @@ class MT5BacktestEngine:
         weekly_breakdown = self.compute_weekly_breakdown(closed_batches, d_from, d_to)
         daily_breakdown = self.compute_daily_breakdown(closed_batches, d_from, d_to)
         pair_breakdown = self.compute_pair_breakdown(closed_batches, symbols)
+        standalone_sims = self.compute_standalone_strategy_simulations(closed_batches, initial_balance, strategies)
         capital_safety = self.compute_capital_safety(
             initial_balance=initial_balance,
             peak_balance=peak_balance,
@@ -1728,9 +1795,12 @@ class MT5BacktestEngine:
             'biggest_sl_loss': biggest_sl_loss,
             'biggest_tp_win': biggest_tp_win,
             'sl_hits': sl_hits,
+            'max_cons_losses': max_cons_losses,
+            'max_cons_loss_usd': round(max_cons_loss_usd, 2),
             'weekly_breakdown': weekly_breakdown,
             'daily_breakdown': daily_breakdown,
             'pair_breakdown': pair_breakdown,
+            'standalone_strategy_simulations': standalone_sims,
             'capital_safety': capital_safety,
             'lowest_balance_ever': lowest_balance_ever,
             'lowest_balance_time': lowest_balance_time,
@@ -1752,6 +1822,231 @@ class MT5BacktestEngine:
         if progress_callback:
             progress_callback(1.0, f"Backtest complete! Net Profit: ${net_profit:+,.2f} ({win_rate}% Win Rate)")
 
+        return results
+
+    @classmethod
+    def compute_standalone_strategy_simulations(
+        cls,
+        closed_batches: List[Dict[str, Any]],
+        initial_balance: float = 100.0,
+        active_strategy_keys: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Simulates each strategy operating on its own independent, isolated account
+        starting with initial_balance. Computes Initial Balance, Lowest Balance Ever (Trough),
+        Peak Balance Reached, Balance Remaining, Net PnL, ROI, Max Drawdown ($ / %),
+        Capital Survival, Trades, Win Rate, Consecutive Losses, and Best Timeframes / Pairs.
+        """
+        if not active_strategy_keys:
+            active_strategy_keys = sorted(list({b.get('strategy_used') for b in closed_batches if b.get('strategy_used')}))
+        if not active_strategy_keys:
+            active_strategy_keys = ['DEFAULT']
+
+        sorted_batches = sorted(
+            closed_batches,
+            key=lambda b: str(b.get('closed_at') or b.get('executed_at') or '')
+        )
+
+        def _is_be(b):
+            stt = str(b.get('status', '')).upper()
+            exit_r = str(b.get('exit_reason', '')).upper()
+            p = float(b.get('profit', 0.0))
+            return (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
+
+        def _is_loss(b):
+            if _is_be(b):
+                return False
+            stt = str(b.get('status', '')).upper()
+            exit_r = str(b.get('exit_reason', '')).upper()
+            p = float(b.get('profit', 0.0))
+            tp1_hit = bool(b.get('tp1_hit', False))
+            return (stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15)
+
+        results = []
+        for k in active_strategy_keys:
+            s_name = AVAILABLE_STRATEGIES.get(k, k)
+            s_batches = [b for b in sorted_batches if b.get('strategy_used') == k]
+
+            cur_bal = float(initial_balance)
+            peak_bal = float(initial_balance)
+            lowest_bal = float(initial_balance)
+            lowest_time = '-'
+            peak_time = '-'
+            max_dd_usd = 0.0
+            max_dd_pct = 0.0
+            account_blown = False
+
+            cur_c = 0
+            cur_usd = 0.0
+            max_c = 0
+            max_usd = 0.0
+            wins = 0
+            losses = 0
+            bes = 0
+            gp = 0.0
+            gl = 0.0
+            biggest_sl = 0.0
+            biggest_tp = 0.0
+            strat_tfs: Dict[str, Dict[str, Any]] = {}
+            strat_pairs: Dict[str, Dict[str, Any]] = {}
+
+            for b in s_batches:
+                pnl = float(b.get('profit', 0.0))
+                c_time = str(b.get('closed_at') or b.get('executed_at') or '')
+                tf = str(b.get('timeframe', ''))
+                sym = str(b.get('symbol', ''))
+                tp1_hit = bool(b.get('tp1_hit', False))
+
+                cur_bal += pnl
+                if cur_bal > peak_bal:
+                    peak_bal = round(cur_bal, 2)
+                    peak_time = c_time[:16] if c_time else '-'
+                if cur_bal < lowest_bal:
+                    lowest_bal = round(cur_bal, 2)
+                    lowest_time = c_time[:16] if c_time else '-'
+
+                dd_usd = peak_bal - cur_bal
+                if dd_usd > max_dd_usd:
+                    max_dd_usd = round(dd_usd, 2)
+                dd_pct = (dd_usd / peak_bal) * 100.0 if peak_bal > 0 else 100.0
+                if dd_pct > max_dd_pct:
+                    max_dd_pct = round(dd_pct, 2)
+
+                if cur_bal <= 0:
+                    account_blown = True
+
+                is_b = _is_be(b)
+                is_l = _is_loss(b)
+                is_w = (not is_b) and (not is_l)
+                is_prof = (pnl > 0.15) or tp1_hit or is_w
+
+                if is_b:
+                    bes += 1
+                    if pnl > 0: gp += pnl
+                    elif pnl < 0: gl += abs(pnl)
+                    cur_c = 0
+                    cur_usd = 0.0
+                elif is_l:
+                    losses += 1
+                    gl += abs(pnl)
+                    if abs(pnl) > biggest_sl:
+                        biggest_sl = round(abs(pnl), 2)
+                    cur_c += 1
+                    cur_usd += abs(pnl)
+                    if cur_c > max_c:
+                        max_c = cur_c
+                    if cur_usd > max_usd:
+                        max_usd = cur_usd
+                else:
+                    wins += 1
+                    gp += pnl
+                    if pnl > biggest_tp:
+                        biggest_tp = round(pnl, 2)
+                    cur_c = 0
+                    cur_usd = 0.0
+
+                if tf:
+                    t_entry = strat_tfs.setdefault(tf, {'trades': 0, 'wins': 0, 'pnl': 0.0})
+                    t_entry['trades'] += 1
+                    t_entry['pnl'] += pnl
+                    if is_prof:
+                        t_entry['wins'] += 1
+
+                if sym:
+                    p_entry = strat_pairs.setdefault(sym, {'trades': 0, 'wins': 0, 'pnl': 0.0})
+                    p_entry['trades'] += 1
+                    p_entry['pnl'] += pnl
+                    if is_prof:
+                        p_entry['wins'] += 1
+
+            trades = len(s_batches)
+            net_pnl = round(cur_bal - initial_balance, 2)
+            roi_pct = round((net_pnl / initial_balance) * 100.0, 2) if initial_balance > 0 else 0.0
+            prof_cnt = sum(1 for b in s_batches if b.get('profit', 0.0) > 0.15 or b.get('tp1_hit'))
+            win_rate = round((prof_cnt / max(trades, 1)) * 100.0, 1) if trades > 0 else 0.0
+            pf = round(gp / gl, 2) if gl > 0 else (99.9 if gp > 0 else 0.0)
+
+            def _rank_best(entries_dict):
+                valid = []
+                for name, d in entries_dict.items():
+                    tr = d.get('trades', 0)
+                    if tr <= 0: continue
+                    w = d.get('wins', 0)
+                    p = round(float(d.get('pnl', 0.0)), 2)
+                    wr = round((w / max(tr, 1)) * 100.0, 1)
+                    d['win_rate'] = wr
+                    d['pnl'] = p
+                    is_p = 1 if p > 0.05 else (0 if p >= -0.05 else -1)
+                    score = p * (wr / 100.0) if p > 0 else p * (2.0 - (wr / 100.0))
+                    valid.append((name, d, is_p, score, p, wr, tr))
+                valid.sort(key=lambda x: (x[2], x[3], x[4], x[5], x[6]), reverse=True)
+                return valid
+
+            t_ranked = _rank_best(strat_tfs)
+            btf = ', '.join([f"{t[0]} ({t[1]['win_rate']:.0f}%)" for t in t_ranked[:2]]) if t_ranked else '-'
+            btf_tip = ' | '.join([f"{t[0]}: ${t[1]['pnl']:+,.2f} PnL ({t[1]['win_rate']:.1f}% WR, {t[1]['trades']}T)" for t in t_ranked[:2]]) if t_ranked else 'No trades'
+
+            p_ranked = _rank_best(strat_pairs)
+            bpr = ', '.join([f"{p[0]} ({p[1]['win_rate']:.0f}%)" for p in p_ranked[:2]]) if p_ranked else '-'
+            bpr_tip = ' | '.join([f"{p[0]}: ${p[1]['pnl']:+,.2f} PnL ({p[1]['win_rate']:.1f}% WR, {p[1]['trades']}T)" for p in p_ranked[:2]]) if p_ranked else 'No trades'
+
+            if trades == 0:
+                badge = "💤 NO TRADES"
+                badge_color = "#64748b"
+            elif account_blown or cur_bal <= 0:
+                badge = "💀 BLOWN"
+                badge_color = "#ef4444"
+            elif cur_bal >= initial_balance * 2.0:
+                badge = "🚀 2x+ CAPITAL"
+                badge_color = "#10b981"
+            elif cur_bal >= initial_balance * 1.5:
+                badge = "💎 +50% GAIN"
+                badge_color = "#10b981"
+            elif cur_bal > initial_balance:
+                badge = "✅ PROFITABLE"
+                badge_color = "#34d399"
+            elif cur_bal == initial_balance:
+                badge = "⚖️ BREAKEVEN"
+                badge_color = "#f59e0b"
+            elif lowest_bal < initial_balance * 0.5:
+                badge = "⚠️ HIGH DD"
+                badge_color = "#f97316"
+            else:
+                badge = "🔴 DRAWDOWN"
+                badge_color = "#f87171"
+
+            results.append({
+                'strategy_key': k,
+                'strategy_name': s_name,
+                'initial_balance': round(initial_balance, 2),
+                'lowest_balance': round(lowest_bal, 2),
+                'lowest_time': lowest_time,
+                'peak_balance': round(peak_bal, 2),
+                'peak_time': peak_time,
+                'final_balance': round(cur_bal, 2),
+                'net_pnl': net_pnl,
+                'roi_pct': roi_pct,
+                'max_drawdown_usd': max_dd_usd,
+                'max_drawdown_pct': max_dd_pct,
+                'survival_badge': badge,
+                'survival_color': badge_color,
+                'trades': trades,
+                'wins': wins,
+                'losses': losses,
+                'breakevens': bes,
+                'win_rate': win_rate,
+                'profit_factor': pf,
+                'max_cons_losses': max_c,
+                'max_cons_loss_usd': round(max_usd, 2),
+                'biggest_sl': biggest_sl,
+                'biggest_tp': biggest_tp,
+                'best_timeframes': btf,
+                'best_timeframes_tooltip': btf_tip,
+                'best_pairs': bpr,
+                'best_pairs_tooltip': bpr_tip
+            })
+
+        results.sort(key=lambda x: (x['net_pnl'], x['roi_pct']), reverse=True)
         return results
 
     @classmethod
@@ -1843,12 +2138,28 @@ class MT5BacktestEngine:
 
             w_max_sl = 0.0
             w_max_tp = 0.0
-            for b in w_batches:
+            w_cur_c = 0
+            w_cur_usd = 0.0
+            w_max_c = 0
+            w_max_usd = 0.0
+            w_sorted = sorted(w_batches, key=lambda b: str(b.get('closed_at') or b.get('executed_at') or ''))
+
+            for b in w_sorted:
                 p = float(b.get('profit', 0.0))
                 if p < -0.15 and abs(p) > w_max_sl:
                     w_max_sl = round(abs(p), 2)
                 if p > 0.15 and p > w_max_tp:
                     w_max_tp = round(p, 2)
+                if _is_loss(b):
+                    w_cur_c += 1
+                    w_cur_usd += abs(p)
+                    if w_cur_c > w_max_c:
+                        w_max_c = w_cur_c
+                    if w_cur_usd > w_max_usd:
+                        w_max_usd = w_cur_usd
+                else:
+                    w_cur_c = 0
+                    w_cur_usd = 0.0
 
             weekly_rows.append({
                 'week_number': week_idx,
@@ -1867,7 +2178,9 @@ class MT5BacktestEngine:
                 'tp3_hits': w_tp3,
                 'sl_hits': w_sl,
                 'max_sl': w_max_sl,
-                'max_tp': w_max_tp
+                'max_tp': w_max_tp,
+                'max_cons_losses': w_max_c,
+                'max_cons_loss_usd': round(w_max_usd, 2)
             })
 
             week_idx += 1
@@ -1880,7 +2193,8 @@ class MT5BacktestEngine:
         cls,
         closed_batches: List[Dict[str, Any]],
         d_from: Any,
-        d_to: Any
+        d_to: Any,
+        exclude_weekends: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Generates granular chronological day-by-day performance analytics,
@@ -1920,29 +2234,35 @@ class MT5BacktestEngine:
         if end_dt.tzinfo is not None:
             end_dt = end_dt.replace(tzinfo=None)
 
+        start_date = start_dt.date()
+        end_date = end_dt.date()
+
+        # Pre-index batches by date string (YYYY-MM-DD) for blazing O(1) daily lookup
+        batches_by_date: Dict[str, List[Dict[str, Any]]] = {}
+        for b in closed_batches:
+            c_str = b.get('closed_at') or b.get('executed_at')
+            if not c_str:
+                continue
+            try:
+                c_d = datetime.fromisoformat(str(c_str).replace('Z', '+00:00')).date()
+                if c_d < start_date:
+                    start_date = c_d
+                if c_d > end_date:
+                    end_date = c_d
+                d_key = c_d.strftime("%Y-%m-%d")
+            except Exception:
+                d_key = str(c_str)[:10]
+            batches_by_date.setdefault(d_key, []).append(b)
+
         daily_rows = []
-        cur_d_start = start_dt
+        cur_d = start_date
 
-        while cur_d_start < end_dt:
-            cur_d_end = min(cur_d_start + timedelta(days=1), end_dt)
-            d_batches = []
-            for b in closed_batches:
-                c_str = b.get('closed_at') or b.get('executed_at')
-                if not c_str:
-                    continue
-                try:
-                    c_dt = datetime.fromisoformat(str(c_str).replace('Z', '+00:00'))
-                    if c_dt.tzinfo is not None:
-                        c_dt = c_dt.replace(tzinfo=None)
-                except Exception:
-                    continue
-
-                if cur_d_end >= end_dt:
-                    if cur_d_start <= c_dt <= cur_d_end:
-                        d_batches.append(b)
-                else:
-                    if cur_d_start <= c_dt < cur_d_end:
-                        d_batches.append(b)
+        while cur_d <= end_date:
+            if exclude_weekends and cur_d.weekday() in (5, 6):
+                cur_d += timedelta(days=1)
+                continue
+            d_key = cur_d.strftime("%Y-%m-%d")
+            d_batches = batches_by_date.get(d_key, [])
 
             d_trades = len(d_batches)
             d_bes = sum(1 for b in d_batches if _is_be(b))
@@ -1963,16 +2283,33 @@ class MT5BacktestEngine:
 
             d_max_sl = 0.0
             d_max_tp = 0.0
-            for b in d_batches:
+            d_cur_c = 0
+            d_cur_usd = 0.0
+            d_max_c = 0
+            d_max_usd = 0.0
+            d_sorted = sorted(d_batches, key=lambda b: str(b.get('closed_at') or b.get('executed_at') or ''))
+
+            for b in d_sorted:
                 p = float(b.get('profit', 0.0))
                 if p < -0.15 and abs(p) > d_max_sl:
                     d_max_sl = round(abs(p), 2)
                 if p > 0.15 and p > d_max_tp:
                     d_max_tp = round(p, 2)
+                if _is_loss(b):
+                    d_cur_c += 1
+                    d_cur_usd += abs(p)
+                    if d_cur_c > d_max_c:
+                        d_max_c = d_cur_c
+                    if d_cur_usd > d_max_usd:
+                        d_max_usd = d_cur_usd
+                else:
+                    d_cur_c = 0
+                    d_cur_usd = 0.0
 
             daily_rows.append({
-                'date': cur_d_start.strftime("%Y-%m-%d"),
-                'day_name': cur_d_start.strftime("%A"),
+                'date': d_key,
+                'day_name': cur_d.strftime("%A"),
+                'day_label': f"{d_key} ({cur_d.strftime('%A')})",
                 'trades': d_trades,
                 'wins': d_wins,
                 'losses': d_losses,
@@ -1985,12 +2322,15 @@ class MT5BacktestEngine:
                 'tp3_hits': d_tp3,
                 'sl_hits': d_sl,
                 'max_sl': d_max_sl,
-                'max_tp': d_max_tp
+                'max_tp': d_max_tp,
+                'max_cons_losses': d_max_c,
+                'max_cons_loss_usd': round(d_max_usd, 2)
             })
 
-            cur_d_start = cur_d_end
+            cur_d += timedelta(days=1)
 
         return daily_rows
+
 
     @classmethod
     def compute_pair_breakdown(
@@ -2044,8 +2384,14 @@ class MT5BacktestEngine:
 
             s_max_sl = 0.0
             s_max_tp = 0.0
+            s_cur_c = 0
+            s_cur_usd = 0.0
+            s_max_c = 0
+            s_max_usd = 0.0
+            s_sorted = sorted(s_batches, key=lambda b: str(b.get('closed_at') or b.get('executed_at') or ''))
             strat_pnl_map = {}
-            for b in s_batches:
+
+            for b in s_sorted:
                 p = float(b.get('profit', 0.0))
                 sk = b.get('strategy_used', 'DEFAULT')
                 strat_pnl_map[sk] = strat_pnl_map.get(sk, 0.0) + p
@@ -2053,6 +2399,16 @@ class MT5BacktestEngine:
                     s_max_sl = round(abs(p), 2)
                 if p > 0.15 and p > s_max_tp:
                     s_max_tp = round(p, 2)
+                if _is_loss(b):
+                    s_cur_c += 1
+                    s_cur_usd += abs(p)
+                    if s_cur_c > s_max_c:
+                        s_max_c = s_cur_c
+                    if s_cur_usd > s_max_usd:
+                        s_max_usd = s_cur_usd
+                else:
+                    s_cur_c = 0
+                    s_cur_usd = 0.0
 
             top_sk = max(strat_pnl_map.items(), key=lambda x: x[1])[0] if strat_pnl_map else '-'
             top_strat_name = AVAILABLE_STRATEGIES.get(top_sk, top_sk)
@@ -2068,6 +2424,8 @@ class MT5BacktestEngine:
                 'profit_factor': s_pf,
                 'max_sl': s_max_sl,
                 'max_tp': s_max_tp,
+                'max_cons_losses': s_max_c,
+                'max_cons_loss_usd': round(s_max_usd, 2),
                 'top_strategy': top_strat_name
             })
 
@@ -2216,21 +2574,30 @@ class MT5BacktestEngine:
             if pnl > 0.15 and pnl > stats_map[k]['biggest_tp']:
                 stats_map[k]['biggest_tp'] = round(pnl, 2)
 
+            is_profitable = (pnl > 0.15) or tp1_hit or is_win
             if tf:
                 if tf not in strat_tfs[k]:
-                    strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
+                    strat_tfs[k][tf] = {'trades': 0, 'wins': 0, 'losses': 0, 'breakevens': 0, 'pnl': 0.0}
                 strat_tfs[k][tf]['trades'] += 1
                 strat_tfs[k][tf]['pnl'] += pnl
-                if is_win or (is_be and pnl > 0.15):
+                if is_profitable:
                     strat_tfs[k][tf]['wins'] += 1
+                if is_be:
+                    strat_tfs[k][tf]['breakevens'] += 1
+                elif is_loss:
+                    strat_tfs[k][tf]['losses'] += 1
 
             if sym:
                 if sym not in strat_pairs[k]:
-                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'pnl': 0.0}
+                    strat_pairs[k][sym] = {'trades': 0, 'wins': 0, 'losses': 0, 'breakevens': 0, 'pnl': 0.0}
                 strat_pairs[k][sym]['trades'] += 1
                 strat_pairs[k][sym]['pnl'] += pnl
-                if is_win or (is_be and pnl > 0.15):
+                if is_profitable:
                     strat_pairs[k][sym]['wins'] += 1
+                if is_be:
+                    strat_pairs[k][sym]['breakevens'] += 1
+                elif is_loss:
+                    strat_pairs[k][sym]['losses'] += 1
 
                 # Per-symbol detailed breakdown (wins / losses / breakevens / pnl per symbol per strategy)
                 if sym not in strat_sym_breakdown[k]:
@@ -2243,8 +2610,40 @@ class MT5BacktestEngine:
                 else:
                     strat_sym_breakdown[k][sym]['wins'] += 1
 
+        # Sort batches chronologically for consecutive streak analysis
+        sorted_closed_for_lb = sorted(
+            closed_batches,
+            key=lambda b: str(b.get('closed_at') or b.get('executed_at') or '')
+        )
+
         leaderboard = []
         for k, item in stats_map.items():
+            # Calculate Max Consecutive Losses (Count) & Max Consecutive Loss ($)
+            strat_batches = [b for b in sorted_closed_for_lb if b.get('strategy_used') == k]
+            s_cur_c = 0
+            s_cur_usd = 0.0
+            s_max_c = 0
+            s_max_usd = 0.0
+            for b in strat_batches:
+                p = float(b.get('profit', 0.0))
+                stt = str(b.get('status', '')).upper()
+                exit_r = str(b.get('exit_reason', '')).upper()
+                tp1_hit = bool(b.get('tp1_hit', False))
+                is_be = (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(p) <= 0.15)
+                is_l = (not is_be) and ((stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and p < -0.15))
+                if is_l:
+                    s_cur_c += 1
+                    s_cur_usd += abs(p)
+                    if s_cur_c > s_max_c:
+                        s_max_c = s_cur_c
+                    if s_cur_usd > s_max_usd:
+                        s_max_usd = s_cur_usd
+                else:
+                    s_cur_c = 0
+                    s_cur_usd = 0.0
+
+            item['max_cons_losses'] = s_max_c
+            item['max_cons_loss_usd'] = round(s_max_usd, 2)
             wins = item['wins']
             losses = item['losses']
             bes = item['breakevens']
@@ -2266,13 +2665,55 @@ class MT5BacktestEngine:
             gross_loss = item['gross_loss']
             item['profit_factor'] = round(item['gross_profit'] / gross_loss, 2) if gross_loss > 0 else (99.9 if item['gross_profit'] > 0 else 0.0)
 
-            # Best Timeframes
-            t_items = sorted(strat_tfs[k].items(), key=lambda x: (x[1]['wins'], x[1]['pnl']), reverse=True)
-            item['best_timeframes'] = ', '.join([t[0] for t in t_items[:2]]) if t_items else '-'
+            def _rank_best_entries(entries_dict):
+                valid_entries = []
+                for name, d in entries_dict.items():
+                    tr = d.get('trades', 0)
+                    if tr <= 0:
+                        continue
+                    w = d.get('wins', 0)
+                    p = round(float(d.get('pnl', 0.0)), 2)
+                    wr = round((w / max(tr, 1)) * 100.0, 1)
+                    d['win_rate'] = wr
+                    d['pnl'] = p
 
-            # Best Pairs
-            p_items = sorted(strat_pairs[k].items(), key=lambda x: (x[1]['wins'], x[1]['pnl']), reverse=True)
-            item['best_pairs'] = ', '.join([p[0] for p in p_items[:2]]) if p_items else '-'
+                    is_prof = 1 if p > 0.05 else (0 if p >= -0.05 else -1)
+                    if p > 0:
+                        score = p * (wr / 100.0)
+                    else:
+                        score = p * (2.0 - (wr / 100.0))
+                    valid_entries.append((name, d, is_prof, score, p, wr, tr))
+
+                valid_entries.sort(key=lambda x: (x[2], x[3], x[4], x[5], x[6]), reverse=True)
+                return valid_entries
+
+            # Best Timeframes (Ranked by Profitability + Win Rate)
+            t_ranked = _rank_best_entries(strat_tfs[k])
+            if t_ranked:
+                item['best_timeframes'] = ', '.join([f"{t[0]} ({t[1]['win_rate']:.0f}%)" for t in t_ranked[:2]])
+                item['best_timeframes_tooltip'] = ' | '.join([
+                    f"{t[0]}: ${t[1]['pnl']:+,.2f} PnL ({t[1]['win_rate']:.1f}% WR, {t[1]['trades']}T)"
+                    for t in t_ranked[:2]
+                ])
+                item['best_timeframes_raw'] = [t[0] for t in t_ranked[:2]]
+            else:
+                item['best_timeframes'] = '-'
+                item['best_timeframes_tooltip'] = 'No trades recorded'
+                item['best_timeframes_raw'] = []
+
+            # Best Pairs (Ranked by Profitability + Win Rate)
+            p_ranked = _rank_best_entries(strat_pairs[k])
+            if p_ranked:
+                item['best_pairs'] = ', '.join([f"{p[0]} ({p[1]['win_rate']:.0f}%)" for p in p_ranked[:2]])
+                item['best_pairs_tooltip'] = ' | '.join([
+                    f"{p[0]}: ${p[1]['pnl']:+,.2f} PnL ({p[1]['win_rate']:.1f}% WR, {p[1]['trades']}T)"
+                    for p in p_ranked[:2]
+                ])
+                item['best_pairs_raw'] = [p[0] for p in p_ranked[:2]]
+            else:
+                item['best_pairs'] = '-'
+                item['best_pairs_tooltip'] = 'No trades recorded'
+                item['best_pairs_raw'] = []
 
             # Attach per-symbol breakdown (wins/losses/breakevens/pnl + win_rate per symbol)
             sym_bd = strat_sym_breakdown.get(k, {})
@@ -2324,6 +2765,193 @@ class MT5BacktestEngine:
                 item['rank_display'] = f'#{idx}'
 
         return leaderboard
+
+    @classmethod
+    def is_weekend_batch(cls, b: Dict[str, Any]) -> bool:
+        """Determines whether a batch was executed or closed on a weekend (Saturday or Sunday)."""
+        c_str = b.get('closed_at') or b.get('executed_at')
+        if not c_str:
+            return False
+        try:
+            c_clean = str(c_str).replace('Z', '+00:00')
+            dt = datetime.fromisoformat(c_clean)
+            return dt.weekday() in (5, 6)
+        except Exception:
+            try:
+                dt = datetime.strptime(str(c_str)[:10], "%Y-%m-%d")
+                return dt.weekday() in (5, 6)
+            except Exception:
+                return False
+
+    @classmethod
+    def recompute_filtered_results(
+        cls,
+        raw_results: Dict[str, Any],
+        exclude_weekends: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Dynamically filters closed batches and recalculates all backtest KPIs,
+        Week-by-Week, Day-by-Day, Pairs breakdown, Leaderboard, and Standalone
+        Strategy Simulations (Dedicated accounts).
+        """
+        if not raw_results or not isinstance(raw_results, dict):
+            return raw_results
+        if not exclude_weekends:
+            return raw_results
+
+        raw_closed = raw_results.get('closed_batches', [])
+        if not raw_closed:
+            return raw_results
+
+        filtered_batches = [b for b in raw_closed if not cls.is_weekend_batch(b)]
+        weekend_trades_excluded = len(raw_closed) - len(filtered_batches)
+
+        init_bal = float(raw_results.get('initial_balance', 10000.0))
+        d_from = raw_results.get('date_from')
+        d_to = raw_results.get('date_to')
+        settings_used = raw_results.get('settings_used', {})
+        symbols = settings_used.get('selected_symbols')
+        active_strats = settings_used.get('active_strategies') or [x.get('strategy_key') for x in raw_results.get('leaderboard', [])] or ['DEFAULT']
+
+        sorted_batches = sorted(
+            filtered_batches,
+            key=lambda b: str(b.get('closed_at') or b.get('executed_at') or '')
+        )
+
+        cur_balance = init_bal
+        peak_balance = init_bal
+        lowest_balance_ever = init_bal
+        lowest_balance_time = "-"
+        max_drawdown_usd = 0.0
+        max_drawdown_pct = 0.0
+
+        biggest_sl_loss = 0.0
+        biggest_tp_win = 0.0
+        sl_hits = 0
+        cur_cons_losses = 0
+        cur_cons_loss_usd = 0.0
+        max_cons_losses = 0
+        max_cons_loss_usd = 0.0
+        gross_profit = 0.0
+        gross_loss = 0.0
+        wins = 0
+        losses = 0
+        breakevens = 0
+        profitable_trades = 0
+
+        for b in sorted_batches:
+            pnl = float(b.get('profit', 0.0))
+            cur_balance += pnl
+            c_time_str = str(b.get('closed_at') or b.get('executed_at') or '')[:16]
+
+            if cur_balance > peak_balance:
+                peak_balance = round(cur_balance, 2)
+            if cur_balance < lowest_balance_ever:
+                lowest_balance_ever = round(cur_balance, 2)
+                lowest_balance_time = c_time_str
+
+            dd_u = peak_balance - cur_balance
+            dd_p = (dd_u / peak_balance * 100.0) if peak_balance > 0 else 0.0
+            if dd_u > max_drawdown_usd:
+                max_drawdown_usd = round(dd_u, 2)
+            if dd_p > max_drawdown_pct:
+                max_drawdown_pct = round(dd_p, 2)
+
+            stt = str(b.get('status', '')).upper()
+            exit_r = str(b.get('exit_reason', '')).upper()
+            tp1_hit = bool(b.get('tp1_hit', False))
+
+            is_be = (stt == 'BREAKEVEN') or ('BE' in exit_r) or (abs(pnl) <= 0.15)
+            is_loss = (not is_be) and ((stt == 'LOSS') or ('FULL_SL' in exit_r) or (not tp1_hit and pnl < -0.15))
+            is_win = (not is_be) and (not is_loss)
+
+            if is_be:
+                breakevens += 1
+            elif is_loss:
+                losses += 1
+            else:
+                wins += 1
+
+            if pnl > 0.15 or tp1_hit:
+                profitable_trades += 1
+
+            if pnl > 0:
+                gross_profit += pnl
+            elif pnl < 0:
+                gross_loss += abs(pnl)
+
+            if is_loss:
+                sl_hits += 1
+                if abs(pnl) > biggest_sl_loss:
+                    biggest_sl_loss = round(abs(pnl), 2)
+                cur_cons_losses += 1
+                cur_cons_loss_usd += abs(pnl)
+                if cur_cons_losses > max_cons_losses:
+                    max_cons_losses = cur_cons_losses
+                if cur_cons_loss_usd > max_cons_loss_usd:
+                    max_cons_loss_usd = round(cur_cons_loss_usd, 2)
+            else:
+                cur_cons_losses = 0
+                cur_cons_loss_usd = 0.0
+
+            if pnl > 0.15 and pnl > biggest_tp_win:
+                biggest_tp_win = round(pnl, 2)
+
+        tot_trades = len(sorted_batches)
+        net_profit = round(cur_balance - init_bal, 2)
+        roi_pct = round((net_profit / init_bal) * 100.0, 2) if init_bal > 0 else 0.0
+        win_rate = round((profitable_trades / max(tot_trades, 1)) * 100.0, 1) if tot_trades > 0 else 0.0
+        profit_factor = round(gross_profit / gross_loss, 2) if gross_loss > 0 else (99.9 if gross_profit > 0 else 0.0)
+
+        # Recompute breakdown tables
+        weekly_breakdown = cls.compute_weekly_breakdown(sorted_batches, d_from, d_to)
+        daily_breakdown = cls.compute_daily_breakdown(sorted_batches, d_from, d_to, exclude_weekends=True)
+        pair_breakdown = cls.compute_pair_breakdown(sorted_batches, symbols)
+        standalone_sims = cls.compute_standalone_strategy_simulations(sorted_batches, init_bal, active_strats)
+        news_saves = int(raw_results.get('news_shield_saves', 0))
+        capital_safety = cls.compute_capital_safety(
+            initial_balance=init_bal,
+            peak_balance=peak_balance,
+            lowest_balance_ever=lowest_balance_ever,
+            lowest_balance_time=lowest_balance_time,
+            lowest_equity_ever=lowest_balance_ever,
+            final_balance=round(cur_balance, 2),
+            news_shield_saves=news_saves
+        )
+        leaderboard = cls.compute_backtest_strategy_leaderboard(sorted_batches, active_strats)
+
+        filtered_results = dict(raw_results)
+        filtered_results.update({
+            'initial_balance': init_bal,
+            'final_balance': round(cur_balance, 2),
+            'net_profit': net_profit,
+            'roi_pct': roi_pct,
+            'total_trades': tot_trades,
+            'wins': wins,
+            'losses': losses,
+            'breakevens': breakevens,
+            'win_rate': win_rate,
+            'gross_profit': round(gross_profit, 2),
+            'gross_loss': round(gross_loss, 2),
+            'profit_factor': profit_factor,
+            'max_drawdown_usd': max_drawdown_usd,
+            'max_drawdown_pct': max_drawdown_pct,
+            'biggest_sl_loss': biggest_sl_loss,
+            'biggest_tp_win': biggest_tp_win,
+            'sl_hits': sl_hits,
+            'max_cons_losses': max_cons_losses,
+            'max_cons_loss_usd': max_cons_loss_usd,
+            'weekly_breakdown': weekly_breakdown,
+            'daily_breakdown': daily_breakdown,
+            'pair_breakdown': pair_breakdown,
+            'leaderboard': leaderboard,
+            'closed_batches': sorted_batches,
+            'standalone_strategy_simulations': standalone_sims,
+            'capital_safety': capital_safety,
+            'is_weekend_filtered': True,
+            'weekend_trades_excluded': weekend_trades_excluded
+        })
+        return filtered_results
 
     run_simulation = run_backtest
 
