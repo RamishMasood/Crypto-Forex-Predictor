@@ -67,7 +67,7 @@
   "enable_swaps": true,
   "current_capital_preset": 5,
   "sl_atr_mult": 1.8,
-  "tp1_atr_mult": 0.55,
+  "tp1_atr_mult": 0.7,
   "tp2_rr_mult": 1.15,
   "tp3_rr_mult": 2.2,
   "tp1_booking_pct": 65.0,
