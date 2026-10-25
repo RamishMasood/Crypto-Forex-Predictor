@@ -2164,10 +2164,8 @@ def render_mt5_autonomous_engine_view(live_exec):
             act_html = f"<span style='background:#0284c7;color:#fff;padding:2px 6px;border-radius:8px;font-size:0.7rem;font-weight:700;'>{act} Open</span>" if act > 0 else "<span style='color:#475569;font-size:0.75rem;'>-</span>"
 
             # Best TF and Pairs HTML badges
-            btf_tip = item.get('best_timeframes_tooltip', btf)
-            bpr_tip = item.get('best_pairs_tooltip', bpr)
-            btf_html = f"<span title='{btf_tip}' style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.72rem;font-weight:600;cursor:help;'>{btf}</span>"
-            bpr_html = f"<span title='{bpr_tip}' style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;cursor:help;'>{bpr}</span>"
+            btf_html = f"<span style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.72rem;font-weight:600;'>{btf}</span>"
+            bpr_html = f"<span style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;'>{bpr}</span>"
 
             # Build per-symbol breakdown pills
             sym_bd = item.get('symbol_breakdown', {})
@@ -2212,8 +2210,6 @@ def render_mt5_autonomous_engine_view(live_exec):
                 <td style='padding:8px 10px;text-align:center;font-size:0.8rem;color:#94a3b8;'>{pf:.2f}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{bsl_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{sl_h_html}</td>
-                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{mcl_cnt_html}</td>
-                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{mcl_usd_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{tp_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{tp2_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{btp_html}</td>
@@ -2240,13 +2236,11 @@ def render_mt5_autonomous_engine_view(live_exec):
                         <th style='padding:10px;text-align:center;width:50px;'>PF</th>
                         <th style='padding:10px;text-align:center;width:95px;'>Biggest SL</th>
                         <th style='padding:10px;text-align:center;width:60px;'>SL Hits</th>
-                        <th style='padding:10px;text-align:center;width:65px;'>Cons L</th>
-                        <th style='padding:10px;text-align:center;width:95px;'>Cons Loss ($)</th>
                         <th style='padding:10px;text-align:center;width:60px;'>TP Hits</th>
                         <th style='padding:10px;text-align:center;width:65px;'>TP2 Hits</th>
                         <th style='padding:10px;text-align:center;width:95px;'>Biggest TP</th>
-                        <th style='padding:10px;text-align:center;width:135px;'>Best Timeframes</th>
-                        <th style='padding:10px;text-align:center;width:155px;'>Best Trading Pairs</th>
+                        <th style='padding:10px;text-align:center;width:125px;'>Best Timeframes</th>
+                        <th style='padding:10px;text-align:center;width:140px;'>Best Trading Pairs</th>
                         <th style='padding:10px;text-align:center;width:65px;'>Active</th>
                         <th style='padding:10px;text-align:center;width:115px;'>Status</th>
                     </tr>
@@ -2424,10 +2418,6 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
             pnl_s = "+" if pnl_v >= 0 else ""
             wr_c = "#34d399" if wr_v >= 65 else ("#fbbf24" if wr_v >= 50 else "#f87171")
             bsl_c = f"-${bsl_v:,.2f}" if bsl_v > 0 else "$0.00"
-            mcl_cnt = int(item.get('max_cons_losses', 0))
-            mcl_usd = float(item.get('max_cons_loss_usd', 0.0))
-            mcl_c_disp = f"<span style='color:#f87171;font-weight:700;'>{mcl_cnt}</span>" if mcl_cnt > 0 else "<span style='color:#64748b;'>0</span>"
-            mcl_u_disp = f"<span style='color:#ef4444;font-weight:700;'>-${mcl_usd:,.2f}</span>" if mcl_usd > 0 else "<span style='color:#64748b;'>$0.00</span>"
 
             # Build per-symbol breakdown pills
             sym_bd = item.get('symbol_breakdown', {})
@@ -2467,8 +2457,6 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
                 f"<td style='padding:6px 8px;text-align:center;color:#94a3b8;'>{pf_v:.2f}</td>"
                 f"<td style='padding:6px 8px;text-align:center;color:#f87171;'>{bsl_c}</td>"
                 f"<td style='padding:6px 8px;text-align:center;color:#f87171;'>{sl_h}</td>"
-                f"<td style='padding:6px 8px;text-align:center;'>{mcl_c_disp}</td>"
-                f"<td style='padding:6px 8px;text-align:center;'>{mcl_u_disp}</td>"
                 f"<td style='padding:6px 8px;text-align:center;color:#38bdf8;font-weight:700;'>{tp2_h}</td>"
                 f"<td style='padding:6px 8px;text-align:center;'><span style='background:#18181b;border:1px solid #27272a;padding:2px 6px;border-radius:6px;font-size:0.70rem;color:#e2e8f0;'>{badge_txt}</span></td>"
                 f"</tr>"
@@ -2493,8 +2481,6 @@ def render_live_backtest_dashboard(live_monitor, stats: dict):
                 "<th style='padding:6px 8px;text-align:center;'>PF</th>"
                 "<th style='padding:6px 8px;text-align:center;'>Max SL Hit</th>"
                 "<th style='padding:6px 8px;text-align:center;'>SL Hits</th>"
-                "<th style='padding:6px 8px;text-align:center;'>Cons L</th>"
-                "<th style='padding:6px 8px;text-align:center;'>Cons Loss ($)</th>"
                 "<th style='padding:6px 8px;text-align:center;'>TP2 Hits</th>"
                 "<th style='padding:6px 8px;text-align:center;'>Status</th>"
                 "</tr>"
@@ -3129,23 +3115,6 @@ def render_mt5_backtest_engine_view():
     status_label = f" | Status: <b style='color:#ef4444;'>HALTED BY USER AT {sim_until} UTC</b>" if res.get('status') == 'STOPPED' else (f" | Status: <b style='color:#10b981;'>COMPLETED (100%)</b>" if res.get('status') == 'COMPLETED' else "")
     st.caption(f"📅 Target Window: **{res.get('date_from')}** to **{res.get('date_to')}**{status_label} | Initial Balance: **${res.get('initial_balance', 10000):,.2f}** | Final Balance: **${res.get('final_balance', 10000):,.2f}**")
 
-    # ── Top-Level Weekend Exclusion Filter ──
-    flt_col1, flt_col2 = st.columns([3, 1])
-    with flt_col1:
-        exclude_weekends = st.checkbox(
-            "🗓️ Exclude Weekend Trades (Saturday & Sunday)",
-            value=False,
-            key="bt_exclude_weekends_toggle",
-            help="Filters out all trades executed or closed on Saturdays and Sundays. Dynamically recalculates all KPI cards, Week-by-Week, Day-by-Day, Pairs, Leaderboard, Batches Ledger, and Standalone Strategy Simulation tables."
-        )
-
-    if exclude_weekends:
-        from src.engine.backtest_engine import MT5BacktestEngine
-        res = MT5BacktestEngine.recompute_filtered_results(res, exclude_weekends=True)
-        with flt_col2:
-            st.markdown("<div style='text-align:right;padding-top:4px;'><span style='background:#7c2d12;color:#fdba74;border:1px solid #ea580c;padding:4px 10px;border-radius:8px;font-size:0.75rem;font-weight:700;'>⚡ WEEKENDS EXCLUDED</span></div>", unsafe_allow_html=True)
-        st.info(f"⚡ **Weekend Filter Active**: Excluded **{res.get('weekend_trades_excluded', 0)}** Saturday & Sunday trades. All KPI summary cards, breakdown tables, standalone simulation accounts, and CSV exports have been dynamically recalculated.")
-
     # KPI Summary Cards
     net_p = float(res.get('net_profit', 0.0))
     roi = float(res.get('roi_pct', 0.0))
@@ -3159,8 +3128,6 @@ def render_mt5_backtest_engine_view():
     mdd_pct = float(res.get('max_drawdown_pct', 0.0))
     bsl = float(res.get('biggest_sl_loss', 0.0))
     sl_hits = int(res.get('sl_hits', 0))
-    tot_mcl = int(res.get('max_cons_losses', 0))
-    tot_mcl_usd = float(res.get('max_cons_loss_usd', 0.0))
 
     net_color = "#00c853" if net_p >= 0 else "#ff1744"
     wr_color = "#00c853" if wr >= 65 else ("#ffab00" if wr >= 50 else "#ff1744")
@@ -3196,7 +3163,6 @@ def render_mt5_backtest_engine_view():
             <div style='color:#8b949e;font-size:0.75rem;text-transform:uppercase;'>Stop Loss Damage Control</div>
             <div style='color:#ef4444;font-size:1.4rem;font-weight:800;'>-${bsl:,.2f}</div>
             <div style='color:#94a3b8;font-size:0.8rem;'>SL Hits: <b style='color:#f87171;'>{sl_hits}</b> / {tot_trades} trades</div>
-            <div style='color:#f87171;font-size:0.75rem;margin-top:2px;'>Max Streak: <b>{tot_mcl}</b> Cons Losses (-${tot_mcl_usd:,.2f})</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -3275,39 +3241,8 @@ def render_mt5_backtest_engine_view():
         weekly_breakdown = MT5BacktestEngine.compute_weekly_breakdown(closed_batches_for_bd, res.get('date_from'), res.get('date_to'))
 
     if weekly_breakdown:
-        w_hdr_c1, w_hdr_c2 = st.columns([3, 2])
-        with w_hdr_c1:
-            st.markdown("##### 📅 Week-by-Week Granular Chronological Breakdown")
-            st.caption("Chronological audit of every 7-day period showing exact trades, Win Rate %, Net PnL, Profit Factor, TP targets, Max Single SL Hit, and Max Single TP Win.")
-        with w_hdr_c2:
-            weekly_export_df = pd.DataFrame([
-                {
-                    'Week / Period': w.get('week_label', f"Week {w.get('week_number', '')}"),
-                    'Trades': w.get('trades', 0),
-                    'W / L / BE': f"{w.get('wins', 0)}W / {w.get('losses', 0)}L / {w.get('breakevens', 0)}BE",
-                    'Win Rate (%)': f"{w.get('win_rate', 0.0):.1f}%",
-                    'Net PnL ($)': f"{w.get('net_pnl', 0.0):+,.2f}",
-                    'Profit Factor': w.get('profit_factor', 0.0),
-                    'TP1 Hits': w.get('tp1_hits', 0),
-                    'TP2 Hits': w.get('tp2_hits', 0),
-                    'TP3 Hits': w.get('tp3_hits', 0),
-                    'SL Hits': w.get('sl_hits', 0),
-                    'Max Cons Losses': w.get('max_cons_losses', 0),
-                    'Max Cons Loss ($)': f"-${w.get('max_cons_loss_usd', 0.0):,.2f}" if w.get('max_cons_loss_usd', 0.0) > 0 else "$0.00",
-                    'Max SL Hit ($)': f"-${w.get('max_sl', 0.0):,.2f}" if w.get('max_sl', 0.0) > 0 else "$0.00",
-                    'Max TP Win ($)': f"+${w.get('max_tp', 0.0):,.2f}" if w.get('max_tp', 0.0) > 0 else "$0.00"
-                }
-                for w in weekly_breakdown
-            ])
-            if not weekly_export_df.empty:
-                w_csv_bytes = weekly_export_df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(
-                    label="📥 Export Weekly Breakdown (CSV)",
-                    data=w_csv_bytes,
-                    file_name=f"mt5_backtest_weekly_{res.get('date_from')}_{res.get('date_to')}{'_weekdays_only' if exclude_weekends else ''}.csv",
-                    mime="text/csv",
-                    key="dl_bt_weekly_breakdown_csv"
-                )
+        st.markdown("##### 📅 Week-by-Week Granular Chronological Breakdown")
+        st.caption("Chronological audit of every 7-day period showing exact trades, Win Rate %, Net PnL, Profit Factor, TP targets, Max Single SL Hit, and Max Single TP Win.")
 
         wk_rows_html = []
         for w in weekly_breakdown:
@@ -3324,10 +3259,6 @@ def render_mt5_backtest_engine_view():
             w_sl = w.get('sl_hits', 0)
             w_max_sl = w.get('max_sl', 0.0)
             w_max_tp = w.get('max_tp', 0.0)
-            w_mcl = int(w.get('max_cons_losses', 0))
-            w_mcl_usd = float(w.get('max_cons_loss_usd', 0.0))
-            w_mcl_html = f"<span style='color:#f87171;font-weight:700;'>{w_mcl}</span>" if w_mcl > 0 else "<span style='color:#64748b;'>0</span>"
-            w_mclusd_html = f"<span style='color:#ef4444;font-weight:700;'>-${w_mcl_usd:,.2f}</span>" if w_mcl_usd > 0 else "<span style='color:#64748b;'>$0.00</span>" 
 
             pnl_color = "#10b981" if w_pnl > 0 else ("#ef4444" if w_pnl < 0 else "#94a3b8")
             wr_color = "#10b981" if w_wr >= 65 else ("#f59e0b" if w_wr >= 50 else "#ef4444")
@@ -3350,8 +3281,6 @@ def render_mt5_backtest_engine_view():
                 <td style='padding:8px 10px;text-align:center;color:#818cf8;font-weight:700;'>{w_tp2}</td>
                 <td style='padding:8px 10px;text-align:center;color:#c084fc;font-weight:700;'>{w_tp3}</td>
                 <td style='padding:8px 10px;text-align:center;color:#f87171;font-weight:700;'>{w_sl}</td>
-                <td style='padding:8px 10px;text-align:center;'>{w_mcl_html}</td>
-                <td style='padding:8px 10px;text-align:center;'>{w_mclusd_html}</td>
                 <td style='padding:8px 10px;text-align:center;'>{msl_html}</td>
                 <td style='padding:8px 10px;text-align:center;'>{mtp_html}</td>
             </tr>
@@ -3372,8 +3301,6 @@ def render_mt5_backtest_engine_view():
                         <th style='padding:10px;text-align:center;width:60px;'>TP2</th>
                         <th style='padding:10px;text-align:center;width:60px;'>TP3</th>
                         <th style='padding:10px;text-align:center;width:55px;'>SL</th>
-                        <th style='padding:10px;text-align:center;width:65px;'>Cons L</th>
-                        <th style='padding:10px;text-align:center;width:95px;'>Cons Loss ($)</th>
                         <th style='padding:10px;text-align:center;width:100px;'>Max SL Hit</th>
                         <th style='padding:10px;text-align:center;width:105px;'>Max TP Win</th>
                     </tr>
@@ -3386,148 +3313,6 @@ def render_mt5_backtest_engine_view():
         """
         render_html(wk_table_html)
 
-    # ── Day-by-Day Granular Chronological Breakdown ──
-    daily_breakdown = res.get('daily_breakdown')
-    if not daily_breakdown and closed_batches_for_bd:
-        from src.engine.backtest_engine import MT5BacktestEngine
-        daily_breakdown = MT5BacktestEngine.compute_daily_breakdown(closed_batches_for_bd, res.get('date_from'), res.get('date_to'))
-
-    if daily_breakdown:
-        st.markdown("##### 📆 Day-by-Day Granular Chronological Breakdown")
-        st.caption("Chronological audit of every individual trading day showing exact trades, Win Rate %, Net PnL, Profit Factor, TP targets, Max Single SL Hit, and Max Single TP Win.")
-
-        active_days_cnt = sum(1 for d in daily_breakdown if d.get('trades', 0) > 0)
-        tot_days_cnt = len(daily_breakdown)
-
-        d_ctrl_col1, d_ctrl_col2 = st.columns([3, 2])
-        with d_ctrl_col1:
-            day_filter_mode = st.radio(
-                "Filter Daily Breakdown View:",
-                options=[
-                    f"🎯 Active Trading Days Only ({active_days_cnt} Days)",
-                    f"📅 All Calendar Days ({tot_days_cnt} Days Total)"
-                ],
-                index=0,
-                horizontal=True,
-                key="bt_daily_view_filter"
-            )
-            show_active_only = "Active Trading Days Only" in day_filter_mode
-
-        with d_ctrl_col2:
-            daily_export_df = pd.DataFrame([
-                {
-                    'Date': d.get('date', ''),
-                    'Day': d.get('day_name', ''),
-                    'Trades': d.get('trades', 0),
-                    'W / L / BE': f"{d.get('wins', 0)}W / {d.get('losses', 0)}L / {d.get('breakevens', 0)}BE",
-                    'Win Rate (%)': f"{d.get('win_rate', 0.0):.1f}%",
-                    'Net PnL ($)': f"{d.get('net_pnl', 0.0):+,.2f}",
-                    'Profit Factor': d.get('profit_factor', 0.0),
-                    'TP1 Hits': d.get('tp1_hits', 0),
-                    'TP2 Hits': d.get('tp2_hits', 0),
-                    'TP3 Hits': d.get('tp3_hits', 0),
-                    'SL Hits': d.get('sl_hits', 0),
-                    'Max Cons Losses': d.get('max_cons_losses', 0),
-                    'Max Cons Loss ($)': f"-${d.get('max_cons_loss_usd', 0.0):,.2f}" if d.get('max_cons_loss_usd', 0.0) > 0 else "$0.00",
-                    'Max SL Hit ($)': f"-${d.get('max_sl', 0.0):,.2f}" if d.get('max_sl', 0.0) > 0 else "$0.00",
-                    'Max TP Win ($)': f"+${d.get('max_tp', 0.0):,.2f}" if d.get('max_tp', 0.0) > 0 else "$0.00"
-                }
-                for d in daily_breakdown
-            ])
-            if not daily_export_df.empty:
-                daily_csv_bytes = daily_export_df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(
-                    label="📥 Export Daily Breakdown (CSV)",
-                    data=daily_csv_bytes,
-                    file_name=f"mt5_backtest_daily_{res.get('date_from')}_{res.get('date_to')}{'_weekdays_only' if exclude_weekends else ''}.csv",
-                    mime="text/csv",
-                    key="dl_bt_daily_breakdown_csv"
-                )
-
-        displayed_daily = [d for d in daily_breakdown if d.get('trades', 0) > 0] if show_active_only else daily_breakdown
-
-        day_rows_html = []
-        for d in displayed_daily:
-            d_date = d.get('date', '')
-            d_day = d.get('day_name', '')
-            d_trades = d.get('trades', 0)
-            d_wins = d.get('wins', 0)
-            d_losses = d.get('losses', 0)
-            d_bes = d.get('breakevens', 0)
-            d_wr = d.get('win_rate', 0.0)
-            d_pnl = d.get('net_pnl', 0.0)
-            d_pf = d.get('profit_factor', 0.0)
-            d_tp1 = d.get('tp1_hits', 0)
-            d_tp2 = d.get('tp2_hits', 0)
-            d_tp3 = d.get('tp3_hits', 0)
-            d_sl = d.get('sl_hits', 0)
-            d_max_sl = d.get('max_sl', 0.0)
-            d_max_tp = d.get('max_tp', 0.0)
-            d_mcl = int(d.get('max_cons_losses', 0))
-            d_mcl_usd = float(d.get('max_cons_loss_usd', 0.0))
-            d_mcl_html = f"<span style='color:#f87171;font-weight:700;'>{d_mcl}</span>" if d_mcl > 0 else "<span style='color:#64748b;'>0</span>"
-            d_mclusd_html = f"<span style='color:#ef4444;font-weight:700;'>-${d_mcl_usd:,.2f}</span>" if d_mcl_usd > 0 else "<span style='color:#64748b;'>$0.00</span>" 
-
-            pnl_color = "#10b981" if d_pnl > 0 else ("#ef4444" if d_pnl < 0 else "#94a3b8")
-            wr_color = "#10b981" if d_wr >= 65 else ("#f59e0b" if d_wr >= 50 else ("#64748b" if d_trades == 0 else "#ef4444"))
-            msl_html = f"<span style='color:#ef4444;font-weight:700;'>-${d_max_sl:,.2f}</span>" if d_max_sl > 0 else "<span style='color:#64748b;'>$0.00</span>"
-            mtp_html = f"<span style='color:#10b981;font-weight:800;'>+${d_max_tp:,.2f}</span>" if d_max_tp > 0 else "<span style='color:#64748b;'>$0.00</span>"
-
-            day_rows_html.append(f"""
-            <tr style='border-bottom:1px solid #1e293b;'>
-                <td style='padding:7px 10px;font-weight:700;color:#f8fafc;'>
-                    <span style='color:#f8fafc;'>{d_date}</span> 
-                    <span style='color:#94a3b8;font-size:0.75rem;margin-left:4px;'>({d_day[:3]})</span>
-                </td>
-                <td style='padding:7px 10px;text-align:center;font-weight:700;color:#cbd5e1;'>{d_trades}</td>
-                <td style='padding:7px 10px;text-align:center;font-size:0.8rem;'>
-                    <span style='color:#10b981;font-weight:700;'>{d_wins}W</span> / 
-                    <span style='color:#ef4444;font-weight:700;'>{d_losses}L</span> / 
-                    <span style='color:#f59e0b;font-weight:700;'>{d_bes}BE</span>
-                </td>
-                <td style='padding:7px 10px;text-align:center;'><span style='color:{wr_color};font-weight:700;'>{d_wr:.1f}%</span></td>
-                <td style='padding:7px 10px;text-align:right;'><b style='color:{pnl_color};font-size:0.88rem;'>${d_pnl:+,.2f}</b></td>
-                <td style='padding:7px 10px;text-align:center;color:#94a3b8;font-size:0.82rem;'>{d_pf:.2f}</td>
-                <td style='padding:7px 10px;text-align:center;color:#38bdf8;font-weight:700;'>{d_tp1}</td>
-                <td style='padding:7px 10px;text-align:center;color:#818cf8;font-weight:700;'>{d_tp2}</td>
-                <td style='padding:7px 10px;text-align:center;color:#c084fc;font-weight:700;'>{d_tp3}</td>
-                <td style='padding:7px 10px;text-align:center;color:#f87171;font-weight:700;'>{d_sl}</td>
-                <td style='padding:7px 10px;text-align:center;'>{d_mcl_html}</td>
-                <td style='padding:7px 10px;text-align:center;'>{d_mclusd_html}</td>
-                <td style='padding:7px 10px;text-align:center;'>{msl_html}</td>
-                <td style='padding:7px 10px;text-align:center;'>{mtp_html}</td>
-            </tr>
-            """)
-
-        day_table_html = f"""
-        <div style='margin-top:8px;margin-bottom:18px;border:1px solid #1e293b;border-radius:10px;max-height:480px;overflow-y:auto;overflow-x:auto;background:#0b0f19;'>
-            <table style='width:100%;border-collapse:collapse;font-family:sans-serif;'>
-                <thead style='position:sticky;top:0;z-index:2;background:#0f172a;'>
-                    <tr style='background:#0f172a;border-bottom:2px solid #334155;color:#94a3b8;font-size:0.75rem;text-transform:uppercase;'>
-                        <th style='padding:10px;text-align:left;'>Day / Date</th>
-                        <th style='padding:10px;text-align:center;width:55px;'>Trades</th>
-                        <th style='padding:10px;text-align:center;width:115px;'>W / L / BE</th>
-                        <th style='padding:10px;text-align:center;width:80px;'>Win Rate</th>
-                        <th style='padding:10px;text-align:right;width:95px;'>Net PnL</th>
-                        <th style='padding:10px;text-align:center;width:55px;'>PF</th>
-                        <th style='padding:10px;text-align:center;width:60px;'>TP1</th>
-                        <th style='padding:10px;text-align:center;width:60px;'>TP2</th>
-                        <th style='padding:10px;text-align:center;width:60px;'>TP3</th>
-                        <th style='padding:10px;text-align:center;width:55px;'>SL</th>
-                        <th style='padding:10px;text-align:center;width:65px;'>Cons L</th>
-                        <th style='padding:10px;text-align:center;width:95px;'>Cons Loss ($)</th>
-                        <th style='padding:10px;text-align:center;width:100px;'>Max SL Hit</th>
-                        <th style='padding:10px;text-align:center;width:105px;'>Max TP Win</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {''.join(day_rows_html)}
-                </tbody>
-            </table>
-        </div>
-        """
-        render_html(day_table_html)
-
     # ── Trading Pair Performance Breakdown ──
     pair_breakdown = res.get('pair_breakdown')
     if not pair_breakdown and closed_batches_for_bd:
@@ -3535,36 +3320,8 @@ def render_mt5_backtest_engine_view():
         pair_breakdown = MT5BacktestEngine.compute_pair_breakdown(closed_batches_for_bd, res.get('settings_used', {}).get('selected_symbols'))
 
     if pair_breakdown:
-        p_hdr_c1, p_hdr_c2 = st.columns([3, 2])
-        with p_hdr_c1:
-            st.markdown("##### 💱 Trading Pair Performance Breakdown")
-            st.caption("Per-asset analytics showing Win Rate %, Net PnL, Profit Factor, Max Single TP Win, and Max Single SL Hit.")
-        with p_hdr_c2:
-            pair_export_df = pd.DataFrame([
-                {
-                    'Trading Pair': p_item.get('symbol', ''),
-                    'Trades': p_item.get('trades', 0),
-                    'W / L / BE': f"{p_item.get('wins', 0)}W / {p_item.get('losses', 0)}L / {p_item.get('breakevens', 0)}BE",
-                    'Win Rate (%)': f"{p_item.get('win_rate', 0.0):.1f}%",
-                    'Net PnL ($)': f"{p_item.get('net_pnl', 0.0):+,.2f}",
-                    'Profit Factor': p_item.get('profit_factor', 0.0),
-                    'Max Cons Losses': p_item.get('max_cons_losses', 0),
-                    'Max Cons Loss ($)': f"-${p_item.get('max_cons_loss_usd', 0.0):,.2f}" if p_item.get('max_cons_loss_usd', 0.0) > 0 else "$0.00",
-                    'Max TP Win ($)': f"+${p_item.get('max_tp', 0.0):,.2f}" if p_item.get('max_tp', 0.0) > 0 else "$0.00",
-                    'Max SL Hit ($)': f"-${p_item.get('max_sl', 0.0):,.2f}" if p_item.get('max_sl', 0.0) > 0 else "$0.00",
-                    'Top Strategy': p_item.get('top_strategy', '-')
-                }
-                for p_item in pair_breakdown
-            ])
-            if not pair_export_df.empty:
-                p_csv_bytes = pair_export_df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(
-                    label="📥 Export Trading Pairs (CSV)",
-                    data=p_csv_bytes,
-                    file_name=f"mt5_backtest_pairs_{res.get('date_from')}_{res.get('date_to')}{'_weekdays_only' if exclude_weekends else ''}.csv",
-                    mime="text/csv",
-                    key="dl_bt_pair_breakdown_csv"
-                )
+        st.markdown("##### 💱 Trading Pair Performance Breakdown")
+        st.caption("Per-asset analytics showing Win Rate %, Net PnL, Profit Factor, Max Single TP Win, and Max Single SL Hit.")
 
         pair_rows_html = []
         for p_item in pair_breakdown:
@@ -3579,10 +3336,6 @@ def render_mt5_backtest_engine_view():
             p_msl = p_item.get('max_sl', 0.0)
             p_mtp = p_item.get('max_tp', 0.0)
             p_strat = p_item.get('top_strategy', '-')
-            p_mcl = int(p_item.get('max_cons_losses', 0))
-            p_mcl_usd = float(p_item.get('max_cons_loss_usd', 0.0))
-            p_mcl_html = f"<span style='color:#f87171;font-weight:700;'>{p_mcl}</span>" if p_mcl > 0 else "<span style='color:#64748b;'>0</span>"
-            p_mclusd_html = f"<span style='color:#ef4444;font-weight:700;'>-${p_mcl_usd:,.2f}</span>" if p_mcl_usd > 0 else "<span style='color:#64748b;'>$0.00</span>" 
 
             pnl_col = "#10b981" if p_pnl > 0 else ("#ef4444" if p_pnl < 0 else "#94a3b8")
             wr_col = "#10b981" if p_wr >= 65 else ("#f59e0b" if p_wr >= 50 else "#ef4444")
@@ -3601,8 +3354,6 @@ def render_mt5_backtest_engine_view():
                 <td style='padding:8px 10px;text-align:center;'><span style='color:{wr_col};font-weight:700;'>{p_wr:.1f}%</span></td>
                 <td style='padding:8px 10px;text-align:right;'><b style='color:{pnl_col};font-size:0.9rem;'>${p_pnl:+,.2f}</b></td>
                 <td style='padding:8px 10px;text-align:center;color:#94a3b8;font-size:0.85rem;'>{p_pf:.2f}</td>
-                <td style='padding:8px 10px;text-align:center;'>{p_mcl_html}</td>
-                <td style='padding:8px 10px;text-align:center;'>{p_mclusd_html}</td>
                 <td style='padding:8px 10px;text-align:center;'>{mtp_html}</td>
                 <td style='padding:8px 10px;text-align:center;'>{msl_html}</td>
                 <td style='padding:8px 10px;color:#a78bfa;font-size:0.8rem;font-weight:600;'>{p_strat}</td>
@@ -3620,8 +3371,6 @@ def render_mt5_backtest_engine_view():
                         <th style='padding:10px;text-align:center;width:80px;'>Win Rate</th>
                         <th style='padding:10px;text-align:right;width:95px;'>Net PnL</th>
                         <th style='padding:10px;text-align:center;width:55px;'>PF</th>
-                        <th style='padding:10px;text-align:center;width:65px;'>Cons L</th>
-                        <th style='padding:10px;text-align:center;width:95px;'>Cons Loss ($)</th>
                         <th style='padding:10px;text-align:center;width:105px;'>Max TP Win</th>
                         <th style='padding:10px;text-align:center;width:100px;'>Max SL Hit</th>
                         <th style='padding:10px;text-align:left;'>Top Strategy</th>
@@ -3640,11 +3389,6 @@ def render_mt5_backtest_engine_view():
     st.caption("Empirical ranking of strategies across the chosen historical MT5 window, highlighting Biggest SL Hit, Biggest TP Win, and SL count.")
 
     leaderboard = res.get('leaderboard', [])
-    if closed_batches_for_bd and (not leaderboard or any('(' not in str(x.get('best_pairs', '')) for x in leaderboard if x.get('total_trades', 0) > 0)):
-        from src.engine.backtest_engine import MT5BacktestEngine
-        active_strats = res.get('settings_used', {}).get('active_strategies') or [x.get('strategy_key') for x in leaderboard] or ['DEFAULT']
-        leaderboard = MT5BacktestEngine.compute_backtest_strategy_leaderboard(closed_batches_for_bd, active_strats)
-        res['leaderboard'] = leaderboard
     if leaderboard:
         # Sorting
         bt_sort_map = {
@@ -3654,8 +3398,6 @@ def render_mt5_backtest_engine_view():
             "💰 Biggest TP Win ($)": "biggest_tp",
             "📉 Biggest SL Hit ($)": "biggest_sl_loss",
             "🛑 Most SL Hits": "sl_hits",
-            "⚡ Most Consecutive Losses": "max_cons_losses",
-            "💥 Highest Cons Loss ($)": "max_cons_loss_usd",
             "💸 Highest Net Loss ($)": "net_loss",
             "📈 Most Active (Total Trades)": "total_trades"
         }
@@ -3679,7 +3421,7 @@ def render_mt5_backtest_engine_view():
                 st.download_button(
                     label="📥 Export Backtest Leaderboard (CSV)",
                     data=bt_csv_bytes,
-                    file_name=f"mt5_backtest_leaderboard_{res.get('date_from')}_{res.get('date_to')}{'_weekdays_only' if exclude_weekends else ''}.csv",
+                    file_name=f"mt5_backtest_leaderboard_{res.get('date_from')}_{res.get('date_to')}.csv",
                     mime="text/csv",
                     key="dl_bt_leaderboard_csv"
                 )
@@ -3698,10 +3440,6 @@ def render_mt5_backtest_engine_view():
             pf_val = item.get('profit_factor', 0.0)
             bsl_val = item.get('biggest_sl_loss', 0.0)
             sl_h_val = item.get('sl_hits', 0)
-            mcl_cnt_val = int(item.get('max_cons_losses', 0))
-            mcl_usd_val = float(item.get('max_cons_loss_usd', 0.0))
-            mcl_cnt_html = f"<span style='color:#f87171;font-weight:700;'>{mcl_cnt_val}</span>" if mcl_cnt_val > 0 else "<span style='color:#64748b;'>0</span>"
-            mcl_usd_html = f"<span style='color:#ef4444;font-weight:700;'>-${mcl_usd_val:,.2f}</span>" if mcl_usd_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
             tp_h_val = int(item.get('tp_hits', 0))
             biggest_tp_val = float(item.get('biggest_tp', 0.0))
             badge = item.get('status_badge', '⚖️ Neutral')
@@ -3736,10 +3474,8 @@ def render_mt5_backtest_engine_view():
             tp2_h_val = int(item.get('tp2_hits', 0))
             tp2_h_html = f"<span style='color:#38bdf8;font-weight:700;'>{tp2_h_val}</span>" if tp2_h_val > 0 else "<span style='color:#64748b;'>0</span>"
             btp_html = f"<span style='color:#10b981;font-weight:700;'>+${biggest_tp_val:,.2f}</span>" if biggest_tp_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
-            btf_tip = item.get('best_timeframes_tooltip', btf)
-            bpr_tip = item.get('best_pairs_tooltip', bpr)
-            btf_html = f"<span title='{btf_tip}' style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.72rem;font-weight:600;cursor:help;'>{btf}</span>"
-            bpr_html = f"<span title='{bpr_tip}' style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;cursor:help;'>{bpr}</span>"
+            btf_html = f"<span style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.72rem;font-weight:600;'>{btf}</span>"
+            bpr_html = f"<span style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.72rem;font-weight:600;'>{bpr}</span>"
             row_bg = "background:rgba(255,215,0,0.04);" if rank_idx == 1 else ""
 
             # Build per-symbol breakdown pills
@@ -3785,8 +3521,6 @@ def render_mt5_backtest_engine_view():
                 <td style='padding:8px 10px;text-align:center;font-size:0.8rem;color:#94a3b8;'>{pf_val:.2f}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{bsl_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{sl_h_html}</td>
-                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{mcl_cnt_html}</td>
-                <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{mcl_usd_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{tp_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{tp2_h_html}</td>
                 <td style='padding:8px 8px;text-align:center;font-size:0.8rem;'>{btp_html}</td>
@@ -3812,13 +3546,11 @@ def render_mt5_backtest_engine_view():
                         <th style='padding:10px;text-align:center;width:50px;'>PF</th>
                         <th style='padding:10px;text-align:center;width:95px;'>Biggest SL</th>
                         <th style='padding:10px;text-align:center;width:60px;'>SL Hits</th>
-                        <th style='padding:10px;text-align:center;width:65px;'>Cons L</th>
-                        <th style='padding:10px;text-align:center;width:95px;'>Cons Loss ($)</th>
                         <th style='padding:10px;text-align:center;width:60px;'>TP Hits</th>
                         <th style='padding:10px;text-align:center;width:60px;'>TP2 Hits</th>
                         <th style='padding:10px;text-align:center;width:95px;'>Biggest TP</th>
-                        <th style='padding:10px;text-align:center;width:135px;'>Best Timeframes</th>
-                        <th style='padding:10px;text-align:center;width:155px;'>Best Trading Pairs</th>
+                        <th style='padding:10px;text-align:center;width:125px;'>Best Timeframes</th>
+                        <th style='padding:10px;text-align:center;width:140px;'>Best Trading Pairs</th>
                         <th style='padding:10px;text-align:center;width:115px;'>Status</th>
                     </tr>
                 </thead>
@@ -3838,7 +3570,7 @@ def render_mt5_backtest_engine_view():
         st.markdown("##### 📜 Backtest Executed Batches Ledger:")
         with st.expander(f"🔍 Inspect {len(closed_batches)} Simulated Batches & Exit Reasons", expanded=False):
             b_df = pd.DataFrame(closed_batches)
-            disp_cols = [c for c in ['batch_id', 'symbol', 'strategy_name', 'action', 'timeframe', 'entry_price', 'spread_applied', 'sl_price', 'risk_usd', 'tp1_price', 'tp2_price', 'tp3_price', 'profit', 'status', 'exit_reason', 'closed_at'] if c in b_df.columns]
+            disp_cols = [c for c in ['batch_id', 'symbol', 'strategy_name', 'action', 'timeframe', 'entry_price', 'sl_price', 'risk_usd', 'tp1_price', 'tp2_price', 'tp3_price', 'profit', 'status', 'exit_reason', 'closed_at'] if c in b_df.columns]
             st.dataframe(
                 b_df[disp_cols].rename(columns={
                     'batch_id': 'Batch #',
@@ -3847,7 +3579,6 @@ def render_mt5_backtest_engine_view():
                     'action': 'Type',
                     'timeframe': 'TF',
                     'entry_price': 'Entry',
-                    'spread_applied': 'Spread',
                     'sl_price': 'SL',
                     'risk_usd': 'Risk ($)',
                     'tp1_price': 'TP1',
@@ -3865,191 +3596,10 @@ def render_mt5_backtest_engine_view():
             st.download_button(
                 label="📥 Export Simulated Batches (CSV)",
                 data=csv_b_bytes,
-                file_name=f"mt5_simulated_batches_{res.get('date_from')}_{res.get('date_to')}{'_weekdays_only' if exclude_weekends else ''}.csv",
+                file_name=f"mt5_simulated_batches_{res.get('date_from')}_{res.get('date_to')}.csv",
                 mime="text/csv",
                 key="dl_bt_batches_csv"
             )
-
-    # ── Standalone Strategy-Wise Simulation & Capital Survival ──
-    standalone_sims = res.get('standalone_strategy_simulations')
-    if not standalone_sims and closed_batches:
-        from src.engine.backtest_engine import MT5BacktestEngine
-        act_s = res.get('settings_used', {}).get('active_strategies') or [x.get('strategy_key') for x in res.get('leaderboard', [])] or ['DEFAULT']
-        init_b = float(res.get('initial_balance', 100.0))
-        standalone_sims = MT5BacktestEngine.compute_standalone_strategy_simulations(closed_batches, init_b, act_s)
-        res['standalone_strategy_simulations'] = standalone_sims
-
-    if standalone_sims:
-        st.markdown("---")
-        st.markdown("##### 🏛️ Standalone Strategy Simulation & Isolated Capital Survival (Dedicated Account per Strategy)")
-        init_cap_val = float(res.get('initial_balance', 100.0))
-        st.caption(f"Empirical simulation of each strategy executing on its own dedicated independent account starting with **${init_cap_val:,.2f} USD** initial capital. Audits exact Initial Balance, Lowest Trough Touched, Peak Balance Reached, Balance Remaining, ROI, Max Drawdown, and Capital Survival.")
-
-        sim_sort_map = {
-            "🏆 Highest Final Balance / Net PnL": "net_pnl",
-            "🚀 Highest ROI (%)": "roi_pct",
-            "🛡️ Best Capital Preservation (Highest Lowest Trough)": "lowest_balance",
-            "📈 Highest Peak Balance": "peak_balance",
-            "📉 Lowest Max Drawdown (%)": "max_drawdown_pct",
-            "🎯 Highest Win Rate (%)": "win_rate",
-            "🛑 Most Consecutive Losses": "max_cons_losses",
-            "💥 Highest Cons Loss ($)": "max_cons_loss_usd",
-            "📦 Total Trades Taken": "trades"
-        }
-
-        s_sort_c1, s_sort_c2 = st.columns([3, 2])
-        with s_sort_c1:
-            sel_sim_sort = st.selectbox("Sort Standalone Simulation By:", options=list(sim_sort_map.keys()), index=0, key="bt_standalone_sort_selector")
-            sim_sort_key = sim_sort_map[sel_sim_sort]
-
-        # Sorting logic
-        sort_rev = sim_sort_key != 'max_drawdown_pct'
-        sorted_standalone = sorted(standalone_sims, key=lambda x: float(x.get(sim_sort_key, 0.0)), reverse=sort_rev)
-
-        with s_sort_c2:
-            standalone_export_df = pd.DataFrame([
-                {
-                    'Rank': idx,
-                    'Strategy': s.get('strategy_name', s.get('strategy_key', '')),
-                    'Initial Balance ($)': f"${s.get('initial_balance', 0.0):,.2f}",
-                    'Lowest Trough ($)': f"${s.get('lowest_balance', 0.0):,.2f}",
-                    'Lowest Trough Date': s.get('lowest_time', '-'),
-                    'Peak Balance ($)': f"${s.get('peak_balance', 0.0):,.2f}",
-                    'Peak Balance Date': s.get('peak_time', '-'),
-                    'Balance Remaining ($)': f"${s.get('final_balance', 0.0):,.2f}",
-                    'Net PnL ($)': f"{s.get('net_pnl', 0.0):+,.2f}",
-                    'ROI (%)': f"{s.get('roi_pct', 0.0):+.2f}%",
-                    'Max Drawdown ($)': f"-${s.get('max_drawdown_usd', 0.0):,.2f}",
-                    'Max Drawdown (%)': f"{s.get('max_drawdown_pct', 0.0):.1f}%",
-                    'Account Survival': s.get('survival_badge', '-'),
-                    'Trades': s.get('trades', 0),
-                    'W / L / BE': f"{s.get('wins', 0)}W / {s.get('losses', 0)}L / {s.get('breakevens', 0)}BE",
-                    'Win Rate (%)': f"{s.get('win_rate', 0.0):.1f}%",
-                    'Profit Factor': s.get('profit_factor', 0.0),
-                    'Max Cons Losses': s.get('max_cons_losses', 0),
-                    'Max Cons Loss ($)': f"-${s.get('max_cons_loss_usd', 0.0):,.2f}" if s.get('max_cons_loss_usd', 0.0) > 0 else "$0.00",
-                    'Biggest SL Hit ($)': f"-${s.get('biggest_sl', 0.0):,.2f}" if s.get('biggest_sl', 0.0) > 0 else "$0.00",
-                    'Biggest TP ($)': f"+${s.get('biggest_tp', 0.0):,.2f}" if s.get('biggest_tp', 0.0) > 0 else "$0.00",
-                    'Best Timeframes': s.get('best_timeframes', '-'),
-                    'Best Timeframes Detail': s.get('best_timeframes_tooltip', '-'),
-                    'Best Trading Pairs': s.get('best_pairs', '-'),
-                    'Best Trading Pairs Detail': s.get('best_pairs_tooltip', '-')
-                }
-                for idx, s in enumerate(sorted_standalone, 1)
-            ])
-            if not standalone_export_df.empty:
-                s_csv_bytes = standalone_export_df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button(
-                    label="📥 Export Standalone Strategy Simulation (CSV)",
-                    data=s_csv_bytes,
-                    file_name=f"mt5_standalone_strategy_simulation_{res.get('date_from')}_{res.get('date_to')}{'_weekdays_only' if exclude_weekends else ''}.csv",
-                    mime="text/csv",
-                    key="dl_bt_standalone_sim_csv"
-                )
-
-        # Build Table HTML
-        standalone_rows_html = []
-        for rank_idx, s in enumerate(sorted_standalone, 1):
-            s_name = s.get('strategy_name', s.get('strategy_key', 'Unknown'))
-            init_b = float(s.get('initial_balance', 100.0))
-            low_b = float(s.get('lowest_balance', init_b))
-            peak_b = float(s.get('peak_balance', init_b))
-            final_b = float(s.get('final_balance', init_b))
-            pnl_v = float(s.get('net_pnl', 0.0))
-            roi_v = float(s.get('roi_pct', 0.0))
-            mdd_u = float(s.get('max_drawdown_usd', 0.0))
-            mdd_p = float(s.get('max_drawdown_pct', 0.0))
-            s_badge = s.get('survival_badge', '⚖️ Neutral')
-            s_badge_col = s.get('survival_color', '#94a3b8')
-            t_cnt = int(s.get('trades', 0))
-            w_cnt = int(s.get('wins', 0))
-            l_cnt = int(s.get('losses', 0))
-            be_cnt = int(s.get('breakevens', 0))
-            wr_v = float(s.get('win_rate', 0.0))
-            pf_v = float(s.get('profit_factor', 0.0))
-            mcl_c = int(s.get('max_cons_losses', 0))
-            mcl_u = float(s.get('max_cons_loss_usd', 0.0))
-            bsl_v = float(s.get('biggest_sl', 0.0))
-            btp_v = float(s.get('biggest_tp', 0.0))
-            btf_v = s.get('best_timeframes', '-')
-            bpr_v = s.get('best_pairs', '-')
-            btf_tip = s.get('best_timeframes_tooltip', btf_v)
-            bpr_tip = s.get('best_pairs_tooltip', bpr_v)
-            low_t = s.get('lowest_time', '-')
-
-            pnl_col = "#10b981" if pnl_v > 0 else ("#ef4444" if pnl_v < 0 else "#94a3b8")
-            roi_col = "#10b981" if roi_v > 0 else ("#ef4444" if roi_v < 0 else "#94a3b8")
-            wr_col = "#10b981" if wr_v >= 65 else ("#f59e0b" if wr_v >= 50 else "#ef4444")
-            trough_col = "#10b981" if low_b >= init_b else ("#f59e0b" if low_b >= init_b * 0.70 else "#ef4444")
-            final_col = "#10b981" if final_b >= init_b else "#ef4444"
-
-            mcl_c_html = f"<span style='color:#f87171;font-weight:700;'>{mcl_c}</span>" if mcl_c > 0 else "<span style='color:#64748b;'>0</span>"
-            mcl_u_html = f"<span style='color:#ef4444;font-weight:700;'>-${mcl_u:,.2f}</span>" if mcl_u > 0 else "<span style='color:#64748b;'>$0.00</span>"
-            bsl_html = f"<span style='color:#ef4444;font-weight:700;'>-${bsl_v:,.2f}</span>" if bsl_v > 0 else "<span style='color:#64748b;'>$0.00</span>"
-            btp_html = f"<span style='color:#10b981;font-weight:700;'>+${btp_v:,.2f}</span>" if btp_v > 0 else "<span style='color:#64748b;'>$0.00</span>"
-
-            rank_disp = "🥇 #1" if rank_idx == 1 else ("🥈 #2" if rank_idx == 2 else ("🥉 #3" if rank_idx == 3 else f"#{rank_idx}"))
-            rank_col = "#ffd700" if rank_idx == 1 else ("#c0c0c0" if rank_idx == 2 else ("#cd7f32" if rank_idx == 3 else "#94a3b8"))
-
-            standalone_rows_html.append(f"""
-            <tr style='border-bottom:1px solid #1e293b;font-family:sans-serif;'>
-                <td style='padding:8px 8px;text-align:center;font-weight:800;color:{rank_col};font-size:0.85rem;'>{rank_disp}</td>
-                <td style='padding:8px 10px;font-weight:600;color:#f8fafc;font-size:0.82rem;'>{s_name}</td>
-                <td style='padding:8px 8px;text-align:right;color:#94a3b8;font-size:0.82rem;'>${init_b:,.2f}</td>
-                <td style='padding:8px 8px;text-align:right;font-weight:800;color:{trough_col};font-size:0.85rem;' title='Lowest Trough at {low_t}'>${low_b:,.2f}</td>
-                <td style='padding:8px 8px;text-align:right;font-weight:800;color:#10b981;font-size:0.85rem;'>${peak_b:,.2f}</td>
-                <td style='padding:8px 8px;text-align:right;font-weight:900;color:{final_col};font-size:0.90rem;'>${final_b:,.2f}</td>
-                <td style='padding:8px 8px;text-align:right;font-weight:800;color:{pnl_col};font-size:0.88rem;'>${pnl_v:+,.2f}</td>
-                <td style='padding:8px 8px;text-align:right;font-weight:800;color:{roi_col};font-size:0.85rem;'>{roi_v:+.1f}%</td>
-                <td style='padding:8px 8px;text-align:center;color:#f87171;font-size:0.80rem;'>-${mdd_u:,.2f} <span style='color:#64748b;'>({mdd_p:.1f}%)</span></td>
-                <td style='padding:8px 8px;text-align:center;'><span style='background:#18181b;border:1px solid {s_badge_col}88;color:{s_badge_col};padding:2px 7px;border-radius:6px;font-size:0.72rem;font-weight:700;'>{s_badge}</span></td>
-                <td style='padding:8px 8px;text-align:center;font-weight:700;color:#cbd5e1;font-size:0.82rem;'>{t_cnt}</td>
-                <td style='padding:8px 8px;text-align:center;font-size:0.78rem;'><span style='color:#10b981;font-weight:700;'>{w_cnt}W</span>/<span style='color:#ef4444;font-weight:700;'>{l_cnt}L</span>/<span style='color:#f59e0b;font-weight:700;'>{be_cnt}BE</span></td>
-                <td style='padding:8px 8px;text-align:center;font-weight:700;color:{wr_col};font-size:0.82rem;'>{wr_v:.1f}%</td>
-                <td style='padding:8px 8px;text-align:center;color:#94a3b8;font-size:0.80rem;'>{pf_v:.2f}</td>
-                <td style='padding:8px 8px;text-align:center;font-size:0.80rem;'>{mcl_c_html}</td>
-                <td style='padding:8px 8px;text-align:center;font-size:0.80rem;'>{mcl_u_html}</td>
-                <td style='padding:8px 8px;text-align:center;font-size:0.80rem;'>{bsl_html}</td>
-                <td style='padding:8px 8px;text-align:center;font-size:0.80rem;'>{btp_html}</td>
-                <td style='padding:8px 8px;text-align:center;'><span title='{btf_tip}' style='background:#0f172a;border:1px solid #38bdf844;padding:2px 6px;border-radius:6px;color:#38bdf8;font-size:0.70rem;cursor:help;'>{btf_v}</span></td>
-                <td style='padding:8px 8px;text-align:center;'><span title='{bpr_tip}' style='background:#0f172a;border:1px solid #a78bfa44;padding:2px 6px;border-radius:6px;color:#c084fc;font-size:0.70rem;cursor:help;'>{bpr_v}</span></td>
-            </tr>
-            """)
-
-        standalone_table_html = f"""
-        <div style='margin-top:10px;margin-bottom:20px;border:1.5px solid #334155;border-radius:10px;max-height:540px;overflow-y:auto;overflow-x:auto;background:#0b0f19;box-shadow:0 8px 24px rgba(0,0,0,0.5);'>
-            <table style='width:100%;border-collapse:collapse;font-family:sans-serif;'>
-                <thead style='position:sticky;top:0;z-index:3;background:#0f172a;'>
-                    <tr style='background:#0f172a;border-bottom:2px solid #475569;color:#94a3b8;font-size:0.74rem;text-transform:uppercase;'>
-                        <th style='padding:10px 8px;text-align:center;width:45px;'>Rank</th>
-                        <th style='padding:10px 10px;text-align:left;min-width:170px;'>Strategy Name</th>
-                        <th style='padding:10px 8px;text-align:right;width:90px;'>Initial Bal</th>
-                        <th style='padding:10px 8px;text-align:right;width:95px;'>Lowest Trough</th>
-                        <th style='padding:10px 8px;text-align:right;width:95px;'>Peak Bal</th>
-                        <th style='padding:10px 8px;text-align:right;width:105px;'>Remaining Bal</th>
-                        <th style='padding:10px 8px;text-align:right;width:85px;'>Net PnL</th>
-                        <th style='padding:10px 8px;text-align:right;width:75px;'>ROI (%)</th>
-                        <th style='padding:10px 8px;text-align:center;width:110px;'>Max DD ($ / %)</th>
-                        <th style='padding:10px 8px;text-align:center;width:105px;'>Survival Status</th>
-                        <th style='padding:10px 8px;text-align:center;width:55px;'>Trades</th>
-                        <th style='padding:10px 8px;text-align:center;width:100px;'>W / L / BE</th>
-                        <th style='padding:10px 8px;text-align:center;width:75px;'>Win Rate</th>
-                        <th style='padding:10px 8px;text-align:center;width:50px;'>PF</th>
-                        <th style='padding:10px 8px;text-align:center;width:60px;'>Cons L</th>
-                        <th style='padding:10px 8px;text-align:center;width:90px;'>Cons Loss ($)</th>
-                        <th style='padding:10px 8px;text-align:center;width:85px;'>Biggest SL</th>
-                        <th style='padding:10px 8px;text-align:center;width:85px;'>Biggest TP</th>
-                        <th style='padding:10px 8px;text-align:center;width:125px;'>Best TFs</th>
-                        <th style='padding:10px 8px;text-align:center;width:145px;'>Best Pairs</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {''.join(standalone_rows_html)}
-                </tbody>
-            </table>
-        </div>
-        """
-        render_html(standalone_table_html)
 
 @st.fragment(run_every=2)
 def render_whatsapp_signal_engine_view(live_exec):
