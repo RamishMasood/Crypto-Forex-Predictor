@@ -12,7 +12,7 @@ Features:
 - Real-world spread, slippage, and contract-size PnL modeling.
 - Native author session windows / killzones via SessionManager.
 - Decoupled native breakeven modes (qullamaggie_ema_trail, waqar_asim_instant_be, etc.).
-- Golden SL (1.80 * ATR) and runner geometry (1:1+ to 1:2 TP2) invariants.
+- Calibrated SL (1.80 * ATR) and runner geometry (1:1+ to 1:2 TP2) invariants.
 - Tracks comprehensive performance metrics including:
     * Net PnL ($) & ROI (%)
     * Win Rate % (Wins, Losses, Breakevens)
@@ -1082,7 +1082,7 @@ class MT5BacktestEngine:
                 if act == 'BUY':
                     profit_dist = cur_high - entry_p
                     tp2_dist = tp2_p - entry_p if tp2_p > entry_p else (1.15 * (entry_p - sl_p))
-                    tp1_dist = tp1_p - entry_p if tp1_p > entry_p else (0.38 * cur_atr)
+                    tp1_dist = tp1_p - entry_p if tp1_p > entry_p else (0.55 * cur_atr)
 
                     hit_tp1_this_bar = False
                     # ── Trade Progression Logic ──
@@ -1233,7 +1233,7 @@ class MT5BacktestEngine:
 
                     profit_dist = entry_p - cur_ask_low
                     tp2_dist = entry_p - tp2_p if (tp2_p > 0 and tp2_p < entry_p) else (1.15 * (sl_p - entry_p))
-                    tp1_dist = entry_p - tp1_p if (tp1_p > 0 and tp1_p < entry_p) else (0.38 * cur_atr)
+                    tp1_dist = entry_p - tp1_p if (tp1_p > 0 and tp1_p < entry_p) else (0.55 * cur_atr)
 
                     hit_tp1_this_bar = False
                     # ── Trade Progression Logic ──
@@ -1589,7 +1589,7 @@ class MT5BacktestEngine:
                                         'action': 'BUY',
                                         'confidence': 88.0,
                                         'breakeven_mode': breakeven_mode,
-                                        'trade_setup': {'stop_loss': cur_close - 1.8 * cur_atr}
+                                        'trade_setup': {'stop_loss': cur_close - 1.80 * cur_atr}
                                     }
                                 elif cand_act == 'SELL':
                                     st_res = {
@@ -1598,7 +1598,7 @@ class MT5BacktestEngine:
                                         'action': 'SELL',
                                         'confidence': 88.0,
                                         'breakeven_mode': breakeven_mode,
-                                        'trade_setup': {'stop_loss': cur_close + 1.8 * cur_atr}
+                                        'trade_setup': {'stop_loss': cur_close + 1.80 * cur_atr}
                                     }
 
                         if not st_res or st_res.get('action') not in ['BUY', 'SELL']:
@@ -1667,12 +1667,12 @@ class MT5BacktestEngine:
                             sl_dist = max(abs(c_entry - setup_sl) if setup_sl > 0 else (1.80 * cur_atr), 1.80 * cur_atr)
                             if c_act == 'BUY':
                                 c_sl = c_entry - sl_dist
-                                c_tp1 = c_entry + (0.38 * cur_atr)
+                                c_tp1 = c_entry + (0.55 * cur_atr)
                                 c_tp2 = c_entry + (1.15 * sl_dist)
                                 c_tp3 = c_entry + (2.20 * sl_dist)
                             else:
                                 c_sl = c_entry + sl_dist
-                                c_tp1 = c_entry - (0.38 * cur_atr)
+                                c_tp1 = c_entry - (0.55 * cur_atr)
                                 c_tp2 = c_entry - (1.15 * sl_dist)
                                 c_tp3 = c_entry - (2.20 * sl_dist)
                         else:
@@ -1682,13 +1682,13 @@ class MT5BacktestEngine:
                             if sl_dist <= 0:
                                 sl_dist = 1.80 * cur_atr
 
-                            min_tp1_dist = 0.35 * cur_atr
+                            min_tp1_dist = 0.33 * cur_atr
                             if c_act == 'BUY':
-                                c_tp1 = setup_tp1 if setup_tp1 >= (c_entry + min_tp1_dist) else (c_entry + (0.38 * cur_atr))
+                                c_tp1 = setup_tp1 if setup_tp1 >= (c_entry + min_tp1_dist) else (c_entry + (0.55 * cur_atr))
                                 c_tp2 = setup_tp2 if setup_tp2 > c_entry else (c_entry + (1.15 * sl_dist))
                                 c_tp3 = setup_tp3 if setup_tp3 > c_entry else (c_entry + (2.20 * sl_dist))
                             else:
-                                c_tp1 = setup_tp1 if (setup_tp1 > 0 and setup_tp1 <= (c_entry - min_tp1_dist)) else (c_entry - (0.38 * cur_atr))
+                                c_tp1 = setup_tp1 if (setup_tp1 > 0 and setup_tp1 <= (c_entry - min_tp1_dist)) else (c_entry - (0.55 * cur_atr))
                                 c_tp2 = setup_tp2 if (setup_tp2 > 0 and setup_tp2 < c_entry) else (c_entry - (1.15 * sl_dist))
                                 c_tp3 = setup_tp3 if (setup_tp3 > 0 and setup_tp3 < c_entry) else (c_entry - (2.20 * sl_dist))
 

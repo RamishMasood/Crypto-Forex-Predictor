@@ -688,7 +688,7 @@ class MT5TradeExecutor:
         Finds open Quant Terminal child orders (magic == 999888).
 
         Modes supported:
-        - 'tight': Immediate Breakeven Lock at TP1 (0.38 ATR). Snaps SL to entry immediately.
+        - 'tight': Immediate Breakeven Lock at TP1 (0.55 ATR). Snaps SL to entry immediately.
         - 'loose': 2-Stage Runner Breathing Room.
             Stage 1 (TP1 hit): Moves SL to soft risk-reduction buffer (0.45 ATR cushion below entry)
                                so retest pullbacks don't choke the trade.
@@ -848,7 +848,7 @@ class MT5TradeExecutor:
                     target_soft_sl = round(open_p + be_cushion, 5)
 
             # If this batch has multiple tickets (TP1 scalp + runners), NEVER move TP1's own SL to breakeven!
-            # TP1 exists to bank the initial 0.38 ATR scalp profit; moving its SL to entry suffocates it before banking profit.
+            # TP1 exists to bank the initial 0.55 ATR scalp profit; moving its SL to entry suffocates it before banking profit.
             b_tkts = b_info.get('tickets', [])
             try:
                 tp1_ticket_id = int(b_tkts[0]) if b_tkts else None
@@ -1013,7 +1013,7 @@ class MT5TradeExecutor:
                             })
             else:
                 # ── 4. TIGHT BREAKEVEN MODE / SMC PARTIAL BE ────────────────────────
-                # Precision Invariant (Rule #2): TP1 (0.38 ATR) locks initial scalp profit & triggers Auto-Breakeven.
+                # Precision Invariant (Rule #2): TP1 (0.55 ATR) locks initial scalp profit & triggers Auto-Breakeven.
                 # Once TP1 is banked in profit (batch_tp1_hit), remaining runner positions (TP2/TP3) are moved to Breakeven.
                 profit_dist = (curr_p - open_p) if pos_type == 'BUY' else (open_p - curr_p)
                 if len(b_tkts) > 1:

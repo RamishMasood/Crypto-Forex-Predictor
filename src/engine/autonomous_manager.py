@@ -139,7 +139,7 @@ class AutonomousTraderEngine:
             "batch_lot_size": 0.03,             # Customizable batch lot size (e.g. 0.03 -> 0.01, 0.01, 0.01)
             "allow_same_tf_trades": True,       # Customizable switch: Allow multiple trades on same timeframe
             "allow_diff_strat_same_tf": False,  # Allow multi-trades on same TF ONLY from DIFFERENT strategies (same strategy cannot duplicate)
-            "breakeven_mode": "tight",          # "tight" (immediate 0.38 ATR lock) | "loose" (2-stage runner breathing room)
+            "breakeven_mode": "tight",          # "tight" (immediate 0.55 ATR lock) | "loose" (2-stage runner breathing room)
             "active_sessions": ["London Session", "New York Session"], # Allowed trading sessions
             "htf_filter_enabled": True,         # Higher Timeframe Trend Confluence filter
             "recommended_mode": False,          # Institutional Recommended Auto-Pilot (per-pair backtested optimum)
@@ -1238,7 +1238,7 @@ class AutonomousTraderEngine:
             # Multi-Timeframe Horizon Adaptation:
             # Scalp timeframes (1m, 3m, 5m, 15m) evaluate real-time order flow and broker volume.
             # Weekly macro COT lag (3-7 days old) acts as a macro boost when aligned, and permits
-            # intraday scalps with forced TP1 (0.38*ATR) scalp bank & Auto-BE rather than an inappropriate binary block.
+            # intraday scalps with forced TP1 (0.55*ATR) scalp bank & Auto-BE rather than an inappropriate binary block.
             # Macro timeframes (30m, 1h, 4h, 1d) strictly enforce weekly COT as a macro institutional gatekeeper.
             tf = pred_res.get('metadata', {}).get('timeframe') or pred_res.get('timeframe') or '1h'
             is_scalp_tf = str(tf).lower() in ['1m', '3m', '5m', '15m']
@@ -1259,7 +1259,7 @@ class AutonomousTraderEngine:
                         # Enforce TP1 scalp bank & Auto-BE in trade execution.
                         p5_ok = True
                         p5_status = f"INTRADAY SCALP CONFIRMED ({str(tf).upper()} HORIZON)"
-                        p5_desc = f"Intraday scalp approved on {tf}. Weekly COT opposes ({cot_bias}), strictly enforce TP1 (0.38*ATR) scalp bank & Auto-BE."
+                        p5_desc = f"Intraday scalp approved on {tf}. Weekly COT opposes ({cot_bias}), strictly enforce TP1 (0.55*ATR) scalp bank & Auto-BE."
                         p5_badge = "INTRADAY SCALP"
                         p5_col = "#eab308"
                     else:
@@ -1279,7 +1279,7 @@ class AutonomousTraderEngine:
                         # COT opposes but scalp is still approved — Pillar 5 passes (with caution label).
                         p5_ok = True
                         p5_status = f"INTRADAY SCALP CONFIRMED ({str(tf).upper()} HORIZON)"
-                        p5_desc = f"Intraday scalp approved on {tf}. Weekly COT opposes ({cot_bias}), strictly enforce TP1 (0.38*ATR) scalp bank & Auto-BE."
+                        p5_desc = f"Intraday scalp approved on {tf}. Weekly COT opposes ({cot_bias}), strictly enforce TP1 (0.55*ATR) scalp bank & Auto-BE."
                         p5_badge = "INTRADAY SCALP"
                         p5_col = "#eab308"
                     else:

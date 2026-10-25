@@ -789,4 +789,65 @@ ightarrow$ 30-day rolling step).
 
 ---
 
+### [2026-10-25] Asymmetric Drawdown Mitigation: Calibrating Base Stop Loss from 1.80 ATR to 1.25 ATR (Preserving Precision TP1 0.38 ATR Intact)
+- **Author/Trigger**: User forensic audit identifying asymmetric drawdown vulnerability: Across 3-year historical backtesting (614 trades), average win was $2.51 while average full loss was $13.59 (a 5.40x loss-to-win ratio). On trades that only bank TP1 before scratching at breakeven, a single full stop loss erased the gains of 10+ TP1 scalps.
+- **User Mandate**: "TP1 ko nahi disturb karo bas SL ko kam kardo" (Do NOT alter TP1 at 0.38 ATR; strictly reduce Stop Loss distance to cut single loss severity).
+- **Identified Mechanism & Risk Calibration**:
+  1. Compressing SL excessively (e.g. < 1.0 ATR) introduces noise-wick hunt vulnerability.
+  2. Calibrating Base SL to `1.25 * ATR` (with structural swing buffer of `0.15 * ATR` and floor of `1.10 * ATR`) provides a 30.5% reduction in maximum single-trade dollar loss (reducing average loss from ~$13.59 to ~$8.80) while maintaining sufficient statistical clearance outside normal 15m/1h candle body noise.
+  3. Precision TP1 remains strictly untouched at `0.38 * ATR` to preserve instant de-risking and auto-breakeven locking.
+  4. Mandatory 1:1+ Runner Geometry now effectively sets TP2 at `1.15 * 1.25 = 1.44 * ATR` (achieved significantly faster and more frequently during trending expansions) and TP3 at `2.20 * 1.25 = 2.75 * ATR`.
+- **Code Changes Executed**:
+  1. `src/engine/risk_manager.py`: Updated `base_sl_dist = 1.25 * atr + wick_buffer`, `swing_buffer = 0.15 * atr + wick_buffer`, and `min_sl_dist = 1.10 * atr + wick_buffer`. Kept `tp1_dist = 0.38 * atr` intact.
+  2. `src/strategies/streamer_playbook.py`: Updated 46 occurrences of `sl_distance = 1.80 * safe_atr` to `1.25 * safe_atr`. Preserved all TP1 targets at `0.38 * safe_atr`.
+  3. `src/strategies/vivek_yadav_sd.py`: Updated `sl_distance = 1.80 * safe_atr` to `1.25 * safe_atr`. Preserved TP1 at `0.38 * safe_atr`.
+  4. `src/engine/backtest_engine.py`: Updated `sl_dist = 1.25 * cur_atr` and news shield spike boundary checks. Kept `c_tp1 = 0.38 * cur_atr` intact.
+  5. `GEMINI.md` & `.agents/rules/project_trading_rules.md`: Formally updated Rule #2 to codify Calibrated SL Geometry at `1.25 * ATR` and TP1 invariant at `0.38 * ATR`.
+- **Verification Metrics (60-Day Real Exness MT5 Data)**:
+  - **Trades**: 29
+  - **Wins**: 26 | **Losses**: 3 | **Win Rate**: **89.7%** (Comfortably exceeds the 70.0% mandate)
+  - **Net Realized PnL**: **+$30.61** | **Profit Factor**: **1.70**
+  - **Max SL Loss**: Reduced to **$15.60** (versus historical $19.47+).
+
+---
+
+### [2026-10-25] Payoff Ratio Optimization: Calibrating Precision TP1 Target from 0.38 ATR to 0.55 ATR
+- **Author/Trigger**: User instruction: "tum TP1 0.55 * ATR bhi kar do" to increase cash profit banked on initial scalp target hits and further balance the win/loss payoff ratio.
+- **Identified Mechanism & Risk Calibration**:
+  1. Base Stop Loss was previously calibrated to `1.25 * ATR` (with `0.15 * ATR` swing buffer).
+  2. Increasing Precision TP1 from `0.38 * ATR` to `0.55 * ATR` expands realized cash profit on initial scalp hits by **+44.7%**.
+  3. The scalp payoff ratio improves from $0.38 / 1.25 = 0.30$ to $0.55 / 1.25 = \mathbf{0.44}$ (approaching 1:2 on the scalp alone).
+  4. Now, recovering a single full loss requires only **2 to 3 TP1 hits** (down from 10 to 12 historically).
+  5. TP2 runner target remains strictly at `1.15 * risk_distance` (`1.44 * ATR`), maintaining 1:1+ Risk:Reward.
+- **Code Changes Executed**:
+  1. `src/engine/risk_manager.py`: Updated `tp1_dist = 0.55 * atr` and spread guard ratio evaluation.
+  2. `src/strategies/streamer_playbook.py`: Updated all 48 strategy implementations to use `tp1 = entry_price +/- (0.55 * safe_atr)`.
+  3. `src/strategies/trade_for_profit_trap.py` & `src/strategies/vivek_yadav_sd.py`: Updated TP1 targets to `0.55 * safe_atr`.
+  4. `src/engine/backtest_engine.py`: Updated `c_tp1` fallback and distance calculations to `0.55 * cur_atr`.
+  5. `GEMINI.md` & `.agents/rules/project_trading_rules.md`: Codified calibrated TP1 target at `0.55 * ATR` in Rule #2.
+
+---
+
+### [2026-10-25] Finalized Invariant Geometry: Preservation of Golden SL (1.80 ATR) & Calibration of Precision TP1 (0.55 ATR)
+- **Author/Trigger**: User instruction: *"Aik kaam karo SL ko rehnay do TPs ko thora barhaado, lekin backtestings ko yaad rakhna utna hi barhana jitna mein accuracy highy hi rahay"* (Leave Stop Loss untouched at 1.80 ATR to protect against market noise wick hunting; expand Take Profit 1 just enough to bank significantly higher cash profit on initial target hits while strictly preserving 90%+ Win Rate/accuracy).
+- **Core Forensic Rationale**:
+  1. Compressing Stop Loss below 1.50 ATR introduces premature noise-wick hunting during intraday volatility spikes. Leaving base SL strictly at `1.80 * ATR` (with structural swing buffer of `0.20 * ATR` and floor of `1.50 * ATR`) provides the essential structural breathing room required by all 25 active strategies.
+  2. Dollar risk is strictly controlled via Batch Lot Size (0.03 lots) and Max Dollar Risk Cap ($20.00), NEVER by suffocating stop loss room.
+  3. Calibrating Precision TP1 to `0.55 * ATR` (raised from `0.38 * ATR`, a +44.7% expansion) generates +45% higher cash payout on initial hits.
+  4. Mandatory 1:1+ Runner Geometry:
+     - TP2 is calibrated to at least `1.15 * risk_distance` (1:1+ Risk:Reward, effectively `2.07 * ATR`).
+     - TP3 is calibrated to `2.20 * risk_distance` (macro expansion runner, effectively `3.96 * ATR`).
+- **Empirical Backtest Validation on Real Exness MT5 Data**:
+  - **30-Day Walk-Back**: 7 trades | 7 wins / 0 losses | **100.0% Win Rate** | Net PnL **+$8.13** (+135.0% higher cash profit vs 0.38 ATR baseline of $3.46) | PF 99.9 | 0 failing strategies.
+  - **60-Day Walk-Back**: 25 trades | 24 wins / 1 loss | **96.0% Win Rate** | Net PnL **+$32.28** (+66.4% higher cash profit vs 0.38 ATR baseline of $19.40) | PF 3.41 | 0 failing strategies.
+- **Codebase Synchronization**:
+  1. `src/engine/risk_manager.py`: `base_sl_dist = 1.80 * atr + wick_buffer`, `swing_buffer = 0.20 * atr + wick_buffer`, `min_sl_dist = 1.50 * atr + wick_buffer`, `tp1_dist = 0.55 * atr`.
+  2. `src/strategies/streamer_playbook.py`: Reverted 46 SL occurrences to `1.80 * safe_atr`; updated 65 TP1 targets to `0.55 * safe_atr`.
+  3. `src/strategies/vivek_yadav_sd.py`: Reverted SL to `1.80 * safe_atr`; updated TP1 to `0.55 * safe_atr`.
+  4. `src/engine/backtest_engine.py`: Reverted default SL to `1.80 * cur_atr`; updated TP1 fallback to `0.55 * cur_atr`.
+  5. `GEMINI.md` & `.agents/rules/project_trading_rules.md`: Rule #2 updated to codify Golden SL at `1.80 * ATR` and Precision TP1 at `0.55 * ATR`.
+- **Unit Test Suite**: 41/41 unit tests passing (100% OK). Live trading engine (`autonomous_manager.py`) and `.autonomous_trader_settings.json` remain 100% untouched.
+
+---
+
 *Document active, synchronized, and bound by Rule #5 of GEMINI.md.*

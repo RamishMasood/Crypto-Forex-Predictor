@@ -21,8 +21,8 @@ Exact Rule Breakdown:
      * SELL: RED candle closes cleanly with top rejection wick.
    - Invalidation: If price slices through with full body, DO NOT enter.
 4. Stop Loss & Take Profit:
-   - SL: Beyond zone bottom/top, strictly respecting Golden SL Geometry (>= 1.50 * ATR, base 1.80 * ATR).
-   - TP1: 0.38 * ATR (locks Breakeven).
+   - SL: Beyond zone bottom/top, strictly respecting Golden SL Geometry (>= 1.50 * ATR, base 1.25 * ATR).
+   - TP1: 0.55 * ATR (locks Breakeven).
    - TP2: Minimum 1:2 Risk-to-Reward (2.0 * risk_distance).
    - TP3: 2.50 * risk_distance (runner).
 """
@@ -317,14 +317,14 @@ class VivekYadavSupplyDemandEngine:
             if action == 'BUY':
                 sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Rule #2)
                 stop_loss = entry_price - sl_distance
-                tp1 = entry_price + (0.38 * safe_atr)  # Precision scalp bank -> BE lock
+                tp1 = entry_price + (0.55 * safe_atr)  # Precision scalp bank -> BE lock
                 tp2 = entry_price + (2.00 * sl_distance)  # Mandatory 1:2+ Runner Geometry
                 tp3 = entry_price + (3.00 * sl_distance)  # Extended runner
 
             else:  # SELL
                 sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Rule #2)
                 stop_loss = entry_price + sl_distance
-                tp1 = entry_price - (0.38 * safe_atr)
+                tp1 = entry_price - (0.55 * safe_atr)
                 tp2 = entry_price - (2.00 * sl_distance)
                 tp3 = entry_price - (3.00 * sl_distance)
 

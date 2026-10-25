@@ -18,7 +18,7 @@ Core Philosophy:
    Entry on retest of the sweep wick equilibrium (50%) or displacement FVG.
    Stop Loss strictly anchored past the sweep extreme, adhering to Golden SL Geometry
    (base 1.80 * ATR, never < 1.50 * ATR).
-   Take Profit 1 at 0.38 * ATR (locks Breakeven), TP2 at 1.15+ R:R (opposite liquidity pool),
+   Take Profit 1 at 0.55 * ATR (locks Breakeven), TP2 at 1.15+ R:R (opposite liquidity pool),
    TP3 at 2.20 R:R (macro runner).
 """
 
@@ -427,8 +427,8 @@ class TradeForProfitEngine:
                 sl_distance = max(entry_price - raw_sl, min_sl_dist)
                 stop_loss = entry_price - sl_distance
 
-                # Precision TP1 Scalp Bank: 0.38 * ATR (immediately triggers Auto-Breakeven)
-                tp1 = entry_price + (0.38 * safe_atr)
+                # Precision TP1 Scalp Bank: 0.55 * ATR (immediately triggers Auto-Breakeven)
+                tp1 = entry_price + (0.55 * safe_atr)
 
                 # Mandatory 1:1+ Runner Geometry:
                 # TP2 >= 1.15 * risk_distance (targeting opposite upper liquidity pool)
@@ -449,8 +449,8 @@ class TradeForProfitEngine:
                 sl_distance = max(raw_sl - entry_price, min_sl_dist)
                 stop_loss = entry_price + sl_distance
 
-                # Precision TP1 Scalp Bank: 0.38 * ATR
-                tp1 = entry_price - (0.38 * safe_atr)
+                # Precision TP1 Scalp Bank: 0.55 * ATR
+                tp1 = entry_price - (0.55 * safe_atr)
 
                 # Mandatory 1:1+ Runner Geometry: TP2 >= 1.15 * risk_distance
                 min_tp2_dist = 1.15 * sl_distance

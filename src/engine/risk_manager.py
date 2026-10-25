@@ -17,7 +17,7 @@ class RiskManager:
         Spread-Adaptive Minimum SL & Target Filter:
         On micro/scalp timeframes (1m/3m/5m), broker spread must not exceed 18% of the TP1 scalp target.
         """
-        tp1_dist = 0.38 * atr
+        tp1_dist = 0.55 * atr
         ratio = (spread_price / tp1_dist) if tp1_dist > 0 else 0.0
         is_micro = str(timeframe).lower() in ['1m', '3m', '5m']
         allowed_cap = max_ratio if is_micro else 0.30
@@ -100,8 +100,8 @@ class RiskManager:
         # Entry Price determination (current price or optimal pullback)
         entry_price = current_price
 
-        # 1. Precision TP1 Target: Kept at 0.38 * atr so quick scalp target is locked in
-        tp1_dist = 0.38 * atr
+        # 1. Precision TP1 Target: Calibrated to 0.55 * atr so quick scalp target is locked in
+        tp1_dist = 0.55 * atr
 
         # Spread-Adaptive Target Guard:
         # If broker spread eats > 25% of the scalp target on 1m/3m, reject setup immediately
@@ -149,6 +149,7 @@ class RiskManager:
         # buffer provides breathing room and requires candle close confirmation.
         is_micro_tf = str(timeframe).lower() in ['1m', '3m']
         wick_buffer = (0.30 * atr) if (is_micro_tf and enable_wick_buffer) else 0.0
+        # Golden SL Geometry: 1.80 * ATR breathing room protected against market noise wicks
         base_sl_dist = 1.80 * atr + wick_buffer
         swing_buffer = 0.20 * atr + wick_buffer
 
@@ -163,7 +164,7 @@ class RiskManager:
 
             risk_per_unit = max(entry_price - stop_loss, entry_price * 0.001)
 
-            # TP1: High-probability instant scalp bank (0.38 ATR)
+            # TP1: High-probability instant scalp bank (0.55 ATR)
             tp1 = entry_price + tp1_dist
             # TP2: Structural runner with at least 1:1+ Risk-to-Reward (1.15R)
             tp2 = entry_price + (1.15 * risk_per_unit)
@@ -185,7 +186,7 @@ class RiskManager:
 
             risk_per_unit = max(stop_loss - entry_price, entry_price * 0.001)
 
-            # TP1: High-probability instant scalp bank (0.38 ATR)
+            # TP1: High-probability instant scalp bank (0.55 ATR)
             tp1 = max(entry_price * 0.001, entry_price - tp1_dist)
             # TP2: Structural runner with at least 1:1+ Risk-to-Reward (1.15R)
             tp2 = max(entry_price * 0.001, entry_price - (1.15 * risk_per_unit))
@@ -201,7 +202,7 @@ class RiskManager:
         position_size_usd = units * entry_price
 
         # Half-Kelly sizing: f = (p * b - q) / b
-        # Realistic dynamic payoff ratio b: weighted average of TP1 scalp (0.38 ATR / risk)
+        # Realistic dynamic payoff ratio b: weighted average of TP1 scalp (0.55 ATR / risk)
         # and TP2/TP3 runners (1.15R / 2.20R), reflecting actual trade geometry (~0.85R - 1.15R)
         r1 = (tp1_dist / risk_per_unit) if risk_per_unit > 0 else 0.25
         r2 = 1.15
@@ -228,7 +229,7 @@ class RiskManager:
             'invalidation_level': round(invalidation_level, 5),
             'sl_distance_pct': round((abs(entry_price - stop_loss) / entry_price) * 100.0, 2),
             'tp1': round(tp1, 5),
-            'tp1_type': 'PRECISION_SCALP_SECURE (0.38 ATR)',
+            'tp1_type': 'PRECISION_SCALP_SECURE (0.55 ATR)',
             'tp1_gain_pct': round((abs(tp1 - entry_price) / entry_price) * 100.0, 2),
             'tp2': round(tp2, 5),
             'tp2_type': 'STRUCTURAL_TREND_RUNNER (1.15R - 1:1+ R:R)',
@@ -240,7 +241,7 @@ class RiskManager:
             'soft_breakeven_sl': round(soft_breakeven_sl, 5),
             'loose_be_trigger': round(loose_be_trigger, 5),
             'loose_be_trigger_dist': round(0.85 * atr, 5),
-            'breakeven_rule': 'TIGHT: IMMEDIATE_AT_TP1 (0.38 ATR) | LOOSE: 2-STAGE (SOFT BUFFER @ TP1, HARD BE @ 0.85 ATR)',
+            'breakeven_rule': 'TIGHT: IMMEDIATE_AT_TP1 (0.55 ATR) | LOOSE: 2-STAGE (SOFT BUFFER @ TP1, HARD BE @ 0.85 ATR)',
             'risk_reward_ratio': '1 : 1.50 (Target TP2)',
             'risk_amount_usd': round(risk_capital_usd, 2),
             'suggested_position_usd': round(position_size_usd, 2),

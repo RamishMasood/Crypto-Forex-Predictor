@@ -402,7 +402,7 @@ class BerndSkorupinskiStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif is_premium and trend_allows_sell and ('BULLISH' not in cot_bias) and is_supply_tap and is_supply_reject and (35.0 <= rsi_val <= 62.0):
@@ -414,7 +414,7 @@ class BerndSkorupinskiStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -621,7 +621,7 @@ class ICTStrategy:
         bull_structure_ok = (current_price >= sma_200) and (ema_50 > sma_200) and slope_up and (ema_20 > ema_50) and ((ema_20 - ema_50) >= 0.15 * safe_atr) and (ema_20 > ema_20_prev)
         bear_structure_ok = (current_price <= sma_200) and (ema_50 < sma_200) and slope_down and (ema_20 < ema_50) and ((ema_50 - ema_20) >= 0.15 * safe_atr) and (ema_20 < ema_20_prev)
 
-        if bull_sweep and in_killzone and bull_structure_ok and (closes[-1] > opens[-1]) and (has_bull_fvg or cand_body >= 0.42 * safe_atr) and (cand_body >= 0.38 * safe_atr) and (cand_body >= 0.45 * cand_rng) and (0.40 * safe_atr <= cand_rng <= 2.20 * safe_atr) and (42.0 <= rsi_val <= 65.0) and (adx_val >= 24.0) and (plus_di > minus_di + 2.0):
+        if bull_sweep and in_killzone and bull_structure_ok and (closes[-1] > opens[-1]) and (has_bull_fvg or cand_body >= 0.42 * safe_atr) and (cand_body >= 0.55 * safe_atr) and (cand_body >= 0.45 * cand_rng) and (0.40 * safe_atr <= cand_rng <= 2.20 * safe_atr) and (42.0 <= rsi_val <= 65.0) and (adx_val >= 24.0) and (plus_di > minus_di + 2.0):
             action = 'BUY'
             status = 'ICT_BULLISH_MSS_ENTRY'
             confidence = 88.0
@@ -630,11 +630,11 @@ class ICTStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Invariant Rule #2)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)
 
-        elif bear_sweep and in_killzone and bear_structure_ok and (closes[-1] < opens[-1]) and (has_bear_fvg or cand_body >= 0.42 * safe_atr) and (cand_body >= 0.38 * safe_atr) and (cand_body >= 0.45 * cand_rng) and (0.40 * safe_atr <= cand_rng <= 2.20 * safe_atr) and (35.0 <= rsi_val <= 58.0) and (adx_val >= 24.0) and (minus_di > plus_di + 2.0):
+        elif bear_sweep and in_killzone and bear_structure_ok and (closes[-1] < opens[-1]) and (has_bear_fvg or cand_body >= 0.42 * safe_atr) and (cand_body >= 0.55 * safe_atr) and (cand_body >= 0.45 * cand_rng) and (0.40 * safe_atr <= cand_rng <= 2.20 * safe_atr) and (35.0 <= rsi_val <= 58.0) and (adx_val >= 24.0) and (minus_di > plus_di + 2.0):
             action = 'SELL'
             status = 'ICT_BEARISH_MSS_ENTRY'
             confidence = 88.0
@@ -643,7 +643,7 @@ class ICTStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Invariant Rule #2)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -807,7 +807,7 @@ class StevenHartStrategy:
             entry_price = current_price
             sl_distance = max(entry_price - (last_l - 0.20 * safe_atr), 1.80 * safe_atr)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif is_short_retest:
@@ -819,7 +819,7 @@ class StevenHartStrategy:
             entry_price = current_price
             sl_distance = max((last_h + 0.20 * safe_atr) - entry_price, 1.80 * safe_atr)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -966,7 +966,7 @@ class RaynerTeoStrategy:
         # Rayner Teo Rule #1: Trade strictly in the direction of the 200 SMA baseline with non-falling slope and calibrated ADX
         min_adx_rayner = 28.0 if is_crypto else 26.0
         min_fanning = 0.22 * safe_atr
-        min_body_rayner = 0.38 * safe_atr
+        min_body_rayner = 0.55 * safe_atr
         min_wick_ratio = 0.38
 
         is_uptrend = (current_price > sma_200) and (ema_20 > ema_50) and (ema_50 > sma_200) and ((ema_20 - ema_50) >= min_fanning) and (ema_20 >= ema_20_prev * 0.9999) and slope_up_200 and (min_adx_rayner <= adx_val <= 48.0) and (plus_di > minus_di + 3.0)
@@ -1003,7 +1003,7 @@ class RaynerTeoStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
@@ -1016,7 +1016,7 @@ class RaynerTeoStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -1207,7 +1207,7 @@ class CryptoCredStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)
 
@@ -1223,7 +1223,7 @@ class CryptoCredStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -1409,7 +1409,7 @@ class NdemazeahGodloveStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Invariant Rule #2)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
@@ -1423,7 +1423,7 @@ class NdemazeahGodloveStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Invariant Rule #2)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -1561,7 +1561,7 @@ class RossCameronStrategy:
         reasons = []
 
         # Warrior Trading Bull Momentum Long (Strictly Long-Only)
-        if (current_price > sma_200) and slope_up and (current_price >= vwap) and (current_price >= ema_9) and (ema_9 > ema_20) and ema_fanning and (current_price > curr_open) and (cand_body >= 0.38 * safe_atr) and (upper_wick <= 0.28) and (close_pos >= 0.65) and (48.0 <= rsi_val <= 66.0) and (adx_val >= 34.0) and (plus_di > minus_di + 2.0) and (cand_rng <= 2.20 * safe_atr) and vol_surge:
+        if (current_price > sma_200) and slope_up and (current_price >= vwap) and (current_price >= ema_9) and (ema_9 > ema_20) and ema_fanning and (current_price > curr_open) and (cand_body >= 0.55 * safe_atr) and (upper_wick <= 0.28) and (close_pos >= 0.65) and (48.0 <= rsi_val <= 66.0) and (adx_val >= 34.0) and (plus_di > minus_di + 2.0) and (cand_rng <= 2.20 * safe_atr) and vol_surge:
             action = 'BUY'
             status = 'WARRIOR_MOMENTUM_BUY'
             confidence = 90.0
@@ -1570,7 +1570,7 @@ class RossCameronStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         else:
@@ -1773,7 +1773,7 @@ class AdamKhooStrategy:
         confidence = 50.0
         reasons = []
 
-        if bounce_20_ema_long and bullish_bounce and (0.38 * safe_atr <= cand_rng <= 2.20 * safe_atr) and (46.0 <= rsi_val <= 66.0) and vol_ok:
+        if bounce_20_ema_long and bullish_bounce and (0.55 * safe_atr <= cand_rng <= 2.20 * safe_atr) and (46.0 <= rsi_val <= 66.0) and vol_ok:
             action = 'BUY'
             status = 'ADAM_KHOO_20_EMA_BOUNCE_BUY'
             confidence = 89.0
@@ -1782,10 +1782,10 @@ class AdamKhooStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
-        elif (not is_metals) and bounce_20_ema_short and bearish_bounce and (0.38 * safe_atr <= cand_rng <= 2.20 * safe_atr) and (34.0 <= rsi_val <= 54.0) and vol_ok:
+        elif (not is_metals) and bounce_20_ema_short and bearish_bounce and (0.55 * safe_atr <= cand_rng <= 2.20 * safe_atr) and (34.0 <= rsi_val <= 54.0) and vol_ok:
             action = 'SELL'
             status = 'ADAM_KHOO_20_EMA_BOUNCE_SELL'
             confidence = 89.0
@@ -1794,7 +1794,7 @@ class AdamKhooStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price - (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price - (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price - (2.20 * sl_distance)   # Macro expansion runner
         else:
@@ -1982,7 +1982,7 @@ class ArielZwecherStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
@@ -1995,7 +1995,7 @@ class ArielZwecherStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -2194,7 +2194,7 @@ class OliverVelezStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
@@ -2208,7 +2208,7 @@ class OliverVelezStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -2412,7 +2412,7 @@ class TradeProStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
 
@@ -2426,7 +2426,7 @@ class TradeProStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -2625,7 +2625,7 @@ class KristjanQullamaggieStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         else:
@@ -2826,14 +2826,14 @@ class GCRStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif action == 'SELL':
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -3000,12 +3000,12 @@ class WaqarZakaStrategy:
         bull_div_or_trend = (current_price > sma_200) and (ema_20 >= ema_50) and slope_up
         bear_div_or_trend = (current_price < sma_200) and (ema_20 <= ema_50) and slope_down
 
-        swept_low = (curr_low <= swing_low_curr) and (curr_close >= swing_low_curr) and (curr_close > curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.38 * safe_atr) and (lower_wick >= 0.25 * cand_rng) and ((curr_close - curr_low) / cand_rng >= 0.60) and (32.0 <= rsi_val <= 52.0)
-        prev_swept_low = (prev_low <= swing_low_prev) and (curr_close >= swing_low_prev) and (curr_close > curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.38 * safe_atr) and (lower_wick >= 0.22 * cand_rng) and ((curr_close - curr_low) / cand_rng >= 0.60) and (32.0 <= rsi_val <= 52.0) and (prev_lower_wick >= 0.45 * prev_rng)
+        swept_low = (curr_low <= swing_low_curr) and (curr_close >= swing_low_curr) and (curr_close > curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.55 * safe_atr) and (lower_wick >= 0.25 * cand_rng) and ((curr_close - curr_low) / cand_rng >= 0.60) and (32.0 <= rsi_val <= 52.0)
+        prev_swept_low = (prev_low <= swing_low_prev) and (curr_close >= swing_low_prev) and (curr_close > curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.55 * safe_atr) and (lower_wick >= 0.22 * cand_rng) and ((curr_close - curr_low) / cand_rng >= 0.60) and (32.0 <= rsi_val <= 52.0) and (prev_lower_wick >= 0.45 * prev_rng)
         bullish_sweep_reclaim = (swept_low or prev_swept_low) and is_active_session and vol_absorb and bull_div_or_trend
 
-        swept_high = (curr_high >= swing_high_curr) and (curr_close <= swing_high_curr) and (curr_close < curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.38 * safe_atr) and (upper_wick >= 0.25 * cand_rng) and ((curr_high - curr_close) / cand_rng >= 0.60) and (48.0 <= rsi_val <= 68.0)
-        prev_swept_high = (prev_high >= swing_high_prev) and (curr_close <= swing_high_prev) and (curr_close < curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.38 * safe_atr) and (upper_wick >= 0.22 * cand_rng) and ((curr_high - curr_close) / cand_rng >= 0.60) and (48.0 <= rsi_val <= 68.0) and (prev_upper_wick >= 0.45 * prev_rng)
+        swept_high = (curr_high >= swing_high_curr) and (curr_close <= swing_high_curr) and (curr_close < curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.55 * safe_atr) and (upper_wick >= 0.25 * cand_rng) and ((curr_high - curr_close) / cand_rng >= 0.60) and (48.0 <= rsi_val <= 68.0)
+        prev_swept_high = (prev_high >= swing_high_prev) and (curr_close <= swing_high_prev) and (curr_close < curr_open) and (cand_rng >= 0.40 * safe_atr) and (cand_body >= 0.55 * safe_atr) and (upper_wick >= 0.22 * cand_rng) and ((curr_high - curr_close) / cand_rng >= 0.60) and (48.0 <= rsi_val <= 68.0) and (prev_upper_wick >= 0.45 * prev_rng)
         bearish_sweep_reclaim = (swept_high or prev_swept_high) and is_active_session and vol_absorb and bear_div_or_trend
 
         action = 'HOLD'
@@ -3040,14 +3040,14 @@ class WaqarZakaStrategy:
             entry_price = current_price
             sl_distance = max(entry_price - (sweep_low_bound - 0.20 * safe_atr), 1.80 * safe_atr)  # Golden SL + Sweep Low Buffer
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif action == 'SELL':
             entry_price = current_price
             sl_distance = max((sweep_high_bound + 0.20 * safe_atr) - entry_price, 1.80 * safe_atr)  # Golden SL + Sweep High Buffer
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -3213,12 +3213,12 @@ class WaqarAsimStrategy:
 
         # Bullish Inducement + BOS in Discount (Strict Green Close with Rejection):
         has_bullish_inducement = (float(lows.iloc[-1]) <= minor_low or float(lows.iloc[-2]) <= minor_low) and (current_price >= minor_low)
-        has_bullish_confirm = (closes.iloc[-1] > df['open'].iloc[-1]) and (lower_wick >= min_wick or cand_body >= 0.50 * cand_rng) and (cand_body >= min_body) and (cand_rng >= 0.38 * safe_atr)
+        has_bullish_confirm = (closes.iloc[-1] > df['open'].iloc[-1]) and (lower_wick >= min_wick or cand_body >= 0.50 * cand_rng) and (cand_body >= min_body) and (cand_rng >= 0.55 * safe_atr)
         bullish_setup = is_active_session and is_discount and trend_up and has_bullish_inducement and has_bullish_confirm and (42.0 <= rsi_val <= 64.0)
 
         # Bearish Inducement + BOS in Premium (Strict Red Close with Rejection):
         has_bearish_inducement = (float(highs.iloc[-1]) >= minor_high or float(highs.iloc[-2]) >= minor_high) and (current_price <= minor_high)
-        has_bearish_confirm = (closes.iloc[-1] < df['open'].iloc[-1]) and (upper_wick >= min_wick or cand_body >= 0.50 * cand_rng) and (cand_body >= min_body) and (cand_rng >= 0.38 * safe_atr)
+        has_bearish_confirm = (closes.iloc[-1] < df['open'].iloc[-1]) and (upper_wick >= min_wick or cand_body >= 0.50 * cand_rng) and (cand_body >= min_body) and (cand_rng >= 0.55 * safe_atr)
         bearish_setup = is_active_session and is_premium and trend_down and has_bearish_inducement and has_bearish_confirm and (36.0 <= rsi_val <= 58.0)
 
         action = 'HOLD'
@@ -3252,13 +3252,13 @@ class WaqarAsimStrategy:
         if action == 'BUY':
             entry_price = current_price
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif action == 'SELL':
             entry_price = current_price
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -3473,11 +3473,11 @@ class EugeneNgAhSioStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         # Relative Weakness Laggard (Forex Only Hedge Leg; Never short Crypto into secular bull regime):
-        elif not is_crypto and current_price < sma_200 and slope_down and current_price < ema_20 and ema_20 < ema_50 and ema_fanning and di_bearish and (34.0 <= rsi_val <= 52.0) and current_price < recent_low and (current_price < curr_open and current_price <= prev_close) and (cand_body >= 0.38 * safe_atr) and (close_ratio_sell >= 0.65) and (rvol >= 1.20) and (adx_val >= req_adx):
+        elif not is_crypto and current_price < sma_200 and slope_down and current_price < ema_20 and ema_20 < ema_50 and ema_fanning and di_bearish and (34.0 <= rsi_val <= 52.0) and current_price < recent_low and (current_price < curr_open and current_price <= prev_close) and (cand_body >= 0.55 * safe_atr) and (close_ratio_sell >= 0.65) and (rvol >= 1.20) and (adx_val >= req_adx):
             action = 'SELL'
             status = 'LAGGARD_HEDGE_SHORT'
             confidence = 91.0 if rvol >= 1.20 else 87.0
@@ -3487,7 +3487,7 @@ class EugeneNgAhSioStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -3689,13 +3689,13 @@ class PaulFTMOStrategy:
         if action == 'BUY':
             entry_price = current_price
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)     # Precision Scalp Bank
+            tp1 = entry_price + (0.55 * safe_atr)     # Precision Scalp Bank
             tp2 = entry_price + (1.15 * sl_distance)  # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)  # Macro expansion runner
         elif action == 'SELL':
             entry_price = current_price
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -3863,7 +3863,7 @@ class RichardDennisStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)      # Precision Scalp Bank (Rule #2)
+            tp1 = entry_price + (0.55 * safe_atr)      # Precision Scalp Bank (Rule #2)
             tp2 = entry_price + (1.15 * sl_distance)   # Mandatory 1:1+ Runner Geometry
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
         elif has_bandwidth and (not is_crypto) and (current_price <= donchian_low_20 - 0.12 * safe_atr) and (ema_20 < ema_50) and (ema_50 < sma_200) and ema_fanning and (ema_20 <= ema_20_prev) and (current_price < sma_200) and slope_down and (adx_val >= req_adx) and (38.0 <= rsi_val <= 52.0) and is_bearish_close and (cand_rng <= 2.20 * safe_atr):
@@ -3875,7 +3875,7 @@ class RichardDennisStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -4018,7 +4018,7 @@ class MarkMinerviniStrategy:
         # Minervini SEPA is strictly a Stage 2 Trend Template Bullish Model
         is_gold = any(m in sym_str for m in ['XAU', 'GOLD'])
         req_adx = 26.0 if is_gold else 20.0
-        min_body_mm = (0.38 * safe_atr) if is_gold else (0.25 * safe_atr)
+        min_body_mm = (0.55 * safe_atr) if is_gold else (0.25 * safe_atr)
         min_di_spread = 4.0 if is_gold else 2.0
         if (current_price > sma_200) and slope_up and (current_price > ema_20) and (ema_20 > sma_50) and is_vcp_contraction and (adx_val >= req_adx) and (plus_di > minus_di + min_di_spread) and (cand_rng <= 2.20 * safe_atr) and (45.0 <= rsi_val <= 68.0) and vol_surge:
             if (current_price >= pivot_high) and (current_price > curr_open) and (cand_body >= min_body_mm) and ((current_price - float(lows[-1])) >= 0.55 * cand_rng):
@@ -4031,7 +4031,7 @@ class MarkMinerviniStrategy:
                 entry_price = current_price
                 sl_distance = 1.80 * safe_atr  # Golden SL Geometry
                 stop_loss = entry_price - sl_distance
-                tp1 = entry_price + (0.38 * safe_atr)
+                tp1 = entry_price + (0.55 * safe_atr)
                 tp2 = entry_price + (1.15 * sl_distance)
                 tp3 = entry_price + (2.20 * sl_distance)
 
@@ -4203,7 +4203,7 @@ class AlBrooksStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Rule #2)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
+            tp1 = entry_price + (0.55 * safe_atr)
             tp2 = entry_price + (1.15 * sl_distance)
             tp3 = entry_price + (2.20 * sl_distance)
         elif is_bear_signal:
@@ -4216,7 +4216,7 @@ class AlBrooksStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Rule #2)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -4429,7 +4429,7 @@ class BobVolmanStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
+            tp1 = entry_price + (0.55 * safe_atr)
             tp2 = entry_price + (1.15 * sl_distance)
             tp3 = entry_price + (2.20 * sl_distance)
         elif is_bear_breakdown:
@@ -4441,7 +4441,7 @@ class BobVolmanStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -4610,7 +4610,7 @@ class TomHougaardStrategy:
         is_bear_candle = (current_price < curr_open and current_price <= prev_close and cand_body >= 0.35 * safe_atr and current_price <= ema_5)
 
         req_adx_hougaard = 26.0
-        if (current_price >= vwap + 0.15 * safe_atr) and (current_price > sma_200) and slope_up and has_ribbon_expansion_long and tested_20_ema_long and is_bull_candle and (cand_body >= 0.38 * safe_atr) and (48.0 <= rsi_val <= 66.0) and (adx_val >= req_adx_hougaard) and (p_di_val > m_di_val) and has_vol_exp:
+        if (current_price >= vwap + 0.15 * safe_atr) and (current_price > sma_200) and slope_up and has_ribbon_expansion_long and tested_20_ema_long and is_bull_candle and (cand_body >= 0.55 * safe_atr) and (48.0 <= rsi_val <= 66.0) and (adx_val >= req_adx_hougaard) and (p_di_val > m_di_val) and has_vol_exp:
             action = 'BUY'
             status = 'HOUGAARD_TREND_DAY_LONG'
             confidence = 92.0
@@ -4620,10 +4620,10 @@ class TomHougaardStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
+            tp1 = entry_price + (0.55 * safe_atr)
             tp2 = entry_price + (1.15 * sl_distance)
             tp3 = entry_price + (2.20 * sl_distance)   # Macro expansion runner
-        elif (current_price <= vwap - 0.15 * safe_atr) and (current_price < sma_200) and slope_down and has_ribbon_expansion_short and tested_20_ema_short and is_bear_candle and (cand_body >= 0.38 * safe_atr) and (34.0 <= rsi_val <= 52.0) and (adx_val >= req_adx_hougaard) and (m_di_val > p_di_val) and has_vol_exp:
+        elif (current_price <= vwap - 0.15 * safe_atr) and (current_price < sma_200) and slope_down and has_ribbon_expansion_short and tested_20_ema_short and is_bear_candle and (cand_body >= 0.55 * safe_atr) and (34.0 <= rsi_val <= 52.0) and (adx_val >= req_adx_hougaard) and (m_di_val > p_di_val) and has_vol_exp:
             action = 'SELL'
             status = 'HOUGAARD_TREND_DAY_SHORT'
             confidence = 92.0
@@ -4633,7 +4633,7 @@ class TomHougaardStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -4866,7 +4866,7 @@ class LarryWilliamsStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
+            tp1 = entry_price + (0.55 * safe_atr)
             tp2 = entry_price + (1.15 * sl_distance)
             tp3 = entry_price + (2.20 * sl_distance)
         elif is_bearish_thrust:
@@ -4878,7 +4878,7 @@ class LarryWilliamsStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -5048,7 +5048,7 @@ class NicolasDarvasStrategy:
 
         is_gold = any(m in sym_str for m in ['XAU', 'GOLD'])
         req_adx = 30.0 if is_gold else 20.0
-        min_body_nd = (0.38 * safe_atr) if is_gold else (0.30 * safe_atr)
+        min_body_nd = (0.55 * safe_atr) if is_gold else (0.30 * safe_atr)
         is_bullish_box_break = (
             (current_price >= box_ceiling + 0.03 * safe_atr)
             and (current_price > curr_open)
@@ -5073,7 +5073,7 @@ class NicolasDarvasStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
+            tp1 = entry_price + (0.55 * safe_atr)
             tp2 = entry_price + (1.15 * sl_distance)
             tp3 = entry_price + (2.20 * sl_distance)
         else:
@@ -5275,7 +5275,7 @@ class TobyCrabelStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
+            tp1 = entry_price + (0.55 * safe_atr)
             tp2 = entry_price + (1.15 * sl_distance)
             tp3 = entry_price + (2.20 * sl_distance)
         elif is_bearish_expansion:
@@ -5287,7 +5287,7 @@ class TobyCrabelStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
@@ -5489,7 +5489,7 @@ class LindaRaschkeStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Rule #2)
             stop_loss = entry_price - sl_distance
-            tp1 = entry_price + (0.38 * safe_atr)
+            tp1 = entry_price + (0.55 * safe_atr)
             tp2 = entry_price + (1.15 * sl_distance)
             tp3 = entry_price + (2.20 * sl_distance)
         elif is_bearish_grail:
@@ -5501,7 +5501,7 @@ class LindaRaschkeStrategy:
             entry_price = current_price
             sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Rule #2)
             stop_loss = entry_price + sl_distance
-            tp1 = entry_price - (0.38 * safe_atr)
+            tp1 = entry_price - (0.55 * safe_atr)
             tp2 = entry_price - (1.15 * sl_distance)
             tp3 = entry_price - (2.20 * sl_distance)
         else:
