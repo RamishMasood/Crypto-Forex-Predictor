@@ -773,8 +773,29 @@ class MT5BacktestEngine:
             if not broker_sym:
                 return None, None, None
 
+            if date_from is not None and getattr(date_from, 'tzinfo', None) is None:
+                date_from = date_from.replace(tzinfo=timezone.utc)
+            if date_to is not None and getattr(date_to, 'tzinfo', None) is None:
+                date_to = date_to.replace(tzinfo=timezone.utc)
+
             tf_code = MT5_TF_LOOKUP.get(timeframe, 16385)
-            rates = mt5.copy_rates_range(broker_sym, tf_code, date_from, date_to)
+            if (date_to - date_from) > timedelta(days=90):
+                all_chunks = []
+                cur_dt = date_from
+                while cur_dt < date_to:
+                    nxt_dt = min(cur_dt + timedelta(days=90), date_to)
+                    chunk_rates = mt5.copy_rates_range(broker_sym, tf_code, cur_dt, nxt_dt)
+                    if chunk_rates is not None and len(chunk_rates) > 0:
+                        all_chunks.append(pd.DataFrame(chunk_rates))
+                    cur_dt = nxt_dt
+                if all_chunks:
+                    rates_df = pd.concat(all_chunks, ignore_index=True).drop_duplicates(subset=['time'])
+                    rates = rates_df.to_records(index=False)
+                else:
+                    rates = mt5.copy_rates_range(broker_sym, tf_code, date_from, date_to)
+            else:
+                rates = mt5.copy_rates_range(broker_sym, tf_code, date_from, date_to)
+
             if rates is None or len(rates) == 0:
                 # Fallback to copy_rates_from_pos if date range is very far back (up to max broker depth)
                 rates = mt5.copy_rates_from_pos(broker_sym, tf_code, 0, 80000)
