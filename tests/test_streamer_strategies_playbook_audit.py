@@ -178,7 +178,7 @@ class TestStreamerStrategiesPlaybookAudit(unittest.TestCase):
         
         # Test default sorting: Most Profitable (Net PnL)
         lb_profit = AutonomousTraderEngine.compute_strategy_leaderboard(fake_state, sort_by='profit')
-        self.assertEqual(len(lb_profit), 19)
+        self.assertEqual(len(lb_profit), len(list(AVAILABLE_STRATEGIES.keys())))
         self.assertEqual(lb_profit[0]['strategy_key'], 'ADAM_KHOO')
         self.assertEqual(lb_profit[0]['rank'], 1)
         self.assertEqual(lb_profit[0]['rank_display'], '🥇 1')

@@ -174,7 +174,7 @@ class TestNewEliteStrategies(unittest.TestCase):
     def test_leaderboard_contains_profiles_for_all_19_strategies(self):
         """Leaderboard computation must initialize and profile all 19 strategies."""
         lb = AutonomousTraderEngine.compute_strategy_leaderboard()
-        self.assertEqual(len(lb), 19)
+        self.assertEqual(len(lb), len(AVAILABLE_STRATEGIES.keys()))
         
         keys_in_lb = [x['strategy_key'] for x in lb]
         for s in ['KRISTJAN_QULLAMAGGIE', 'GCR', 'WAQAR_ZAKA', 'WAQAR_ASIM', 'EUGENE_NG_AH_SIO', 'PAUL_FTMO']:

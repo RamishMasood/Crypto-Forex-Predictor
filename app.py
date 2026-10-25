@@ -1471,13 +1471,14 @@ def render_mt5_autonomous_engine_view(live_exec):
             )
 
         with cfg_t3:
+            current_smart_sol = bool(settings.get('smart_solution_enabled', True))
             current_be_mode = str(settings.get('breakeven_mode', 'tight')).lower().strip()
             loose_be_cfg = st.toggle(
                 "🕊️ Loose Breakeven",
                 value=(current_be_mode == 'loose'),
                 key="auto_cfg_loose_breakeven",
-                disabled=rec_toggle,
-                help="ON: Loose Breakeven Mode (2-Stage Breathing Room). (Locked to per-pair optimum when Recommended Mode is ON)."
+                disabled=(rec_toggle or current_smart_sol),
+                help="ON: Loose Breakeven Mode (0.45 ATR Cushion). OFF: Tight Breakeven Mode (0.0 Hard Lock). (Managed automatically by Smart Solution 0.25 ATR cushion when Smart Solution is active)."
             )
             be_mode_cfg = 'loose' if loose_be_cfg else 'tight'
 
@@ -1487,8 +1488,10 @@ def render_mt5_autonomous_engine_view(live_exec):
         # Informative active Breakeven mode feedback caption
         if rec_toggle:
             st.caption("🌟 **Auto-Pilot Breakeven Active**: CADJPY & XAUUSD247 run on Loose BE (runners unlocked), while ETH, Gold, BTC & EUR run on Tight BE (instant scalp lock).")
+        elif current_smart_sol:
+            st.caption("🧠 **Active Mode: SMART BREATHING ROOM (0.25 ATR Cushion)** — Managed by Smart Solution: TP1 locked at 0.38 ATR, runners breathe with 0.25 ATR cushion, and Hard BE locks upon 50% TP2 expansion.")
         elif be_mode_cfg == 'loose':
-            st.caption("🕊️ **Active Mode: LOOSE BREAKEVEN (TP2 Runner Protection)** — At TP1 hit, SL shifts to soft buffer (0.45 ATR cushion below entry) so pullbacks don't choke the trade. Full Hard Breakeven locks once price expands >= 0.85 ATR.")
+            st.caption("🕊️ **Active Mode: LOOSE BREAKEVEN (TP2 Runner Protection)** — At TP1 hit, SL shifts to soft buffer (0.45 ATR cushion below entry) so pullbacks don't choke the trade. Full Hard Breakeven locks once price expands >= 50% to TP2.")
         else:
             st.caption("🔒 **Active Mode: TIGHT BREAKEVEN (Immediate Scalp Lock)** — At TP1 hit (0.38 ATR), SL shifts immediately to Entry Price (+0.02 ATR buffer). Protects initial scalp gains, but pullbacks may exit runners at $0.00.")
 

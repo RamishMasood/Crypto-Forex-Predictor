@@ -54,11 +54,10 @@ class SessionManager:
         "BERND_SKORUPINSKI": "SESSION_INDEPENDENT",
 
         # 4. Ross Cameron (Warrior Trading)
-        # Windows: Pre-Market (7:00 AM - 9:30 AM EST / 12:00 - 14:30 UTC)
-        #          NY Open First Hour (9:30 AM - 10:30 AM EST / 14:30 - 15:30 UTC)
-        # Rule: Stops trading after 10:30 AM EST (15:30 UTC) to avoid mid-day chop.
+        # Windows: NY Open Power Hour (13:15 - 16:00 UTC / 9:15 AM - 12:00 PM EST)
+        # Rule: Focus on NY open institutional momentum & high-volume expansion.
         "ROSS_CAMERON": [
-            ((12, 0), (15, 30), "Pre-Market & NY Open Power Hour (12:00-15:30 UTC / 7:00-10:30 AM EST)")
+            ((13, 15), (16, 0), "NY Open Momentum Power Hour (13:15-16:00 UTC / 9:15 AM - 12:00 PM EST)")
         ],
 
         # 5. Ndemazeah Godlove (GU MVR Strategy)

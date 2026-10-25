@@ -65,8 +65,8 @@ class TestStreamerSessions(unittest.TestCase):
         self.assertTrue(ok)
 
     def test_ross_cameron_power_hour(self):
-        # Pre-Market & NY Open Power Hour (12:00 - 15:30 UTC / 7:00 - 10:30 AM EST) -> ALLOWED
-        dt_morning = datetime(2026, 9, 16, 13, 0, tzinfo=timezone.utc)
+        # NY Open Power Hour (13:15 - 16:00 UTC / 9:15 AM - 12:00 PM EST) -> ALLOWED
+        dt_morning = datetime(2026, 9, 16, 14, 0, tzinfo=timezone.utc)
         ok, reason = SessionManager.is_strategy_session_allowed("ROSS_CAMERON", dt_morning)
         self.assertTrue(ok)
 

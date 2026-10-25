@@ -31,6 +31,7 @@ import MetaTrader5 as mt5
 JOURNAL_FILE = os.path.join(ROOT_DIR, ".trade_learning_journal.json")
 STATE_FILE = os.path.join(ROOT_DIR, ".autonomous_trader_state.json")
 PERF_FILE = os.path.join(ROOT_DIR, ".live_strategy_performance.json")
+SETTINGS_FILE = os.path.join(ROOT_DIR, ".autonomous_trader_settings.json")
 LOG_FILE = os.path.join(ROOT_DIR, "live_monitor.log")
 
 class SafeStreamHandler(logging.StreamHandler):
@@ -74,18 +75,40 @@ class LiveTradeMonitor:
             except Exception:
                 pass
 
+    def _get_session_start_time(self) -> datetime:
+        """Determines the starting boundary for active trade monitoring: respects reset_at from autonomous state, or Monday open."""
+        now = datetime.now()
+        days_from_monday = now.weekday()
+        week_monday_start = (now - timedelta(days=days_from_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        session_start = week_monday_start
+
+        if os.path.exists(STATE_FILE):
+            try:
+                with open(STATE_FILE, "r", encoding="utf-8") as sf:
+                    st_data = json.load(sf)
+                    reset_at_str = st_data.get("reset_at")
+                    if reset_at_str:
+                        reset_dt = datetime.fromisoformat(reset_at_str)
+                        if reset_dt.tzinfo is not None:
+                            reset_dt_local = datetime.fromtimestamp(reset_dt.timestamp())
+                        else:
+                            reset_dt_local = reset_dt
+                        if reset_dt_local >= week_monday_start:
+                            session_start = reset_dt_local
+            except Exception:
+                pass
+        return session_start
+
     def run_cycle(self) -> Dict[str, Any]:
-        """Runs one inspection cycle: queries MT5 history for current trading week (Mon-Fri), detects newly closed batches, analyzes results."""
+        """Runs one inspection cycle: queries MT5 history for active autonomous session, detects newly closed batches, analyzes results."""
         if not mt5.initialize():
             logger.warning("MT5 initialize failed in monitor cycle: %s", mt5.last_error())
             return {"status": "MT5_DISCONNECTED"}
 
         try:
             now = datetime.now()
-            # Full Trading Week Execution (Monday to Friday continuous), strictly ignoring weekend (Sat/Sun) trades
-            days_from_monday = now.weekday()
-            week_monday_start = (now - timedelta(days=days_from_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
-            deals = mt5.history_deals_get(week_monday_start, now)
+            session_start_time = self._get_session_start_time()
+            deals = mt5.history_deals_get(session_start_time - timedelta(minutes=5), now)
             if deals is None:
                 return {"status": "NO_DEALS"}
 
@@ -105,8 +128,8 @@ class LiveTradeMonitor:
                 if not entry_deal:
                     continue
 
-                # Ignore positions entered before current week's Monday open
-                if entry_deal.time < week_monday_start.timestamp():
+                # Ignore positions entered before active session start (ignoring historical trades prior to autonomous restart)
+                if entry_deal.time < session_start_time.timestamp():
                     continue
 
                 # Strictly ignore weekend trades (Saturday=5, Sunday=6)
@@ -152,6 +175,9 @@ class LiveTradeMonitor:
             # Check open positions currently on terminal
             current_open_positions = mt5.positions_get()
             open_pids = set(p.ticket for p in current_open_positions) if current_open_positions else set()
+
+            # Active Auto-Breakeven Watchdog: Immediately verify and lock soft buffer / BE on open runners when TP1 was banked
+            self._watchdog_verify_auto_breakeven(batch_positions, open_pids)
 
             # Inspect closed batches
             newly_closed = []
@@ -224,7 +250,7 @@ class LiveTradeMonitor:
                             if str(cb_item.get("batch_id")) == str(bid):
                                 b_obj = cb_item
                                 break
-                    if b_obj and b_obj.get("smart_solution"):
+                    if b_obj and b_obj.get("smart_solution", True):
                         is_smart_sol = True
             except Exception:
                 pass
@@ -548,8 +574,10 @@ class LiveTradeMonitor:
             journal["lessons_learned"] = journal["lessons_learned"][:500]
 
         try:
-            with open(JOURNAL_FILE, "w", encoding="utf-8") as f:
+            tmp_journal = JOURNAL_FILE + ".tmp"
+            with open(tmp_journal, "w", encoding="utf-8") as f:
                 json.dump(journal, f, indent=2)
+            os.replace(tmp_journal, JOURNAL_FILE)
         except Exception as e:
             logger.error("Failed to write learning journal: %s", e)
 
@@ -573,6 +601,29 @@ class LiveTradeMonitor:
                     if any((d.profit + getattr(d, 'swap', 0) + getattr(d, 'commission', 0)) > 0.15 for d in out_deals):
                         tp1_hit = True
                         break
+
+                # Single-Order Failsafe: When broker lot constraint forces a single 0.01 lot order,
+                # detect when floating price achieves >= 0.38 * ATR (TP1 scalp expansion) to lock BE
+                if not tp1_hit and len(p_tuples) == 1 and open_in_batch:
+                    try:
+                        s_pid, s_dlist = open_in_batch[0]
+                        s_pos_info = mt5.positions_get(ticket=s_pid)
+                        s_entry_deal = next((d for d in s_dlist if d.entry == 0), None)
+                        if s_pos_info and s_entry_deal:
+                            s_pos = s_pos_info[0]
+                            s_cur = float(s_pos.price_current)
+                            s_ent = float(s_entry_deal.price)
+                            s_sl = float(s_pos.sl)
+                            s_buy = (s_pos.type == mt5.ORDER_TYPE_BUY)
+                            # Estimate safe ATR from initial stop distance (1.80 ATR)
+                            s_atr = abs(s_ent - s_sl) / 1.8 if s_sl > 0 else 0.0
+                            if s_atr > 0:
+                                s_gain = (s_cur - s_ent) if s_buy else (s_ent - s_cur)
+                                if s_gain >= (0.38 * s_atr):
+                                    tp1_hit = True
+                                    logger.info(f"🎯 SINGLE-ORDER TP1 REACHED: Ticket #{s_pid} achieved {s_gain:.5f} >= {0.38*s_atr:.5f} (0.38 ATR). Advancing to Soft BE.")
+                    except Exception as e_so:
+                        logger.debug(f"Single-order floating TP1 check notice: {e_so}")
 
                 if tp1_hit and open_in_batch:
                     # Verify each open runner has SL at or beyond breakeven
@@ -598,9 +649,8 @@ class LiveTradeMonitor:
 
                         # Check Smart Solution setting dynamically from global autonomous settings
                         try:
-                            settings_file = Path(".autonomous_trader_settings.json")
-                            if settings_file.exists():
-                                with open(settings_file, "r", encoding="utf-8") as f:
+                            if os.path.exists(SETTINGS_FILE):
+                                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                                     is_smart = bool(json.load(f).get("smart_solution_enabled", True))
                             else:
                                 is_smart = bool(b_state.get("smart_solution", True))
@@ -635,10 +685,9 @@ class LiveTradeMonitor:
     def _compute_performance_scorecard(self, batch_positions: dict, open_pids: set, batch_info: Optional[dict] = None) -> Dict[str, Any]:
         """Calculates live Win Rate, Net PnL per strategy and per symbol across current trading week (Mon-Fri), strictly excluding weekends."""
         now = datetime.now()
-        # Full trading week cutoff: Monday 00:00:00 of the active week
-        days_from_monday = now.weekday()
-        week_monday_start = (now - timedelta(days=days_from_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
-        session_cutoff_ts = week_monday_start.timestamp()
+        # Active session start cutoff: respects reset_at from autonomous state, or Monday open
+        session_start_time = self._get_session_start_time()
+        session_cutoff_ts = session_start_time.timestamp()
 
         # All-time accumulators
         at_strat_stats = defaultdict(lambda: {"wins": 0, "losses": 0, "breakevens": 0, "pnl": 0.0, "total": 0, "tp2_hits": 0})
@@ -658,10 +707,10 @@ class LiveTradeMonitor:
                 with open(STATE_FILE, "r", encoding="utf-8") as sf:
                     st_data = json.load(sf)
                     for k, v in st_data.get("open_batches", {}).items():
-                        if v.get("smart_solution"):
+                        if v.get("smart_solution", True):
                             smart_batch_ids.add(str(k))
                     for cb_item in st_data.get("closed_batches", []):
-                        if cb_item.get("smart_solution"):
+                        if cb_item.get("smart_solution", True):
                             smart_batch_ids.add(str(cb_item.get("batch_id")))
             except Exception:
                 pass

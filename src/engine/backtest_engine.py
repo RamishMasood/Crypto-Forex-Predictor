@@ -26,6 +26,7 @@ import os
 import sys
 import json
 import time
+import shutil
 import logging
 import threading
 from datetime import datetime, timezone, timedelta
@@ -510,10 +511,16 @@ class MT5BacktestEngine:
     def save_results(results: Dict[str, Any]):
         """Persist backtest results to disk."""
         try:
-            tmp = BACKTEST_STATE_FILE + ".tmp"
+            tmp = f"{BACKTEST_STATE_FILE}.tmp_{os.getpid()}_{int(time.time()*1000)}"
             with open(tmp, 'w', encoding='utf-8') as f:
                 json.dump(results, f, indent=2)
-            os.replace(tmp, BACKTEST_STATE_FILE)
+            try:
+                os.replace(tmp, BACKTEST_STATE_FILE)
+            except (PermissionError, OSError):
+                time.sleep(0.05)
+                shutil.copyfile(tmp, BACKTEST_STATE_FILE)
+                if os.path.exists(tmp):
+                    os.remove(tmp)
         except Exception as e:
             logger.error(f"Error saving backtest results: {e}")
 
@@ -894,35 +901,67 @@ class MT5BacktestEngine:
 
                             # Auto-Breakeven on TP1 hit (Rule #2: Mandatory for all strategies)
                             b['is_breakeven'] = True
-                            if be_mode == 'smart_breathing_be' or smart_solution_enabled:
-                                b['sl_price'] = max(b['sl_price'], entry_p - (0.25 * cur_atr))
-                            elif be_mode == 'loose':
-                                b['sl_price'] = max(b['sl_price'], entry_p - (0.45 * cur_atr))
+                            # Compute mathematically guaranteed risk-free runner floor:
+                            # Leaves maximum breathing room below entry without ever letting total trade PnL turn negative
+                            max_loss_allowed = max(0.0, b['accumulated_pnl'] - 0.08)
+                            buffer_dist = (max_loss_allowed / (b['remaining_lots'] * contract_size)) if (b['remaining_lots'] > 0 and contract_size > 0) else (0.25 * cur_atr)
+                            if is_jpy and cur_close > 0:
+                                buffer_dist *= cur_close
+                            risk_free_floor = entry_p - max(buffer_dist, 0.10 * cur_atr)
+
+                            if be_mode == 'smart_breathing_be' or smart_solution_enabled or be_mode == 'loose':
+                                b['sl_price'] = max(b['sl_price'], risk_free_floor)
                             else:
                                 b['sl_price'] = max(b['sl_price'], entry_p)
 
                             if b['remaining_lots'] <= 0.0001:
                                 closed_this_bar = True
-                                exit_reason = "TP1_SCALP_WIN"
+                                if lot_p2 <= 0 and lot_p3 <= 0 and abs(tp1_p - tp2_p) < 1e-5:
+                                    b['tp2_hit'] = True
+                                    exit_reason = "TP2_RUNNER_WIN"
+                                else:
+                                    exit_reason = "TP1_SCALP_WIN"
                                 b['status'] = "WIN"
                                 exit_price = tp1_p
 
                     if not closed_this_bar and b['tp1_hit']:
                         # ── Runner Management (TP1 already locked in bank) ──
-                        # Stage 2 Trailing Breakeven advancement on expansion toward TP2
-                        if profit_dist >= (0.45 * tp2_dist):
-                            b['sl_price'] = max(b['sl_price'], entry_p + (0.02 * cur_atr))
-                        elif smart_solution_enabled or be_mode == 'smart_breathing_be':
-                            b['sl_price'] = max(b['sl_price'], entry_p - (0.25 * cur_atr))
-                        elif be_mode == 'loose':
-                            b['sl_price'] = max(b['sl_price'], entry_p - (0.45 * cur_atr))
+                        # Stage 2 Near-Target Trailing Breakeven (85% expansion toward TP2):
+                        # Leaves generous breathing room at risk-free floor so normal pullbacks do not kill runners
+                        if profit_dist >= (0.85 * tp2_dist):
+                            b['sl_price'] = max(b['sl_price'], entry_p + (0.40 * cur_atr))
+                        elif smart_solution_enabled or be_mode in ['smart_breathing_be', 'loose']:
+                            max_loss_allowed = max(0.0, b['accumulated_pnl'] - 0.08)
+                            buffer_dist = (max_loss_allowed / (b['remaining_lots'] * contract_size)) if (b['remaining_lots'] > 0 and contract_size > 0) else (0.25 * cur_atr)
+                            if is_jpy and cur_close > 0:
+                                buffer_dist *= cur_close
+                            b['sl_price'] = max(b['sl_price'], entry_p - max(buffer_dist, 0.10 * cur_atr))
                         elif be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be', 'scalping_quick_be']:
                             b['sl_price'] = max(b['sl_price'], entry_p)
                         else:
                             b['sl_price'] = max(b['sl_price'], entry_p)
 
+                        # Check TP2 Hit (Structural Runner 1:1+) - Evaluated FIRST to give full credit to expansive bars
+                        if not closed_this_bar and not b['tp2_hit'] and lot_p2 > 0 and cur_high >= tp2_p:
+                            b['tp2_hit'] = True
+                            p2_lots = min(lot_p2, b['remaining_lots'])
+                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p2_lots), 4)
+                            p2_pnl = (tp2_p - entry_p) * p2_lots * contract_size
+                            if is_jpy and cur_close > 0:
+                                p2_pnl /= cur_close
+                            b['accumulated_pnl'] += p2_pnl
+                            balance += p2_pnl
+                            b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p2_pnl
+                            b['sl_price'] = max(b['sl_price'], tp1_p)
+
+                            if b['remaining_lots'] <= 0.0001:
+                                closed_this_bar = True
+                                exit_reason = "TP2_RUNNER_WIN"
+                                b['status'] = "WIN"
+                                exit_price = tp2_p
+
                         # Check Runner Stop (Breakeven or Trailing Stop) - evaluated from subsequent bars
-                        if not hit_tp1_this_bar and cur_low <= b['sl_price']:
+                        if not closed_this_bar and not hit_tp1_this_bar and cur_low <= b['sl_price']:
                             exit_price = b['sl_price']
                             exit_pnl = (exit_price - entry_p) * b['remaining_lots'] * contract_size
                             if is_jpy and cur_close > 0:
@@ -942,25 +981,6 @@ class MT5BacktestEngine:
                             else:
                                 exit_reason = "BREAKEVEN_SL"
                                 b['status'] = "BREAKEVEN"
-
-                        # Check TP2 Hit (Structural Runner 1:1+)
-                        if not closed_this_bar and not b['tp2_hit'] and lot_p2 > 0 and cur_high >= tp2_p:
-                            b['tp2_hit'] = True
-                            p2_lots = min(lot_p2, b['remaining_lots'])
-                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p2_lots), 4)
-                            p2_pnl = (tp2_p - entry_p) * p2_lots * contract_size
-                            if is_jpy and cur_close > 0:
-                                p2_pnl /= cur_close
-                            b['accumulated_pnl'] += p2_pnl
-                            balance += p2_pnl
-                            b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p2_pnl
-                            b['sl_price'] = max(b['sl_price'], tp1_p)
-
-                            if b['remaining_lots'] <= 0.0001:
-                                closed_this_bar = True
-                                exit_reason = "TP2_RUNNER_WIN"
-                                b['status'] = "WIN"
-                                exit_price = tp2_p
 
                         # Check TP3 Hit (Macro Runner 2.20R)
                         if not closed_this_bar and b['tp2_hit'] and b['remaining_lots'] > 0.0001 and cur_high >= tp3_p:
@@ -1028,35 +1048,67 @@ class MT5BacktestEngine:
 
                             # Auto-Breakeven on TP1 hit (Rule #2: Mandatory for all strategies)
                             b['is_breakeven'] = True
-                            if be_mode == 'smart_breathing_be' or smart_solution_enabled:
-                                b['sl_price'] = min(b['sl_price'], entry_p + (0.25 * cur_atr))
-                            elif be_mode == 'loose':
-                                b['sl_price'] = min(b['sl_price'], entry_p + (0.45 * cur_atr))
+                            # Compute mathematically guaranteed risk-free runner floor:
+                            # Leaves maximum breathing room above entry without ever letting total trade PnL turn negative
+                            max_loss_allowed = max(0.0, b['accumulated_pnl'] - 0.08)
+                            buffer_dist = (max_loss_allowed / (b['remaining_lots'] * contract_size)) if (b['remaining_lots'] > 0 and contract_size > 0) else (0.25 * cur_atr)
+                            if is_jpy and cur_close > 0:
+                                buffer_dist *= cur_close
+                            risk_free_floor = entry_p + max(buffer_dist, 0.10 * cur_atr)
+
+                            if be_mode == 'smart_breathing_be' or smart_solution_enabled or be_mode == 'loose':
+                                b['sl_price'] = min(b['sl_price'], risk_free_floor)
                             else:
                                 b['sl_price'] = min(b['sl_price'], entry_p)
 
                             if b['remaining_lots'] <= 0.0001:
                                 closed_this_bar = True
-                                exit_reason = "TP1_SCALP_WIN"
+                                if lot_p2 <= 0 and lot_p3 <= 0 and abs(tp1_p - tp2_p) < 1e-5:
+                                    b['tp2_hit'] = True
+                                    exit_reason = "TP2_RUNNER_WIN"
+                                else:
+                                    exit_reason = "TP1_SCALP_WIN"
                                 b['status'] = "WIN"
                                 exit_price = tp1_p
 
                     if not closed_this_bar and b['tp1_hit']:
                         # ── Runner Management (TP1 already locked in bank) ──
-                        # Stage 2 Trailing Breakeven advancement on expansion toward TP2
-                        if profit_dist >= (0.45 * tp2_dist):
-                            b['sl_price'] = min(b['sl_price'], entry_p - (0.02 * cur_atr))
-                        elif smart_solution_enabled or be_mode == 'smart_breathing_be':
-                            b['sl_price'] = min(b['sl_price'], entry_p + (0.25 * cur_atr))
-                        elif be_mode == 'loose':
-                            b['sl_price'] = min(b['sl_price'], entry_p + (0.45 * cur_atr))
+                        # Stage 2 Near-Target Trailing Breakeven (85% expansion toward TP2):
+                        # Leaves generous breathing room at risk-free floor so normal pullbacks do not kill runners
+                        if profit_dist >= (0.85 * tp2_dist):
+                            b['sl_price'] = min(b['sl_price'], entry_p - (0.40 * cur_atr))
+                        elif smart_solution_enabled or be_mode in ['smart_breathing_be', 'loose']:
+                            max_loss_allowed = max(0.0, b['accumulated_pnl'] - 0.08)
+                            buffer_dist = (max_loss_allowed / (b['remaining_lots'] * contract_size)) if (b['remaining_lots'] > 0 and contract_size > 0) else (0.25 * cur_atr)
+                            if is_jpy and cur_close > 0:
+                                buffer_dist *= cur_close
+                            b['sl_price'] = min(b['sl_price'], entry_p + max(buffer_dist, 0.10 * cur_atr))
                         elif be_mode in ['waqar_asim_instant_be', 'instant_be', 'smc_partial_be', 'scalping_quick_be']:
                             b['sl_price'] = min(b['sl_price'], entry_p)
                         else:
                             b['sl_price'] = min(b['sl_price'], entry_p)
 
+                        # Check TP2 Hit (Structural Runner 1:1+) - Evaluated FIRST to give full credit to expansive bars
+                        if not closed_this_bar and not b['tp2_hit'] and lot_p2 > 0 and cur_low <= tp2_p:
+                            b['tp2_hit'] = True
+                            p2_lots = min(lot_p2, b['remaining_lots'])
+                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p2_lots), 4)
+                            p2_pnl = (entry_p - tp2_p) * p2_lots * contract_size
+                            if is_jpy and cur_close > 0:
+                                p2_pnl /= cur_close
+                            b['accumulated_pnl'] += p2_pnl
+                            balance += p2_pnl
+                            b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p2_pnl
+                            b['sl_price'] = min(b['sl_price'], tp1_p)
+
+                            if b['remaining_lots'] <= 0.0001:
+                                closed_this_bar = True
+                                exit_reason = "TP2_RUNNER_WIN"
+                                b['status'] = "WIN"
+                                exit_price = tp2_p
+
                         # Check Runner Stop (Breakeven or Trailing Stop) - evaluated from subsequent bars
-                        if not hit_tp1_this_bar and cur_high >= b['sl_price']:
+                        if not closed_this_bar and not hit_tp1_this_bar and cur_high >= b['sl_price']:
                             exit_price = b['sl_price']
                             exit_pnl = (entry_p - exit_price) * b['remaining_lots'] * contract_size
                             if is_jpy and cur_close > 0:
@@ -1076,25 +1128,6 @@ class MT5BacktestEngine:
                             else:
                                 exit_reason = "BREAKEVEN_SL"
                                 b['status'] = "BREAKEVEN"
-
-                        # Check TP2 Hit (Structural Runner 1:1+)
-                        if not closed_this_bar and not b['tp2_hit'] and lot_p2 > 0 and cur_low <= tp2_p:
-                            b['tp2_hit'] = True
-                            p2_lots = min(lot_p2, b['remaining_lots'])
-                            b['remaining_lots'] = round(max(0.0, b['remaining_lots'] - p2_lots), 4)
-                            p2_pnl = (entry_p - tp2_p) * p2_lots * contract_size
-                            if is_jpy and cur_close > 0:
-                                p2_pnl /= cur_close
-                            b['accumulated_pnl'] += p2_pnl
-                            balance += p2_pnl
-                            b['realized_balance_credited'] = b.get('realized_balance_credited', 0.0) + p2_pnl
-                            b['sl_price'] = min(b['sl_price'], tp1_p)
-
-                            if b['remaining_lots'] <= 0.0001:
-                                closed_this_bar = True
-                                exit_reason = "TP2_RUNNER_WIN"
-                                b['status'] = "WIN"
-                                exit_price = tp2_p
 
                         # Check TP3 Hit (Macro Runner 2.20R)
                         if not closed_this_bar and b['tp2_hit'] and b['remaining_lots'] > 0.0001 and cur_low <= tp3_p:
@@ -1184,7 +1217,7 @@ class MT5BacktestEngine:
                             strat_cls = MasterStreamerPlaybook.STRATEGY_MAP[s_k]
                             try:
                                 st_res = strat_cls.evaluate(historical_slice, atr=cur_atr, timeframe=tf, symbol=sym)
-                                if st_res and 'INCOMPATIBLE' in str(st_res.get('status', '')):
+                                if st_res and any(k in str(st_res.get('status', '')) for k in ['TIMEFRAME_INCOMPATIBLE', 'ASSET_INCOMPATIBLE']):
                                     incompatible_cache.add((s_k, sym, tf))
                                     continue
                             except Exception:

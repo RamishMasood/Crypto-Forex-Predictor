@@ -794,6 +794,23 @@ class MT5TradeExecutor:
                                 closed_tp1_symbols.add(str(binfo['broker_sym']))
                     except (ValueError, TypeError):
                         pass
+                elif len(tkts) == 1:
+                    try:
+                        s_tkt = int(tkts[0])
+                        if s_tkt in open_ticket_set:
+                            tp1_p = float(binfo.get('tp1_price') or 0.0)
+                            if tp1_p > 0:
+                                b_act = str(binfo.get('action', '')).upper()
+                                matching_p = next((p for p in quant_orders if p['ticket'] == s_tkt), None)
+                                if matching_p:
+                                    cp = float(matching_p['price_current'])
+                                    hit = (cp >= tp1_p) if b_act == 'BUY' else (cp <= tp1_p)
+                                    if hit:
+                                        closed_tp1_batches.add(str(bid))
+                                        if binfo.get('broker_sym'):
+                                            closed_tp1_symbols.add(str(binfo['broker_sym']))
+                    except (ValueError, TypeError):
+                        pass
 
         for pos in quant_orders:
             open_p = pos['price_open']
@@ -841,7 +858,7 @@ class MT5TradeExecutor:
                 target_soft_sl = float(b_info['soft_breakeven_sl'])
             elif init_sl > 0:
                 atr = abs(open_p - init_sl) / 1.8
-                be_cushion = 0.25 * atr if is_smart_batch else 0.45 * atr
+                be_cushion = 0.25 * atr
                 if pos_type == 'BUY':
                     target_soft_sl = round(open_p - be_cushion, 5)
                 else:
@@ -885,7 +902,7 @@ class MT5TradeExecutor:
                     elif batch_tp1_hit or (len(b_tkts) > 1 and tp1_p > 0 and tp1_p < open_p and profit_dist >= (open_p - tp1_p) * 0.95):
                         is_expansion_reached = True
 
-                if is_profitable and is_expansion_reached and not sl_at_be:
+                if (is_profitable or batch_tp1_hit) and is_expansion_reached and not sl_at_be:
                     res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
                     if res.get('success'):
                         results.append({
@@ -908,19 +925,15 @@ class MT5TradeExecutor:
                 is_expansion_reached = False
                 if pos_type == 'BUY':
                     profit_dist = curr_p - open_p
-                    if tp2_p > open_p and profit_dist >= 0.45 * (tp2_p - open_p):
-                        is_expansion_reached = True
-                    elif len(b_tkts) > 1 and tp1_p > open_p and profit_dist >= 1.8 * (tp1_p - open_p):
+                    if tp2_p > open_p and profit_dist >= 0.50 * (tp2_p - open_p):
                         is_expansion_reached = True
                 else:
                     profit_dist = open_p - curr_p
-                    if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.45 * (open_p - tp2_p):
-                        is_expansion_reached = True
-                    elif len(b_tkts) > 1 and tp1_p > 0 and tp1_p < open_p and profit_dist >= 1.8 * (open_p - tp1_p):
+                    if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.50 * (open_p - tp2_p):
                         is_expansion_reached = True
 
                 # Stage 2 Action: Move to Full Hard Breakeven once expansion toward TP2 is confirmed
-                if is_profitable and is_expansion_reached and not sl_at_be:
+                if (is_profitable or batch_tp1_hit) and is_expansion_reached and not sl_at_be:
                     res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
                     if res.get('success'):
                         results.append({
@@ -930,7 +943,7 @@ class MT5TradeExecutor:
                             'new_sl': res['new_sl']
                         })
                 # Stage 1 Action: Move to Soft Buffer on TP1 Hit (leaves 0.45 ATR breathing room below entry)
-                elif is_profitable and batch_tp1_hit and target_soft_sl:
+                elif batch_tp1_hit and target_soft_sl:
                     is_sl_wider_than_soft = (current_sl < target_soft_sl) if pos_type == 'BUY' else (current_sl > target_soft_sl or current_sl <= 0)
                     if is_sl_wider_than_soft and not sl_at_be:
                         res = self.move_to_breakeven(pos['ticket'], target_sl=target_soft_sl)
@@ -951,7 +964,7 @@ class MT5TradeExecutor:
                     tp2_dist = abs(tp2_p - open_p) if tp2_p > 0 else 0.0
                     profit_dist = (curr_p - open_p) if pos_type == 'BUY' else (open_p - curr_p)
                     is_expansion_reached = (tp2_dist > 0 and profit_dist >= 0.50 * tp2_dist) or (is_profitable and pos.get('return_pct', 0) >= 0.50)
-                if is_profitable and is_expansion_reached and not sl_at_be:
+                if (is_profitable or batch_tp1_hit) and is_expansion_reached and not sl_at_be:
                     res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
                     if res.get('success'):
                         results.append({
@@ -968,23 +981,19 @@ class MT5TradeExecutor:
                 is_expansion_reached = False
                 if pos_type == 'BUY':
                     profit_dist = curr_p - open_p
-                    if tp2_p > open_p and profit_dist >= 0.48 * (tp2_p - open_p):
-                        is_expansion_reached = True
-                    elif tp1_p > open_p and profit_dist >= 2.1 * (tp1_p - open_p):
+                    if tp2_p > open_p and profit_dist >= 0.50 * (tp2_p - open_p):
                         is_expansion_reached = True
                     elif pos['return_pct'] >= 0.30:
                         is_expansion_reached = True
                 else:
                     profit_dist = open_p - curr_p
-                    if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.48 * (open_p - tp2_p):
-                        is_expansion_reached = True
-                    elif tp1_p > 0 and tp1_p < open_p and profit_dist >= 2.1 * (open_p - tp1_p):
+                    if tp2_p > 0 and tp2_p < open_p and profit_dist >= 0.50 * (open_p - tp2_p):
                         is_expansion_reached = True
                     elif pos['return_pct'] >= 0.30:
                         is_expansion_reached = True
 
                 # Stage 2 Action: Move to Full Hard Breakeven once 0.85 ATR expansion is proven
-                if is_profitable and is_expansion_reached and not sl_at_be:
+                if (is_profitable or batch_tp1_hit) and is_expansion_reached and not sl_at_be:
                     res = self.move_to_breakeven(pos['ticket'], target_sl=target_be_sl)
                     if res.get('success'):
                         results.append({
@@ -994,7 +1003,7 @@ class MT5TradeExecutor:
                             'new_sl': res['new_sl']
                         })
                 # Stage 1 Action: Move to Soft Buffer on TP1 Hit (leaves 0.45 ATR breathing room below entry)
-                elif is_profitable and batch_tp1_hit and target_soft_sl:
+                elif batch_tp1_hit and target_soft_sl:
                     # Check if SL is currently wider than soft buffer (i.e. still at wide initial SL)
                     is_sl_wider_than_soft = False
                     if pos_type == 'BUY':
@@ -1017,7 +1026,7 @@ class MT5TradeExecutor:
                 # Once TP1 is banked in profit (batch_tp1_hit), remaining runner positions (TP2/TP3) are moved to Breakeven.
                 profit_dist = (curr_p - open_p) if pos_type == 'BUY' else (open_p - curr_p)
                 if len(b_tkts) > 1:
-                    should_be = is_profitable and batch_tp1_hit
+                    should_be = batch_tp1_hit or (is_profitable and pos.get('return_pct', 0) >= 0.25)
                 else:
                     risk_dist = abs(open_p - init_sl) if init_sl > 0 else 0.0
                     is_macro_expansion = (risk_dist > 0 and profit_dist >= 1.0 * risk_dist)

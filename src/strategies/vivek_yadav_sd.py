@@ -165,18 +165,75 @@ class VivekYadavSupplyDemandEngine:
         sym_str = str(sym_val or '').upper()
 
         tf_clean = str(timeframe).lower().strip()
-        if tf_clean in ['1m', '3m']:
+        is_crypto = any(m in sym_str for m in ['BTC', 'CRYPTO'])
+        if is_crypto:
+            if tf_clean not in ['15m', '30m', '1h', '4h']:
+                return {
+                    'action': 'HOLD',
+                    'status': 'TIMEFRAME_INCOMPATIBLE',
+                    'confidence': 0.0,
+                    'trade_setup': {},
+                    'reasons': [f"Vivek Yadav Crypto S&D requires 15m/30m/1h/4h macro zones. Timeframe '{tf_clean}' micro-noise is held."]
+                }
+        else:
+            if tf_clean not in ['15m', '30m', '1h', '4h']:
+                return {
+                    'action': 'HOLD',
+                    'status': 'TIMEFRAME_INCOMPATIBLE',
+                    'confidence': 0.0,
+                    'trade_setup': {},
+                    'reasons': [f"Vivek Yadav Forex/Metals S&D requires 15m/30m/1h/4h structural order blocks. Timeframe '{tf_clean}' micro-noise is held."]
+                }
+
+        # Altcoin Guard: Vivek Yadav focuses exclusively on BTC, Gold, and high-probability FX
+        if any(m in sym_str for m in ['ETH', 'SOL', 'ALTS']):
+            return {
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Vivek Yadav S&D focuses on BTC, Gold, and primary FX. Altcoin '{sym_str}' is held."]
+            }
+
+        # Silver Guard: Silver extreme spread volatility invalidates S&D zones
+        is_silver = any(m in sym_str for m in ['XAG', 'SILVER'])
+        if is_silver:
+            return {
+                'action': 'HOLD',
+                'status': 'ASSET_INCOMPATIBLE',
+                'confidence': 0.0,
+                'trade_setup': {},
+                'reasons': [f"Vivek Yadav S&D excludes Silver ({sym_str}) due to abnormal spread volatility."]
+            }
+
+        # Crypto Timeframe Guard: Crypto requires minimum 30m macro zones
+        is_crypto = any(m in sym_str for m in ['BTC', 'ETH', 'SOL', 'CRYPTO'])
+        if is_crypto and tf_clean in ['1m', '2m', '3m', '5m', '15m']:
             return {
                 'action': 'HOLD',
                 'status': 'TIMEFRAME_INCOMPATIBLE',
                 'confidence': 0.0,
                 'trade_setup': {},
-                'reasons': [f"Vivek Yadav S&D + Liquidation Trap requires 5m/15m/1h structural zones. Timeframe '{tf_clean}' micro-noise invalidates order blocks."]
+                'reasons': [f"Vivek Yadav Crypto S&D requires minimum 30m/1h/4h macro zones. Sub-30m micro noise invalidates order blocks."]
             }
+
+        # Gold Session Guard: Enforce London/NY session liquidity (08:00-17:30 UTC) to prevent Asian chop sweeps
+        is_gold = any(m in sym_str for m in ['XAU', 'GOLD'])
+        if is_gold:
+            curr_ts = df['timestamp'].iloc[-1] if 'timestamp' in df.columns and len(df['timestamp']) > 0 else None
+            curr_hour = curr_ts.hour if hasattr(curr_ts, 'hour') else 12
+            if not (8 <= curr_hour <= 17):
+                return {
+                    'action': 'HOLD',
+                    'status': 'SESSION_INCOMPATIBLE',
+                    'confidence': 0.0,
+                    'trade_setup': {},
+                    'reasons': [f"Vivek Yadav Gold S&D requires active London/NY session liquidity (08:00-17:30 UTC)."]
+                }
 
         n = len(df) if df is not None else 0
         current_price = float(df['close'].iloc[-1]) if n > 0 else 0.0
-        if n < 10 or current_price <= 0.0:
+        if n < 8 or current_price <= 0.0:
             return {
                 'action': 'HOLD',
                 'status': 'INSUFFICIENT_DATA',
@@ -239,9 +296,9 @@ class VivekYadavSupplyDemandEngine:
 
         # 1. TEST DEMAND TRIGGER (BUY):
         # Bullish or consolidation range with price holding above EMA20 / 200 SMA with volume absorption & RSI sweet spot
-        ema_aligned_buy = (ema_20 >= ema_50 * 0.999) or (trend == 'BULLISH')
-        is_trend_ok_buy = (trend in ['BULLISH', 'CONSOLIDATION']) and ema_aligned_buy
-        is_ma_ok_buy = (last_c >= ema_20 * 0.995) or (n < 25)
+        ema_aligned_buy = (ema_20 > ema_50) or (n < 25)
+        is_trend_ok_buy = ((trend in ['BULLISH', 'CONSOLIDATION']) and ema_aligned_buy) or (n < 25)
+        is_ma_ok_buy = (last_c >= sma_200 * 0.998) or (n < 25)
         if is_trend_ok_buy and is_ma_ok_buy and (42.0 <= rsi_val <= 70.0 or n < 25):
             # Sort demand zones: fresh zones first, then most recent
             sorted_demand = sorted(demand_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)
@@ -258,8 +315,8 @@ class VivekYadavSupplyDemandEngine:
                 invalidated = (last_c < z_bot) and (last_o < z_bot)
 
                 if touched and not invalidated:
-                    # Confirmation: Green candle with bottom rejection wick >= 25%, price holding above zone bottom
-                    is_green_confirm = (last_c > last_o) and (last_c >= z_bot) and (lower_wick_ratio >= 0.25) and (candle_range >= 0.30 * safe_atr) and vol_confirmed
+                    # Confirmation: Green candle with bottom rejection wick >= 28%, opposing upper wick <= 25%, price holding above zone bottom
+                    is_green_confirm = (last_c > last_o) and (last_c >= z_bot) and (lower_wick_ratio >= 0.28) and (upper_wick_ratio <= 0.25) and (candle_range >= 0.30 * safe_atr) and vol_confirmed
 
                     if is_green_confirm:
                         action = 'BUY'
@@ -276,9 +333,9 @@ class VivekYadavSupplyDemandEngine:
 
         # 2. TEST SUPPLY TRIGGER (SELL):
         # Bearish or consolidation range holding below EMA20 / 200 SMA with volume absorption & RSI sweet spot
-        ema_aligned_sell = (ema_20 <= ema_50 * 1.001) or (trend == 'BEARISH')
-        is_trend_ok_sell = (trend in ['BEARISH', 'CONSOLIDATION']) and ema_aligned_sell
-        is_ma_ok_sell = (last_c <= ema_20 * 1.005) or (n < 25)
+        ema_aligned_sell = (ema_20 < ema_50) or (n < 25)
+        is_trend_ok_sell = ((trend in ['BEARISH', 'CONSOLIDATION']) and ema_aligned_sell) or (n < 25)
+        is_ma_ok_sell = (last_c <= sma_200 * 1.002) or (n < 25)
         if action == 'HOLD' and is_trend_ok_sell and is_ma_ok_sell and (30.0 <= rsi_val <= 58.0 or n < 25):
             sorted_supply = sorted(supply_zones, key=lambda z: (z.get('is_fresh', False), z.get('candle_index', 0)), reverse=True)
             for sz in sorted_supply:
@@ -293,8 +350,8 @@ class VivekYadavSupplyDemandEngine:
                 invalidated = (last_c > z_top) and (last_o > z_top)
 
                 if touched and not invalidated:
-                    # Confirmation: Red candle with top rejection wick >= 28%, price holding below zone top
-                    is_red_confirm = (last_c < last_o) and (last_c <= z_top - 0.05 * safe_atr) and (upper_wick_ratio >= 0.28) and (candle_range >= 0.35 * safe_atr) and vol_confirmed
+                    # Confirmation: Red candle with top rejection wick >= 28%, opposing lower wick <= 25%, price holding below zone top
+                    is_red_confirm = (last_c < last_o) and (last_c <= z_top - 0.05 * safe_atr) and (upper_wick_ratio >= 0.28) and (lower_wick_ratio <= 0.25) and (candle_range >= 0.35 * safe_atr) and vol_confirmed
 
                     if is_red_confirm:
                         action = 'SELL'
@@ -317,15 +374,15 @@ class VivekYadavSupplyDemandEngine:
                 sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Rule #2)
                 stop_loss = entry_price - sl_distance
                 tp1 = entry_price + (0.38 * safe_atr)  # Precision scalp bank -> BE lock
-                tp2 = entry_price + (2.00 * sl_distance)  # Mandatory 1:2+ Runner Geometry
-                tp3 = entry_price + (3.00 * sl_distance)  # Extended runner
+                tp2 = entry_price + (1.15 * sl_distance)  # Mandatory 1:1+ Runner Geometry (Rule #2)
+                tp3 = entry_price + (2.20 * sl_distance)  # Macro expansion runner (Rule #2)
 
             else:  # SELL
                 sl_distance = 1.80 * safe_atr  # Golden SL Geometry (Rule #2)
                 stop_loss = entry_price + sl_distance
-                tp1 = entry_price - (0.38 * safe_atr)
-                tp2 = entry_price - (2.00 * sl_distance)
-                tp3 = entry_price - (3.00 * sl_distance)
+                tp1 = entry_price - (0.38 * safe_atr)  # Precision scalp bank -> BE lock
+                tp2 = entry_price - (1.15 * sl_distance)  # Mandatory 1:1+ Runner Geometry (Rule #2)
+                tp3 = entry_price - (2.20 * sl_distance)  # Macro expansion runner (Rule #2)
 
             trade_setup = {
                 'action': action,

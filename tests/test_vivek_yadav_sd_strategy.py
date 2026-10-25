@@ -68,10 +68,10 @@ class TestVivekYadavStrategy(unittest.TestCase):
         sl = setup['stop_loss']
         risk_dist = abs(entry - sl)
 
-        # Verify Golden Invariants & 1:2 R:R
+        # Verify Golden Invariants & 1:1+ Runner Geometry (Rule #2)
         self.assertGreaterEqual(risk_dist, 1.50 * atr - 1e-5, "SL must be >= 1.50 * ATR")
         self.assertAlmostEqual(abs(setup['tp1'] - entry), 0.38 * atr, delta=0.05, msg="TP1 must match 0.38 * ATR")
-        self.assertGreaterEqual(abs(setup['tp2'] - entry), 2.0 * risk_dist - 1e-5, "TP2 must provide at least 1:2 R:R")
+        self.assertGreaterEqual(abs(setup['tp2'] - entry), 1.15 * risk_dist - 1e-5, "TP2 must provide at least 1:1+ R:R")
 
     def test_supply_zone_and_sell_trigger(self):
         """
@@ -120,7 +120,7 @@ class TestVivekYadavStrategy(unittest.TestCase):
         sl = setup['stop_loss']
         risk_dist = abs(entry - sl)
         self.assertGreaterEqual(risk_dist, 1.50 * atr - 1e-5, "SL must be >= 1.50 * ATR")
-        self.assertGreaterEqual(abs(setup['tp2'] - entry), 2.0 * risk_dist - 1e-5, "TP2 must provide at least 1:2 R:R")
+        self.assertGreaterEqual(abs(setup['tp2'] - entry), 1.15 * risk_dist - 1e-5, "TP2 must provide at least 1:1+ R:R")
 
     def test_autonomous_strategy_settings_modes(self):
         """

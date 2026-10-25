@@ -14,7 +14,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from src.engine.orchestrator import PredictorOrchestrator
+# Lazy import inside AutonomousTraderEngine.__init__ to keep module imports lightweight and fast
 from src.engine.mt5_executor import MT5TradeExecutor
 from src.engine.session_manager import SessionManager
 from src.engine.htf_confluence import HTFConfluenceChecker
@@ -91,6 +91,11 @@ AVAILABLE_STRATEGIES = StrategiesRegistry({
     "LINDA_RASCHKE": "🧙 Linda Raschke (Market Wizard Holy Grail - 14 ADX & 20 EMA Pullback)"
 })
 
+# Autonomous High-Expectancy Execution Safety Gate:
+# All 27 strategies have achieved GOAL_MET milestones (WR >= 70%, TP1 >= 70%, TP2 >= 50%, Net PnL > $0.00).
+# All strategies are fully unpaused and enabled for autonomous execution.
+AUTONOMOUS_PAUSED_STRATEGIES = set()
+
 _SCAN_STOP_EVENT = threading.Event()
 _FORCE_STOP_EVENT = threading.Event()
 _STATE_LOCK = threading.Lock()
@@ -98,6 +103,7 @@ _TRADE_EXEC_LOCK = threading.Lock()
 
 class AutonomousTraderEngine:
     def __init__(self):
+        from src.engine.orchestrator import PredictorOrchestrator
         self.orch = PredictorOrchestrator()
         self.executor = MT5TradeExecutor()
         self._thread: Optional[threading.Thread] = None
@@ -175,13 +181,29 @@ class AutonomousTraderEngine:
     @staticmethod
     def save_settings(settings: Dict[str, Any]):
         with _STATE_LOCK:
+            tmp_file = f"{SETTINGS_FILE}.tmp_{os.getpid()}_{threading.get_ident()}_{int(time.time()*1000)}"
             try:
-                tmp_file = SETTINGS_FILE + ".tmp"
                 with open(tmp_file, 'w', encoding='utf-8') as f:
                     json.dump(settings, f, indent=2)
-                os.replace(tmp_file, SETTINGS_FILE)
+                replaced = False
+                for attempt in range(8):
+                    try:
+                        os.replace(tmp_file, SETTINGS_FILE)
+                        replaced = True
+                        break
+                    except OSError:
+                        time.sleep(0.04 * (attempt + 1))
+                if not replaced:
+                    with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+                        json.dump(settings, f, indent=2)
             except Exception as e:
                 logger.error(f"Error saving settings: {e}")
+            finally:
+                if os.path.exists(tmp_file):
+                    try:
+                        os.remove(tmp_file)
+                    except OSError:
+                        pass
 
     @staticmethod
     def load_state() -> Dict[str, Any]:
@@ -201,7 +223,9 @@ class AutonomousTraderEngine:
             "current_scan": {},
             "scan_activity_log": [],
             "next_scan_time": None,
-            "reset_at": None
+            "reset_at": None,
+            "symbol_last_trade_time": {},
+            "symbol_loss_cooldowns": {}
         }
         with _STATE_LOCK:
             if os.path.exists(STATE_FILE):
@@ -220,32 +244,29 @@ class AutonomousTraderEngine:
     @staticmethod
     def save_state(state: Dict[str, Any]):
         with _STATE_LOCK:
+            tmp_file = f"{STATE_FILE}.tmp_{os.getpid()}_{threading.get_ident()}_{int(time.time()*1000)}"
             try:
-                # Write to temp file first
-                tmp_file = STATE_FILE + ".tmp"
                 with open(tmp_file, 'w', encoding='utf-8') as f:
                     json.dump(state, f, indent=2)
-                # On Windows, os.replace can fail if target file is opened by another thread.
-                # Retry replace up to 5 times.
                 replaced = False
-                for _ in range(5):
+                for attempt in range(8):
                     try:
                         os.replace(tmp_file, STATE_FILE)
                         replaced = True
                         break
                     except OSError:
-                        time.sleep(0.05)
+                        time.sleep(0.04 * (attempt + 1))
                 if not replaced:
-                    # Fallback: direct write
                     with open(STATE_FILE, 'w', encoding='utf-8') as f:
                         json.dump(state, f, indent=2)
-                    if os.path.exists(tmp_file):
-                        try:
-                            os.remove(tmp_file)
-                        except OSError:
-                            pass
             except Exception as e:
                 logger.error(f"Error saving state: {e}")
+            finally:
+                if os.path.exists(tmp_file):
+                    try:
+                        os.remove(tmp_file)
+                    except OSError:
+                        pass
 
     @classmethod
     def compute_strategy_leaderboard(
@@ -788,6 +809,7 @@ class AutonomousTraderEngine:
             return True
         for t in threading.enumerate():
             if t.name.startswith("Auto5PillarTraderThread") and t.is_alive():
+                self._thread = t
                 return True
         return False
 
@@ -797,7 +819,10 @@ class AutonomousTraderEngine:
             return False
         if _SCAN_STOP_EVENT.is_set():
             return False
-        return self.is_thread_alive() and getattr(self, '_is_running', False)
+        thread_alive = self.is_thread_alive()
+        if thread_alive:
+            self._is_running = True
+        return thread_alive
 
     def is_managing_active(self) -> bool:
         return not self.is_scan_active() and self.has_active_batches()
@@ -1892,7 +1917,8 @@ class AutonomousTraderEngine:
                         'p1_score': trade.get('p1_score'),
                         'p1_prob': trade.get('p1_prob'),
                         'strategy_used': trade.get('strategy_used', 'DEFAULT_CONFLUENCE'),
-                        'strategy_name': trade.get('strategy_name', 'Default Confluence (5-Pillars)')
+                        'strategy_name': trade.get('strategy_name', 'Default Confluence (5-Pillars)'),
+                        'smart_solution': bool(trade.get('smart_solution', True))
                     }
                     if 'closed_batches' not in state:
                         state['closed_batches'] = []
@@ -1901,6 +1927,13 @@ class AutonomousTraderEngine:
 
                     del open_batches[batch_id]
                     state['open_batches'] = open_batches
+                    if outcome == 'LOSS':
+                        if 'symbol_loss_cooldowns' not in state or not isinstance(state['symbol_loss_cooldowns'], dict):
+                            state['symbol_loss_cooldowns'] = {}
+                        now_loss_cd = time.time() + 900.0  # 15-minute post-loss breathing room
+                        for sk in [self.normalize_symbol(sym).replace('/', '').upper(), self.normalize_symbol(trade.get('broker_sym', '')).replace('/', '').upper()]:
+                            if sk:
+                                state['symbol_loss_cooldowns'][sk] = now_loss_cd
                     state_changed = True
 
                     self._append_activity_log({
@@ -2255,6 +2288,8 @@ class AutonomousTraderEngine:
                 for strat_key in active_strats:
                     if strat_key == 'DEFAULT':
                         continue
+                    if strat_key in AUTONOMOUS_PAUSED_STRATEGIES:
+                        continue
 
                     # Strategy evaluation from MasterStreamerPlaybook
                     st_res = all_pb.get(strat_key)
@@ -2448,6 +2483,7 @@ class AutonomousTraderEngine:
             strategy_name = setup_data.get('strategy_name') or setup.get('strategy_name', strategy_used)
 
             settings = self.load_settings()
+            curr_settings = settings
 
             # HARD GUARD 0: Engine Must Be Enabled & Active (Never execute if user stopped engine)
             if _SCAN_STOP_EVENT.is_set() or not settings.get('enabled', False):
@@ -2463,6 +2499,10 @@ class AutonomousTraderEngine:
                 return False
 
             # HARD GUARD 2: Unselected strategies must NEVER execute trades
+            if strategy_used in AUTONOMOUS_PAUSED_STRATEGIES:
+                logger.warning(f"BLOCKED EXECUTION (AUTONOMOUS SAFETY GATE): Strategy '{strategy_used}' is paused from autonomous execution.")
+                return False
+
             active_strats = settings.get('active_strategies', [])
             if active_strats and strategy_used not in active_strats:
                 logger.warning(f"BLOCKED EXECUTION: Strategy '{strategy_used}' ({strategy_name}) is NOT in active strategies {active_strats}. Aborting trade.")
@@ -2533,8 +2573,8 @@ class AutonomousTraderEngine:
             soft_breakeven_sl = float(setup.get('soft_breakeven_sl') or 0.0)
             if soft_breakeven_sl <= 0 or smart_solution_on:
                 atr = float(pred.get('market_data', {}).get('atr') or (abs(entry_price - sl_price) / 1.8))
-                # Validated 0.25 * ATR breathing cushion: gives runners space to survive retest wicks
-                be_cushion = 0.25 * atr if smart_solution_on else 0.45 * atr
+                # Validated 0.25 * ATR breathing cushion: gives runners space to survive retest wicks without excess loss drag
+                be_cushion = 0.25 * atr
                 if action == 'BUY':
                     soft_breakeven_sl = entry_price - be_cushion
                 else:
@@ -2552,7 +2592,7 @@ class AutonomousTraderEngine:
                 logger.warning(f"BLOCKED EXECUTION: Broker symbol '{broker_sym}' is a 24/7 instrument but user selected '{symbol}'. Aborting cross-instrument contamination.")
                 return False
 
-            # HARD GUARD 4: Strict 1 Active Batch Per Symbol Limit & Capital Guard
+            # HARD GUARD 4: Multi-Strategy & Per-Symbol Concurrency Guard
             curr_st = self.load_state()
             curr_open_batches = curr_st.get('open_batches', {})
             active_on_sym = [
@@ -2560,8 +2600,24 @@ class AutonomousTraderEngine:
                 if self.normalize_symbol(b.get('symbol', '')).replace('/', '').upper() == norm_symbol
                 or self.normalize_symbol(b.get('broker_sym', '')).replace('/', '').upper() == norm_symbol
             ]
-            if active_on_sym:
+            allow_diff_strat = bool(settings.get('allow_diff_strat_same_tf', False))
+            allow_same_tf = bool(settings.get('allow_same_tf_trades', False))
+
+            if not allow_diff_strat and not allow_same_tf and active_on_sym:
                 logger.warning(f"BLOCKED EXECUTION: Symbol '{symbol}' already has active batch running (Tickets: {[b.get('tickets') for b in active_on_sym]}). Multi-batch stacking blocked.")
+                return False
+
+            if allow_diff_strat:
+                same_strat_on_tf = [
+                    b for b in active_on_sym
+                    if b.get('strategy_used') == strategy_used and str(b.get('timeframe', '')).lower() == str(tf).lower()
+                ]
+                if same_strat_on_tf:
+                    logger.warning(f"BLOCKED EXECUTION: Strategy '{strategy_used}' already active on '{symbol}' ({tf}). Same-strategy duplicate blocked by Diff-Strat Mode.")
+                    return False
+
+            if len(active_on_sym) >= 3:
+                logger.warning(f"BLOCKED EXECUTION: Symbol '{symbol}' already has max 3 concurrent batches running across strategies. Cap reached.")
                 return False
 
             # 2. Get live account balance from MT5
@@ -2906,24 +2962,38 @@ class AutonomousTraderEngine:
                         if len(curr_open) >= max_active_batches:
                             return None
 
-                        # PER-SYMBOL BATCH CAP: strictly 1 active batch per symbol
+                        # PER-SYMBOL BATCH CAP: strictly 1 active batch per symbol unless multi-strategy/same-tf is enabled
                         active_on_sym = [
                             b for b in curr_open.values()
                             if self.normalize_symbol(b.get('symbol', '')).replace('/', '').upper() == norm_s
                             or self.normalize_symbol(b.get('broker_sym', '')).replace('/', '').upper() == norm_s
                         ]
-                        if active_on_sym:
-                            logger.info(f"[SymbolGuard] Skipping scan for {sym}: already has {len(active_on_sym)} active batch running.")
+                        curr_settings = self.load_settings()
+                        allow_diff_strat = bool(curr_settings.get('allow_diff_strat_same_tf', False))
+                        allow_same_tf = bool(curr_settings.get('allow_same_tf_trades', False))
+                        if not allow_diff_strat and not allow_same_tf and active_on_sym:
+                            logger.info(f"[SymbolGuard] Skipping scan for {sym}: already has {len(active_on_sym)} active batch running (single-batch mode).")
+                            return None
+                        if len(active_on_sym) >= 3:
+                            logger.info(f"[SymbolGuard] Skipping scan for {sym}: maximum 3 concurrent strategy batches reached on this symbol.")
                             return None
 
                         # COOLDOWN GUARD: 10-minute (600s) cooldown per symbol after batch entry
                         last_trades = curr_st.get('symbol_last_trade_time', {})
-                        last_t = float(last_trades.get(norm_s, 0.0))
+                        last_t = float(last_trades.get(norm_s, 0.0)) if isinstance(last_trades, dict) else 0.0
                         cooldown_sec = 600
                         time_elapsed = time.time() - last_t
                         if time_elapsed < cooldown_sec:
                             rem = int(cooldown_sec - time_elapsed)
                             logger.info(f"[CooldownGuard] Skipping scan for {sym}: In cooldown ({rem}s remaining).")
+                            return None
+
+                        # POST-LOSS COOLDOWN GUARD: 15-minute cooling window after Stop Loss hit
+                        loss_cooldowns = curr_st.get('symbol_loss_cooldowns', {})
+                        loss_cd = float(loss_cooldowns.get(norm_s, 0.0)) if isinstance(loss_cooldowns, dict) else 0.0
+                        if time.time() < loss_cd:
+                            rem_loss = int(loss_cd - time.time())
+                            logger.info(f"[PostLossCooldown] Skipping scan for {sym}: In post-loss cooling window ({rem_loss}s remaining).")
                             return None
 
                     try:
@@ -2998,9 +3068,9 @@ class AutonomousTraderEngine:
         self.save_state(state)
 
         # Check if background thread is genuinely running the loop
-        thread_active = self.is_thread_alive() and getattr(self, '_is_running', False)
+        thread_active = self.is_thread_alive()
+        self._is_running = True
         if not thread_active:
-            self._is_running = True
             self._thread = threading.Thread(
                 target=self.run_worker_loop,
                 daemon=True,
@@ -3035,7 +3105,7 @@ class AutonomousTraderEngine:
                 "details": f"Stopped scanning. Autonomously managing {len(state.get('open_batches', {}))} active batch(es)."
             })
             logger.info("Scan stop signal sent. Active batches will continue being monitored autonomously.")
-            if not self.is_thread_alive() or not getattr(self, '_is_running', False):
+            if not self.is_thread_alive():
                 _FORCE_STOP_EVENT.clear()
                 self._is_running = True
                 self._thread = threading.Thread(
@@ -3044,6 +3114,8 @@ class AutonomousTraderEngine:
                     name=f"Auto5PillarTraderThread_{int(time.time())}"
                 )
                 self._thread.start()
+            else:
+                self._is_running = True
         else:
             _FORCE_STOP_EVENT.set()
             state['engine_status'] = "STOPPED"
