@@ -1527,13 +1527,103 @@ def render_mt5_autonomous_engine_view(live_exec):
             )
 
         if smart_solution_cfg:
-            st.caption("🧠 **Smart Breathing-Room Breakeven Active**: Precision TP1 Scalp Bank (0.38 ATR) locked, runners protected by 0.25 ATR breathing cushion to capture 1:1+ TP2 expansions.")
+            st.caption("🧠 **Smart Breathing-Room Breakeven Active**: Precision TP1 Scalp Bank locked, runners protected by 0.25 ATR breathing cushion to capture 1:1+ TP2 expansions.")
         elif rec_toggle:
             st.caption("🚀 **Auto-Pilot Sessions Active**: High-liquidity London/NY overlap for FX & Gold; 24/7 round-the-clock for Crypto & Metals. *(Note: Strategies with dedicated author killzones in the Playbook automatically enforce their exact trading windows)*")
         elif htf_confluence_cfg:
             st.caption("🚀 **High-Probability Filters Active**: London/NY Session + Higher Timeframe Trend Confluence Filter enabled. *(Note: Playbook author killzones are strictly enforced for specified strategies)*")
         else:
             st.caption("⚠️ **HTF Filter Disabled**: Setups will be taken without higher-timeframe trend verification.")
+
+        # ── 3.2 Dynamic SL/TP Multipliers & Volume Booking Customizer ───
+        st.markdown("##### 🎯 Dynamic Target & Stop Geometry (ATR & R:R Multipliers):")
+        geom_c1, geom_c2, geom_c3, geom_c4 = st.columns(4)
+        with geom_c1:
+            sl_mult_cfg = st.number_input(
+                "🛡️ Stop Loss (x ATR):",
+                min_value=0.50,
+                max_value=5.00,
+                value=float(settings.get('sl_atr_mult', 1.80)),
+                step=0.05,
+                format="%.2f",
+                key="auto_cfg_sl_atr_mult",
+                help="Base Stop Loss distance in ATR multiples. Default: 1.80x ATR (Golden SL breathing room)."
+            )
+        with geom_c2:
+            tp1_mult_cfg = st.number_input(
+                "🎯 Take Profit 1 (x ATR):",
+                min_value=0.20,
+                max_value=5.00,
+                value=float(settings.get('tp1_atr_mult', 0.55)),
+                step=0.05,
+                format="%.2f",
+                key="auto_cfg_tp1_atr_mult",
+                help="Take Profit 1 target in ATR multiples. Default: 0.55x ATR (Banks +45% higher scalp profit & triggers Breakeven)."
+            )
+        with geom_c3:
+            tp2_mult_cfg = st.number_input(
+                "🚀 TP2 Runner (x Risk R:R):",
+                min_value=0.50,
+                max_value=10.00,
+                value=float(settings.get('tp2_rr_mult', 1.15)),
+                step=0.05,
+                format="%.2f",
+                key="auto_cfg_tp2_rr_mult",
+                help="Take Profit 2 runner target in Risk:Reward multiples. Default: 1.15x R:R (1:1+ positive risk-reward)."
+            )
+        with geom_c4:
+            tp3_mult_cfg = st.number_input(
+                "🌌 TP3 Runner (x Risk R:R):",
+                min_value=0.50,
+                max_value=20.00,
+                value=float(settings.get('tp3_rr_mult', 2.20)),
+                step=0.10,
+                format="%.2f",
+                key="auto_cfg_tp3_rr_mult",
+                help="Take Profit 3 macro runner in Risk:Reward multiples. Default: 2.20x R:R (Macro expansion runner)."
+            )
+
+        st.markdown("##### 📦 Target Volume Allocation (% Booked at Each TP):")
+        bk_c1, bk_c2, bk_c3 = st.columns(3)
+        with bk_c1:
+            tp1_bk_cfg = st.number_input(
+                "💰 TP1 Close %:",
+                min_value=0.0,
+                max_value=100.0,
+                value=float(settings.get('tp1_booking_pct', 65.0)),
+                step=5.0,
+                format="%.1f",
+                key="auto_cfg_tp1_booking_pct",
+                help="Percentage of total batch volume closed when TP1 is hit. Default: 65.0%."
+            )
+        with bk_c2:
+            tp2_bk_cfg = st.number_input(
+                "💰 TP2 Close %:",
+                min_value=0.0,
+                max_value=100.0,
+                value=float(settings.get('tp2_booking_pct', 20.0)),
+                step=5.0,
+                format="%.1f",
+                key="auto_cfg_tp2_booking_pct",
+                help="Percentage of total batch volume closed when TP2 is hit. Default: 20.0%."
+            )
+        with bk_c3:
+            tp3_bk_cfg = st.number_input(
+                "💰 TP3 Close %:",
+                min_value=0.0,
+                max_value=100.0,
+                value=float(settings.get('tp3_booking_pct', 15.0)),
+                step=5.0,
+                format="%.1f",
+                key="auto_cfg_tp3_booking_pct",
+                help="Percentage of total batch volume closed when TP3 is hit. Default: 15.0%."
+            )
+
+        auto_bk_tot = round(tp1_bk_cfg + tp2_bk_cfg + tp3_bk_cfg, 1)
+        if abs(auto_bk_tot - 100.0) > 0.1:
+            st.warning(f"⚠️ Booking percentages total {auto_bk_tot}% (Must equal 100.0%). The engine will auto-normalize proportions upon execution.")
+        else:
+            st.caption(f"✅ **Target Volume Allocation Valid**: {tp1_bk_cfg:.0f}% @ TP1 | {tp2_bk_cfg:.0f}% @ TP2 | {tp3_bk_cfg:.0f}% @ TP3 (Total: 100%)")
 
         # Persist settings changes
         new_interval_sec = int(scan_delay_mins * 60)
@@ -1546,6 +1636,13 @@ def render_mt5_autonomous_engine_view(live_exec):
             or max_batches_cfg != settings.get('max_active_batches')
             or max_risk_usd_cfg != settings.get('max_dollar_risk')
             or abs(batch_lot_size_cfg - float(settings.get('batch_lot_size', 0.03))) > 1e-4
+            or abs(sl_mult_cfg - float(settings.get('sl_atr_mult', 1.80))) > 1e-4
+            or abs(tp1_mult_cfg - float(settings.get('tp1_atr_mult', 0.55))) > 1e-4
+            or abs(tp2_mult_cfg - float(settings.get('tp2_rr_mult', 1.15))) > 1e-4
+            or abs(tp3_mult_cfg - float(settings.get('tp3_rr_mult', 2.20))) > 1e-4
+            or abs(tp1_bk_cfg - float(settings.get('tp1_booking_pct', 65.0))) > 1e-4
+            or abs(tp2_bk_cfg - float(settings.get('tp2_booking_pct', 20.0))) > 1e-4
+            or abs(tp3_bk_cfg - float(settings.get('tp3_booking_pct', 15.0))) > 1e-4
             or allow_same_tf_cfg != settings.get('allow_same_tf_trades', True)
             or allow_diff_strat_cfg != settings.get('allow_diff_strat_same_tf', False)
             or be_mode_cfg != settings.get('breakeven_mode', 'tight')
@@ -1571,6 +1668,13 @@ def render_mt5_autonomous_engine_view(live_exec):
             settings['max_active_batches'] = max_batches_cfg
             settings['max_dollar_risk'] = max_risk_usd_cfg
             settings['batch_lot_size'] = round(batch_lot_size_cfg, 2)
+            settings['sl_atr_mult'] = round(sl_mult_cfg, 2)
+            settings['tp1_atr_mult'] = round(tp1_mult_cfg, 2)
+            settings['tp2_rr_mult'] = round(tp2_mult_cfg, 2)
+            settings['tp3_rr_mult'] = round(tp3_mult_cfg, 2)
+            settings['tp1_booking_pct'] = round(tp1_bk_cfg, 1)
+            settings['tp2_booking_pct'] = round(tp2_bk_cfg, 1)
+            settings['tp3_booking_pct'] = round(tp3_bk_cfg, 1)
             settings['allow_same_tf_trades'] = allow_same_tf_cfg
             settings['allow_diff_strat_same_tf'] = allow_diff_strat_cfg
             settings['breakeven_mode'] = be_mode_cfg
@@ -2738,7 +2842,9 @@ def render_mt5_backtest_engine_view():
                         a_cfg = json.load(f)
                     for k in ['selected_symbols', 'timeframes', 'active_strategies', 'target_trades_per_symbol',
                               'batch_lot_size', 'max_dollar_risk', 'max_active_batches', 'min_pillars_required', 'allow_same_tf_trades',
-                              'allow_diff_strat_same_tf', 'breakeven_mode', 'active_sessions', 'htf_filter_enabled', 'smart_solution_enabled']:
+                              'allow_diff_strat_same_tf', 'breakeven_mode', 'active_sessions', 'htf_filter_enabled', 'smart_solution_enabled',
+                              'sl_atr_mult', 'tp1_atr_mult', 'tp2_rr_mult', 'tp3_rr_mult',
+                              'tp1_booking_pct', 'tp2_booking_pct', 'tp3_booking_pct']:
                         if k in a_cfg:
                             bt_settings[k] = a_cfg[k]
                     bt_settings['news_filter_enabled'] = True
@@ -3024,6 +3130,95 @@ def render_mt5_backtest_engine_view():
     with tog6:
         sel_news_guard = st.toggle("🚨 Economic News Guard", value=bool(bt_settings.get('news_filter_enabled', True)), key="bt_news_guard_toggle", help="Filter out trades during high-impact macroeconomic releases (FOMC, CPI, NFP)")
 
+    st.markdown("##### 🎯 Dynamic Target & Stop Geometry (ATR & R:R Multipliers):")
+    bt_geom1, bt_geom2, bt_geom3, bt_geom4 = st.columns(4)
+    with bt_geom1:
+        sel_sl_mult = st.number_input(
+            "🛡️ Stop Loss (x ATR):",
+            min_value=0.50,
+            max_value=5.00,
+            value=float(bt_settings.get('sl_atr_mult', 1.80)),
+            step=0.05,
+            format="%.2f",
+            key="bt_sl_atr_mult_input",
+            help="Base Stop Loss distance in ATR multiples. Default: 1.80x ATR."
+        )
+    with bt_geom2:
+        sel_tp1_mult = st.number_input(
+            "🎯 Take Profit 1 (x ATR):",
+            min_value=0.20,
+            max_value=5.00,
+            value=float(bt_settings.get('tp1_atr_mult', 0.55)),
+            step=0.05,
+            format="%.2f",
+            key="bt_tp1_atr_mult_input",
+            help="Take Profit 1 target in ATR multiples. Default: 0.55x ATR."
+        )
+    with bt_geom3:
+        sel_tp2_mult = st.number_input(
+            "🚀 TP2 Runner (x Risk R:R):",
+            min_value=0.50,
+            max_value=10.00,
+            value=float(bt_settings.get('tp2_rr_mult', 1.15)),
+            step=0.05,
+            format="%.2f",
+            key="bt_tp2_rr_mult_input",
+            help="Take Profit 2 runner target in Risk:Reward multiples. Default: 1.15x R:R."
+        )
+    with bt_geom4:
+        sel_tp3_mult = st.number_input(
+            "🌌 TP3 Runner (x Risk R:R):",
+            min_value=0.50,
+            max_value=20.00,
+            value=float(bt_settings.get('tp3_rr_mult', 2.20)),
+            step=0.10,
+            format="%.2f",
+            key="bt_tp3_rr_mult_input",
+            help="Take Profit 3 macro runner in Risk:Reward multiples. Default: 2.20x R:R."
+        )
+
+    st.markdown("##### 📦 Target Volume Allocation (% Booked at Each TP):")
+    bt_bk1, bt_bk2, bt_bk3 = st.columns(3)
+    with bt_bk1:
+        sel_tp1_bk = st.number_input(
+            "💰 TP1 Close %:",
+            min_value=0.0,
+            max_value=100.0,
+            value=float(bt_settings.get('tp1_booking_pct', 65.0)),
+            step=5.0,
+            format="%.1f",
+            key="bt_tp1_booking_pct_input",
+            help="Percentage of total batch volume closed when TP1 is hit. Default: 65.0%."
+        )
+    with bt_bk2:
+        sel_tp2_bk = st.number_input(
+            "💰 TP2 Close %:",
+            min_value=0.0,
+            max_value=100.0,
+            value=float(bt_settings.get('tp2_booking_pct', 20.0)),
+            step=5.0,
+            format="%.1f",
+            key="bt_tp2_booking_pct_input",
+            help="Percentage of total batch volume closed when TP2 is hit. Default: 20.0%."
+        )
+    with bt_bk3:
+        sel_tp3_bk = st.number_input(
+            "💰 TP3 Close %:",
+            min_value=0.0,
+            max_value=100.0,
+            value=float(bt_settings.get('tp3_booking_pct', 15.0)),
+            step=5.0,
+            format="%.1f",
+            key="bt_tp3_booking_pct_input",
+            help="Percentage of total batch volume closed when TP3 is hit. Default: 15.0%."
+        )
+
+    bt_bk_tot = round(sel_tp1_bk + sel_tp2_bk + sel_tp3_bk, 1)
+    if abs(bt_bk_tot - 100.0) > 0.1:
+        st.warning(f"⚠️ Booking percentages total {bt_bk_tot}% (Must equal 100.0%). The backtest engine will auto-normalize proportions upon execution.")
+    else:
+        st.caption(f"✅ **Target Volume Allocation Valid**: {sel_tp1_bk:.0f}% @ TP1 | {sel_tp2_bk:.0f}% @ TP2 | {sel_tp3_bk:.0f}% @ TP3 (Total: 100%)")
+
     is_bt_running = getattr(bt_engine, 'is_running', False) or st.session_state.get('bt_is_running', False)
     if not getattr(bt_engine, 'is_running', False) and st.session_state.get('bt_is_running', False):
         st.session_state['bt_is_running'] = False
@@ -3109,6 +3304,13 @@ def render_mt5_backtest_engine_view():
             bt_settings['htf_filter_enabled'] = sel_htf
             bt_settings['smart_solution_enabled'] = sel_smart_sol
             bt_settings['news_filter_enabled'] = sel_news_guard
+            bt_settings['sl_atr_mult'] = round(sel_sl_mult, 2)
+            bt_settings['tp1_atr_mult'] = round(sel_tp1_mult, 2)
+            bt_settings['tp2_rr_mult'] = round(sel_tp2_mult, 2)
+            bt_settings['tp3_rr_mult'] = round(sel_tp3_mult, 2)
+            bt_settings['tp1_booking_pct'] = round(sel_tp1_bk, 1)
+            bt_settings['tp2_booking_pct'] = round(sel_tp2_bk, 1)
+            bt_settings['tp3_booking_pct'] = round(sel_tp3_bk, 1)
             bt_engine.save_settings(bt_settings)
 
             # Spawn background execution thread and update session state

@@ -46,7 +46,11 @@ class RiskManager:
         win_probability: float = 0.55,
         timeframe: str = '1h',
         spread_price: float = 0.0,
-        enable_wick_buffer: bool = True
+        enable_wick_buffer: bool = True,
+        sl_atr_mult: Optional[float] = None,
+        tp1_atr_mult: Optional[float] = None,
+        tp2_rr_mult: Optional[float] = None,
+        tp3_rr_mult: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Generates precise entry, stop loss, 3 take profit targets, and position sizing.
@@ -100,8 +104,14 @@ class RiskManager:
         # Entry Price determination (current price or optimal pullback)
         entry_price = current_price
 
-        # 1. Precision TP1 Target: Calibrated to 0.55 * atr so quick scalp target is locked in
-        tp1_dist = 0.55 * atr
+        # Resolve multipliers (defaults: SL 1.80 ATR, TP1 0.55 ATR, TP2 1.15 R:R, TP3 2.20 R:R)
+        c_sl_mult = float(sl_atr_mult) if (sl_atr_mult is not None and sl_atr_mult > 0) else 1.80
+        c_tp1_mult = float(tp1_atr_mult) if (tp1_atr_mult is not None and tp1_atr_mult > 0) else 0.55
+        c_tp2_mult = float(tp2_rr_mult) if (tp2_rr_mult is not None and tp2_rr_mult > 0) else 1.15
+        c_tp3_mult = float(tp3_rr_mult) if (tp3_rr_mult is not None and tp3_rr_mult > 0) else 2.20
+
+        # 1. Precision TP1 Target: Calibrated to c_tp1_mult * atr
+        tp1_dist = c_tp1_mult * atr
 
         # Spread-Adaptive Target Guard:
         # If broker spread eats > 25% of the scalp target on 1m/3m, reject setup immediately
@@ -149,11 +159,11 @@ class RiskManager:
         # buffer provides breathing room and requires candle close confirmation.
         is_micro_tf = str(timeframe).lower() in ['1m', '3m']
         wick_buffer = (0.30 * atr) if (is_micro_tf and enable_wick_buffer) else 0.0
-        # Golden SL Geometry: 1.80 * ATR breathing room protected against market noise wicks
-        base_sl_dist = 1.80 * atr + wick_buffer
+        # Golden SL Geometry: c_sl_mult * ATR breathing room protected against market noise wicks
+        base_sl_dist = c_sl_mult * atr + wick_buffer
         swing_buffer = 0.20 * atr + wick_buffer
 
-        min_sl_dist = 1.50 * atr + wick_buffer
+        min_sl_dist = max(1.0 * atr, (c_sl_mult - 0.30) * atr) + wick_buffer
 
         if is_long:
             # Structural swing check with institutional buffer (never compressed below 1.50 ATR floor)
@@ -166,10 +176,10 @@ class RiskManager:
 
             # TP1: High-probability instant scalp bank (0.55 ATR)
             tp1 = entry_price + tp1_dist
-            # TP2: Structural runner with at least 1:1+ Risk-to-Reward (1.15R)
-            tp2 = entry_price + (1.15 * risk_per_unit)
-            # TP3: Macro expansion runner (2.20R)
-            tp3 = entry_price + (2.20 * risk_per_unit)
+            # TP2: Structural runner with customizable Risk-to-Reward (Default 1.15R)
+            tp2 = entry_price + (c_tp2_mult * risk_per_unit)
+            # TP3: Macro expansion runner (Default 2.20R)
+            tp3 = entry_price + (c_tp3_mult * risk_per_unit)
             # Precision Breakeven:
             breakeven_sl = entry_price + (0.02 * atr)
             # Loose Breakeven protocol:
@@ -188,10 +198,10 @@ class RiskManager:
 
             # TP1: High-probability instant scalp bank (0.55 ATR)
             tp1 = max(entry_price * 0.001, entry_price - tp1_dist)
-            # TP2: Structural runner with at least 1:1+ Risk-to-Reward (1.15R)
-            tp2 = max(entry_price * 0.001, entry_price - (1.15 * risk_per_unit))
-            # TP3: Macro expansion runner (2.20R)
-            tp3 = max(entry_price * 0.001, entry_price - (2.20 * risk_per_unit))
+            # TP2: Structural runner with customizable Risk-to-Reward (Default 1.15R)
+            tp2 = max(entry_price * 0.001, entry_price - (c_tp2_mult * risk_per_unit))
+            # TP3: Macro expansion runner (Default 2.20R)
+            tp3 = max(entry_price * 0.001, entry_price - (c_tp3_mult * risk_per_unit))
             breakeven_sl = max(entry_price * 0.001, entry_price - (0.02 * atr))
             soft_breakeven_sl = entry_price + (0.45 * atr)
             loose_be_trigger = max(entry_price * 0.001, entry_price - (0.85 * atr))

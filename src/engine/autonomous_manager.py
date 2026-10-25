@@ -2565,6 +2565,36 @@ class AutonomousTraderEngine:
             raw_action = str(setup_data.get('action') or setup.get('action') or conf.get('action', 'BUY')).upper()
             action = 'BUY' if 'BUY' in raw_action else 'SELL'
 
+            # Load Dynamic Custom Multipliers & Booking Percentages
+            sl_atr_mult = float(settings.get('sl_atr_mult', 1.80) or 1.80)
+            tp1_atr_mult = float(settings.get('tp1_atr_mult', 0.55) or 0.55)
+            tp2_rr_mult = float(settings.get('tp2_rr_mult', 1.15) or 1.15)
+            tp3_rr_mult = float(settings.get('tp3_rr_mult', 2.20) or 2.20)
+            tp1_bk = float(settings.get('tp1_booking_pct', 65.0) or 65.0)
+            tp2_bk = float(settings.get('tp2_booking_pct', 20.0) or 20.0)
+            tp3_bk = float(settings.get('tp3_booking_pct', 15.0) or 15.0)
+
+            effective_atr = float(pred.get('market_data', {}).get('atr') or (abs(entry_price - sl_price) / 1.8) if sl_price > 0 else 0.0)
+            has_custom_geom = (
+                abs(sl_atr_mult - 1.80) > 0.01 or
+                abs(tp1_atr_mult - 0.55) > 0.01 or
+                abs(tp2_rr_mult - 1.15) > 0.01 or
+                abs(tp3_rr_mult - 2.20) > 0.01
+            )
+            if has_custom_geom and effective_atr > 0 and entry_price > 0:
+                c_sl_dist = sl_atr_mult * effective_atr
+                c_tp1_dist = tp1_atr_mult * effective_atr
+                if action == 'BUY':
+                    sl_price = round(entry_price - c_sl_dist, 5)
+                    tp1_price = round(entry_price + c_tp1_dist, 5)
+                    tp2_price = round(entry_price + (tp2_rr_mult * c_sl_dist), 5)
+                    tp3_price = round(entry_price + (tp3_rr_mult * c_sl_dist), 5)
+                else:
+                    sl_price = round(entry_price + c_sl_dist, 5)
+                    tp1_price = round(max(entry_price * 0.001, entry_price - c_tp1_dist), 5)
+                    tp2_price = round(max(entry_price * 0.001, entry_price - (tp2_rr_mult * c_sl_dist)), 5)
+                    tp3_price = round(max(entry_price * 0.001, entry_price - (tp3_rr_mult * c_sl_dist)), 5)
+
             # ── SMART SOLUTION: ONLY BREATHING-ROOM BREAKEVEN (0.25 ATR CUSHION) ──
             # Validated across 167 real MT5 trades: 0.25 ATR breathing cushion preserves 79.5% win rate,
             # catches 25 macro TP2 runners, and cuts loss by 50% without premature choking.
@@ -2656,6 +2686,9 @@ class AutonomousTraderEngine:
                 entry_price=entry_price,
                 stop_loss_price=sl_price,
                 risk_pct=risk_pct,
+                tp1_pct=tp1_bk,
+                tp2_pct=tp2_bk,
+                tp3_pct=tp3_bk,
                 tp1_price=tp1_price,
                 tp2_price=tp2_price,
                 tp3_price=tp3_price,
@@ -2684,6 +2717,9 @@ class AutonomousTraderEngine:
                             entry_price=entry_price,
                             stop_loss_price=sl_price,
                             risk_pct=risk_pct,
+                            tp1_pct=tp1_bk,
+                            tp2_pct=tp2_bk,
+                            tp3_pct=tp3_bk,
                             tp1_price=tp1_price,
                             tp2_price=tp2_price,
                             tp3_price=tp3_price,

@@ -351,6 +351,7 @@ class MT5BacktestEngine:
             cls._instance._stop_requested = threading.Event()
             cls._instance._thread = None
             cls._instance._live_stats = {}
+            cls._instance.settings = {}
             cls._instance._initialized = True
         return cls._instance
 
@@ -383,6 +384,7 @@ class MT5BacktestEngine:
         self._is_running = True
 
         cfg = settings or self.load_settings()
+        self.settings = cfg
         d_from_str = cfg.get('date_from', '')
         d_to_str = cfg.get('date_to', '')
         init_bal = float(cfg.get('initial_balance', 10000.0))
@@ -704,23 +706,28 @@ class MT5BacktestEngine:
         return raw_val
 
     @staticmethod
-    def compute_batch_lot_split(batch_lot_size: float, vol_min: float = 0.01, vol_step: float = 0.01) -> Tuple[float, float, float]:
+    def compute_batch_lot_split(batch_lot_size: float, vol_min: float = 0.01, vol_step: float = 0.01, booking_pcts: Optional[Tuple[float, float, float]] = None) -> Tuple[float, float, float]:
         """
         Exact institutional lot allocation matching Autonomous MT5 Executor:
-        - 0.03 lots: TP1=0.01, TP2=0.01, TP3=0.01 (3 * vol_min)
-        - 0.02 lots: TP1=0.01, TP2=0.01, TP3=0.00 (2 * vol_min)
-        - 0.01 lots: TP1=0.01, TP2=0.00, TP3=0.00 (1 * vol_min)
-        - Pairs with higher minimums (e.g. ETH min 0.10): If batch_lot_size < 2*vol_min (e.g. 0.03 or 0.10),
-          takes vol_min (0.10) and closes 100% at TP1 (TP1=0.10, TP2=0, TP3=0).
-        - >3*vol_min lots: TP1 gets major share (65% to bank high-probability win),
-          with remainder split between TP2 (60%) and TP3 (40%).
+        - Supports dynamic custom volume booking allocations (default: 65% TP1, 20% TP2, 15% TP3)
+        - Respects broker minimum volume (vol_min) and step (vol_step).
         """
+        p1_pct, p2_pct, p3_pct = booking_pcts if booking_pcts else (65.0, 20.0, 15.0)
+        norm_sum = (p1_pct + p2_pct + p3_pct) if (p1_pct + p2_pct + p3_pct) > 0 else 100.0
+        norm_p1 = p1_pct / norm_sum
+        norm_p2 = p2_pct / norm_sum
+        norm_p3 = p3_pct / norm_sum
+
         total_lots = max(vol_min, round(round(batch_lot_size / vol_step) * vol_step, 4))
         if abs(total_lots - round(3 * vol_min, 4)) < 1e-5:
-            # 0.03 lots: Positive Expectancy 1/3 split across TP1 (1.0 ATR), TP2 (1.50R), TP3 (2.50R)
-            lot1 = round(vol_min, 4)
-            lot2 = round(vol_min, 4)
-            lot3 = round(vol_min, 4)
+            if booking_pcts and norm_p1 >= 0.55 and norm_p3 < 0.15:
+                lot1 = round(2 * vol_min, 4)
+                lot2 = round(vol_min, 4)
+                lot3 = 0.0
+            else:
+                lot1 = round(vol_min, 4)
+                lot2 = round(vol_min, 4)
+                lot3 = round(vol_min, 4)
         elif abs(total_lots - round(2 * vol_min, 4)) < 1e-5:
             lot1 = round(vol_min, 4)
             lot2 = round(vol_min, 4)
@@ -730,19 +737,22 @@ class MT5BacktestEngine:
             lot2 = 0.0
             lot3 = 0.0
         elif total_lots > round(3 * vol_min, 4):
-            # Institutional Positive Expectancy Split: 40% TP1 scalp, 36% TP2 runner, 24% TP3 macro runner
-            max_lot1 = round(total_lots - 2 * vol_min, 4)
-            raw_lot1 = round(total_lots * 0.40, 4)
+            max_lot1 = round(total_lots - 2 * vol_min, 4) if norm_p3 > 0.05 else round(total_lots - vol_min, 4)
+            raw_lot1 = round(total_lots * norm_p1, 4)
             steps1 = max(1, min(int(round(max_lot1 / vol_step)), int(round(raw_lot1 / vol_step))))
             lot1 = round(steps1 * vol_step, 4)
 
             remaining = round(total_lots - lot1, 4)
-            max_lot2 = round(remaining - vol_min, 4)
-            raw_lot2 = round(remaining * 0.60, 4) # 60% of remaining 60% = 36% of total
-            steps2 = max(1, min(int(round(max_lot2 / vol_step)), int(round(raw_lot2 / vol_step))))
-            lot2 = round(steps2 * vol_step, 4)
-
-            lot3 = round(remaining - lot2, 4)
+            if norm_p3 <= 0.01:
+                lot2 = remaining
+                lot3 = 0.0
+            else:
+                p2_of_rem = norm_p2 / (norm_p2 + norm_p3) if (norm_p2 + norm_p3) > 0 else 0.60
+                max_lot2 = round(remaining - vol_min, 4)
+                raw_lot2 = round(remaining * p2_of_rem, 4)
+                steps2 = max(1, min(int(round(max_lot2 / vol_step)), int(round(raw_lot2 / vol_step))))
+                lot2 = round(steps2 * vol_step, 4)
+                lot3 = round(remaining - lot2, 4)
         else:
             lot1 = round(total_lots, 4)
             lot2 = 0.0
@@ -844,6 +854,7 @@ class MT5BacktestEngine:
         """
         self._is_running = True
         cfg = settings or self.load_settings()
+        self.settings = cfg
 
         symbols = cfg.get('selected_symbols', ["BTC/USD", "EUR/USD", "XAU/USD"])
         timeframes = cfg.get('timeframes', ["15m", "1h"])
@@ -1662,40 +1673,57 @@ class MT5BacktestEngine:
                         setup_tp2 = float(setup.get('tp2', 0.0))
                         setup_tp3 = float(setup.get('tp3', 0.0))
 
-                        if c_strat_key == 'DEFAULT' or setup_sl <= 0:
-                            # Institutional Golden SL Geometry: strictly 1.80 * ATR
-                            sl_dist = max(abs(c_entry - setup_sl) if setup_sl > 0 else (1.80 * cur_atr), 1.80 * cur_atr)
+                        # Load Dynamic Multipliers and Booking Percentages
+                        bt_sl_mult = float(cfg.get('sl_atr_mult', 1.80) or 1.80)
+                        bt_tp1_mult = float(cfg.get('tp1_atr_mult', 0.55) or 0.55)
+                        bt_tp2_mult = float(cfg.get('tp2_rr_mult', 1.15) or 1.15)
+                        bt_tp3_mult = float(cfg.get('tp3_rr_mult', 2.20) or 2.20)
+                        bt_tp1_bk = float(cfg.get('tp1_booking_pct', 65.0) or 65.0)
+                        bt_tp2_bk = float(cfg.get('tp2_booking_pct', 20.0) or 20.0)
+                        bt_tp3_bk = float(cfg.get('tp3_booking_pct', 15.0) or 15.0)
+                        booking_pcts = (bt_tp1_bk, bt_tp2_bk, bt_tp3_bk)
+
+                        has_custom_geom = (
+                            abs(bt_sl_mult - 1.80) > 0.01 or
+                            abs(bt_tp1_mult - 0.55) > 0.01 or
+                            abs(bt_tp2_mult - 1.15) > 0.01 or
+                            abs(bt_tp3_mult - 2.20) > 0.01
+                        )
+
+                        if c_strat_key == 'DEFAULT' or setup_sl <= 0 or has_custom_geom:
+                            # Institutional Golden SL Geometry with customizable multiplier support
+                            sl_dist = bt_sl_mult * cur_atr
                             if c_act == 'BUY':
                                 c_sl = c_entry - sl_dist
-                                c_tp1 = c_entry + (0.55 * cur_atr)
-                                c_tp2 = c_entry + (1.15 * sl_dist)
-                                c_tp3 = c_entry + (2.20 * sl_dist)
+                                c_tp1 = c_entry + (bt_tp1_mult * cur_atr)
+                                c_tp2 = c_entry + (bt_tp2_mult * sl_dist)
+                                c_tp3 = c_entry + (bt_tp3_mult * sl_dist)
                             else:
                                 c_sl = c_entry + sl_dist
-                                c_tp1 = c_entry - (0.55 * cur_atr)
-                                c_tp2 = c_entry - (1.15 * sl_dist)
-                                c_tp3 = c_entry - (2.20 * sl_dist)
+                                c_tp1 = c_entry - (bt_tp1_mult * cur_atr)
+                                c_tp2 = c_entry - (bt_tp2_mult * sl_dist)
+                                c_tp3 = c_entry - (bt_tp3_mult * sl_dist)
                         else:
                             # Streamer Playbook Exact Geometry (Waqar Asim 5 pips, Ariel ORB, Steven Hart 1:2 R:R, Qullamaggie LOD, etc.)
                             c_sl = setup_sl
                             sl_dist = abs(c_entry - c_sl)
                             if sl_dist <= 0:
-                                sl_dist = 1.80 * cur_atr
+                                sl_dist = bt_sl_mult * cur_atr
 
                             min_tp1_dist = 0.33 * cur_atr
                             if c_act == 'BUY':
-                                c_tp1 = setup_tp1 if setup_tp1 >= (c_entry + min_tp1_dist) else (c_entry + (0.55 * cur_atr))
-                                c_tp2 = setup_tp2 if setup_tp2 > c_entry else (c_entry + (1.15 * sl_dist))
-                                c_tp3 = setup_tp3 if setup_tp3 > c_entry else (c_entry + (2.20 * sl_dist))
+                                c_tp1 = setup_tp1 if setup_tp1 >= (c_entry + min_tp1_dist) else (c_entry + (bt_tp1_mult * cur_atr))
+                                c_tp2 = setup_tp2 if setup_tp2 > c_entry else (c_entry + (bt_tp2_mult * sl_dist))
+                                c_tp3 = setup_tp3 if setup_tp3 > c_entry else (c_entry + (bt_tp3_mult * sl_dist))
                             else:
-                                c_tp1 = setup_tp1 if (setup_tp1 > 0 and setup_tp1 <= (c_entry - min_tp1_dist)) else (c_entry - (0.55 * cur_atr))
-                                c_tp2 = setup_tp2 if (setup_tp2 > 0 and setup_tp2 < c_entry) else (c_entry - (1.15 * sl_dist))
-                                c_tp3 = setup_tp3 if (setup_tp3 > 0 and setup_tp3 < c_entry) else (c_entry - (2.20 * sl_dist))
+                                c_tp1 = setup_tp1 if (setup_tp1 > 0 and setup_tp1 <= (c_entry - min_tp1_dist)) else (c_entry - (bt_tp1_mult * cur_atr))
+                                c_tp2 = setup_tp2 if (setup_tp2 > 0 and setup_tp2 < c_entry) else (c_entry - (bt_tp2_mult * sl_dist))
+                                c_tp3 = setup_tp3 if (setup_tp3 > 0 and setup_tp3 < c_entry) else (c_entry - (bt_tp3_mult * sl_dist))
 
                         # Determine symbol minimum volume (e.g. 0.10 for ETH, 0.01 for others)
                         sym_vol_min = self.compute_symbol_vol_min(sym)
 
-                        # Lot Split (Exact 65% TP1, 60% of rem on TP2, rem on TP3 matching Autonomous Executor)
+                        # Lot Split (Customizable booking percentages matching Autonomous Executor)
                         effective_batch_lot = max(sym_vol_min, batch_lot_size)
                         unit_risk = sl_dist * contract_size
                         if is_jpy and cur_close > 0:
@@ -1708,7 +1736,7 @@ class MT5BacktestEngine:
                                 # Scale down to fit dollar risk cap (round down to vol_step)
                                 effective_batch_lot = max(sym_vol_min, round(int(allowed_lots / sym_vol_min) * sym_vol_min, 4))
 
-                        lot_p1, lot_p2, lot_p3 = self.compute_batch_lot_split(effective_batch_lot, vol_min=sym_vol_min, vol_step=sym_vol_min)
+                        lot_p1, lot_p2, lot_p3 = self.compute_batch_lot_split(effective_batch_lot, vol_min=sym_vol_min, vol_step=sym_vol_min, booking_pcts=booking_pcts)
                         tot_lots = round(lot_p1 + lot_p2 + lot_p3, 4)
 
                         # Calculate Dollar Risk with effective lots

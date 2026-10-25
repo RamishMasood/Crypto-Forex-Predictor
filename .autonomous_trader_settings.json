@@ -60,5 +60,12 @@
     "5m",
     "1m",
     "3m"
-  ]
+  ],
+  "sl_atr_mult": 1.8,
+  "tp1_atr_mult": 0.55,
+  "tp2_rr_mult": 1.15,
+  "tp3_rr_mult": 2.2,
+  "tp1_booking_pct": 65.0,
+  "tp2_booking_pct": 20.0,
+  "tp3_booking_pct": 15.0
 }

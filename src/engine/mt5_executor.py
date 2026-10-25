@@ -245,19 +245,28 @@ class MT5TradeExecutor:
                 lot2 = 0.0
                 lot3 = 0.0
             elif total_lots > round(3 * vol_min, 4):
-                # Major share for TP1 (65% to lock in high-probability win)
-                max_lot1 = round(total_lots - 2 * vol_min, 4)
-                raw_lot1 = round(total_lots * 0.65, 4)
+                # Customizable target volume allocation (default 65% TP1, 20% TP2, 15% TP3)
+                norm_sum = (tp1_pct + tp2_pct + tp3_pct) if (tp1_pct + tp2_pct + tp3_pct) > 0 else 100.0
+                p1_ratio = tp1_pct / norm_sum
+                p2_ratio = tp2_pct / norm_sum
+                p3_ratio = tp3_pct / norm_sum
+
+                max_lot1 = round(total_lots - 2 * vol_min, 4) if p3_ratio > 0.05 else round(total_lots - vol_min, 4)
+                raw_lot1 = round(total_lots * p1_ratio, 4)
                 steps1 = max(1, min(int(round(max_lot1 / vol_step)), int(round(raw_lot1 / vol_step))))
                 lot1 = round(steps1 * vol_step, 4)
 
                 remaining = round(total_lots - lot1, 4)
-                max_lot2 = round(remaining - vol_min, 4)
-                raw_lot2 = round(remaining * 0.60, 4)
-                steps2 = max(1, min(int(round(max_lot2 / vol_step)), int(round(raw_lot2 / vol_step))))
-                lot2 = round(steps2 * vol_step, 4)
-
-                lot3 = round(remaining - lot2, 4)
+                if p3_ratio <= 0.01:
+                    lot2 = remaining
+                    lot3 = 0.0
+                else:
+                    p2_of_rem = p2_ratio / (p2_ratio + p3_ratio) if (p2_ratio + p3_ratio) > 0 else 0.60
+                    max_lot2 = round(remaining - vol_min, 4)
+                    raw_lot2 = round(remaining * p2_of_rem, 4)
+                    steps2 = max(1, min(int(round(max_lot2 / vol_step)), int(round(raw_lot2 / vol_step))))
+                    lot2 = round(steps2 * vol_step, 4)
+                    lot3 = round(remaining - lot2, 4)
             else:
                 lot1 = round(total_lots, 4)
                 lot2 = 0.0

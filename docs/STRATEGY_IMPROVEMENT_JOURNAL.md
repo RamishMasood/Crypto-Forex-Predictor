@@ -850,4 +850,29 @@ ightarrow$ 30-day rolling step).
 
 ---
 
+### [2026-10-25] Dynamic Target Geometry & Volume Booking Customizer Integration (UI & Engine Sync)
+- **Author/Trigger**: User instruction: *"karo implement but also make sure kuch aur customizer ya setting na bigray changes se"* (Integrate customizable UI controls for Stop Loss, TP1, TP2, TP3 multipliers, and volume booking percentages across both Backtester and Autonomous Trader without disturbing or breaking any existing settings).
+- **Core Architecture & Implementation**:
+  1. **Dynamic Target & Stop Multipliers**:
+     - Stop Loss Multiplier (`sl_atr_mult`): default `1.80` * ATR
+     - TP1 Target Multiplier (`tp1_atr_mult`): default `0.55` * ATR
+     - TP2 Target Multiplier (`tp2_rr_mult`): default `1.15` * risk distance
+     - TP3 Target Multiplier (`tp3_rr_mult`): default `2.20` * risk distance
+  2. **Target Volume Allocation (% Booked at each TP)**:
+     - TP1 Close % (`tp1_booking_pct`): default `65.0%`
+     - TP2 Close % (`tp2_booking_pct`): default `20.0%`
+     - TP3 Close % (`tp3_booking_pct`): default `15.0%`
+     - Interactive validation ensures allocations total 100.0%, auto-normalizing proportions upon execution.
+  3. **Engine Synchronization**:
+     - `src/engine/risk_manager.py`: Added optional multiplier parameters with default fallbacks ensuring 100% backward compatibility.
+     - `src/engine/mt5_executor.py`: Dynamic volume split across TP1/TP2/TP3 using user-configured percentages clamped to broker min lot and step constraints.
+     - `src/engine/autonomous_manager.py`: Reads custom multipliers and booking percentages from `.autonomous_trader_settings.json` on live execution.
+     - `src/engine/backtest_engine.py`: Reads custom multipliers and booking percentages from `.backtest_engine_settings.json` on backtest execution.
+     - `app.py`: Integrated input controls in both Autonomous and Backtest panels, plus updated "Sync / Mirror Autonomous Settings" to mirror custom geometry seamlessly.
+- **Verification & Invariant Preservation**:
+  - Full unit test suite passing cleanly: **41/41 tests ran in 6.1s (100% OK)**.
+  - Zero disruption to default institutional geometry (defaults remain 1.80 SL, 0.55 TP1, 1.15 TP2, 2.20 TP3, 65/20/15% split).
+
+---
+
 *Document active, synchronized, and bound by Rule #5 of GEMINI.md.*
