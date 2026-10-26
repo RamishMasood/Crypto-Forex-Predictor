@@ -2252,6 +2252,12 @@ def render_mt5_autonomous_engine_view(live_exec):
             bsl_html = f"<span style='color:#f87171;font-weight:700;'>-${bsl:,.2f}</span>" if bsl > 0 else "<span style='color:#64748b;'>$0.00</span>"
             sl_h_html = f"<span style='color:#f87171;font-weight:600;'>{sl_h}</span>" if sl_h > 0 else "<span style='color:#64748b;'>0</span>"
 
+            # Consecutive Loss styling
+            mcl_cnt_val = int(item.get('max_cons_losses', 0))
+            mcl_usd_val = float(item.get('max_cons_loss_usd', 0.0))
+            mcl_cnt_html = f"<span style='color:#f87171;font-weight:700;'>{mcl_cnt_val}</span>" if mcl_cnt_val > 0 else "<span style='color:#64748b;'>0</span>"
+            mcl_usd_html = f"<span style='color:#ef4444;font-weight:700;'>-${mcl_usd_val:,.2f}</span>" if mcl_usd_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
+
             # Net Profit styling
             net_profit_html = f"<span style='color:#10b981;font-weight:700;'>+${net_profit_val:,.2f}</span>" if net_profit_val > 0 else "<span style='color:#64748b;'>$0.00</span>"
 
